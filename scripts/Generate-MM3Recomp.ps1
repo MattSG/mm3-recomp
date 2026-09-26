@@ -1,12 +1,18 @@
 param(
     [string]$Distro = 'Ubuntu-22.04',
-    [string]$GeneratorDir = 'conformance_tmp/mm3_targeted_gen'
+    [string]$GeneratorDir = 'conformance_tmp/mm3_targeted_gen',
+    [switch]$TraceFunctions
 )
 
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path.Replace('\', '/')
 $wslRepo = "/mnt/" + $repo.Substring(0, 1).ToLower() + $repo.Substring(2)
+$traceArgument = if ($TraceFunctions) {
+    ' --trace-functions ../../conformance_tmp/mm3_focus_trace_functions.json'
+} else {
+    ''
+}
 
-wsl.exe -d $Distro -- bash -lc "cd '$wslRepo/tools/xboxrecomp' && python3 -m tools.recomp ../../game_files/default.xbe --all --split 1000 --gen-dir ../../$GeneratorDir --trace-functions ../../conformance_tmp/mm3_focus_trace_functions.json --exclude-manual ../../src/recomp_manual.c --seh-prolog 0x00097AA4 --skip-binary-check"
+wsl.exe -d $Distro -- bash -lc "cd '$wslRepo/tools/xboxrecomp' && python3 -m tools.recomp ../../game_files/default.xbe --all --split 1000 --gen-dir ../../$($GeneratorDir)$traceArgument --exclude-manual ../../src/recomp_manual.c --seh-prolog 0x00097AA4 --skip-binary-check"
 if ($LASTEXITCODE -ne 0) {
     throw "XboxRecomp generation failed with exit code $LASTEXITCODE"
 }
