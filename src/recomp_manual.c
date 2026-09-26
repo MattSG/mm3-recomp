@@ -1,12 +1,29 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <stdio.h>
 
 #include "recomp_types.h"
 
 typedef void (*recomp_func_t)(void);
 
-extern void sub_00093B00(void);
+void recomp_unimpl(const char *text, uint32_t va)
+{
+    static int printed;
+    const char *trap = getenv("RECOMP_UNIMPL_TRAP");
+    int stop = trap && *trap && *trap != '0';
+
+    if (printed < 50 || stop) {
+        printed++;
+        fprintf(stderr,
+                "[UNIMPL] untranslated instruction REACHED: `%s` at 0x%08X"
+                " (a no-op; set RECOMP_UNIMPL_TRAP=1 to stop here)\n",
+                text, va);
+        fflush(stderr);
+    }
+    if (stop) abort();
+}
+
 extern void sub_000838C3(void);
 extern void sub_00097AA4(void);
 extern void sub_0009492B(void);
@@ -219,8 +236,6 @@ static void bridge_rtl_equal_string(void)
 
 recomp_func_t recomp_lookup_manual(uint32_t xbox_va)
 {
-    if (xbox_va >= 0x00093B00u && xbox_va < 0x00093B9Du)
-        return sub_00093B00;
     if (xbox_va == 0x00021103u)
         return sub_00021103;
     if (xbox_va == 0x0007169Du)
