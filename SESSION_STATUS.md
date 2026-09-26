@@ -55,3 +55,9 @@
 - Retained `conformance_tmp/guide_dashboard_mirror_final.err.log` shows the earlier mirrored `xboxdash.xbe` did load (XBE header and image header reads succeeded), but its next `\Device\Harddisk0\Partition2\XODash\xonlinedash.xbe` lookup failed with `ERROR_PATH_NOT_FOUND`; execution then returned through `HalReturnToFirmware(2)`.
 - The retained FATX extraction log reports `xboxdash.xbe` at 172,032 bytes, then shows extraction failed on an invalid filename. This supports that the old mirror was incomplete; it does not establish the correct full dashboard contents or boot path.
 - Current root and toolkit source remain unchanged and clean. Next evidence should come from comparing the authentic xemu handoff or a complete, validated system-partition extract, not adding another guessed file mapping.
+
+## 2026-09-27 isolated xemu GDB checkpoint
+- After closing the original Xemu cleanly, launched a second instance from a copied HDD and EEPROM with all original config sections preserved, `-snapshot`, and a GDB stub on port 1235. The original HDD remains untouched.
+- WSL GDB attached through the Windows host gateway. In the visible-display run, after 60 seconds the stopped EIP `0x001A422C` maps via the current full-section function database to `sub_001A4214+0x18`; guest stack return sites map to `sub_001F443D` and `sub_001DB6E8`. This confirms xemu advanced into `default.xbe` game code, but does not prove a menu or playable output.
+- A separate headless run remained in a kernel polling loop at `0x800426D4`; treat that as a headless-run observation, not evidence against the documented visible launch.
+- Next: capture the authentic launch state at the `default.xbe` entry and compare it with the native direct-entry path. Restore the standard xemu launch on the original HDD after the isolated GDB run.
