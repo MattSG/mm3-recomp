@@ -1,0 +1,94 @@
+# User-owned game input and extracted/derived copyrighted content
+*.iso
+*.xiso
+game_files/
+# Root-only: derived/extracted game analysis. Anchored, because a bare
+# "analysis/" also matched tools/python/analysis/ and silently kept the whole
+# analysis tool directory - including the M4 milestone detector - untracked.
+/analysis/
+src/recomp/gen/
+
+# Rebuildable local tools and dependencies
+tools/bin/
+tools/builds/
+tools/cache/
+tools/packages/
+tools/source/
+tools/venv/
+
+# Build and runtime evidence
+build*/
+out/
+logs/
+captures/
+*.pdb
+*.map
+*.ilk
+
+# Editors and Python
+.vs/
+.vscode/
+__pycache__/
+*.pyc
+
+xbox_kernel.log
+
+# Per-run strict evidence (not committed)
+m4_run*.txt
+.disasm_scratch/
+m4tmp/
+m4tmp_*
+diff/
+.reference/
+frame_*.bmp
+frame_*.png
+tools/external/ghidra/ghidra_12.1.2_PUBLIC/
+tools/external/xemu/hdd/*.qcow2
+
+# One-off investigation scratch (region dumps, temp diffs, corrupted backups)
+build_tmp.log
+build*_msbuild*.log
+cmp_region.txt
+corr_region.txt
+corrupted_rebuild.c
+cp52_patch.txt
+cp52_patch2.txt
+cur.diff
+d3d_region.txt
+dup_check.txt
+enc_test.ps1
+enc_test.txt
+enc_test2.txt
+err_region.txt
+final_diff.txt
+head_main.c
+head_main2.c
+head_region.txt
+hunk_dump.txt
+m4_corrupted_main.c
+mix_dump.txt
+patch.tmp
+patch_tmp212.txt
+patch_tmp212b.txt
+patch_tmp212c.txt
+place.txt
+r259_patch.txt
+recon_region.txt
+sideby.txt
+trace.txt
+vs_corrupted.txt
+ww_patch.txt
+ww_patch2.txt
+ww_patch3.txt
+ww_patch4.txt
+ww_patch5.txt
+disasm_chain.txt
+disasm_spin.txt
+disasm_*.txt
+
+# Stale run pid files
+*.pid
+
+xemu.log
+# Local dependency install
+node_modules/
