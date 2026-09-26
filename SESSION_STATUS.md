@@ -66,3 +66,7 @@
 - At entry: `EIP=0x00083C55`, `ESP=0xD001CD7C`, `EAX=0x000003FA`, `EBX=0`, `ECX=0`, `EDX=0`, `ESI=0x80000000`, `EDI=0`. The top stack word is return address `0x800158E0` in kernel space; subsequent words include launch/init arguments. The live GDB reads of `0x80490000` are unmapped at this point.
 - `src/main.c` directly invokes `xbe_entry_point()` after memory/kernel/path initialization. This confirms the native path does not enter the title through the same observed kernel call frame; exact argument meaning and the smallest faithful launch model remain unverified.
 - Next: map the xemu entry stack/register setup to kernel startup code, compare the native entry state, then implement only the evidenced missing initialization. No launch bypass has been added.
+## 2026-09-27 xemu kernel-to-title handoff
+- A GDB breakpoint at kernel `0x800158DA` catches the indirect call through `[0x00010128]` to the XBE entry `0x00083C55`. Kernel calls at `0x8001E972` and `0x8001E9F5` immediately precede the handoff; the return site is `0x800158E0`.
+- Before the call, the guest stack is `ESP=0xD001CD80`; registers include `EAX=0x3FA`, `ESI=0x80000000`, with `EBX/ECX/EDX/EDI=0`. The title entry then sees the call return address at the top of the stack. The two preceding kernel routines are not yet identified, so their effects must not be guessed.
+- Next: inspect those kernel routines’ effects and compare them with current runtime initialization. Then restore the documented standard Xemu launch on the original HDD; the isolated GDB run remains on its copied disk.
