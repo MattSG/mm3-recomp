@@ -70,3 +70,7 @@
 - A GDB breakpoint at kernel `0x800158DA` catches the indirect call through `[0x00010128]` to the XBE entry `0x00083C55`. Kernel calls at `0x8001E972` and `0x8001E9F5` immediately precede the handoff; the return site is `0x800158E0`.
 - Before the call, the guest stack is `ESP=0xD001CD80`; registers include `EAX=0x3FA`, `ESI=0x80000000`, with `EBX/ECX/EDX/EDI=0`. The title entry then sees the call return address at the top of the stack. The two preceding kernel routines are not yet identified, so their effects must not be guessed.
 - Next: inspect those kernel routines’ effects and compare them with current runtime initialization. Then restore the documented standard Xemu launch on the original HDD; the isolated GDB run remains on its copied disk.
+## 2026-09-27 debugger cleanup
+- Disassembly at the handoff shows `0x8001E972` reading the loaded XBE header/section data and iterating aligned ranges; `0x8001E9F5` also runs before entry, but its setup effect is still unresolved.
+- Closed the isolated GDB guest with the QEMU monitor. Relaunched the documented `tools\\xemu\\xemu.exe -boot d` against the original configured HDD and Europe/Australia XISO (PID 39016). The copied HDD, config, logs, and entry probes remain in excluded `conformance_tmp/`.
+- Both the outer repository and nested toolkit worktree are clean after the checkpoint commits. Native playability, strict runs, and required screenshots remain unproven.
