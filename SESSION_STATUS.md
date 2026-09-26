@@ -17,3 +17,10 @@
 - Re-run current built executable with diagnostic and recovery toggles explicitly off, identify exact guest PC for the invalid host write, and verify input/data parity against xemu. Keep paired logs and screenshots.
 - Xemu HDD vs recomp title data mapping is unresolved. No artifact cleanup yet; preserve current traces and existing build/output trees.
 - I: free space at note time: 32.5 GiB.
+
+## 2026-09-26 follow-up
+- Native Release build succeeded with VS-bundled CMake 4.2.3 using the command above. The PATH CMake 4.0.2 failure was a generator-version mismatch, not a source failure.
+- A direct current-exe launch with no MM3/RECOMP/XBOX environment variables stayed alive at 15 seconds, but stderr grew to 210,247 bytes because the generated targeted C includes RECOMP_TRACE_ENTER calls. Stopped our PID 476 to avoid unbounded diagnostic output. This is not a strict or acceptance run.
+- Generation script currently always passes --trace-functions with conformance_tmp/mm3_focus_trace_functions.json. Next: make normal generation omit that option by default, preserve an explicit diagnostic switch, regenerate from the same XBE/toolkit, build, then capture the actual game window.
+- Upstream check: sp00nznet/xboxrecomp main is 766ecefcd7fb2a9b344de8ec891f6fe9ea14261b. Local toolkit 01db629 is 204 commits ahead and 0 behind that merge base. PR heads 89, 92, 93, 97, 112-117 and 128 are reachable from local HEAD; #129 and #130 remain open and each is one commit ahead. Their changes touch different files; #128 overlaps four currently dirty runtime files, so do not merge it wholesale.
+- Latest direct run log pair: conformance_tmp/native_current_default_20260926.out.log and .err.log; executable hash at launch 862EC6FE857A111CAAEC2AB5C7B9D1EE26C8B3219BB80ABB59C0EB91B3862477.
