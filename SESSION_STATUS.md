@@ -61,3 +61,8 @@
 - WSL GDB attached through the Windows host gateway. In the visible-display run, after 60 seconds the stopped EIP `0x001A422C` maps via the current full-section function database to `sub_001A4214+0x18`; guest stack return sites map to `sub_001F443D` and `sub_001DB6E8`. This confirms xemu advanced into `default.xbe` game code, but does not prove a menu or playable output.
 - A separate headless run remained in a kernel polling loop at `0x800426D4`; treat that as a headless-run observation, not evidence against the documented visible launch.
 - Next: capture the authentic launch state at the `default.xbe` entry and compare it with the native direct-entry path. Restore the standard xemu launch on the original HDD after the isolated GDB run.
+## 2026-09-27 authentic XBE entry snapshot
+- Reset the isolated xemu GDB guest and set a hardware breakpoint at the verified XBE entry `0x00083C55`. It hit, proving the documented optical boot sequence reaches the target entry before the later game-code trace.
+- At entry: `EIP=0x00083C55`, `ESP=0xD001CD7C`, `EAX=0x000003FA`, `EBX=0`, `ECX=0`, `EDX=0`, `ESI=0x80000000`, `EDI=0`. The top stack word is return address `0x800158E0` in kernel space; subsequent words include launch/init arguments. The live GDB reads of `0x80490000` are unmapped at this point.
+- `src/main.c` directly invokes `xbe_entry_point()` after memory/kernel/path initialization. This confirms the native path does not enter the title through the same observed kernel call frame; exact argument meaning and the smallest faithful launch model remain unverified.
+- Next: map the xemu entry stack/register setup to kernel startup code, compare the native entry state, then implement only the evidenced missing initialization. No launch bypass has been added.
