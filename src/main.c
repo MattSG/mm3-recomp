@@ -168,6 +168,16 @@ int main(void)
             MEM32(0x391F14), MEM32(0x391F18));
     fprintf(stderr, "[CALLBACK_INIT] 391F00=%08X 391F04=%08X 391F08=%08X\n",
             MEM32(0x391F00), MEM32(0x391F04), MEM32(0x391F08));
+    if (getenv("MM3_TRACE_BOOT_STATE")) {
+        fprintf(stderr,
+                "[BOOT_STATE] host_tid=%lu eax=%08X ebx=%08X ecx=%08X edx=%08X esi=%08X edi=%08X ebp=%08X esp=%08X fs=%08X stack=%08X,%08X,%08X fsdata=%08X,%08X,%08X,%08X kernel=%08X,%08X,%08X\n",
+                GetCurrentThreadId(), g_eax, g_ebx, g_ecx, g_edx, g_esi,
+                g_edi, g_ebp, g_esp, g_fs_base, MEM32(g_esp),
+                MEM32(g_esp + 4), MEM32(g_esp + 8), MEM32(g_fs_base),
+                MEM32(g_fs_base + 4), MEM32(g_fs_base + 8),
+                MEM32(g_fs_base + 0x1C), MEM32(0x10108), MEM32(0x10118),
+                MEM32(0x10128));
+    }
     puts("starting XBE entry point 0x00083C55");
     xbe_entry_point();
     WaitForSingleObject(worker_done, INFINITE);
