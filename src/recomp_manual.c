@@ -48,6 +48,7 @@ void sub_00094B10(void);
 void sub_0009D34E(void);
 void sub_00083A6C(void);
 extern void sub_00083FBB_gen(void) /* alternate-SEH generated overlay */;
+extern void sub_00093DD3_gen(void) /* generated formatter fallback */;
 extern void sub_00084020_gen(void) /* alternate-SEH generated overlay */;
 extern void sub_0008427E_gen(void) /* alternate-SEH generated overlay */;
 extern void sub_000842EA_gen(void) /* alternate-SEH generated overlay */;
@@ -154,6 +155,27 @@ void sub_00083FBB(void)
         MEM8(dest + count - 1) = 0;
     g_eax = dest;
     g_esp = esp + 16;
+}
+void sub_00093DD3(void)
+{
+    static const char hex[] = "0123456789abcdef";
+    uint32_t esp = g_esp;
+    uint32_t dest = MEM32(esp + 4u);
+    uint32_t format = MEM32(esp + 8u);
+    uint32_t i;
+
+    if (MEM8(format) == '%' && MEM8(format + 1u) == '0' &&
+        MEM8(format + 2u) == '8' && MEM8(format + 3u) == 'l' &&
+        MEM8(format + 4u) == 'x' && MEM8(format + 5u) == 0) {
+        uint32_t value = MEM32(esp + 12u);
+        for (i = 0; i < 8u; ++i)
+            MEM8(dest + i) = (uint8_t)hex[(value >> (28u - i * 4u)) & 0xFu];
+        MEM8(dest + 8u) = 0;
+        g_eax = 8u;
+        g_esp = esp + 4u;
+        return;
+    }
+    sub_00093DD3_gen();
 }
 void sub_00084020(void) { call_alternate_seh_preserving(sub_00084020_gen); }
 void sub_0008427E(void) { call_alternate_seh_preserving(sub_0008427E_gen); }
