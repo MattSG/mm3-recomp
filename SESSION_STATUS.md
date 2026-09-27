@@ -1,12 +1,12 @@
 # Current checkpoint — 2026-09-27
 
-- Root HEAD `205d8d1`; nested `tools/xboxrecomp` HEAD `db0413f`; both worktrees are clean after this checkpoint commit.
+- Root HEAD `432c736`; nested `tools/xboxrecomp` HEAD `db0413f`; both worktrees are clean after this checkpoint commit.
 - Translator fix refreshes derived `SEH_HELPERS` after late helper detection. Regression passed: `python3 -m unittest tools.recomp.test_translator_seh_helpers`. Full generation completed: 26,400/26,437 functions translated, 0 failed. Fresh `0x858F3` and `0x860AA` overlays read back `ebp = g_seh_ebp` after `0x94FC0`.
 - Release candidate `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `0FFB3ACFC1E89A261012E5249090AE0ABDB3538800718DF5A30CE984D6B5BEEA`. Matching-symbol RelWithDebInfo build `build-msvc-ebx/RelWithDebInfo/mm3_recomp.exe`, SHA-256 `D1FC5EEF6CDC855AE7E2F310B75FB6F5DAD57C7AEAE241E62E5DB0320203DF67`.
-- Temporary trace in the ignored generated file captured `sub_000858F3_gen` allocator scans. At `0x85C3F`, request `0x13D` matched a block of size `0x13D`, node `0x01002C38`, next `0x01001180`. At `0x85C6A`, the new chunk was `0x01002C30`, so its link node `chunk+8` aliased the old node `0x01002C38`; the insertion writes made the node self-linked. The next request `0x13A` sees size `3` and next `0x01002C38` repeatedly. This explains the spin; whether the alias is caused by guest state or translation is unresolved. Temporary instrumentation was removed, the symbol build was refreshed, and our diagnostic PID 45160 was stopped.
+- Temporary generated-code trace showed `sub_000858F3_gen` turns the `0x01002C38` list node into a self-link at `0x85C6A` when the new node (`chunk+8`) aliases the old node. The subsequent `0x13A` scan repeats on size `3`. Inline thread mode also reproduced the allocator churn (37 KB stderr in 12 seconds), so spawn concurrency alone does not explain it. Trace instrumentation was removed and the symbol build refreshed; diagnostic PID 45160 was stopped.
 - No strict acceptance run, recognizable menu/gameplay, or screenshot has been achieved. Available CUA returned no apps or browsers and reports native APIs disabled. `RECOMP_UNIMPL_TRAP=1` is a debug guard, not strict-mode proof; clean checkout has no historical strict runner.
 - Do not touch user xemu PID 32416. PID 52848 is our stopped clone; its earlier allocator call differs from the native caller/size and is not parity evidence.
-- Next: trace the `0x85C6A` caller arguments and compare the same free-list transition in xemu, then make an evidenced fix. Disk free was last measured at 22.8 GB.
+- Next: determine why `0x85C6A` receives aliased old/new node addresses, then verify the same transition in xemu before applying a fix. Disk free was last measured at 22.8 GB.
 ---
 # MM3 Session Status — 2026-09-27
 
