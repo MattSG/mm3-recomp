@@ -136,7 +136,7 @@ int main(void)
     xbox_kernel_set_thunk_address(MM3_KERNEL_THUNK_ADDRESS,
                                    MM3_KERNEL_THUNK_COUNT);
     xbox_kernel_init();
-    xbox_path_init(MM3_GAME_DIR, NULL);
+    xbox_path_init(MM3_GAME_DIR, getenv("MM3_SAVE_DIR"));
     xbox_kernel_bridge_init();
     if (xbox_Nv2aMirrorFence(0x00351F48u, 0x2Cu, 0x30u) != 0)
         fprintf(stderr, "NV2A fence mirror registration failed\n");
