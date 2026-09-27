@@ -1,7 +1,7 @@
 # MM3 Session Status - 2026-09-27
 
 ## Source/build identity
-- Outer evidence checkpoint: `b5df33a`; runtime-source commit: `17134da`; toolkit: `9c167fa`. Root and nested worktrees are checkpointed.
+- Outer evidence checkpoint: `ad37f3e`; runtime-source commit: `17134da`; toolkit: `9c167fa`. Root and nested worktrees are checkpointed.
 - Input: `game_files/default.xbe`, SHA-256 `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`. Baseline generation: `conformance_tmp/mm3_all_sections_gen_20260926`; EBX candidate: `conformance_tmp/mm3_all_sections_gen_20260927_ebx`.
 - Release build command: VS 18 CMake 4.2.3 `cmake --build build-msvc-frontier --config Release --target mm3_recomp`. Executable: `build-msvc-frontier/Release/mm3_recomp.exe`, SHA-256 `178D8A42449ED6C5C6B88296C29B406B674C5096EB3AB7C895778A2CC625C983`.
 - Candidate executable: `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `F7C8E2B13F3CB0EB197687FC3556E7EE8CD50E179A224E0AB214D1F650FE62C5`; Release rebuild includes env-gated entry and first-file worker tracing.
@@ -116,3 +116,9 @@
 - Fresh xemu breakpoint at `0x8248D`, immediately before the same file thunk, ran on a separate QEMU CPU worker stack (`ESP=0xD00B2808`), with FS base `0x80035BDC`. Captured KPCR/TIB fields: `[+0]=0xD00B3DBC`, `[+4]=0xD00B3DF0`, `[+8]=0xD0074000`, `[+0x18]=0`, `[+0x20]=0x80035C04`, `[+0x28]=0xD0008698`. This confirms both calls run in worker context, but their FS/TLS layouts differ; causality for the different caller/path is still unproven.
 - Next: identify the guest thread start routines and trace each caller into the file thunk. The native trace groups its TDATA/UDATA and dashupdate opens on host TID 53396; the xemu stop identifies QEMU CPU thread p01.01, not an Xbox guest thread ID. Do not treat these as corresponding workers yet. Compare caller paths and launch/I/O state before any thread-layout change. Playability, strict runs, controls/audio, long-drive/pause acceptance, and authentic recomp screenshots remain unproven.
 - Trace-alignment correction: the xemu and native observations reach the same file thunk from different callers (`0x00296ABA` in xemu `sub_00296A61`; native dashupdate caller `0x002969C3` in `sub_0029699B`). The native file-thread trace only proves those native opens share one host TID; it does not map that host TID to xemu's QEMU CPU thread or guest thread. Guest-thread identity and the first divergent branch remain to be established.
+
+## 2026-09-27 xemu multi-open trace
+- Fresh snapshot-mode xemu run reached XBE entry 0x83C55, then hit the NtCreateFile thunk at 0x8248D twelve times. Caller returns map to sub_00296A61 (0x00296ABA), sub_0009DCD1 (0x0009DE8C, twice), sub_001EFBAA (0x001EFBD1), sub_000224EA (0x0002250B, six times), and sub_001BAA7A (0x001BABF3, twice). Trace: conformance_tmp/xemu_multi_file_20260927.gdb.log.
+- At the first hit, the caller stack buffer decodes to T:\$u\contentmeta.xbx. The other eleven path strings have not been decoded. This establishes later file-thunk activity in several callers; it does not prove which caller corresponds to native's first dashupdate open or identify a causal branch.
+- Closed the isolated xemu PID 54784 after the snapshot trace; its debugger listener on port 1236 closed. The older PID 32416 on port 1235 was left untouched.
+- Next: decode object-name buffers for the remaining xemu hits, map the native file-open caller sequence to the same XBE functions, then compare the first branch and returned status. Keep the checkout source unchanged until a branch mismatch is demonstrated. Visual/playability and strict acceptance remain unproven.
