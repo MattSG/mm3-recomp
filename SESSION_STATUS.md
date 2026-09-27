@@ -1,7 +1,7 @@
 # MM3 Session Status - 2026-09-27
 
 ## Source/build identity
-- Outer source checkpoint: `0c3f8e8`; runtime-source commit: `0c3f8e8`; toolkit: `390eab9`. Both worktrees clean.
+- Outer source checkpoint: `c16a665`; runtime-source commit: `0c3f8e8`; toolkit: `390eab9`. Both worktrees clean.
 - Input: `game_files/default.xbe`, SHA-256 `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`. Baseline generation: `conformance_tmp/mm3_all_sections_gen_20260926`; EBX candidate: `conformance_tmp/mm3_all_sections_gen_20260927_ebx`.
 - Release build command: VS 18 CMake 4.2.3 `cmake --build build-msvc-frontier --config Release --target mm3_recomp`. Executable: `build-msvc-frontier/Release/mm3_recomp.exe`, SHA-256 `178D8A42449ED6C5C6B88296C29B406B674C5096EB3AB7C895778A2CC625C983`.
 - Candidate executable: `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `B404A0E7ACC92A29FA5550E1588BAD3C40A8DCAD5EE15E488EDA6D93609887E7`; rebuilt with the corrected project-owned `src/recomp/gen_trace/recomp_types.h` and env-gated boot-state tracing.
@@ -95,3 +95,9 @@
 - The diagnostic native launch reported `EAX/EBX/ECX/EDX/ESI/EDI/EBP=0`, `ESP=0x00F7FFF0`, `FS=0x00004000`, zero stack words, and kernel globals `0x10108=0x1018`, `0x10118=0x00010180`, `0x10128=0xA8F46BFE`; it then returned through `HalReturnToFirmware(2)` with exit code 0.
 - The isolated xemu handoff reaches the same XBE entry with `EAX=0x3FA`, `ESI=0x80000000`, `ESP=0xD001CD7C` (return address `0x800158E0`), `EBP=0xD001CDB0`, `FS=0x20`, and `FS_BASE=0x80035BDC`; kernel global `0x10128` points to `0x83C55`, the XBE entry. The other captured registers are zero. This proves a material boot-context difference before the title starts; it does not yet identify which kernel setup effects need reproduction.
 - Next: trace the semantics of the xemu kernel setup path at `0x8001E9F5` and the call through `0x800158DA`, then implement only the verified missing entry setup. Do not seed guessed register/stack values. Playability, strict runs, input/audio, long-drive/pause acceptance, and authentic recomp screenshots remain outstanding.
+
+## 2026-09-27 xemu visual-reference retry
+- Rechecked the actual configured xemu paths and launched PID 48564 with the Europe/Australia XISO and original HDD, using a copy of the configured EEPROM and snapshot mode. At 25 seconds and again after 60+ seconds, the visible xemu window was entirely black; both captures have SHA-256 2114E4F05CDEE5BC7C5CD026ED721C47471ABC8D6B4B76A67D2D06998E9F6B3E. Retained at conformance_tmp/xemu_reference_fresh_60s_20260927.png.
+- Closed only PID 48564 gracefully. The configured HDD and EEPROM were not used as writable state; I-drive free space is 33,767,206,912 bytes. Worktrees were clean before this documentation update.
+- This adds no authentic visual reference. The prior isolated GDB capture still proves the XBE entry was reached, but not that its rendering is correct.
+- Next: make a fresh snapshot-mode xemu GDB launch and keep one GDB connection open while stepping the first XBE instructions; capture the branch and memory at 0x10180 alongside the native entry values before changing boot setup. Continue to treat playability as unproven.
