@@ -1,19 +1,21 @@
 # MM3 Session Status - 2026-09-27
 
 ## Source/build identity
-- Outer source: `1f5324fd1607a43413db18a0ebf478f52ae2eb0e`; toolkit: `97825e0252b3e7a794083b987fdb84775b7f17a8`. Both worktrees clean.
-- Input: `game_files/default.xbe`, SHA-256 `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`. Full-section generated source: `conformance_tmp/mm3_all_sections_gen_20260926`.
+- Outer source: `a85c396`; toolkit: `390eab9`. Both worktrees clean.
+- Input: `game_files/default.xbe`, SHA-256 `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`. Baseline generation: `conformance_tmp/mm3_all_sections_gen_20260926`; EBX candidate: `conformance_tmp/mm3_all_sections_gen_20260927_ebx`.
 - Release build command: VS 18 CMake 4.2.3 `cmake --build build-msvc-frontier --config Release --target mm3_recomp`. Executable: `build-msvc-frontier/Release/mm3_recomp.exe`, SHA-256 `178D8A42449ED6C5C6B88296C29B406B674C5096EB3AB7C895778A2CC625C983`.
-- Strict runner is not established in clean. No acceptance run has been made; the latest path probe cleared all inherited `MM3_*`, `RECOMP_*`, and `XBOX_*` variables.
+- Candidate executable: `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `500F583C89CA3A11ED0881380DF729B0BE193E95139CC43A3614F816813264A8`; built successfully after using the matching runtime `recomp_types.h` from the baseline generation.
+- Strict runner is not established in clean. No acceptance run has been made; the latest bounded probe cleared all inherited `MM3_*`, `RECOMP_*`, and `XBOX_*` variables.
 
 ## Current evidence
 - Playability is unproven. A fresh xemu `-boot d` launch selected the RTX 5080 but remained black after 25 seconds. Captured window: `conformance_tmp/xemu_reference_fresh_20260927.png`, SHA-256 `DC074CD781A6DAF139BDE9F128AAACBB5AA477D2082561DF70FA0B501E8A82CB`.
 - Isolated HDD clone `xbox_hdd-gdb.qcow2` (SHA-256 `609BB38B721C5826F0EF8156AAF2A948EA6A5AAD442D1B6D6DE163B3F02DBA59`) has `C:\xboxdash.xbe` (172,032 bytes; SHA-256 `71D9410235D446CE7DCA7FDA93AE8AA3FCA1291AE7DA254FB0ACFCB415FCAEC2`) but no `C:\XODash\xonlinedash.xbe`; a read-only FATX inventory found no XODash on X/Y/Z/C/E. E root is empty; Y contains Conker data. The clone is not a complete MM3 visual oracle.
-- Native probe used the exact C: dashboard XBE temporarily at `game_files/xboxdash.xbe`, then removed it. `NtCreateFile` opened it at `0x00082493`; next lookup mapped `\Device\Harddisk0\Partition2\XODash\xonlinedash.xbe` to missing `game_files\XODash\xonlinedash.xbe` (Win32 error 3 / `STATUS_OBJECT_PATH_NOT_FOUND`), then `HalReturnToFirmware(2)` exited with code 0. Logs: `conformance_tmp/native_c_partition2_probe.{out,err}.log`, `native_probe_kernel.log`.
-- The current generated `sub_001E7B41` lacks EBX save/restore present in old commit `e5fb42b`; this is a verified source gap, not yet tied to the current dashboard-return divergence. The fresh Xemu window is black, so no working menu/game reference is available yet.
+- Native probe used the exact C: dashboard XBE temporarily at `game_files/xboxdash.xbe`, then removed it. Both baseline and EBX candidate opened `dashupdate.xbe` and `xboxdash.xbe` at `0x00082493`, failed the following `XODash\xonlinedash.xbe` lookup with Win32 error 3 / `STATUS_OBJECT_PATH_NOT_FOUND`, then exited through `HalReturnToFirmware(2)` with code 0. Candidate log: `conformance_tmp/native_ebx_probe.err.log`; it did not advance the observed handoff.
+- Toolkit commit `390eab9` restores entry EBX in `sub_001E7B41`; its regression test passes and the generated candidate contains the save/restore. The runtime probe shows this old fix is not the cause of the current dashboard-return divergence.
+- The xemu GDB probe at `0x00082493` captured `T:\$u\contentmeta.xbx` on the first hit (status `C000003A`), while native’s first call at that PC opens `dashupdate.xbe` successfully. Thread/caller alignment is unresolved. The fresh xemu window remains black; no playable reference is available.
 
 ## Next action
-- Use an isolated GDB Xemu clone to stop at the same guest PC/thread around `0x00082493`, compare open results and the firmware-return behavior, then address the first proven difference. Verify the EBX fix in its startup call path before porting. Add strict launch and visual acceptance only after runtime advances.
+- Align the first `0x00082493` hit across xemu and native by guest thread and caller; determine why xemu first requests `T:\$u\contentmeta.xbx` while native first opens `dashupdate.xbe`, then fix the first proven divergence. Add strict launch and visual acceptance only after runtime advances.
 - Latest bounded HDD conversion was deleted after parsing. Retained: 1.07 GiB qcow clone, small extracted dashboard XBE, paired native logs, and xemu screenshot. Playability, controls, audio, 10-minute drive, pause/menu, two cold runs, and actual recomp screenshots remain outstanding.
 ## 2026-09-26 follow-up
 - Native Release build succeeded with VS-bundled CMake 4.2.3 using the command above. The PATH CMake 4.0.2 failure was a generator-version mismatch, not a source failure.
