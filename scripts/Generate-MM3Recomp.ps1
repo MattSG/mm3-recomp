@@ -23,9 +23,9 @@ if ($LASTEXITCODE -ne 0) {
     throw "XboxRecomp generation failed with exit code $LASTEXITCODE"
 }
 
-# 0x93B04 is a false vtable start inside memmove's computed-copy tail. Extend
-# its recovered bounds through the shared epilogue and generate it as an FPO
-# tail body so RECOMP_ITAIL can resume the active memmove frame.
+# 0x93B04 is identified as a vtable thunk and is also a computed-copy tail
+# entry sharing 0x93860's frame. Generate its full body through the shared
+# epilogue as an FPO tail so RECOMP_ITAIL can resume that frame.
 $tailFunctionsPath = Join-Path $GeneratorDir 'memmove_tail_functions.json'
 $tailFunctions = @(Get-Content (Join-Path $repo 'tools\xboxrecomp\tools\disasm\output\functions.json') -Raw | ConvertFrom-Json)
 $tailFunction = $tailFunctions | Where-Object start -eq '0x00093B04' | Select-Object -First 1
