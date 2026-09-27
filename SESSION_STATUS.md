@@ -1,7 +1,7 @@
 # MM3 Session Status - 2026-09-27
 
 ## Source/build identity
-- Outer evidence checkpoint: `ad37f3e`; runtime-source commit: `17134da`; toolkit: `9c167fa`. Root and nested worktrees are checkpointed.
+- Outer evidence checkpoint: `66b779c`; runtime-source commit: `17134da`; toolkit: `9c167fa`. Root and nested worktrees are checkpointed.
 - Input: `game_files/default.xbe`, SHA-256 `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`. Baseline generation: `conformance_tmp/mm3_all_sections_gen_20260926`; EBX candidate: `conformance_tmp/mm3_all_sections_gen_20260927_ebx`.
 - Release build command: VS 18 CMake 4.2.3 `cmake --build build-msvc-frontier --config Release --target mm3_recomp`. Executable: `build-msvc-frontier/Release/mm3_recomp.exe`, SHA-256 `178D8A42449ED6C5C6B88296C29B406B674C5096EB3AB7C895778A2CC625C983`.
 - Candidate executable: `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `F7C8E2B13F3CB0EB197687FC3556E7EE8CD50E179A224E0AB214D1F650FE62C5`; Release rebuild includes env-gated entry and first-file worker tracing.
@@ -122,3 +122,9 @@
 - At the first hit, the caller stack buffer decodes to T:\$u\contentmeta.xbx. The other eleven path strings have not been decoded. This establishes later file-thunk activity in several callers; it does not prove which caller corresponds to native's first dashupdate open or identify a causal branch.
 - Closed the isolated xemu PID 54784 after the snapshot trace; its debugger listener on port 1236 closed. The older PID 32416 on port 1235 was left untouched.
 - Next: decode object-name buffers for the remaining xemu hits, map the native file-open caller sequence to the same XBE functions, then compare the first branch and returned status. Keep the checkout source unchanged until a branch mismatch is demonstrated. Visual/playability and strict acceptance remain unproven.
+
+## 2026-09-27 xemu menu and city asset paths
+- Decoded the saved xemu NtCreateFile object names: T:\$u\contentmeta.xbx; D:\Data\Shared\Menu\Gfx\Startup.tga; D:\Data\Shared\LoadingScreens\English\LoadmeterTexture.raw; Z:\mmxLock.lck; z:\data\shared\paris\city.ai and D:\Data\Shared\Paris\city.ai; z:\data\shared\washington\city.ai and D:\Data\Shared\Washington\city.ai; z:\data\data_hd.zip and D:\Data\Data_hd.zip. Raw capture: conformance_tmp/xemu_name_decode_20260927.gdb.log.
+- The matching Startup.tga, LoadmeterTexture.raw, Paris/Washington city.ai files, and Data_hd.zip exist under game_files/Data with nonzero sizes. The game-disc assets are present in the native checkout; this does not establish that the native runtime opens them. Z:\mmxLock.lck is not in game_files, and its cache mapping remains unverified.
+- Closed the isolated snapshot xemu PID 54364. The original HDD and the older paused PID 32416 were left untouched.
+- Next: identify the native branch/launch state that diverts into dashupdate before these menu assets are requested. Treat the Z: lock path as a separate cache hypothesis until its resolver is traced. No source fix, strict acceptance, or authentic gameplay capture is established.
