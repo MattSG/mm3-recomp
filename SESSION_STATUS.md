@@ -1,10 +1,10 @@
 # MM3 Session Status - 2026-09-27
 
 ## Source/build identity
-- Outer source: `0d3696b`; toolkit: `390eab9`. Both worktrees clean.
+- Outer source: `4dc020f`; toolkit: `390eab9`. Both worktrees clean.
 - Input: `game_files/default.xbe`, SHA-256 `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`. Baseline generation: `conformance_tmp/mm3_all_sections_gen_20260926`; EBX candidate: `conformance_tmp/mm3_all_sections_gen_20260927_ebx`.
 - Release build command: VS 18 CMake 4.2.3 `cmake --build build-msvc-frontier --config Release --target mm3_recomp`. Executable: `build-msvc-frontier/Release/mm3_recomp.exe`, SHA-256 `178D8A42449ED6C5C6B88296C29B406B674C5096EB3AB7C895778A2CC625C983`.
-- Candidate executable: `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `0688A62B1F692E247841F67F0E16F036FCC69CD5A53872BC3EB1DF2BE5D570EE`; built successfully after using the matching runtime `recomp_types.h` from the baseline generation.
+- Candidate executable: `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `A37723CA3AC3325894B4603A07D7248190EC48E6FCD3F1520110AD91C395A733`; rebuilt with the corrected project-owned `src/recomp/gen_trace/recomp_types.h` and completed successfully.
 - Strict runner is not established in clean. No acceptance run has been made; the latest bounded probe cleared all inherited `MM3_*`, `RECOMP_*`, and `XBOX_*` variables.
 
 ## Current evidence
@@ -77,3 +77,8 @@
 ## 2026-09-27 verified E partition
 - Corrected the exploratory FATX parser using the documented header and directory layout: the E partition header reports 32 sectors per cluster and root cluster 1; its cluster count is 144,032, with a 576,128-byte FAT. The root cluster chain ends immediately and the root data is zeroed, so this exact isolated HDD copy has no E:\\TDATA or title directory. Header, FAT prefix, root-cluster bytes, and the E partition offset were read from the GDB copy of the active qcow2 disk; the older xbox_hdd_current.raw did not compare byte-identical and is not used as evidence.
 - Removed only the 8 GiB raw conversion created for this inspection after recording the result. The reported free-space total did not increase after deletion; the raw file occupied little allocated space.
+
+## 2026-09-27 corrected-header build probe
+- Full Release rebuild completed from `conformance_tmp/mm3_all_sections_gen_20260927_ebx` after copying the committed project-owned runtime header into the generation directory. Candidate SHA-256: `A37723CA3AC3325894B4603A07D7248190EC48E6FCD3F1520110AD91C395A733`.
+- A bounded launch with inherited `MM3_*`, `RECOMP_*`, and `XBOX_*` variables cleared exited with code 0 through `HalReturnToFirmware(2)`. It checked `dashupdate.xbe` and then `xboxdash.xbe`; the temporary dashboard mirror was absent, so this run did not reach `XODash` or a visible title screen. Log: `conformance_tmp/native_project_header_probe_20260927.err.log`.
+- Root and toolkit source worktrees were clean after the build. Playability and visual acceptance remain unproven.
