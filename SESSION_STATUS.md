@@ -1,10 +1,10 @@
 # MM3 Session Status - 2026-09-27
 
 ## Source/build identity
-- Outer source checkpoint: `c16a665`; runtime-source commit: `0c3f8e8`; toolkit: `390eab9`. Both worktrees clean.
+- Outer source checkpoint: `17134da`; runtime-source commit: `17134da`; toolkit: `390eab9`. Both worktrees clean.
 - Input: `game_files/default.xbe`, SHA-256 `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`. Baseline generation: `conformance_tmp/mm3_all_sections_gen_20260926`; EBX candidate: `conformance_tmp/mm3_all_sections_gen_20260927_ebx`.
 - Release build command: VS 18 CMake 4.2.3 `cmake --build build-msvc-frontier --config Release --target mm3_recomp`. Executable: `build-msvc-frontier/Release/mm3_recomp.exe`, SHA-256 `178D8A42449ED6C5C6B88296C29B406B674C5096EB3AB7C895778A2CC625C983`.
-- Candidate executable: `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `B404A0E7ACC92A29FA5550E1588BAD3C40A8DCAD5EE15E488EDA6D93609887E7`; rebuilt with the corrected project-owned `src/recomp/gen_trace/recomp_types.h` and env-gated boot-state tracing.
+- Candidate executable: `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `D92B44E1CE8934999610A344AAAF17D1A27CCD00EC94227E2C387ADE51F8735C`; Release rebuild includes env-gated entry kernel-data tracing.
 - Strict runner is not established in clean. No acceptance run has been made; the latest bounded probe cleared all inherited `MM3_*`, `RECOMP_*`, and `XBOX_*` variables.
 
 ## Current evidence
@@ -101,3 +101,11 @@
 - Closed only PID 48564 gracefully. The configured HDD and EEPROM were not used as writable state; I-drive free space is 33,767,206,912 bytes. Worktrees were clean before this documentation update.
 - This adds no authentic visual reference. The prior isolated GDB capture still proves the XBE entry was reached, but not that its rendering is correct.
 - Next: make a fresh snapshot-mode xemu GDB launch and keep one GDB connection open while stepping the first XBE instructions; capture the branch and memory at 0x10180 alongside the native entry values before changing boot setup. Continue to treat playability as unproven.
+
+## 2026-09-27 fresh native and xemu entry comparison
+- Source checkpoint: 17134da; toolkit: 390eab9. Release candidate: build-msvc-ebx/Release/mm3_recomp.exe, SHA-256 D92B44E1CE8934999610A344AAAF17D1A27CCD00EC94227E2C387ADE51F8735C. Build command: VS 18 bundled CMake, build-msvc-ebx, Release, target mm3_recomp.
+- Fresh xemu GDB launch with snapshot mode, copied EEPROM, configured original HDD path and Europe/Australia XISO stopped at XBE entry 0x83C55. This run's EAX was 0 (the older 0x3FA snapshot is not invariant), ESI=0x80000000, EBP=0xD001CDB0, ESP=0xD001CD7C. [0x10180]=0x1EC. Six single steps reached 0x83C6D with EAX=0xE98 and EFLAGS=0x216; the first unsigned comparison therefore takes the same path as native for that value.
+- Native diagnostic run with MM3_TRACE_BOOT_STATE=1 and inherited MM3/RECOMP/XBOX variables cleared exited 0 through HalReturnToFirmware(2). It reported EAX=0, ESI=0, ESP=0x00F7FFF0, FS base 0x4000, kernel globals 0x10108=0x1018 and 0x10118=0x10180, and [0x10180]=0x1EC. ESI differs from xemu but the XBE entry saves it and overwrites it before the first child call. The remaining stack and FS layout differences still need comparison at the first unmatched call.
+- This supersedes the earlier assumption that the title always entered with EAX=0x3FA. Native and xemu now agree on EAX and the first branch data; this does not explain their first NtCreateFile callers (native sub_0029699B/dashupdate.xbe, xemu sub_00296A61/T:\$u\contentmeta.xbx).
+- The GDB xemu PID 24416 and visual-only PID 48564 were closed gracefully. PID 24416 used -snapshot and a copied EEPROM. I-drive free space after the probes: 33,766,674,432 bytes. Outer and nested tracked worktrees were clean after the source commit.
+- Next: trace the same main guest thread from XBE entry through the first differing NtCreateFile path, stopping on actual branch/state differences. Do not seed the older EAX value or guessed kernel context. No strict or playability acceptance has been achieved.
