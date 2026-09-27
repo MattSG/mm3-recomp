@@ -1,3 +1,14 @@
+# Current checkpoint — 2026-09-27
+
+- Clean root: `c5f7f9b386d0dd5d07f9085d0255d77af740d1ba`; clean nested `tools/xboxrecomp`: `78eb04f93a557b61934d26a711f9161663c29fb1`.
+- Build cache points to this clean root and generator dir `conformance_tmp/mm3_xonline_trace_20260927`. Candidate `build-msvc-ebx/Release/mm3_recomp.exe`, 52,395,520 bytes, SHA-256 `BDE3C1B0A1218A8F039ED8CC05EE0E4FFCBA375EB45A34A120CFFCF77581651EB`.
+- Clean root has no `tools/powershell/run_strict.ps1` or `build_limited.ps1`. The historical scripts resolve paths from their current checkout; they cannot establish which clean binary was run. Historical run 10008 explicitly used sibling `m4tmp/build-a70/Release/mm3_recomp.exe` (configured from `I:/repos/midtown-madness-3-recomp`, with `MM3_DIAG_A70=ON`).
+- Latest native trace `conformance_tmp/native_858f3_spawn_20260927.err.log` (SHA-256 `D980810F2BA6FD9BD6280F244371DD0D5821E2EEEABB28D9D46C2AFACB5965481`) shows first `sub_000858F3` args `01001000, 0, 00001000`, then access violation at host RVA `0x8675E3`, guest PC not yet mapped. Heap bucket heads 0–4 were zero. This is evidence of the failing state, not proof that heap initialization is the cause.
+- Parity check: clean toolkit already contains immediate-mode vertices, tiled memory aliasing and startup-worker EBX preservation; no deferred Present-after-guest-body hook was found. Do not port the three historical commits wholesale.
+- Strict playable acceptance remains unrun. No visible native menu/gameplay evidence. Disk free: 24.79 GB. Both xemu processes are present (PIDs 32416 and 52848); do not alter PID 32416.
+- Next: map host crash RVA to the exact generated/runtime operation, then collect a paired xemu state at the same guest call before changing allocator behavior. Use an explicit clean-root strict launch once its invocation is established.
+
+---
 # MM3 Session Status — 2026-09-27
 
 ## Build identity
