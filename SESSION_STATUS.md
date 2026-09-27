@@ -1,7 +1,7 @@
 # MM3 Session Status - 2026-09-27
 
 ## Source/build identity
-- Outer source: `4dc020f`; toolkit: `390eab9`. Both worktrees clean.
+- Outer source checkpoint: `5f89577`; runtime-source commit: `4dc020f`; toolkit: `390eab9`. Both worktrees clean.
 - Input: `game_files/default.xbe`, SHA-256 `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`. Baseline generation: `conformance_tmp/mm3_all_sections_gen_20260926`; EBX candidate: `conformance_tmp/mm3_all_sections_gen_20260927_ebx`.
 - Release build command: VS 18 CMake 4.2.3 `cmake --build build-msvc-frontier --config Release --target mm3_recomp`. Executable: `build-msvc-frontier/Release/mm3_recomp.exe`, SHA-256 `178D8A42449ED6C5C6B88296C29B406B674C5096EB3AB7C895778A2CC625C983`.
 - Candidate executable: `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `A37723CA3AC3325894B4603A07D7248190EC48E6FCD3F1520110AD91C395A733`; rebuilt with the corrected project-owned `src/recomp/gen_trace/recomp_types.h` and completed successfully.
@@ -82,3 +82,9 @@
 - Full Release rebuild completed from `conformance_tmp/mm3_all_sections_gen_20260927_ebx` after copying the committed project-owned runtime header into the generation directory. Candidate SHA-256: `A37723CA3AC3325894B4603A07D7248190EC48E6FCD3F1520110AD91C395A733`.
 - A bounded launch with inherited `MM3_*`, `RECOMP_*`, and `XBOX_*` variables cleared exited with code 0 through `HalReturnToFirmware(2)`. It checked `dashupdate.xbe` and then `xboxdash.xbe`; the temporary dashboard mirror was absent, so this run did not reach `XODash` or a visible title screen. Log: `conformance_tmp/native_project_header_probe_20260927.err.log`.
 - Root and toolkit source worktrees were clean after the build. Playability and visual acceptance remain unproven.
+
+## 2026-09-27 data and source-fix audit
+- Read-only qcow2/FATX inspection of `tools/xemu/hdd/xbox_hdd.qcow2` (SHA-256 `5038F9D993B2EBF5D85BAFB196C2CE74DC4A645AF509BAB9F8F14B56661CC59B`) found E: FATX, 32 sectors/cluster, root cluster 1, and zero root entries. No `E:\TDATA\4d53002a` exists on the current xemu disk. Repro command: `py -3 conformance_tmp\inspect_clean_xemu_e_partition.py tools\xemu\hdd\xbox_hdd.qcow2`; retained output `conformance_tmp\xemu_clean_e_inventory_20260927.log`.
+- `%LOCALAPPDATA%\xboxrecomp\TitleData\4d53002a` and `game_files\TDATA\4d53002a` are also empty. Toolkit maps `T:\` to the former, while `E:\TDATA\...` falls under the generic game-directory mapping. This is a real path-model gap, but latest startup exits at the dashboard handoff before any observed TitleData file read, so it is not yet the first boot blocker.
+- Fix audit: `1e3f324` immediate vertices/shared tiled memory and `e5fb42b` worker EBX behavior exist in clean (EBX regression test present). Exact `c93792a` post-guest-body Present hook is absent from the refactored source; an equivalent current hook is not established. Do not transplant until its runtime call site and effect are traced.
+- Strict runner scripts `tools\powershell\build_limited.ps1` and `run_strict.ps1` are absent in clean. The candidate executable path/hash is above; no strict acceptance run or playable capture exists.
