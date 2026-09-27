@@ -133,7 +133,14 @@ static void call_alternate_seh_preserving(recomp_func_t body)
     g_seh_ebp = seh_ebp;
 }
 
-void sub_00083FBB(void) { call_alternate_seh_preserving(sub_00083FBB_gen); }
+void sub_00083FBB(void)
+{
+    uint32_t esp = g_esp;
+    call_alternate_seh_preserving(sub_00083FBB_gen);
+    /* Its alternate SEH epilog restores the inherited caller frame. Keep the
+     * guest ret 12 cleanup here so the next translated call stays in-frame. */
+    g_esp = esp + 16;
+}
 void sub_00084020(void) { call_alternate_seh_preserving(sub_00084020_gen); }
 void sub_0008427E(void) { call_alternate_seh_preserving(sub_0008427E_gen); }
 void sub_000842EA(void) { call_alternate_seh_preserving(sub_000842EA_gen); }
