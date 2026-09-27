@@ -48,7 +48,7 @@ void sub_00094B10(void);
 void sub_0009D34E(void);
 void sub_00083A6C(void);
 extern void sub_00083FBB_gen(void) /* alternate-SEH generated overlay */;
-extern void sub_00093DD3_gen(void) /* generated formatter fallback */;
+extern void sub_00093DD3_gen(void);
 extern void sub_00084020_gen(void) /* alternate-SEH generated overlay */;
 extern void sub_0008427E_gen(void) /* alternate-SEH generated overlay */;
 extern void sub_000842EA_gen(void) /* alternate-SEH generated overlay */;
