@@ -268,21 +268,29 @@ static inline uint16_t recomp_fxam(double value) {
  * followed by `test ah, 0x44; jp` is how this era's CRT asks "is this a NaN",
  * and collapsing it to "equal" answers no every time. */
 #define RECOMP_FCMP(a, b)     (((a) != (a) || (b) != (b)) ? 2 : (a) < (b) ? -1 : (a) > (b) ? 1 : 0)
-/* x87 integer stores use the guest RC bits, independently of host rounding.
- * Masked invalid conversions store the signed integer-indefinite value. */
-static inline int64_t recomp_fist(double value, uint16_t control, unsigned bits) {
+/* Match x87 FRNDINT's per-thread control word, not the host rounding mode. */
+static inline double recomp_frndint(double value, uint16_t control) {
     double rounded;
-    switch((control>>10)&3) {
-    case 1: rounded=floor(value); break;
-    case 2: rounded=ceil(value); break;
-    case 3: rounded=trunc(value); break;
+    if (!isfinite(value)) return value;
+    switch ((control >> 10) & 3) {
+    case 1: rounded = floor(value); break;
+    case 2: rounded = ceil(value); break;
+    case 3: rounded = trunc(value); break;
     default: {
-        double lo=floor(value), fraction=value-lo;
-        rounded=lo;
-        if(fraction>0.5 || (fraction==0.5 && fmod(lo,2.0)!=0.0)) rounded=lo+1.0;
+        double lo = floor(value), fraction = value - lo;
+        rounded = lo;
+        if (fraction > 0.5 || (fraction == 0.5 && fmod(lo, 2.0) != 0.0))
+            rounded = lo + 1.0;
         break;
     }
     }
+    return rounded == 0.0 ? copysign(0.0, value) : rounded;
+}
+
+/* x87 integer stores use the guest RC bits, independently of host rounding.
+ * Masked invalid conversions store the signed integer-indefinite value. */
+static inline int64_t recomp_fist(double value, uint16_t control, unsigned bits) {
+    double rounded = recomp_frndint(value, control);
     double limit=ldexp(1.0,(int)bits-1);
     if(!isfinite(rounded) || rounded < -limit || rounded >= limit)
         return bits==64?INT64_MIN:-(INT64_C(1)<<(bits-1));
@@ -610,6 +618,27 @@ static inline uint32_t SUB32_CF(uint32_t a, uint32_t b, int *cf) {
 /* ================================================================
  * Rotation / shift helpers
  * ================================================================ */
+/* Rotate through carry over the operand width plus the carry bit. */
+static inline uint32_t RC_ROT(uint32_t val, unsigned n, int *cf,
+                              unsigned width, int left) {
+    unsigned mod = width + 1u;
+    uint64_t mask = (width >= 32u) ? 0xFFFFFFFFull
+                                   : ((((uint64_t)1 << width) - 1u));
+    uint64_t x = (((uint64_t)(*cf & 1)) << width) | ((uint64_t)val & mask);
+
+    n &= 31u;
+    if (width < 32u)
+        n %= mod;
+    if (n) {
+        uint64_t full = (((uint64_t)1 << mod) - 1u);
+        x = left ? ((x << n) | (x >> (mod - n)))
+                 : ((x >> n) | (x << (mod - n)));
+        x &= full;
+    }
+    *cf = (int)((x >> width) & 1);
+    return (uint32_t)(x & mask);
+}
+
 
 /* x86 masks the rotate count to 5 bits, and THEN the rotate is modulo the
  * operand's own width -- so `rol al, 16` is a rotate by zero and `rol ax, 31`
@@ -1236,5 +1265,8 @@ static inline RecompMmx MMX_PSADBW(RecompMmx a, RecompMmx b) {
  * The recomp_funcs.h header (generated) declares all translated
  * function prototypes.
  * ================================================================ */
+
+void recomp_unimpl(const char *text, uint32_t va);
+#define RECOMP_UNIMPL(_text, _va) recomp_unimpl((_text), (_va))
 
 #endif /* RECOMP_TYPES_H */
