@@ -48,7 +48,8 @@ void sub_00094B10(void);
 void sub_0009D34E(void);
 void sub_00083A6C(void);
 extern void sub_00083FBB_gen(void) /* alternate-SEH generated overlay */;
-extern void sub_00093DD3_gen(void);
+extern void sub_00097E46(void);
+extern void sub_00097C9F(void);
 extern void sub_00084020_gen(void) /* alternate-SEH generated overlay */;
 extern void sub_0008427E_gen(void) /* alternate-SEH generated overlay */;
 extern void sub_000842EA_gen(void) /* alternate-SEH generated overlay */;
@@ -160,7 +161,7 @@ void sub_00093DD3(void)
 {
     static const char hex[] = "0123456789abcdef";
     uint32_t esp = g_esp;
-    uint32_t dest = MEM32(esp + 4u);
+    uint32_t frame, destination = MEM32(esp + 4u);
     uint32_t format = MEM32(esp + 8u);
     uint32_t i;
 
@@ -169,13 +170,54 @@ void sub_00093DD3(void)
         MEM8(format + 4u) == 'x' && MEM8(format + 5u) == 0) {
         uint32_t value = MEM32(esp + 12u);
         for (i = 0; i < 8u; ++i)
-            MEM8(dest + i) = (uint8_t)hex[(value >> (28u - i * 4u)) & 0xFu];
-        MEM8(dest + 8u) = 0;
+            MEM8(destination + i) = (uint8_t)hex[(value >> (28u - i * 4u)) & 0xFu];
+        MEM8(destination + 8u) = 0;
         g_eax = 8u;
         g_esp = esp + 4u;
         return;
     }
-    sub_00093DD3_gen();
+
+    PUSH32(g_esp, g_ebp);
+    frame = g_esp;
+    g_ebp = frame;
+    g_seh_ebp = frame;
+    g_esp -= 0x20u;
+    PUSH32(g_esp, g_esi);
+    g_esi = MEM32(frame + 8u);
+    PUSH32(g_esp, g_edi);
+    PUSH32(g_esp, frame + 0x10u);
+    PUSH32(g_esp, MEM32(frame + 0xCu));
+    PUSH32(g_esp, frame - 0x20u);
+    MEM32(frame - 0x1Cu) = 0x7FFFFFFFu;
+    MEM32(frame - 0x14u) = 0x42u;
+    MEM32(frame - 0x18u) = g_esi;
+    MEM32(frame - 0x20u) = g_esi;
+    g_ebp = frame;
+    g_seh_ebp = frame;
+    PUSH32(g_esp, 0x00093E02u);
+    RECOMP_ABI_CALL(0x00097E46u, sub_00097E46);
+    g_esp += 0xCu;
+    g_edi = g_eax;
+    if (g_esi) {
+        MEM32(frame - 0x1Cu) -= 1u;
+        if ((int32_t)MEM32(frame - 0x1Cu) >= 0)
+            MEM8(MEM32(frame - 0x20u)) = 0;
+        else {
+            PUSH32(g_esp, frame - 0x20u);
+            PUSH32(g_esp, 0);
+            g_ebp = frame;
+            g_seh_ebp = frame;
+            PUSH32(g_esp, 0x00093E23u);
+            RECOMP_ABI_CALL(0x00097C9Fu, sub_00097C9F);
+            g_esp += 8u;
+        }
+    }
+    g_eax = g_edi;
+    POP32(g_esp, g_edi);
+    POP32(g_esp, g_esi);
+    g_esp = frame;
+    POP32(g_esp, g_ebp);
+    g_esp += 4u;
 }
 void sub_00084020(void) { call_alternate_seh_preserving(sub_00084020_gen); }
 void sub_0008427E(void) { call_alternate_seh_preserving(sub_0008427E_gen); }
