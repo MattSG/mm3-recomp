@@ -1,12 +1,12 @@
 # Current checkpoint — 2026-09-27
 
-- Root HEAD `40d6b3d`; nested `tools/xboxrecomp` HEAD `db0413f`; both worktrees are clean after this checkpoint commit.
+- Root HEAD `84b2ba4`; nested `tools/xboxrecomp` HEAD `db0413f`; both worktrees are clean after this checkpoint commit.
 - Translator fix refreshes derived `SEH_HELPERS` after late helper detection. Regression passed: `python3 -m unittest tools.recomp.test_translator_seh_helpers`. Full generation completed: 26,400/26,437 functions translated, 0 failed. Fresh `0x858F3` and `0x860AA` overlays read back `ebp = g_seh_ebp` after `0x94FC0`.
 - Release candidate `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `0FFB3ACFC1E89A261012E5249090AE0ABDB3538800718DF5A30CE984D6B5BEEA`. Matching-symbol RelWithDebInfo build `build-msvc-ebx/RelWithDebInfo/mm3_recomp.exe`, SHA-256 `D1FC5EEF6CDC855AE7E2F310B75FB6F5DAD57C7AEAE241E62E5DB0320203DF67`.
-- Temporary generated-code trace showed `sub_000858F3_gen` turns the `0x01002C38` list node into a self-link at `0x85C6A` when the new node (`chunk+8`) aliases the old node. The subsequent `0x13A` scan repeats on size `3`. Inline mode also reproduced allocator churn (37 KB stderr in 12 seconds), so spawn concurrency alone does not explain it. Instrumentation was removed and the symbol build refreshed.
-- Bounded xemu clone capture on port `1237` hit `sub_000858F3` 1,000 times without a `0x13A` allocation; the last observed call had heap `0x00490000`, flags `0`, size `0x14`. This is an earlier allocation sequence and cannot validate the native self-link. GDB detached at the hit bound. Clone PID `52848`; do not touch user PID `32416`.
+- Temporary generated-code trace showed `sub_000858F3_gen` self-links node `0x01002C38` at `0x85C6A` when the new node (`chunk+8`) aliases the old node; the next `0x13A` scan loops on size `3`. Inline mode also reproduced the allocator churn, so spawn concurrency alone does not explain it. Instrumentation was removed and the symbol build refreshed.
+- On the owned xemu clone (port `1237`), 1,000 allocator-entry hits ended at size `0x14`; a 2,000-hit capture timed out at 180 seconds without seeing size `0x13A`. Follow-up GDB read showed EIP `0x858F8`, return `0x0016FF15`, heap `0x00490000`, flags `0`, size `0xA`. This is an earlier allocation sequence and cannot validate the native self-link. GDB detached; clone PID `52848` remains available. Do not touch user PID `32416`.
 - No strict acceptance run, recognizable menu/gameplay, or screenshot has been achieved. Available CUA returned no apps or browsers and reports native APIs disabled. `RECOMP_UNIMPL_TRAP=1` is a debug guard, not strict-mode proof; clean checkout has no historical strict runner.
-- Next: advance the xemu reference to the same `0x13A` transition, or establish why the native caller reaches the aliased link first, then make an evidenced fix. Disk free was last measured at 22.8 GB.
+- Next: identify why the native call reaches the aliased insertion, then obtain the corresponding xemu operation before changing code. Disk free was last measured at 22.8 GB.
 ---
 # MM3 Session Status — 2026-09-27
 
