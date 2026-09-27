@@ -1,10 +1,10 @@
 # MM3 Session Status - 2026-09-27
 
 ## Source/build identity
-- Outer source checkpoint: `5f89577`; runtime-source commit: `4dc020f`; toolkit: `390eab9`. Both worktrees clean.
+- Outer source checkpoint: `0c3f8e8`; runtime-source commit: `0c3f8e8`; toolkit: `390eab9`. Both worktrees clean.
 - Input: `game_files/default.xbe`, SHA-256 `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`. Baseline generation: `conformance_tmp/mm3_all_sections_gen_20260926`; EBX candidate: `conformance_tmp/mm3_all_sections_gen_20260927_ebx`.
 - Release build command: VS 18 CMake 4.2.3 `cmake --build build-msvc-frontier --config Release --target mm3_recomp`. Executable: `build-msvc-frontier/Release/mm3_recomp.exe`, SHA-256 `178D8A42449ED6C5C6B88296C29B406B674C5096EB3AB7C895778A2CC625C983`.
-- Candidate executable: `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `A37723CA3AC3325894B4603A07D7248190EC48E6FCD3F1520110AD91C395A733`; rebuilt with the corrected project-owned `src/recomp/gen_trace/recomp_types.h` and completed successfully.
+- Candidate executable: `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `B404A0E7ACC92A29FA5550E1588BAD3C40A8DCAD5EE15E488EDA6D93609887E7`; rebuilt with the corrected project-owned `src/recomp/gen_trace/recomp_types.h` and env-gated boot-state tracing.
 - Strict runner is not established in clean. No acceptance run has been made; the latest bounded probe cleared all inherited `MM3_*`, `RECOMP_*`, and `XBOX_*` variables.
 
 ## Current evidence
@@ -89,3 +89,9 @@
 - `%LOCALAPPDATA%\xboxrecomp\TitleData\4d53002a` and `game_files\TDATA\4d53002a` are also empty. Toolkit maps `T:\` to the former, while `E:\TDATA\...` falls under the generic game-directory mapping. This is a real path-model gap, but latest startup exits at the dashboard handoff before any observed TitleData file read, so it is not yet the first boot blocker.
 - Fix audit: `1e3f324` immediate vertices/shared tiled memory and `e5fb42b` worker EBX behavior exist in clean (EBX regression test present). Exact `c93792a` post-guest-body Present hook is absent from the refactored source; an equivalent current hook is not established. Do not transplant until its runtime call site and effect are traced.
 - Strict runner scripts `tools\powershell\build_limited.ps1` and `run_strict.ps1` are absent in clean. The candidate executable path/hash is above; no strict acceptance run or playable capture exists.
+
+## 2026-09-27 native and xemu XBE entry comparison
+- Root source checkpoint: `0c3f8e8`; toolkit: `390eab9`. The latest Release executable is `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `B404A0E7ACC92A29FA5550E1588BAD3C40A8DCAD5EE15E488EDA6D93609887E7`. `src/main.c` has an environment-gated `MM3_TRACE_BOOT_STATE` diagnostic immediately before its direct `xbe_entry_point()` call; default launches do not print it.
+- The diagnostic native launch reported `EAX/EBX/ECX/EDX/ESI/EDI/EBP=0`, `ESP=0x00F7FFF0`, `FS=0x00004000`, zero stack words, and kernel globals `0x10108=0x1018`, `0x10118=0x00010180`, `0x10128=0xA8F46BFE`; it then returned through `HalReturnToFirmware(2)` with exit code 0.
+- The isolated xemu handoff reaches the same XBE entry with `EAX=0x3FA`, `ESI=0x80000000`, `ESP=0xD001CD7C` (return address `0x800158E0`), `EBP=0xD001CDB0`, `FS=0x20`, and `FS_BASE=0x80035BDC`; kernel global `0x10128` points to `0x83C55`, the XBE entry. The other captured registers are zero. This proves a material boot-context difference before the title starts; it does not yet identify which kernel setup effects need reproduction.
+- Next: trace the semantics of the xemu kernel setup path at `0x8001E9F5` and the call through `0x800158DA`, then implement only the verified missing entry setup. Do not seed guessed register/stack values. Playability, strict runs, input/audio, long-drive/pause acceptance, and authentic recomp screenshots remain outstanding.
