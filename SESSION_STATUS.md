@@ -1,10 +1,10 @@
 # MM3 Session Status - 2026-09-27
 
 ## Source/build identity
-- Outer source checkpoint: `17134da`; runtime-source commit: `17134da`; toolkit: `390eab9`. Both worktrees clean.
+- Outer source checkpoint: `191e71c`; runtime-source commit: `17134da`; toolkit: `9c167fa`. Root gitlink and nested toolkit are checkpointed together.
 - Input: `game_files/default.xbe`, SHA-256 `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`. Baseline generation: `conformance_tmp/mm3_all_sections_gen_20260926`; EBX candidate: `conformance_tmp/mm3_all_sections_gen_20260927_ebx`.
 - Release build command: VS 18 CMake 4.2.3 `cmake --build build-msvc-frontier --config Release --target mm3_recomp`. Executable: `build-msvc-frontier/Release/mm3_recomp.exe`, SHA-256 `178D8A42449ED6C5C6B88296C29B406B674C5096EB3AB7C895778A2CC625C983`.
-- Candidate executable: `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `D92B44E1CE8934999610A344AAAF17D1A27CCD00EC94227E2C387ADE51F8735C`; Release rebuild includes env-gated entry kernel-data tracing.
+- Candidate executable: `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `F7C8E2B13F3CB0EB197687FC3556E7EE8CD50E179A224E0AB214D1F650FE62C5`; Release rebuild includes env-gated entry and first-file worker tracing.
 - Strict runner is not established in clean. No acceptance run has been made; the latest bounded probe cleared all inherited `MM3_*`, `RECOMP_*`, and `XBOX_*` variables.
 
 ## Current evidence
@@ -109,3 +109,9 @@
 - This supersedes the earlier assumption that the title always entered with EAX=0x3FA. Native and xemu now agree on EAX and the first branch data; this does not explain their first NtCreateFile callers (native sub_0029699B/dashupdate.xbe, xemu sub_00296A61/T:\$u\contentmeta.xbx).
 - The GDB xemu PID 24416 and visual-only PID 48564 were closed gracefully. PID 24416 used -snapshot and a copied EEPROM. I-drive free space after the probes: 33,766,674,432 bytes. Outer and nested tracked worktrees were clean after the source commit.
 - Next: trace the same main guest thread from XBE entry through the first differing NtCreateFile path, stopping on actual branch/state differences. Do not seed the older EAX value or guessed kernel context. No strict or playability acceptance has been achieved.
+
+## 2026-09-27 worker file-thread state
+- Toolkit diagnostic commit: `9c167fa` adds opt-in `MM3_TRACE_FILE_THREAD` logging at `bridge_NtCreateFile`; root source remains at `17134da`. Current Release candidate SHA-256: `F7C8E2B13F3CB0EB197687FC3556E7EE8CD50E179A224E0AB214D1F650FE62C5`.
+- Native first file opens (TDATA/UDATA, dashupdate, xboxdash) ran on the same host worker thread, TID 53396, with guest FS base `0x01000000`. At the open: TIB `[+0]=0`, `[+4]=0x01000054`, `[+8]=0x00780000`, `[+0x18]=0x4000`, `[+0x20]=0x00761000`, `[+0x28]=0x00760000`; TLS base minus 20 begins `0x01000054`, followed by zeros. Log: `conformance_tmp/native_file_thread_20260927.err.log`.
+- Fresh xemu breakpoint at `0x8248D`, immediately before the same file thunk, ran on a separate QEMU CPU worker stack (`ESP=0xD00B2808`), with FS base `0x80035BDC`. Captured KPCR/TIB fields: `[+0]=0xD00B3DBC`, `[+4]=0xD00B3DF0`, `[+8]=0xD0074000`, `[+0x18]=0`, `[+0x20]=0x80035C04`, `[+0x28]=0xD0008698`. This confirms both calls run in worker context, but their FS/TLS layouts differ; causality for the different caller/path is still unproven.
+- Next: compare the first divergent parent call, branch, and launch/I/O state on the corresponding guest worker threads. Keep thread-layout changes deferred until a specific missing behavior is demonstrated. Playability, strict runs, controls/audio, long-drive/pause acceptance, and authentic recomp screenshots remain unproven.
