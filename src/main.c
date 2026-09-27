@@ -69,9 +69,12 @@ static LONG WINAPI mm3_crash_report(EXCEPTION_POINTERS *info)
     fprintf(stderr, "[CRASH] stack=0x%08X +4=0x%08X +8=0x%08X\n",
             MEM32(g_esp), MEM32(g_esp + 4), MEM32(g_esp + 8));
     if (g_esi < MM3_MEMORY_MAP_SIZE - 0x580u) {
-        uint32_t bucket = g_esi + ((g_edi & 0x7Fu) * 8u) + 0x180u;
-        fprintf(stderr, "[CRASH] heap=0x%08X bucket=%u head=0x%08X fwd=0x%08X back=0x%08X\n",
-                g_esi, g_edi, bucket, MEM32(bucket), MEM32(bucket + 4));
+        fprintf(stderr, "[CRASH] heap=0x%08X bucket=%u\n", g_esi, g_edi);
+        for (uint32_t i = 0; i < 5; ++i) {
+            uint32_t bucket = g_esi + 0x180u + i * 8u;
+            fprintf(stderr, "[CRASH] heap_bin[%u]=%08X/%08X\n",
+                    i, MEM32(bucket), MEM32(bucket + 4));
+        }
     }
     return EXCEPTION_CONTINUE_SEARCH;
 }
