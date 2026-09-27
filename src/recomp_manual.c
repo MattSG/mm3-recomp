@@ -223,7 +223,15 @@ void sub_00084020(void) { call_alternate_seh_preserving(sub_00084020_gen); }
 void sub_0008427E(void) { call_alternate_seh_preserving(sub_0008427E_gen); }
 void sub_000842EA(void) { call_alternate_seh_preserving(sub_000842EA_gen); }
 void sub_000854CF(void) { call_alternate_seh_preserving(sub_000854CF_gen); }
-void sub_000858F3(void) { call_alternate_seh_preserving(sub_000858F3_gen); }
+void sub_000858F3(void)
+{
+    static unsigned calls;
+    if (calls++ < 8)
+        fprintf(stderr, "[858F3_ENTRY] call=%u ret=%08X args=%08X,%08X,%08X esi=%08X edi=%08X\n",
+                calls, MEM32(g_esp), MEM32(g_esp + 4), MEM32(g_esp + 8),
+                MEM32(g_esp + 12), g_esi, g_edi);
+    call_alternate_seh_preserving(sub_000858F3_gen);
+}
 void sub_000860AA(void) { call_alternate_seh_preserving(sub_000860AA_gen); }
 void sub_0008629E(void) { call_alternate_seh_preserving(sub_0008629E_gen); }
 void sub_00096738(void) { sub_00096738_gen(); }
