@@ -136,9 +136,23 @@ static void call_alternate_seh_preserving(recomp_func_t body)
 void sub_00083FBB(void)
 {
     uint32_t esp = g_esp;
-    call_alternate_seh_preserving(sub_00083FBB_gen);
-    /* Its alternate SEH epilog restores the inherited caller frame. Keep the
-     * guest ret 12 cleanup here so the next translated call stays in-frame. */
+    uint32_t dest = MEM32(esp + 4);
+    uint32_t src = MEM32(esp + 8);
+    uint32_t count = MEM32(esp + 12);
+    uint32_t i;
+
+    /* The generated FPO body reads args via inherited EBP after its SEH prolog. */
+    for (i = 0; i < count; ++i) {
+        uint8_t ch = MEM8(src + i);
+        if (!ch) {
+            MEM8(dest + i) = 0;
+            break;
+        }
+        MEM8(dest + i) = ch;
+    }
+    if (count && i == count)
+        MEM8(dest + count - 1) = 0;
+    g_eax = dest;
     g_esp = esp + 16;
 }
 void sub_00084020(void) { call_alternate_seh_preserving(sub_00084020_gen); }
