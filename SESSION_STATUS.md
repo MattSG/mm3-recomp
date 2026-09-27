@@ -1,12 +1,12 @@
 # Current checkpoint — 2026-09-27
 
-- Root HEAD `9157a3c`; nested `tools/xboxrecomp` HEAD `db0413f`; both worktrees clean at this checkpoint.
-- Translator fix refreshes derived `SEH_HELPERS` after late helper detection. Regression: `python3 -m unittest tools.recomp.test_translator_seh_helpers` passed. Full generation completed: 26,400/26,437 functions translated, 0 failed. Fresh `0x858F3` and `0x860AA` overlays read back `ebp = g_seh_ebp` after `0x94FC0`.
-- Release candidate `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `0FFB3ACFC1E89A261012E5249090AE0ABDB3538800718DF5A30CE984D6B5BEEA`. Its source map matches the clean root and current generated directory `conformance_tmp/mm3_xonline_trace_20260927`.
-- Strict diagnostic launch (`MM3_THREAD_MODE=spawn`, `RECOMP_UNIMPL_TRAP=1`; recovery/trace/force-return variables removed) stayed alive beyond 15 seconds, then repeatedly entered allocator paths and spun. I stopped our process (PID 8388). The prior `0xFFFFFFF7` fault is superseded; the spin is unresolved. CDB inspection used a stale RelWithDebInfo PDB, so its symbol mapping is not trusted.
-- No strict acceptance run, recognizable menu/gameplay, or screenshot has been achieved. The available CUA surface returned no apps or browsers and documents native APIs as disabled. `RECOMP_UNIMPL_TRAP=1` is a debug guard, not strict-mode proof. Clean checkout has no historical strict runner.
+- Root HEAD `f797895`; nested `tools/xboxrecomp` HEAD `db0413f`; both worktrees clean after this documentation update is committed.
+- Translator fix refreshes derived `SEH_HELPERS` after late helper detection. Regression passed: `python3 -m unittest tools.recomp.test_translator_seh_helpers`. Full generation completed: 26,400/26,437 functions translated, 0 failed. Fresh `0x858F3` and `0x860AA` overlays read back `ebp = g_seh_ebp` after `0x94FC0`.
+- Release candidate `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `0FFB3ACFC1E89A261012E5249090AE0ABDB3538800718DF5A30CE984D6B5BEEA`. Matching-symbol RelWithDebInfo build completed from the same generated tree, SHA-256 `D859A77C29B0A10E2B4A3B1BF1EA92DEBF7ED40D9C512CBC50AEA5E757A491CD`.
+- A bounded `MM3_THREAD_MODE=spawn`, `RECOMP_UNIMPL_TRAP=1` launch remained active and consumed CPU. Matching-symbol CDB stack captured the guest thread in `sub_000858F3_gen`, in the allocator's 16-bit free-list size comparison (`dx=0x13a`, `cx=3`); snapshots stayed in the same allocator path. Logs: `native_symbolmatch_threads_20260927.cdb.log` and `native_symbolmatch_guest_20260927.cdb.log`. Our diagnostic PID 7728 was stopped. The allocator spin remains unresolved.
+- No strict acceptance run, recognizable menu/gameplay, or screenshot has been achieved. Available CUA returned no apps or browsers and reports native APIs disabled. `RECOMP_UNIMPL_TRAP=1` is a debug guard, not strict-mode proof; clean checkout has no historical strict runner.
 - Do not touch user xemu PID 32416. PID 52848 is our stopped clone; its earlier allocator call differs from the native caller/size and is not parity evidence.
-- Next: rebuild RelWithDebInfo against the current generated tree, map the spin with matching symbols, then continue toward visible native acceptance. Disk free was last measured at 22.8 GB.
+- Next: trace the allocator list values and guest heap state at the comparison, then make the smallest evidenced fix and continue toward visible native acceptance. Disk free was last measured at 22.8 GB.
 ---
 # MM3 Session Status — 2026-09-27
 
