@@ -1,4 +1,4 @@
-# MM3 session status — 2026-09-27
+# MM3 session status — 2026-09-28
 
 ## Current checkpoint
 
@@ -7,6 +7,9 @@
 - This remains a diagnostic build: ABI check off, no strict runner or `MM3_STRICT` option; CTest has zero tests. No two cold strict runs. Actual window screenshots/video, menu, 3D city, controls, audio, ten-minute drive and pause/resume/menu remain unverified.
 
 ## Latest runtime evidence
+
+- Data-path check: toolkit path rules map `\Device\Harddisk0\Partition1\TDATA\...` to `game_files\TDATA\...`; `T:\` maps to `<save_dir>\TitleData`. So the native trace's successful Partition1 `TDATA` opens are separate from LocalAppData TitleData. It later fails to open `Partition1\TDATA\4d53002a\$u\contentmeta.xbx` with `STATUS_PATH_NOT_FOUND` (Win32 3). The live xemu instance uses `-snapshot`; offline FATX parsing found an empty E partition on the unchanged base HDD clone (SHA-256 `609BB38B721C5826F0EF8156AAF2A948EA6A5AAD442D1B6D6DE163B3F02DBA59`), which does not reveal its active snapshot overlay. External-data equivalence is unresolved; do not attribute the callback state mismatch to code yet.
+- Scratch-process check on 2026-09-28: private xemu PID `54752` is stopped; original xemu PID `32416` remains running. Root and nested toolkit worktrees were clean after the check.
 
 - Default scanout opens a 640x480 guest framebuffer window. An isolated cold native run stayed on authentic `LOADING` panel with animated dots for eight minutes; no menu transition. Inspected framebuffer capture: `conformance_tmp/native_default_scanout_probe_20260927_long/frame.bmp`, SHA-256 `492B1FEFBEC108E2AC475709F33BC1CBE3CCF40B56EF8F42984389119037327A`. This is guest framebuffer data, not an app-window screenshot. Run stderr SHA-256 `EEDCBDB36C3516A0F8E89C09224034781007C65120382925F89B288A85F83B37`.
 - Native opens `Data_hd.zip` and city assets including `Data\Shared\Paris\city.ai`. CDB sampled guest worker stack in `sub_001E7B8F_gen`, `sub_00081F13`, and `KeDelayExecutionThread`; one sample only, not proof of a deadlock. Trace SHA-256 `66590D45D37B8AD8237C43B79BE601C5DC0D622042DE5C1E1CD85F72C8BF68D5`. Probe process stopped; its two isolated save trees were removed (9 files / 5,278,032,850 logical bytes each).
