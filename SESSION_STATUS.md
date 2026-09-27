@@ -1,13 +1,12 @@
 # Current checkpoint — 2026-09-27
 
-- Clean root: `874ca3f`; clean nested `tools/xboxrecomp`: `db0413f` (SEH helper set refresh + regression).
-- Build cache points to this clean root and generator dir `conformance_tmp/mm3_xonline_trace_20260927`. Latest diagnostic build `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `E16F5F1FCD1C4E908C2B316AB13E7D3973D4BB7ABAC0674EC545DEBF11F5EE47`; regenerated allocator overlay emits frame refresh after 0x94FC0 and 0x94FFB.
-- Clean root has no `tools/powershell/run_strict.ps1` or `build_limited.ps1`. The historical scripts resolve paths from their current checkout; they cannot establish which clean binary was run. Historical run 10008 explicitly used sibling `m4tmp/build-a70/Release/mm3_recomp.exe` (configured from `I:/repos/midtown-madness-3-recomp`, with `MM3_DIAG_A70=ON`).
-- Latest strict diagnostic run (`MM3_THREAD_MODE=spawn`, `RECOMP_UNIMPL_TRAP=1`) preserved allocator arg `0x01001000` across the 0x94FC0 helper; focused translator test passed. It now faults at host RVA `0x868BF6` reading guest address `0xFFFFFFF7` (CDB: `movzx edx, byte ptr [rcx+rax]`, `rcx=0xFFFFFFF7`). First causal mismatch was the stale derived `SEH_HELPERS` set; the new allocator-state fault remains unresolved.
-- Parity check: clean toolkit already contains immediate-mode vertices, tiled memory aliasing and startup-worker EBX preservation; no deferred Present-after-guest-body hook was found. Do not port the three historical commits wholesale.
-- Strict playable acceptance remains unrun; clean source has no `MM3_STRICT` handler and clean root has no strict runner. No visible native menu/gameplay evidence. Disk free: 24.79 GB. Both xemu processes are present (PIDs 32416 and 52848); do not alter PID 32416.
-- The xemu clone stopped at `0x85955`, but the captured call was return `0x0016FF15`, args `0x00490000, 0, 4`; 40 subsequent stops repeated that 4-byte call. Its populated bucket 3 is not comparable to native caller `0x00083D69` / size `0x1000` and must not be used as allocator parity proof. Clone remains stopped; user PID 32416 was untouched.\n- Next: map the new host fault to its generated C operation with source symbols, then compare it against xemu at matching caller/size. Rebuild a non-tracing Release candidate and continue toward visible acceptance.
-
+- Root HEAD `9157a3c`; nested `tools/xboxrecomp` HEAD `db0413f`; both worktrees clean at this checkpoint.
+- Translator fix refreshes derived `SEH_HELPERS` after late helper detection. Regression: `python3 -m unittest tools.recomp.test_translator_seh_helpers` passed. Full generation completed: 26,400/26,437 functions translated, 0 failed. Fresh `0x858F3` and `0x860AA` overlays read back `ebp = g_seh_ebp` after `0x94FC0`.
+- Release candidate `build-msvc-ebx/Release/mm3_recomp.exe`, SHA-256 `0FFB3ACFC1E89A261012E5249090AE0ABDB3538800718DF5A30CE984D6B5BEEA`. Its source map matches the clean root and current generated directory `conformance_tmp/mm3_xonline_trace_20260927`.
+- Strict diagnostic launch (`MM3_THREAD_MODE=spawn`, `RECOMP_UNIMPL_TRAP=1`; recovery/trace/force-return variables removed) stayed alive beyond 15 seconds, then repeatedly entered allocator paths and spun. I stopped our process (PID 8388). The prior `0xFFFFFFF7` fault is superseded; the spin is unresolved. CDB inspection used a stale RelWithDebInfo PDB, so its symbol mapping is not trusted.
+- No strict acceptance run, recognizable menu/gameplay, or screenshot has been achieved. The available CUA surface returned no apps or browsers and documents native APIs as disabled. `RECOMP_UNIMPL_TRAP=1` is a debug guard, not strict-mode proof. Clean checkout has no historical strict runner.
+- Do not touch user xemu PID 32416. PID 52848 is our stopped clone; its earlier allocator call differs from the native caller/size and is not parity evidence.
+- Next: rebuild RelWithDebInfo against the current generated tree, map the spin with matching symbols, then continue toward visible native acceptance. Disk free was last measured at 22.8 GB.
 ---
 # MM3 Session Status — 2026-09-27
 
