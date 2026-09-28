@@ -251,3 +251,8 @@
 - The native final DE01 call reads its cursor at `0x010645A7` from a stream rooted near `0x010645A0`; the 8-entry context count falls to `1` before returning `0x11C`. Earlier bytes at the cursor include the `\r\nen` tail of the stream. The final call uses record `0x00FC8AF0`; this establishes concrete parser input addresses and bytes but still needs an xemu byte-for-byte comparison.
 - Trace: `conformance_tmp/native_de01_cursor.err.log`, SHA-256 `A3BC7A9915A6089FCBFB7E0BF042E1BFA54C9C63115332272C0D3646731A2DBC`. The exact native diagnostic save directory was removed after the run.
 - Next: capture xemu’s cursor pointer and bytes from the same DE01 call path. Native still crashes; playability acceptance remains unmet.
+## Native/xemu parser input comparison — 2026-09-28
+
+- At the same C88B/BA67 callsite, xemu’s parser cursor reads "running user setup...\n" and nearby NDEBUG/setLogLevel text, while native’s cursor reads function(OnInit)\r\n. The stream contents differ before DE01 returns its handler kind, confirming these captures are in different guest setup states; the status difference alone does not justify a translation change.
+- Trace: conformance_tmp/xemu_de01_cursor.rsp.log, SHA-256 19A5C6BB51A9DA2B597D7A138A41D09060FE6E9F5F537ADA5F3D59CA2F3755E5. Stopped only verified isolated candidate PID 58632 on port 1255 after capture.
+- Next: trace the setup transition that leads native from OnInit into the error path while xemu is still processing user setup. Native still crashes; playability acceptance remains unmet.
