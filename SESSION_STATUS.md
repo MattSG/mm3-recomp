@@ -166,3 +166,9 @@
 - Instrumented `sub_001F37D2` in ignored generated output. Before the error-handler longjmps, it receives a live object (`0x00FE7010`) whose virtual method target is `0x001A3E8F`. After the longjmps it is re-entered at caller continuations with `EAX=0`, `1`, and `0x707`; those values are then treated as object bases and yield a null or invalid virtual target. This localizes the crash to resumed caller state, but does not yet prove whether the setjmp context or translated continuation is wrong.
 - Trace: `conformance_tmp/native_f37d2_v1.err.log`, SHA-256 `F645042BC982CD850B87AFC35C674EC162253F1CC58ABBD786CCA52C88F4CE91`. The exact diagnostic save directory was removed after the run.
 - Next: record callee-saved registers and guest setjmp context contents at each longjmp target, then compare with a reachable xemu run. The native executable still crashes and startup/gameplay acceptance remains unmet.
+
+## Guest longjmp buffer contents — 2026-09-28
+
+- Captured guest saved EBP/EBX/EDI/ESI/ESP at the `sub_00088B2D` longjmp sites. The helper transfers through the native setjmp mapping (no fallback path); saved contexts contain live nonzero ESI values such as `0x01114060`, while the later `sub_001F37D2` re-entries still receive EAX/ESI values `0`, `1`, or `0x707` and dereference them as callback owners. This confirms a mismatch across the resumed callback flow, but the current trace does not isolate whether it is the selected context or translated continuation state.
+- Trace: `conformance_tmp/native_jmpbuf_v1.err.log`, SHA-256 `48DAF050A9DA7ED9A8EF3C8C9DFC84FDB46E3B523BC03E39AAE5FEF82F019E66`. The exact diagnostic save directory was removed after the run.
+- Next: instrument the generic setjmp mapping at creation and return to map each guest context to its translated continuation. Startup and visual/gameplay acceptance remain unmet.
