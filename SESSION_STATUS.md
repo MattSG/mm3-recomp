@@ -172,3 +172,9 @@
 - Captured guest saved EBP/EBX/EDI/ESI/ESP at the `sub_00088B2D` longjmp sites. The helper transfers through the native setjmp mapping (no fallback path); saved contexts contain live nonzero ESI values such as `0x01114060`, while the later `sub_001F37D2` re-entries still receive EAX/ESI values `0`, `1`, or `0x707` and dereference them as callback owners. This confirms a mismatch across the resumed callback flow, but the current trace does not isolate whether it is the selected context or translated continuation state.
 - Trace: `conformance_tmp/native_jmpbuf_v1.err.log`, SHA-256 `48DAF050A9DA7ED9A8EF3C8C9DFC84FDB46E3B523BC03E39AAE5FEF82F019E66`. The exact diagnostic save directory was removed after the run.
 - Next: instrument the generic setjmp mapping at creation and return to map each guest context to its translated continuation. Startup and visual/gameplay acceptance remain unmet.
+
+## Generated setjmp callsite trace — 2026-09-28
+
+- Instrumented all four generated `setjmp` call sites. The active callback dispatcher site `0x000886E0` arms and resumes buffers `0x00F7FE74`, `0x00F7FC78`, `0x00F7FE5C`, and `0x00F7FC90`; each observed resume returns `1` through the correct generated setjmp site and restores its recorded guest registers. The later null calls still occur after those resumes, so the generic mapping is not yet shown to be at fault.
+- Trace: `conformance_tmp/native_setjmp_v1.err.log`, SHA-256 `3D316CF3B3D7A7559470672B4C561B93A10E8890B78C84529AEEFE20448BBC65`. The exact diagnostic save directory was removed after the run.
+- Next: trace the resumed `sub_000886A3` owner/record updates through the first subsequent `sub_001F37D2` call; xemu comparison still requires a reachable isolated guest state. Acceptance remains unmet.
