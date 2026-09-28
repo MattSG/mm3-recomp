@@ -154,3 +154,9 @@
 - Trace: `conformance_tmp/native_sub890e8_v2.err.log`, SHA-256 `90D3B750B186C8EE140B3F43F7C6524A95FA1E9CEF91AA0B8275ED5856ACFE9F`. The exact diagnostic save directory was removed after the run.
 - The cold isolated xemu did not reach the helper breakpoints within 120 seconds; its guest was at `EIP=0x8001B02F` when inspected. Stopped only verified candidate PID `24680` on port `1255`; reference PID `32416` on port `1235` remains untouched.
 - Next: trace `sub_0008D5C4` and its callees, and relaunch isolated xemu only when a useful guest state can be reached. Startup and all visual/gameplay acceptance criteria remain unmet.
+
+## Error callback longjmp trace — 2026-09-28
+
+- Native `sub_00088F88` returns from its formatter, then calls `sub_0008868C` and tail-transfers through `sub_00088B2D`. The handler path performs three guest longjmps with value `1`, using guest contexts `0x00F7FE5C`, `0x00F7FC90`, and `0x00F7FE74`; afterward the existing null indirect call at `0x001F37E5` recurs. This confirms the longjmp route but not why the resumed callback object has a null slot.
+- Traces: `conformance_tmp/native_88f88_v1.err.log` SHA-256 `D35135525F75331DA388FE0ED1076771A7B90A95064EA3B4FCAA0EEF8832EA42`; `conformance_tmp/native_88b2d_v1.err.log` SHA-256 `00149A3FFC8191239CFE376CC0AE1CA3794DC1CAE9E52371230E1BAB79D7AD6E`. Diagnostic save directories were removed after each run.
+- Next: trace `sub_001F37D2`'s object chain and callback slot before the indirect call, then compare with a reachable isolated xemu state. Startup and all visual/gameplay acceptance criteria remain unmet.
