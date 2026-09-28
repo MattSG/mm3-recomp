@@ -178,3 +178,9 @@
 - Instrumented all four generated `setjmp` call sites. The active callback dispatcher site `0x000886E0` arms and resumes buffers `0x00F7FE74`, `0x00F7FC78`, `0x00F7FE5C`, and `0x00F7FC90`; each observed resume returns `1` through the correct generated setjmp site and restores its recorded guest registers. The later null calls still occur after those resumes, so the generic mapping is not yet shown to be at fault.
 - Trace: `conformance_tmp/native_setjmp_v1.err.log`, SHA-256 `3D316CF3B3D7A7559470672B4C561B93A10E8890B78C84529AEEFE20448BBC65`. The exact diagnostic save directory was removed after the run.
 - Next: trace the resumed `sub_000886A3` owner/record updates through the first subsequent `sub_001F37D2` call; xemu comparison still requires a reachable isolated guest state. Acceptance remains unmet.
+
+## Callback dispatch resume trace — 2026-09-28
+
+- Native callback dispatch enters targets `0x00088668` and `0x000889EB`; each generated setjmp returns `0` initially and `1` after the handler longjmp. The later `sub_001F37D2` call sites still receive zero/one/error-code values as object bases and hit the null virtual target. This narrows the issue to how control proceeds after callback dispatch resumes; no source fix is established.
+- Trace: `conformance_tmp/native_dispatch_resume_v1.err.log`, SHA-256 `DEBC5B19F86C6BC375B163D1D3E0CE9F4F00581F18DE76BF614E2A0D2EEDECBF`. The exact diagnostic save directory was removed after the run.
+- Next: inspect the callers that resume after targets `0x88668` / `0x889EB`, then compare the same state in xemu if the isolated guest can reach it. Startup and all playability criteria remain unmet.
