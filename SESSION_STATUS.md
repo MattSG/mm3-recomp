@@ -2,11 +2,10 @@
 
 ## Build identity
 
-- Root HEAD `52388c3` (evidence-note commits only; source baseline `41e8424`, no tracked code edits). Toolkit `tools/xboxrecomp` is clean, detached at `8737a23`.
-- Generated C: ignored `conformance_tmp/mm3_full_regen_clean3_20260927_gen`; XBE SHA-256 `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`.
-- Build: `& 'C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe' --build build-msvc-tailfix --config RelWithDebInfo --target mm3_recomp`
-- Executable: `build-msvc-tailfix/RelWithDebInfo/mm3_recomp.exe`; current SHA-256 `53D0F2621E18EA41102F3D65974F2153C9464557793F6D9AC1E7E4059EE4D534`. It was rebuilt for diagnostics with hooks in ignored generated C (`recomp_0007.c`, `recomp_0008.c`, and `recomp_0019.c` under the scratch generator directory); do not use as acceptance binary. Canonical ignored `src/recomp/gen` also exists (39 section C files), but CMake cache currently selects the instrumented scratch generator output.
-
+- Root HEAD `8611c1f` (latest source change `4dc020f16880b00c79996eb49bcf04fc95ca7de9`; later commits are evidence notes). Toolkit `tools/xboxrecomp` is clean at `c09dc79f87e1ffd368f37df0d7e157f70fc7bf6c`, matching the root gitlink.
+- Generated C: ignored `conformance_tmp/mm3_full_regen_compareflags_20260928_v8_gen`; XBE SHA-256 `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`.
+- Build command: `cmake --build build-msvc-tailfix --config RelWithDebInfo --target mm3_recomp`. Cache points to this checkout and the instrumented v8 generated C.
+- Executable: `build-msvc-tailfix/RelWithDebInfo/mm3_recomp.exe`; SHA-256 `08B2FC089E3BE22A598C8A8FC6784E99754F78FB637897CC1806A8C955C55D46`. Diagnostic build with generated-C trace hooks; not an acceptance binary. Canonical ignored `src/recomp/gen` exists, but this CMake cache does not use it.
 ## Proven boundary
 
 - Cold xemu reaches guest `0x001E770C` with `EAX=1`, then callback callsites `0x001E777C` and `0x001E778D`. Trace: `conformance_tmp/xemu_render_parent_20260928/trace_gate.log`, SHA-256 `BEC7C089EA513DE89D4D59DD65EC304552FA0E760011394F99C86F23DE1422A4`.
