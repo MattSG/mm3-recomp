@@ -201,3 +201,8 @@
 - In the `sub_0008CD45` path, `sub_0008C88B` calls `sub_0008B9A5` with handler field `0x113` and query `0x25`; the comparison misses, leaving local status `0`. This explains the native status but not why xemu’s corresponding lookup reports status `3`. The hook’s post-call `local` value is unreliable because helper calls clobber EDI; use the CD45 return-site local instead.
 - Trace: `conformance_tmp/native_c88b_v1.err.log`, SHA-256 `EA5BB05EA7AA3B8D1F543385976D8FDC20709F26BD10822A3843FB51C93C8243`. The exact diagnostic save directory was removed after the run.
 - Next: inspect xemu’s `sub_0008B9A5` arguments and the list state at `sub_0008CD59`, then compare fields directly. Startup and playability acceptance remain unmet.
+## Xemu C88B status trace — 2026-09-28
+
+- On the matching kind `0x113` path, xemu’s `sub_0008B9A5` also compares field `0x113` against query `0x25` and returns `0`; execution takes the false branch in `sub_0008C88B`. At the `sub_0008CD59` continuation the status local is nevertheless `3`, and `sub_00089202` returns `1`. Therefore the direct B9A5 comparison does not explain the native/xemu status difference; compare the remaining C88B fallback/helper path and its output writes.
+- Trace: `conformance_tmp/xemu_c88b_compare.rsp.log`, SHA-256 `FB18E06C78B97CF6D045CCE6627F0672228A6ABC52060A893D04C96B124B19BF`. Stopped only verified isolated candidate PID `52636` on port `1255`; reference-process state was not changed.
+- Next: trace the helpers and status writes on C88B’s false branch in both xemu and native. Native startup still crashes; visual/gameplay acceptance remains unmet.
