@@ -45,3 +45,11 @@
 
 - `conformance_tmp` is 97.72 GiB (4,866 files); I: has 11.83 GiB free. Eight `native_*_20260928` folders each contain 4.92 GiB; preserve until their QCOW2 clone provenance and unique logs are classified. No `m4tmp` exists. No cleanup performed.
 - Trace why native enters `sub_000888CF` with state 1 and skips `sub_0008A368` list processing, while xemu reaches the list that supplies `onInit`. Pair the state writer and caller object; avoid assuming the missing key is the first cause.
+
+## Latest native callback probe — 2026-09-28
+
+- Ran the current diagnostic executable with `MM3_TRACE_CB_COPY=1`, `MM3_TRACE_EXCEPTION_PATH=1`, and inline guest-thread mode, using a unique `MM3_SAVE_DIR`. It reproduced the known AV at `sub_0003B2F2`; no source or tracked code changed.
+- Both captured `sub_000883F4` inputs carry the `onInit` bytes. Native descriptor count is 16, both candidate owners have hash `0xB777F906` and length 13, and lookup chooses index 1 with a null table item before copying the fallback state-1 record. This reconfirms the miss but does not identify why the owner chain differs from xemu.
+- Trace: `conformance_tmp/native_callback_owner_diag_20260928_v2.stderr.log`, SHA-256 `90170C85C32FAF62700FDFF761CE657CDFB3A7739E975A6B10123462AF06DB0F`. The dedicated save directory contained only six generated `Partition*.img` files (5,278,032,850 bytes); removed that exact directory after the process exited and preserved the log.
+- Current scratch measurement: `conformance_tmp` has 4,932 files / 113,541,882,644 logical bytes (105.74 GiB); I: has 14,837,276,672 bytes free. The older `Disk and next action` sizes above are stale.
+- Next: trace the producer of the native length-13 owner and the earlier table growth (16 descriptors versus xemu's 512), then follow the first differing insertion back through its actual caller/input. Keep the NV2A world-render issue as an independent blocker.
