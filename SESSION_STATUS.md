@@ -241,3 +241,8 @@
 - Repeated the native run with `MM3_THREAD_MODE=inline`. It reaches the same DE01 sequence on the failing handler (`0x28`, `0x29`, `0x113`, `0x11C`) and the same null callback crash. The divergence therefore reproduces without spawned guest workers; host thread scheduling alone does not explain it.
 - Trace: `conformance_tmp/native_de01_inline.err.log`, SHA-256 `7E1B1428F42D7C49F15EEAE5465ADA8675145C583198BD8EB42F94672F75E116`. The exact inline diagnostic save directory was removed after the run.
 - Next: compare the parser context contents at the native final DE01 input and the nearest xemu call; native startup still crashes and playability acceptance remains unmet.
+## DE01 context snapshots — 2026-09-28
+
+- Native inline tracing shows the final DE01 stream context at `0x00F7FD18` consuming an 8-entry cursor (`8 -> 7 -> 6 -> 1`) over pointers `0x010645A0` through `0x010645A7`; the final call returns `0x11C`. Xemu’s captured calls use the same parser helper address `0x8D51E` but different context pointers and cursor values (for example `0x8C` at `0x00D00B4B38`). The current captures are not input-aligned, so this does not establish a translation defect.
+- Traces: `conformance_tmp/native_de01_context.err.log`, SHA-256 `C83734B3A44F087794366E977268E9CE09EF3217F982BBFDC35BDCC2493EB068`; `conformance_tmp/xemu_de01_context3.rsp.log`, SHA-256 `5A8A5F3830F66E5846C0AA17942C6CEBDF902BC98A8ED626A5EAF04600E98601`. The exact native diagnostic save directory was removed after the run.
+- Next: capture the bytes at each parser cursor and align the command stream before comparing DE01 outcomes. Native still crashes; playability acceptance remains unmet.
