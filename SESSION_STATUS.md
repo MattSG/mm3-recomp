@@ -256,3 +256,8 @@
 - At the same C88B/BA67 callsite, xemu’s parser cursor reads "running user setup...\n" and nearby NDEBUG/setLogLevel text, while native’s cursor reads function(OnInit)\r\n. The stream contents differ before DE01 returns its handler kind, confirming these captures are in different guest setup states; the status difference alone does not justify a translation change.
 - Trace: conformance_tmp/xemu_de01_cursor.rsp.log, SHA-256 19A5C6BB51A9DA2B597D7A138A41D09060FE6E9F5F537ADA5F3D59CA2F3755E5. Stopped only verified isolated candidate PID 58632 on port 1255 after capture.
 - Next: trace the setup transition that leads native from OnInit into the error path while xemu is still processing user setup. Native still crashes; playability acceptance remains unmet.
+## Xemu OnInit parser event — 2026-09-28
+
+- The longer xemu trace reaches Lua text function onInit() at the same C88B/BA67 callsite and sub_0008DE01 returns 0x3D; its cursor count is 0x70 and handler counters are 0x0B/0x0B. Native’s failing sequence instead reads function(OnInit)\r\n from its cursor and eventually returns 0x11C with counters 0x02/0x02. The handler callsite matches, but the strings and stream positions differ, so the upstream producer remains the likely divergence.
+- Trace: conformance_tmp/xemu_setup_stream_watch.rsp.log, SHA-256 B65A3C30DE7C1E01D61825EAA38DD786D7455676BB8959C92943F36F85D4C7F6. Stopped only verified isolated candidate PID 56704 on port 1255 after capture.
+- Next: locate where each stream and handler context is created, then compare the producer inputs. Native still crashes; playability acceptance remains unmet.
