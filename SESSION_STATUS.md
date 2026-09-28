@@ -226,3 +226,8 @@
 - On xemu’s C88B handler calls, active kind `0x113` and pending kind `0x11C` enter `sub_0008B92E`; after its `sub_0008DE01` call the active kind becomes `0x28`. Native’s third C88B call reaches BB84 with active kind `0x11C` after the same pending-kind transition. This localizes the current difference to DE01’s result or input state. The matching xemu BB84 call still scans a different list head (`count=1`) and returns no match.
 - Trace: `conformance_tmp/xemu_handler_pending.rsp.log`, SHA-256 `78155B4B7B6587B7BC6824C7B79A89D39197AF399766A412F460131B5CEB002F`. Stopped only verified isolated candidate PID `1376` on port `1255` after capture.
 - Next: log DE01’s inputs and return for the aligned native and xemu B92E calls, including handler fields around `+0x10`, `+0x30`, and the linked-list state. Native still crashes; playability acceptance remains unmet.
+## Native DE01 transition sequence — 2026-09-28
+
+- On the failing native handler, four consecutive DE01 results are `0x28`, `0x29`, `0x113`, then `0x11C`. During the sequence the `+0x10` pointer changes from `0x010E46C0` to `0x01048AF0`, while `+0x34/+0x38` advance from `1/1` through `3/2`. The fourth result sets active kind `0x11C` and precedes the existing callback crash; earlier DE01 results do not.
+- Trace: `conformance_tmp/native_de01_compare.err.log`, SHA-256 `406778960C66440B28888F76AF93670C5F41361C0BFEAAAE2BF5C83E9E5771BA`. The exact native diagnostic save directory was removed after the run.
+- Next: capture the same four DE01 calls and handler counters in xemu to identify which input first diverges. Native startup still crashes; playability acceptance remains unmet.
