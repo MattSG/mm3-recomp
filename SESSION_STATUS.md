@@ -196,3 +196,8 @@
 - Native `sub_0008CD45` receives kind `0x113`; `sub_0008C88B` returns status `0`, and the handler item changes to kind `0x11C`. A later `sub_000890E8` call from return site `0x0008B98F` formats that `0x11C` state and reaches the already traced longjmp path. This isolates a branch/status difference to compare against xemu; it does not yet identify why the list/status differs.
 - Trace: `conformance_tmp/native_cd45_v1.err.log`, SHA-256 `AD28252F8C5796CD73376258B59C43A92CBA66235EB8DB745B49F4947ED6FBB4`. The exact diagnostic save directory was removed after the run.
 - Next: compare `sub_0008CD45` entry, `sub_0008C88B` result, and `sub_0008CA85` result under xemu. Native startup still crashes; visual/gameplay acceptance remains unmet.
+## Native C88B list check — 2026-09-28
+
+- In the `sub_0008CD45` path, `sub_0008C88B` calls `sub_0008B9A5` with handler field `0x113` and query `0x25`; the comparison misses, leaving local status `0`. This explains the native status but not why xemu’s corresponding lookup reports status `3`. The hook’s post-call `local` value is unreliable because helper calls clobber EDI; use the CD45 return-site local instead.
+- Trace: `conformance_tmp/native_c88b_v1.err.log`, SHA-256 `EA5BB05EA7AA3B8D1F543385976D8FDC20709F26BD10822A3843FB51C93C8243`. The exact diagnostic save directory was removed after the run.
+- Next: inspect xemu’s `sub_0008B9A5` arguments and the list state at `sub_0008CD59`, then compare fields directly. Startup and playability acceptance remain unmet.
