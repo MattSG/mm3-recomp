@@ -147,3 +147,10 @@
 - Trace: `conformance_tmp/native_cd99_v1.err.log`, SHA-256 `B51729C06030FBD0912CD91E24804BEA07DF12487B87FECE0CB5C11A412FBCA9`. The trace narrows the next comparison to `sub_000890E8` and its effect on the handler object; it does not establish why native and xemu diverge.
 - Diagnostic save directory was removed after the process exited. Isolated xemu PID `19196` is still running on port `1255` with the candidate config; reference PID `32416` on `1235` remains untouched.
 - Next: capture `sub_000890E8` return/state in both native and xemu, then locate the first differing field or branch. Startup and all visual/gameplay acceptance criteria remain unmet.
+
+## 890E8/D712 diagnostic — 2026-09-28
+
+- Added ignored native checkpoints and rebuilt `mm3_recomp`. Native entered `sub_000890E8` twice for handler kinds `0x113` and `0x11C`; `sub_0008D712` returned from `sub_0008D601`, but no `D712_AFTER_D5C4` or `890E8_OUT` was logged before the null callback crash. This narrows the non-returning path to `sub_0008D5C4` or one of its callees; it does not establish the cause.
+- Trace: `conformance_tmp/native_sub890e8_v2.err.log`, SHA-256 `90D3B750B186C8EE140B3F43F7C6524A95FA1E9CEF91AA0B8275ED5856ACFE9F`. The exact diagnostic save directory was removed after the run.
+- The cold isolated xemu did not reach the helper breakpoints within 120 seconds; its guest was at `EIP=0x8001B02F` when inspected. Stopped only verified candidate PID `24680` on port `1255`; reference PID `32416` on port `1235` remains untouched.
+- Next: trace `sub_0008D5C4` and its callees, and relaunch isolated xemu only when a useful guest state can be reached. Startup and all visual/gameplay acceptance criteria remain unmet.
