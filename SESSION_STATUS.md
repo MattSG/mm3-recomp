@@ -184,3 +184,9 @@
 - Native callback dispatch enters targets `0x00088668` and `0x000889EB`; each generated setjmp returns `0` initially and `1` after the handler longjmp. The later `sub_001F37D2` call sites still receive zero/one/error-code values as object bases and hit the null virtual target. This narrows the issue to how control proceeds after callback dispatch resumes; no source fix is established.
 - Trace: `conformance_tmp/native_dispatch_resume_v1.err.log`, SHA-256 `DEBC5B19F86C6BC375B163D1D3E0CE9F4F00581F18DE76BF614E2A0D2EEDECBF`. The exact diagnostic save directory was removed after the run.
 - Next: inspect the callers that resume after targets `0x88668` / `0x889EB`, then compare the same state in xemu if the isolated guest can reach it. Startup and all playability criteria remain unmet.
+
+## Isolated xemu handler sequence — 2026-09-28
+
+- Fresh xemu RSP trace follows the same handler object through `sub_0008BFE5`: kind `0x108` -> `0x113` -> `0x109`, then another `0x113` -> `0x104`; BFE5 returns `1` at the `0x8C018` continuation. Later iterations reach `0x106` and `0x11C`. Breakpoints on `sub_00088B2D` and `sub_0008D712` did not fire in the captured sequence, unlike native’s error formatting/longjmp path.
+- Trace: `conformance_tmp/xemu_handler_detail_fresh.rsp.log`, SHA-256 `9EE8AE5B6CF9D6CAA3BAEC742E65EBE699715F30D44FE6292200EA0A8ED68994`. Stopped only verified isolated candidate PID `54676` on port `1255`; reference PID `32416` on port `1235` remains untouched.
+- Next: break at `sub_0008CD99` branch labels in xemu and native to see how the `0x113` item changes to `0x109` or `0x104`. Startup and all visual/gameplay acceptance criteria remain unmet.
