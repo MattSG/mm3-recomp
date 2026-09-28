@@ -231,3 +231,8 @@
 - On the failing native handler, four consecutive DE01 results are `0x28`, `0x29`, `0x113`, then `0x11C`. During the sequence the `+0x10` pointer changes from `0x010E46C0` to `0x01048AF0`, while `+0x34/+0x38` advance from `1/1` through `3/2`. The fourth result sets active kind `0x11C` and precedes the existing callback crash; earlier DE01 results do not.
 - Trace: `conformance_tmp/native_de01_compare.err.log`, SHA-256 `406778960C66440B28888F76AF93670C5F41361C0BFEAAAE2BF5C83E9E5771BA`. The exact native diagnostic save directory was removed after the run.
 - Next: capture the same four DE01 calls and handler counters in xemu to identify which input first diverges. Native startup still crashes; playability acceptance remains unmet.
+## Aligned xemu DE01 outputs — 2026-09-28
+
+- On the captured C88B/BA67 calls, xemu repeatedly resolves pending `0x11C` to active kind `0x28` at counter pairs `+0x34/+0x38` of `8/8`, `9/9`, `14/14`, `16/16`, `18/18`, and `21/21`. Native’s failing object instead advances through outputs `0x28`, `0x29`, `0x113`, `0x11C` while its counters move `1/1`, `1/1`, `2/1`, `3/2` and its `+0x10` pointer changes. The runs therefore show different handler progression before the final error; the exact input divergence remains open.
+- Trace: `conformance_tmp/xemu_de01_aligned.rsp.log`, SHA-256 `8F1F3BD444C206E8131F6C1B1045056BDF05430C491243EAF23989CD138A994B`. Stopped only verified isolated candidate PID `60500` on port `1255` after capture.
+- Next: compare the data source that advances the native and xemu `+0x34/+0x38` counters and the `+0x10` pointer. Native still crashes; playability acceptance remains unmet.
