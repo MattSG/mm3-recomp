@@ -2,7 +2,7 @@
 
 ## Build identity
 
-- Root HEAD `2729d64`; latest source change `4dc020f16880b00c79996eb49bcf04fc95ca7de9`. Toolkit `tools/xboxrecomp` is clean at `c09dc79f87e1ffd368f37df0d7e157f70fc7bf6c`, matching the gitlink.
+- Latest tracked root source change `4dc020f16880b00c79996eb49bcf04fc95ca7de9`; later commits are evidence notes. Toolkit `tools/xboxrecomp` is clean at `c09dc79f87e1ffd368f37df0d7e157f70fc7bf6c`, matching the gitlink.
 - XBE SHA-256: `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`.
 - Current build is diagnostic, not acceptance: `build-msvc-tailfix/RelWithDebInfo/mm3_recomp.exe`, SHA-256 `08B2FC089E3BE22A598C8A8FC6784E99754F78FB637897CC1806A8C955C55D46`. Its CMake cache points at instrumented ignored generation `conformance_tmp/mm3_full_regen_compareflags_20260928_v8_gen`.
 
