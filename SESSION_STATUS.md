@@ -236,3 +236,8 @@
 - On the captured C88B/BA67 calls, xemu repeatedly resolves pending `0x11C` to active kind `0x28` at counter pairs `+0x34/+0x38` of `8/8`, `9/9`, `14/14`, `16/16`, `18/18`, and `21/21`. Native’s failing object instead advances through outputs `0x28`, `0x29`, `0x113`, `0x11C` while its counters move `1/1`, `1/1`, `2/1`, `3/2` and its `+0x10` pointer changes. The runs therefore show different handler progression before the final error; the exact input divergence remains open.
 - Trace: `conformance_tmp/xemu_de01_aligned.rsp.log`, SHA-256 `8F1F3BD444C206E8131F6C1B1045056BDF05430C491243EAF23989CD138A994B`. Stopped only verified isolated candidate PID `60500` on port `1255` after capture.
 - Next: compare the data source that advances the native and xemu `+0x34/+0x38` counters and the `+0x10` pointer. Native still crashes; playability acceptance remains unmet.
+## Inline thread mode diagnostic — 2026-09-28
+
+- Repeated the native run with `MM3_THREAD_MODE=inline`. It reaches the same DE01 sequence on the failing handler (`0x28`, `0x29`, `0x113`, `0x11C`) and the same null callback crash. The divergence therefore reproduces without spawned guest workers; host thread scheduling alone does not explain it.
+- Trace: `conformance_tmp/native_de01_inline.err.log`, SHA-256 `7E1B1428F42D7C49F15EEAE5465ADA8675145C583198BD8EB42F94672F75E116`. The exact inline diagnostic save directory was removed after the run.
+- Next: compare the parser context contents at the native final DE01 input and the nearest xemu call; native startup still crashes and playability acceptance remains unmet.
