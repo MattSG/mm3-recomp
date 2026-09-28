@@ -2,9 +2,9 @@
 
 ## Build identity
 
-- Latest tracked root source change `4dc020f16880b00c79996eb49bcf04fc95ca7de9`; later commits are evidence notes. Toolkit `tools/xboxrecomp` is clean at `c09dc79f87e1ffd368f37df0d7e157f70fc7bf6c`, matching the gitlink.
+- Root HEAD `d70febf5f528493cd878d0804cc280c4dcf5b078`; latest source change `4dc020f16880b00c79996eb49bcf04fc95ca7de9`. Root and nested `tools/xboxrecomp` are clean; toolkit `c09dc79f87e1ffd368f37df0d7e157f70fc7bf6c` matches the gitlink. No `tools/tools-lock.json` exists here.
 - XBE SHA-256: `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`.
-- Current build is diagnostic, not acceptance: `build-msvc-tailfix/RelWithDebInfo/mm3_recomp.exe`, SHA-256 `08B2FC089E3BE22A598C8A8FC6784E99754F78FB637897CC1806A8C955C55D46`. Its CMake cache points at instrumented ignored generation `conformance_tmp/mm3_full_regen_compareflags_20260928_v8_gen`.
+- `src/recomp/gen` exists (last generated 2026-09-21); current diagnostic executable is `build-msvc-tailfix/RelWithDebInfo/mm3_recomp.exe`, SHA-256 `08B2FC089E3BE22A598C8A8FC6784E99754F78FB637897CC1806A8C955C55D46`. Its CMake cache points at instrumented ignored generation `conformance_tmp/mm3_full_regen_compareflags_20260928_v8_gen`; rebuild command is `cmake --build build-msvc-tailfix --config RelWithDebInfo --parallel 1`. This executable is not acceptance-ready.
 
 ## Current frontier
 
@@ -15,10 +15,13 @@
 - A separate native file-thread run opened `D:\Data\Data_hd.zip`, both city AI files, `Z:\Data\Data_hd.zip`, and `D:\Data\Data_dvd.zip`. Reads from `Data_hd.zip` are present; no `Data_dvd.zip` read appears before the crash. Trace SHA-256 `5F9BA2CCF72721E5232BC84043909B7F7719F3F264B8CA15943BC8BB25D2F122`.
 - Isolated xemu GDB reached XBE entry `0x00083C55` and captured three D620 events. The first two return `0x2D` and `0x66`, matching native; xemu then parses `EnvMapMode(0, 8)` and returns `0x65`. Native crashes before an aligned third event. The first two native calls reuse the AE4E result object but hold different nested script buffers. Xemu trace SHA-256 `775F0B4086A5A0ADE09A09DE9B01062A46E5EA0C6B1E716E1AC2F4819314545E`.
 - Native CDB stops at `sub_00088668` show both calls use the same dispatcher object/ECX and take the zero-flag `sub_0008CE99` branch; their saved continuation addresses differ (`0x0004CE55`, `0x0004D05F`). This locates the mismatch before D620, but not its producer. Trace SHA-256 `CF9757F11294DA20027895269E16128F1F229042AB1A3892375C1E4749E3E29D`.
+- `sub_000886A3` is the dispatcher: it passes its prepared `[ebp+8]` argument to target `sub_00088668` at `0x000886E9`. Next compare callback target and argument at dispatcher entry in native and xemu, then trace the differing argument's producer. No source fix is justified yet.
+- Native `%LOCALAPPDATA%\xboxrecomp\TitleData\4d53002a` exists and is empty. Live xemu PID `32416` uses `conformance_tmp/xemu-gdb.toml`, `conformance_tmp/xbox_hdd-gdb.qcow2`, `-snapshot`, and GDB port `1235`; the HDD/path parity question is open. Current toolkit path rules map `T:\` to `TitleData`, but no `E:\TDATA` mapping has been proven.
+- I: had `1.98 GiB` free at last check; `conformance_tmp` held about `126.2 GB` logical file size. XISO and HDD images remain preserved; only confirmed disposable run partitions may be removed.
 - Isolated xemu windows captured the authentic MM3 title screen (`conformance_tmp/xemu_ce99_d620_20260928_window.png`, SHA-256 `6E44A357DF4BE9B401283B682AB6030C5649E5184CE638430263AC13F30059CE`) and an original Paris street scene (`conformance_tmp/xemu_reference_scene_20260928.png`, SHA-256 `A9615F351859988CC37B720D0F287C2962E7319906C59351CD1978C8F2515FC3`). These are xemu references, not native acceptance evidence.
 - The paused reference xemu remains PID `32416` on port `1235`; all candidates created for this capture were stopped. No native strict runs have passed.
 
 ## Next blocker and acceptance
 
-- Trace the producer/state feeding `sub_00088668` to explain why the second native CE99 call selects `userRun.lua` while xemu selects `modules.lua`; prove the first differing state before changing source. Then rebuild from canonical generated output and retest the null indirect-call path.
+- Clean checkout has no strict-run wrapper. The older dirty workspace's `run_strict.ps1` defaults to `build-game-i\Debug\mm3_recomp.exe`, while `build_limited.ps1 -Configuration Release` builds `build-game-i\Release\mm3_recomp.exe`; never treat that pair as one acceptance run without explicit `-Exe`. Then regenerate canonical C from the pinned toolkit, build clean, run strict with diagnostic/recovery toggles off, and inspect the native window.
 - Completion still requires two cold strict native runs with recognizable menu, city/car/HUD, working controls and audio, 10 minutes of driving, pause/resume/menu, and actual-window captures at menu, loading, and driving.
