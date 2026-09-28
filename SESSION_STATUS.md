@@ -190,3 +190,9 @@
 - Fresh xemu RSP trace follows the same handler object through `sub_0008BFE5`: kind `0x108` -> `0x113` -> `0x109`, then another `0x113` -> `0x104`; BFE5 returns `1` at the `0x8C018` continuation. Later iterations reach `0x106` and `0x11C`. Breakpoints on `sub_00088B2D` and `sub_0008D712` did not fire in the captured sequence, unlike native’s error formatting/longjmp path.
 - Trace: `conformance_tmp/xemu_handler_detail_fresh.rsp.log`, SHA-256 `9EE8AE5B6CF9D6CAA3BAEC742E65EBE699715F30D44FE6292200EA0A8ED68994`. Stopped only verified isolated candidate PID `54676` on port `1255`; reference PID `32416` on port `1235` remains untouched.
 - Next: break at `sub_0008CD99` branch labels in xemu and native to see how the `0x113` item changes to `0x109` or `0x104`. Startup and all visual/gameplay acceptance criteria remain unmet.
+
+## Native CD45 branch trace — 2026-09-28
+
+- Native `sub_0008CD45` receives kind `0x113`; `sub_0008C88B` returns status `0`, and the handler item changes to kind `0x11C`. A later `sub_000890E8` call from return site `0x0008B98F` formats that `0x11C` state and reaches the already traced longjmp path. This isolates a branch/status difference to compare against xemu; it does not yet identify why the list/status differs.
+- Trace: `conformance_tmp/native_cd45_v1.err.log`, SHA-256 `AD28252F8C5796CD73376258B59C43A92CBA66235EB8DB745B49F4947ED6FBB4`. The exact diagnostic save directory was removed after the run.
+- Next: compare `sub_0008CD45` entry, `sub_0008C88B` result, and `sub_0008CA85` result under xemu. Native startup still crashes; visual/gameplay acceptance remains unmet.
