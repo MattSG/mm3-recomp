@@ -160,3 +160,9 @@
 - Native `sub_00088F88` returns from its formatter, then calls `sub_0008868C` and tail-transfers through `sub_00088B2D`. The handler path performs three guest longjmps with value `1`, using guest contexts `0x00F7FE5C`, `0x00F7FC90`, and `0x00F7FE74`; afterward the existing null indirect call at `0x001F37E5` recurs. This confirms the longjmp route but not why the resumed callback object has a null slot.
 - Traces: `conformance_tmp/native_88f88_v1.err.log` SHA-256 `D35135525F75331DA388FE0ED1076771A7B90A95064EA3B4FCAA0EEF8832EA42`; `conformance_tmp/native_88b2d_v1.err.log` SHA-256 `00149A3FFC8191239CFE376CC0AE1CA3794DC1CAE9E52371230E1BAB79D7AD6E`. Diagnostic save directories were removed after each run.
 - Next: trace `sub_001F37D2`'s object chain and callback slot before the indirect call, then compare with a reachable isolated xemu state. Startup and all visual/gameplay acceptance criteria remain unmet.
+
+## Null callback owner trace — 2026-09-28
+
+- Instrumented `sub_001F37D2` in ignored generated output. Before the error-handler longjmps, it receives a live object (`0x00FE7010`) whose virtual method target is `0x001A3E8F`. After the longjmps it is re-entered at caller continuations with `EAX=0`, `1`, and `0x707`; those values are then treated as object bases and yield a null or invalid virtual target. This localizes the crash to resumed caller state, but does not yet prove whether the setjmp context or translated continuation is wrong.
+- Trace: `conformance_tmp/native_f37d2_v1.err.log`, SHA-256 `F645042BC982CD850B87AFC35C674EC162253F1CC58ABBD786CCA52C88F4CE91`. The exact diagnostic save directory was removed after the run.
+- Next: record callee-saved registers and guest setjmp context contents at each longjmp target, then compare with a reachable xemu run. The native executable still crashes and startup/gameplay acceptance remains unmet.
