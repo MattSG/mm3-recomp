@@ -221,3 +221,8 @@
 - At native’s third C88B call, BB84 receives the handler after it has advanced from kind `0x113` to `0x11C`. The list root at handler `+0x28` has two linked nodes; both are scanned without a match (`BB84` returns `0xFFFFFFFF`, count `2`). C88B then returns with status `0`, and the following callback crash remains. The direct item miss therefore occurs after the handler kind has already diverged.
 - Trace: `conformance_tmp/native_bb84_compare.err.log`, SHA-256 `F45134B783562A136ABA1087926EB103F554828C95AD71A234FBF5735B49709A`. The exact diagnostic save directory was removed after the run.
 - Next: capture xemu BB84 inputs and list nodes through the same post-`0x113` transition, then compare the list and the helper that changes the kind. Native startup still crashes; playability acceptance remains unmet.
+## Pending handler kind comparison — 2026-09-28
+
+- On xemu’s C88B handler calls, active kind `0x113` and pending kind `0x11C` enter `sub_0008B92E`; after its `sub_0008DE01` call the active kind becomes `0x28`. Native’s third C88B call reaches BB84 with active kind `0x11C` after the same pending-kind transition. This localizes the current difference to DE01’s result or input state. The matching xemu BB84 call still scans a different list head (`count=1`) and returns no match.
+- Trace: `conformance_tmp/xemu_handler_pending.rsp.log`, SHA-256 `78155B4B7B6587B7BC6824C7B79A89D39197AF399766A412F460131B5CEB002F`. Stopped only verified isolated candidate PID `1376` on port `1255` after capture.
+- Next: log DE01’s inputs and return for the aligned native and xemu B92E calls, including handler fields around `+0x10`, `+0x30`, and the linked-list state. Native still crashes; playability acceptance remains unmet.
