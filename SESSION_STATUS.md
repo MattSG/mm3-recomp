@@ -269,4 +269,10 @@
 
 - With `MM3_TRACE_CE99=1` and inline guest-thread mode, two event wrappers at return `0x0008867F` ran before the fault. Their source objects were `0x00F7FD00` and `0x00F7FD18` (each `+0x10` target was `0x00F7FE30` and `0x00F7FE48`); both `sub_0008AE4E` calls returned stream `0x01064630`. `sub_0008D620` then reported local values `0x2D` and `0x66`; both subsequent B92E traces reported local `0x20`. The process ended at the existing null callback crash, so the stream pointer alone does not explain the parser-text difference.
 - Trace: `conformance_tmp/native_ce99_source_20260928_v1.err.log`, SHA-256 `ADAAE695447EE613B69D133921EE4E1DA4B97E2497B6ECFD73E621500DBDF562`. The run used a copied 34,626,002-byte Cache in its dedicated save root; that exact root was removed after exit.
-- Next: capture equivalent CE99 entry/AE4E return values and stream cursor bytes in xemu, then compare the two inputs. Native startup still crashes; playability acceptance remains unmet.
+- Next: obtain a matched xemu CE99 capture. The first attempt did not complete an RSP session; candidate processes were stopped and the paused reference xemu was left untouched. Native startup still crashes; playability acceptance remains unmet.
+## Native file-thread path map — 2026-09-28
+
+- A fresh inline diagnostic run with `MM3_TRACE_FILE_THREAD=1` opened `D:\Data\Data_hd.zip`, both city AI files, `Z:\Data\Data_hd.zip`, and `D:\Data\Data_dvd.zip` successfully. Reads from the opened `Data_hd.zip` handle are present. `Data_dvd.zip` opened immediately before the known null callback crash; no read from that file appears before the crash, so its contents have not been shown consumed.
+- The run used `MM3_SAVE_DIR=conformance_tmp/native_file_thread_20260928_save`, exited with `0xC0000005` at the existing null indirect call, and used the diagnostic executable SHA-256 recorded above. Trace SHA-256: `5F9BA2CCF72721E5232BC84043909B7F7719F3F264B8CA15943BC8BB25D2F122`.
+- Removed only its six generated partition images after process exit; retained the 34,626,002-byte copied cache files. The xemu reference process remained on its separate `xbox_hdd-gdb.qcow2` image.
+- Next: establish a working isolated xemu RSP capture for matching CE99 inputs, then compare stream objects and cursor bytes. No playable menu or city output is proven.
