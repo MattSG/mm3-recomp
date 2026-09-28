@@ -246,3 +246,8 @@
 - Native inline tracing shows the final DE01 stream context at `0x00F7FD18` consuming an 8-entry cursor (`8 -> 7 -> 6 -> 1`) over pointers `0x010645A0` through `0x010645A7`; the final call returns `0x11C`. Xemu’s captured calls use the same parser helper address `0x8D51E` but different context pointers and cursor values (for example `0x8C` at `0x00D00B4B38`). The current captures are not input-aligned, so this does not establish a translation defect.
 - Traces: `conformance_tmp/native_de01_context.err.log`, SHA-256 `C83734B3A44F087794366E977268E9CE09EF3217F982BBFDC35BDCC2493EB068`; `conformance_tmp/xemu_de01_context3.rsp.log`, SHA-256 `5A8A5F3830F66E5846C0AA17942C6CEBDF902BC98A8ED626A5EAF04600E98601`. The exact native diagnostic save directory was removed after the run.
 - Next: capture the bytes at each parser cursor and align the command stream before comparing DE01 outcomes. Native still crashes; playability acceptance remains unmet.
+## Native DE01 cursor bytes — 2026-09-28
+
+- The native final DE01 call reads its cursor at `0x010645A7` from a stream rooted near `0x010645A0`; the 8-entry context count falls to `1` before returning `0x11C`. Earlier bytes at the cursor include the `\r\nen` tail of the stream. The final call uses record `0x00FC8AF0`; this establishes concrete parser input addresses and bytes but still needs an xemu byte-for-byte comparison.
+- Trace: `conformance_tmp/native_de01_cursor.err.log`, SHA-256 `A3BC7A9915A6089FCBFB7E0BF042E1BFA54C9C63115332272C0D3646731A2DBC`. The exact native diagnostic save directory was removed after the run.
+- Next: capture xemu’s cursor pointer and bytes from the same DE01 call path. Native still crashes; playability acceptance remains unmet.
