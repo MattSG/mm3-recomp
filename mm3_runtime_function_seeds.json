@@ -1,0 +1,10 @@
+[
+ {
+  "start": "0x002F6AC0",
+  "note": "Indirect-call target observed at runtime; decodes as a function body."
+ },
+ {
+  "start": "0x002F9170",
+  "note": "Indirect-call target observed at runtime; decodes as a function body."
+ }
+]

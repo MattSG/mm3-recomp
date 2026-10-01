@@ -12,7 +12,7 @@ $traceArgument = if ($TraceFunctions) {
     ''
 }
 
-$analysisCommand = "cd '$wslRepo/tools/xboxrecomp' && python3 -m tools.disasm ../../game_files/default.xbe --force -v && python3 -m tools.func_id ../../game_files/default.xbe && python3 -m tools.abi_analysis ../../game_files/default.xbe"
+$analysisCommand = "cd '$wslRepo/tools/xboxrecomp' && python3 -m tools.disasm ../../game_files/default.xbe --force -v --seed-functions ../../mm3_runtime_function_seeds.json && python3 -m tools.func_id ../../game_files/default.xbe && python3 -m tools.abi_analysis ../../game_files/default.xbe"
 wsl.exe -d $Distro -- bash -lc $analysisCommand
 if ($LASTEXITCODE -ne 0) {
     throw "XboxRecomp analysis pipeline failed with exit code $LASTEXITCODE"
