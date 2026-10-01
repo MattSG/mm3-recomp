@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <windows.h>
 
 #include <xbox/xboxrecomp.h>
@@ -14,6 +16,17 @@
 #define MM3_KERNEL_THUNK_ADDRESS 0x00361F00u
 #define MM3_KERNEL_THUNK_COUNT 151u
 #define MM3_MEMORY_MAP_SIZE (128u * 1024u * 1024u)
+#define MM3_APU_BASE 0xFE800000u
+#define MM3_APU_END  0xFE880000u
+
+typedef struct MCPXAPUState MCPXAPUState;
+extern MCPXAPUState *g_apu_state;
+extern MCPXAPUState *mcpx_apu_init_standalone(uint8_t *ram_ptr);
+extern void mcpx_apu_shutdown(MCPXAPUState *apu);
+extern bool apu_hook_handle_mmio(PCONTEXT context, uintptr_t fault_address,
+                                 uint32_t guest_address, int is_write);
+
+static PVOID g_mm3_apu_veh;
 
 static DWORD WINAPI mm3_wait_for_worker(LPVOID context)
 {
@@ -79,6 +92,61 @@ static LONG WINAPI mm3_crash_report(EXCEPTION_POINTERS *info)
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
+static LONG CALLBACK mm3_apu_mmio_handler(PEXCEPTION_POINTERS info)
+{
+    uintptr_t fault_address;
+    uint32_t guest_address;
+
+    if (!g_apu_state || !info ||
+        info->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION)
+        return EXCEPTION_CONTINUE_SEARCH;
+
+    fault_address = info->ExceptionRecord->ExceptionInformation[1];
+    guest_address = (uint32_t)(fault_address - (uintptr_t)g_xbox_mem_offset);
+    if (guest_address < MM3_APU_BASE || guest_address >= MM3_APU_END)
+        return EXCEPTION_CONTINUE_SEARCH;
+
+    return apu_hook_handle_mmio(
+        info->ContextRecord, fault_address, guest_address,
+        info->ExceptionRecord->ExceptionInformation[0] ? 1 : 0)
+        ? EXCEPTION_CONTINUE_EXECUTION : EXCEPTION_CONTINUE_SEARCH;
+}
+
+static int mm3_apu_init(void)
+{
+    if (!getenv("RECOMP_AC97_READY"))
+        return 1;
+
+    g_apu_state = mcpx_apu_init_standalone((uint8_t *)xbox_GetMemoryBase());
+    if (!g_apu_state) {
+        fprintf(stderr, "[APU] initialization failed\n");
+        return 0;
+    }
+
+    g_mm3_apu_veh = AddVectoredExceptionHandler(1, mm3_apu_mmio_handler);
+    if (!g_mm3_apu_veh) {
+        fprintf(stderr, "[APU] could not install MMIO exception handler\n");
+        mcpx_apu_shutdown(g_apu_state);
+        g_apu_state = NULL;
+        return 0;
+    }
+
+    fprintf(stderr, "[APU] emulated APU up; MMIO handler installed\n");
+    return 1;
+}
+
+static void mm3_apu_shutdown(void)
+{
+    if (g_mm3_apu_veh) {
+        RemoveVectoredExceptionHandler(g_mm3_apu_veh);
+        g_mm3_apu_veh = NULL;
+    }
+    if (g_apu_state) {
+        mcpx_apu_shutdown(g_apu_state);
+        g_apu_state = NULL;
+    }
+}
+
 static int load_file(const char *path, void **data, size_t *size)
 {
     FILE *file = fopen(path, "rb");
@@ -140,7 +208,14 @@ int main(void)
     xbox_kernel_bridge_init();
     if (xbox_Nv2aMirrorFence(0x00351F48u, 0x2Cu, 0x30u) != 0)
         fprintf(stderr, "NV2A fence mirror registration failed\n");
+    if (!mm3_apu_init()) {
+        xbox_kernel_shutdown();
+        xbox_MemoryLayoutShutdown();
+        free(xbe_data);
+        return 1;
+    }
     if (!mm3_graphics_init()) {
+        mm3_apu_shutdown();
         xbox_kernel_shutdown();
         xbox_MemoryLayoutShutdown();
         free(xbe_data);
@@ -163,6 +238,7 @@ int main(void)
         : NULL;
     if (!worker_waiter) {
         fprintf(stderr, "cannot create MM3 worker monitor\n");
+        mm3_apu_shutdown();
         xbox_kernel_shutdown();
         xbox_MemoryLayoutShutdown();
         free(xbe_data);
@@ -192,6 +268,7 @@ int main(void)
     CloseHandle(worker_waiter);
     CloseHandle(worker_done);
 
+    mm3_apu_shutdown();
     xbox_kernel_shutdown();
     xbox_MemoryLayoutShutdown();
     free(xbe_data);
