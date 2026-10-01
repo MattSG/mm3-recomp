@@ -2,12 +2,12 @@
 
 ## Acceptance
 
-Not met. Inspected native windows at 15/45/90 seconds are black. Menu, textured city/car/HUD, input, audio, ten minutes driving, pause/resume/menu and two full cold acceptance runs remain unproven.
+Not met. Latest native window is black at15sec and shows a dark, distorted vertical image at45/90sec. Menu, textured city/car/HUD, input, audio, ten minutes driving, pause/resume/menu and two full cold acceptance runs remain unproven.
 
 ## Current identity and reproducible commands
 
 - Source integration commit `3a5d4cf`; seeds `e9611ef`; toolkit `00d2c2b0c80582305430ddf2ce2e445976f87e08`. This status-only checkpoint follows the integration commit. Toolkit checkout clean.
-- Executable `build-msvc-tailfix/RelWithDebInfo/mm3_recomp.exe`, SHA256 `8229E444B2AC8996A08E193E4E008420DC49F4B6C4DA7EE90DF498E86644FABC`. Build completed with exit0; log `conformance_tmp/mm3_bink_yuy2_build_20261001.log`.
+- Executable `build-msvc-tailfix/RelWithDebInfo/mm3_recomp.exe`, SHA256 `60D225B64099C57E1265A9E17069BEEBDD97C1A85DEA18ED20169C3756D477B2`. Runtime-only build completed with exit0; log `conformance_tmp/mm3_pvideo_build_20261001.log`. Toolkit `e1ad75f` adds PVIDEO scanout; precise precommit source hashes in `conformance_tmp/mm3_pvideo_source_identity_20261001.json`. Generated C unchanged.
 - XBE `game_files/default.xbe`, SHA256 `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`.
 - Build-time HEADs plus exact modified-source and analysis-input hashes: `conformance_tmp/mm3_bink_yuy2_source_identity_20261001.json`. Build used four project seeds plus two separately recorded BINKYUY2 candidates. The committed six-entry project seed list now contains the same union; no executable regenerated merely to change commit metadata.
 - Official analysis: from `tools/xboxrecomp`, venv Python `../../conformance_tmp/mm3genvenv/Scripts/python.exe -m tools.disasm ../../game_files/default.xbe --force --seed-functions ../../mm3_runtime_function_seeds.json`, then `-m tools.func_id` and `-m tools.abi_analysis` with the same XBE.
@@ -36,7 +36,10 @@ Not met. Inspected native windows at 15/45/90 seconds are black. Menu, textured 
 - Real movie1F2A71 entries/returns advance handle+0C 1->2->3, +10 0->1->2; width280,height1E0,total90,rate1E. `mm3_movie_frame_state_20261001.cdb.log`. This proves early movie progression, not visible presentation or eventual exit.
 - Real original342F20 returns after programming PVIDEO: BUFFER700=1, STOP704=0, OFFSET920=D2A000, SIZE_IN928=SIZE_OUT950=1E00280, POINT_IN/OUT0, DS_DX/DT_DY100000, FORMAT958=10500 (YUY2,pitch500). Trace mm3_pvideo_register_state_20261001.cdb.log.
 - GPU aperture is plain RAM (xbox_memory_layout.c:85,2307); pvideo_write breakpoint does not fire in20sec, consistent with mapped stores bypassing that model. fb_present.c reads primary framebuffer only. Existing YUY2 texture converters do not compose this hardware overlay.
-- Next: implement faithful hardware-overlay scanout from actual guest PVIDEO registers/buffer, preserving bounds, scaling and stop semantics; rerun/capture. Read-only Luna checks existing register/IRQ hooks. No substitute frames, forced cache or forced acknowledgments. Original xemu hardware reference: https://raw.githubusercontent.com/xemu-project/xemu/master/hw/xbox/nv2a/pvideo.c .
+- Toolkit `e1ad75f` scans actual PVIDEO YUY2 over the primary framebuffer. Reuses contiguous arena address classification; bounds/crop/scale/color-key/STOP checks; no BUFFER/STOP/IRQ writes. Compiled check `tests/pvideo_scanout.c` passes. Nearest sampling is documented; hardware register interrupt semantics remain unimplemented.
+- Real bounds probe `mm3_pvideo_bounds_20261001_02.cdb.log`: BASE0,LIMIT07FFFFFF,LUMINANCE/CHROMINANCE1000; allocated physical range490000..DC0000 contains the full D2A000+96000 buffer. Earlier20sec probe timed out;45sec probe reached original342F20 return.
+- Latest cold visual run `mm3_pvideo_visual_20261001.run.json`, PID31356 stopped after90sec, diagnostic/recovery toggles cleared, controlled save root. Actual `_t15.png` black; `_t45.png` and `_t90.png` inspected: dark red/gray vertical strip, no recognizable menu or movie. This is a scanout improvement, not acceptance. Next compare full YUY2 frame and movie progression with xemu at matching guest PC/thread; source decode, texture/primary drawing and eventual movie exit remain unresolved.
+- Original xemu hardware reference: https://raw.githubusercontent.com/xemu-project/xemu/master/hw/xbox/nv2a/pvideo.c and pgraph/gl/display.c. Owned snapshot capture `mm3_pvideo_reference_20261001.png` is black at its debug stop, so not a running visual reference.
 - Host audio endpoint absent: XAudio2 80070490/waveOut2; xemu also lacks a default endpoint. APU DSP remains stubbed; no forced DSP acknowledgement. Rendering blocker remains actionable, goal active.
 
 ## Maintenance
