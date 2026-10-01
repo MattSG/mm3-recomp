@@ -335,6 +335,8 @@ void sub_00093B04(void)
 
 recomp_func_t recomp_lookup_manual(uint32_t xbox_va)
 {
+    if (xbox_va == 0x000252AFu)
+        return sub_000252AF;
     if (xbox_va == 0x00021103u)
         return sub_00021103;
     if (xbox_va == 0x0007169Du)
