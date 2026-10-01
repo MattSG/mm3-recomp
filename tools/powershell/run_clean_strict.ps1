@@ -23,12 +23,12 @@ $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
 $outer = (git -C $repoRoot rev-parse --short HEAD).Trim()
 $toolkit = (git -C (Join-Path $repoRoot 'tools\xboxrecomp') rev-parse --short HEAD).Trim()
 
-# Preserve the selected save root; clear all runtime, diagnostic, and recovery toggles.
+# Preserve save/input settings; clear diagnostic and recovery toggles.
 $oldEnv = @{}
 $cleared = @()
 foreach ($entry in Get-ChildItem Env:) {
     if ($entry.Name -match '^(MM3_|RECOMP_|NV2A_)') {
-        if ($entry.Name -eq 'MM3_SAVE_DIR') { continue }
+        if ($entry.Name -in @('MM3_SAVE_DIR', 'RECOMP_KEYBOARD')) { continue }
         $oldEnv[$entry.Name] = $entry.Value
         Remove-Item "Env:$($entry.Name)" -ErrorAction SilentlyContinue
         $cleared += $entry.Name
@@ -72,6 +72,7 @@ $result = [ordered]@{
     sha256 = $hash
     outer_commit = $outer
     toolkit_commit = $toolkit
+    keyboard_input_enabled = ($env:RECOMP_KEYBOARD -and $env:RECOMP_KEYBOARD -ne '0')
     diagnostics_and_recovery_env_cleared = @($cleared | Sort-Object)
     save_dir_preserved = [bool]$env:MM3_SAVE_DIR
     stdout = $out

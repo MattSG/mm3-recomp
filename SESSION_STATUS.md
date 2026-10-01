@@ -2,7 +2,7 @@
 
 ## Acceptance
 
-Not met. Latest strict native window is black at15sec and shows recognizable Microsoft Game Studios lettering with heavy block corruption at35sec. Menu, textured city/car/HUD, input, audio, ten minutes driving, pause/resume/menu and two full cold acceptance runs remain unproven.
+Not met. Latest strict native window shows intact intro imagery at35sec and recognizable movie cars/city at60/90sec, following the signed-coefficient fix. These are intro movie frames. Menu, live textured city/car/HUD, input, audio, ten minutes driving, pause/resume/menu and two full cold acceptance runs remain unproven.
 
 ## Current identity and reproducible commands
 
@@ -87,3 +87,5 @@ Not met. Latest strict native window is black at15sec and shows recognizable Mic
 - Raw XBE2FE5FC bytes0FBFED mean movsx ebp,bp. Shared `_lift_movsx` omitted bp/sp, emitted unsigned LO16. Toolkit e537f94 adds both aliases to existing SX16 handling. Exhaustive compiled regression fails old bp, passes all65536 words across eight sources; `mm3_movsx_before_check_20261001.log` / `mm3_movsx_after_check_20261001.log`. Read-only Luna review found no material issue.
 - Full official26443-function generation `mm3_movsx_generate_20261001.log`; entire generated batch compared, only `ebp=LO16(ebp)` becomes `ebp=SX16(LO16(ebp))`, diff `mm3_movsx_generated_diff_20261001.log`. Whole generated file copied from official output; no body hand-edits. Compiled actual IDCT with paired inputs: old64/64 pixels differ, new0/64; `mm3_idct_before_block_20261001.log` / `mm3_idct_after_block_20261001.log`.
 - Current executable3379E524 build exit0. Next cold strict actual-window capture and full early V-plane comparison; menu/driving acceptance still unmet. Owned53480 stopped before fresh paired snapshot17444;17444 stopped after full original8x8 block captured. Other VMs preserved. I: last free11,160,604,672bytes before retaining pre-fix executable/chunk. No cleanup. Upstream refreshed: main1409a7d/same open PR heads, no merge.
+- Strict120sec `strict_movsx_20261001_01` (outer7b2126f/toolkite537f94/exe3379E524) timed out while intro still visible; no recovery/diagnostic toggles. Actual screenshots `_t15.png` black, `_t35.png` intact introductory animation, `_t60.png` yellow car/city, `_t90.png` blue car/city, `_t115.png` intro car on yellow background, all inspected. Full actual native V planes for frames1–10 now exactly match reference: `mm3_dice_movsx_early_v_compare_20261001.log`. No menu claim.
+- Strict runner now preserves existing functional RECOMP_KEYBOARD selection alongside save root, and records its enabled state. Actual environment-filter check preserves these two settings and removes diagnostic/recovery values. Next longer cold strict run with keyboard input, normal START/A events through framebuffer window, observe intro exit/menu boundary. I: latest free11,000,446,976bytes; pre-fix executable/chunk retained.
