@@ -34,7 +34,9 @@ Not met. Inspected native windows at 15/45/90 seconds are black. Menu, textured 
 - Actual captures `mm3_bink_yuy2_visual_20261001_t15.png`, `_t45.png`, `_t90.png` inspected: all black. Run identity `mm3_bink_yuy2_visual_20261001.run.json`; diagnostic/recovery toggles cleared.
 - Video copy2F5DE0 returns0 ->1F29C3 ->1F2A71 ->1DB6E8. Corrected return-chain probe clears recurring breakpoint; enclosing1DB6E8 does not return within30 seconds. `mm3_bink_yuy2_return_chain_20261001_02.cdb.log`; earlier chain's last label is a recurring breakpoint, not a return.
 - Real movie1F2A71 entries/returns advance handle+0C 1->2->3, +10 0->1->2; width280,height1E0,total90,rate1E. `mm3_movie_frame_state_20261001.cdb.log`. This proves early movie progression, not visible presentation or eventual exit.
-- Next: inspect paired playback/presentation path and existing hooks; read-only Luna movie audit active. Old Present hook remains unproven here. Renderer already supports YUY2 conversion; do not invent a replacement frame.
+- Real original342F20 returns after programming PVIDEO: BUFFER700=1, STOP704=0, OFFSET920=D2A000, SIZE_IN928=SIZE_OUT950=1E00280, POINT_IN/OUT0, DS_DX/DT_DY100000, FORMAT958=10500 (YUY2,pitch500). Trace mm3_pvideo_register_state_20261001.cdb.log.
+- GPU aperture is plain RAM (xbox_memory_layout.c:85,2307); pvideo_write breakpoint does not fire in20sec, consistent with mapped stores bypassing that model. fb_present.c reads primary framebuffer only. Existing YUY2 texture converters do not compose this hardware overlay.
+- Next: implement faithful hardware-overlay scanout from actual guest PVIDEO registers/buffer, preserving bounds, scaling and stop semantics; rerun/capture. Read-only Luna checks existing register/IRQ hooks. No substitute frames, forced cache or forced acknowledgments. Original xemu hardware reference: https://raw.githubusercontent.com/xemu-project/xemu/master/hw/xbox/nv2a/pvideo.c .
 - Host audio endpoint absent: XAudio2 80070490/waveOut2; xemu also lacks a default endpoint. APU DSP remains stubbed; no forced DSP acknowledgement. Rendering blocker remains actionable, goal active.
 
 ## Maintenance
