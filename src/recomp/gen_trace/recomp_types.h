@@ -356,6 +356,8 @@ void recomp_icall_not_code_log(uint32_t va);
  * make that division wrong by the ratio of the two clocks; the runtime scales
  * to the console's rate instead. */
 uint64_t xbox_ReadTimeStampCounter(void);
+#include "recomp_cpu.h"
+extern RECOMP_TLS uint32_t g_eflags;
 
 void recomp_trace_enter(const char *name, uint32_t va);
 #define RECOMP_TRACE_ENTER(name, va) recomp_trace_enter((name), (va))

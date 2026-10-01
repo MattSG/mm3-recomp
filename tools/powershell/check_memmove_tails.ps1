@@ -48,9 +48,10 @@ $tails = @('00093b58', '00093b60', '00093b70', '00093b84') | ForEach-Object {
     Join-Path $GeneratorDir "recomp_${_}_tail.c"
 }
 $exe = Join-Path $checkDir 'check_memmove_tails.exe'
+$sharedInclude = (Resolve-Path (Join-Path $PSScriptRoot '..\..\tools\xboxrecomp\include')).Path
 Push-Location $checkDir
 try {
-    & cl.exe /nologo /W3 /I $GeneratorDir $checkPath @tails "/Fe:$exe"
+    & cl.exe /nologo /W3 /I $GeneratorDir /I $sharedInclude $checkPath @tails "/Fe:$exe"
     if ($LASTEXITCODE) { throw 'Memmove tail check compilation failed' }
     & $exe
     if ($LASTEXITCODE) { throw 'Memmove tail check failed' }
