@@ -2,7 +2,7 @@
 
 ## Acceptance
 
-Not met. Two fresh diagnostic-off attempts still exit before gameplay. The allocator stall and first Bink memmove stack corruption are fixed in diagnostic runs. The last inspected frames remain black; a fresh capture of the new build is pending. No readable menu, textured city/car/HUD, controls, audio, 10-minute drive, or pause/resume/menu flow is proven.
+Not met. Two fresh diagnostic-off attempts still exit before gameplay. The allocator stall and first Bink memmove stack corruption are fixed in diagnostic runs. Fresh inspected frames at 15 and 45 seconds remain black. No readable menu, textured city/car/HUD, controls, audio, 10-minute drive, or pause/resume/menu flow is proven.
 
 ## Current movie checkpoint
 
@@ -10,6 +10,8 @@ Not met. Two fresh diagnostic-off attempts still exit before gameplay. The alloc
 - Extended the existing official-generator FPO tail overlays and runtime dispatch to original XBE table entries `0x00093B58/60/70/84`. No generated C was edited. `tools/powershell/check_memmove_tails.ps1` compiles the actual generated tails and checks 0–3 byte backward copies, saved registers and return stack; it passes.
 - Fresh native CDB proves the same Bink call now returns ESP `0x00FFFE7C -> 0x00FFFE84`, preserving ESI `0x01047A30`, instead of ESP `0x00FFFE30` / ESI `0x01049684`. Evidence: `conformance_tmp/mm3_bink_wait_fixed_20261001_01.cdb.log`.
 - Rebuilt executable SHA-256 `2BB0F7D1B04308FCF31A2BA6E8294784471F9841F33902401E8359A36F27104A`, toolkit `2c1b682`, existing generator directory. Build log: `conformance_tmp/mm3_memmove_tail_build_20261001.log`. This is diagnostic progress with `RECOMP_AC97_READY=1`, not strict acceptance.
+- Source commit `4852200 fix(mm3): resolve reverse memmove epilogues`. Two cold diagnostic-off runs `strict_memmove_tails_20261001_01/02` use that revision and executable hash, then exit with `HalReturnToFirmware(2)` after roughly four seconds. Neither passes acceptance.
+- Inspected native captures: `conformance_tmp/mm3_memmove_visual_20261001_01_t15.png` and `mm3_memmove_visual_20261001_02_t45.png`, both black. The 45-second diagnostic log now records unresolved Bink targets `0x002F9170` from caller `0x002FA4DA`, then `0x002F6AC0` from caller `0x002F3BAE`, and later bad virtual calls inside `0x002FD1F9/23B`. Next: capture the first unresolved target live, validate original XBE function boundaries/indirect target discovery, and repair source generation/dispatch. Separately, strict startup still needs faithful AC'97 readiness and usable audio. Probe processes were stopped; existing xemu processes were preserved. I: free space `11,341,729,792` bytes.
 
 ## Source and build
 
