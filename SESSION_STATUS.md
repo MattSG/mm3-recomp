@@ -52,3 +52,9 @@ Not met. Latest native window is black at15sec and shows a dark, distorted verti
 - Source-only commits exclude assets/XBE/QCOW2/logs/generated outputs. Git checkpoint requests3280/3335 cancelled and completed through normal Git commands; no pending Git approval. No owned native probe or build remains live.
 - Existing VMs/assets/original HDD/config/EEPROM preserved. Owned snapshot PID31064, copied EEPROM/config, port1385, `-snapshot`, still live; stop approval cell3320 pending. Do not terminate other xemu instances.
 - I: last free11,035,631,616 bytes. One build worker used; no disk cleanup. Reviewed CPU baseline preserved at `conformance_tmp/mm3_cpu_reviewed_baseline_4833928d.exe`; decisive traces retained.
+## Worker bootstrap checkpoint
+
+- Confirmed native worker callback stack divergence: `mm3_bink_worker_arg_20261001.cdb.log` has context01067040 in the return slot and argument0; worker ESI0, first waitFFFFFFFF. Original XBE calls callback at83ADB, return83ADE, and terminates via PsTerminateSystemThread ordinal258 at83AFD.
+- Manual bootstrap now pushes original83ADE return address and executes original thread-termination tail. Generated bodies unchanged. Focused compiled check fails old source and passes new source; logs `mm3_worker_bootstrap_before_check_20261001.log` / `mm3_worker_bootstrap_check_20261001.log`.
+- Build exit0: `mm3_worker_bootstrap_build_20261001.log`; executable SHA256 A292A73FA7C7B010CF1DE55465B26177DC48353DAB57A5B9D65FA9E81387F05B. Exact build-time source identity `mm3_worker_bootstrap_source_identity_20261001.json`.
+- New native probe `mm3_bink_worker_arg_fixed_20261001.cdb.log` timed out45sec before worker breakpoint. No native resolution claimed. Older manual1E7B8F wrapper assumes the broken stack layout; original raw XBE reads normal context at entryESP+4 after preserving ESI/EDI. Next trace its caller and remove the obsolete compensation if confirmed. Acceptance remains unmet.

@@ -813,6 +813,7 @@ void sub_00083A6C(void)
     {
         uint32_t saved_esp = g_esp;
         PUSH32(g_esp, MEM32(ebp + 0x0Cu));
+        PUSH32(g_esp, 0x00083ADEu);
         RECOMP_ICALL_SAFE(MEM32(ebp + 8), saved_esp);
     }
 
@@ -820,7 +821,17 @@ void sub_00083A6C(void)
     PUSH32(g_esp, 0);
     PUSH32(g_esp, 0x00083AE8u);
     RECOMP_ABI_CALL(0x000838C3u, sub_000838C3);
-    g_esp += 4;
+    /* Original normal tail at 0x83AF6 terminates this system thread. */
+    MEM32(ebp - 4) = 0xFFFFFFFFu;
+    {
+        uint32_t saved_esp = g_esp;
+        PUSH32(g_esp, MEM32(ebp - 40));
+        PUSH32(g_esp, 0x00083B03u);
+        RECOMP_ICALL_SAFE(MEM32(0x362030u), saved_esp);
+    }
+    /* The original executes INT3 if PsTerminateSystemThread returns. */
+    fprintf(stderr, "[CRASH] thread termination returned at 0x00083B03\n");
+    abort();
 }
 
 /* The official body reads its worker context after a nested ret-4 helper.
