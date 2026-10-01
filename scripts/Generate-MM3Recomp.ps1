@@ -18,7 +18,13 @@ if ($LASTEXITCODE -ne 0) {
     throw "XboxRecomp analysis pipeline failed with exit code $LASTEXITCODE"
 }
 
-wsl.exe -d $Distro -- bash -lc "cd '$wslRepo/tools/xboxrecomp' && python3 -m tools.recomp ../../game_files/default.xbe --all --split 1000 --gen-dir ../../$($GeneratorDir)$traceArgument --exclude-manual ../../src/recomp_manual.c --seh-prolog 0x00097AA4 --skip-binary-check"
+# This project generates wrapped bodies separately with their own SEH settings.
+# Mark every project definition declare-only in the main batch, including wrappers.
+New-Item -ItemType Directory -Force -Path $GeneratorDir | Out-Null
+$manifestCode = 'import json; from tools.recomp.manual_scan import scan; skip, wrap, _ = scan("../../src/recomp_manual.c"); json.dump({hex(a): "sub_%08X" % a for a in skip | wrap}, open("../../' + $GeneratorDir + '/manual_functions.json", "w"))'
+wsl.exe -d $Distro -- bash -lc "cd '$wslRepo/tools/xboxrecomp' && python3 -c '$manifestCode'"
+if ($LASTEXITCODE -ne 0) { throw 'Manual function manifest generation failed' }
+wsl.exe -d $Distro -- bash -lc "cd '$wslRepo/tools/xboxrecomp' && python3 -m tools.recomp ../../game_files/default.xbe --all --split 1000 --gen-dir ../../$($GeneratorDir)$traceArgument --manual-functions ../../$GeneratorDir/manual_functions.json --seh-prolog 0x00097AA4 --skip-binary-check"
 if ($LASTEXITCODE -ne 0) {
     throw "XboxRecomp generation failed with exit code $LASTEXITCODE"
 }
