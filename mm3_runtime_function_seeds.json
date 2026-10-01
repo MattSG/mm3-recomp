@@ -6,5 +6,21 @@
  {
   "start": "0x002F9170",
   "note": "Indirect-call target observed at runtime; decodes as a function body."
+ },
+ {
+  "start": "0x00359480",
+  "note": "Indirect-call target observed at runtime; decodes as a function body."
+ },
+ {
+  "start": "0x00359CC8",
+  "note": "Indirect-call target observed at runtime; decodes as a function body."
+ },
+ {
+  "start": "0x00307AE0",
+  "note": "Indirect-call target observed at runtime; original BINKYUY2 scalar converter passes function-body and compiled output checks."
+ },
+ {
+  "start": "0x00307C70",
+  "note": "Indirect-call target observed at runtime; original BINKYUY2 MMX converter matches xemu output and stack contract."
  }
 ]
