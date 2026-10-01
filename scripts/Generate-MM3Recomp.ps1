@@ -31,41 +31,46 @@ if ($LASTEXITCODE -ne 0) {
     throw "XboxRecomp generation failed with exit code $LASTEXITCODE"
 }
 
-# 0x93B04 is identified as a vtable thunk and is also a computed-copy tail
-# entry sharing 0x93860's frame. Generate its full body through the shared
-# epilogue as an FPO tail so RECOMP_ITAIL can resume that frame.
+# Computed reverse-copy entries share 0x93860's frame. Include all four
+# byte-remainder epilogues as well as the existing unrolled-copy tail.
 $tailFunctionsPath = Join-Path $GeneratorDir 'memmove_tail_functions.json'
 $tailFunctions = @(Get-Content (Join-Path $repo 'tools\xboxrecomp\tools\disasm\output\functions.json') -Raw | ConvertFrom-Json)
-$tailFunction = $tailFunctions | Where-Object start -eq '0x00093B04' | Select-Object -First 1
+$tailAddresses = @('00093B04', '00093B58', '00093B60', '00093B70', '00093B84')
+foreach ($address in $tailAddresses) {
+$tailFunction = $tailFunctions | Where-Object start -eq "0x$address" | Select-Object -First 1
 if ($tailFunction) {
     $tailFunction.end = '0x00093B9D'
-    $tailFunction.size = 153
+    $tailFunction.size = 0x00093B9D - [Convert]::ToUInt32($address, 16)
     $tailFunction.has_prologue = $false
 } else {
     $tailFunctions += [pscustomobject]@{
-        start = '0x00093B04'; end = '0x00093B9D'; size = 153
-        name = 'sub_00093B04'; section = '.text'; confidence = 0.75
+        start = "0x$address"; end = '0x00093B9D'
+        size = 0x00093B9D - [Convert]::ToUInt32($address, 16)
+        name = "sub_$address"; section = '.text'; confidence = 0.75
         detection_method = 'vtable_thunk'; num_instructions = 60
         has_prologue = $false; calls_to = @(); called_by = @()
     }
 }
+}
 $tailFunctions | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $tailFunctionsPath -Encoding ascii
 $tailOverlayDir = Join-Path $GeneratorDir 'recovered_tail'
 New-Item -ItemType Directory -Force -Path $tailOverlayDir | Out-Null
-$tailErrorPath = Join-Path $tailOverlayDir '00093B04.err.log'
-$tailCommand = "cd '$wslRepo/tools/xboxrecomp' && python3 -m tools.recomp ../../game_files/default.xbe --function 0x00093B04 --functions ../../$GeneratorDir/memmove_tail_functions.json --seh-prolog 0x00097AA4 --skip-binary-check"
+foreach ($address in $tailAddresses) {
+$tailErrorPath = Join-Path $tailOverlayDir "$address.err.log"
+$tailCommand = "cd '$wslRepo/tools/xboxrecomp' && python3 -m tools.recomp ../../game_files/default.xbe --function 0x$address --functions ../../$GeneratorDir/memmove_tail_functions.json --seh-prolog 0x00097AA4 --skip-binary-check"
 $tailText = @(& wsl.exe -d $Distro -- bash -lc $tailCommand 2> $tailErrorPath)
 if ($LASTEXITCODE -ne 0) {
-    throw 'Memmove tail generation failed for 0x00093B04'
+    throw "Memmove tail generation failed for 0x$address"
 }
 $tailOverlay = @(
     '#define RECOMP_GENERATED_CODE'
     '#include "recomp_funcs.h"'
     '#include <math.h>'
     ''
-    ($tailText -replace 'void sub_00093B04\(void\)', 'void sub_00093B04_gen(void)')
+    ($tailText -replace "void sub_$address\(void\)", "void sub_${address}_gen(void)")
 )
-Set-Content -LiteralPath (Join-Path $GeneratorDir 'recomp_00093b04_tail.c') -Value $tailOverlay -Encoding utf8
+Set-Content -LiteralPath (Join-Path $GeneratorDir ("recomp_{0}_tail.c" -f $address.ToLower())) -Value $tailOverlay -Encoding utf8
+}
 
 # Keep runtime semantics project-owned while leaving tools/xboxrecomp untouched.
 $runtimeHeader = Join-Path $repo 'src\recomp\gen_trace\recomp_types.h'

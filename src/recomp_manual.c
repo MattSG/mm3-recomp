@@ -66,6 +66,10 @@ extern void sub_000943ED_gen(void) /* generated body with ABI wrapper */;
 extern void sub_0002539A_gen(void) /* generated body with ABI wrapper */;
 extern void sub_001E7B8F_gen(void) /* generated body with worker-context overlay */;
 extern void sub_00093B04_gen(void) /* recovered memmove tail body */;
+extern void sub_00093B58_gen(void);
+extern void sub_00093B60_gen(void);
+extern void sub_00093B70_gen(void);
+extern void sub_00093B84_gen(void);
 
 /* 0x252AF is a real helper that the generator reports as an unresolved
  * target because it begins inside the surrounding function cluster. */
@@ -371,6 +375,15 @@ recomp_func_t recomp_lookup_manual(uint32_t xbox_va)
         return sub_000943ED;
     if (xbox_va == 0x00093B04u)
         return sub_00093B04;
+    /* Reverse memmove remainder entries reuse the caller's saved frame. */
+    if (xbox_va == 0x00093B58u)
+        return sub_00093B58_gen;
+    if (xbox_va == 0x00093B60u)
+        return sub_00093B60_gen;
+    if (xbox_va == 0x00093B70u)
+        return sub_00093B70_gen;
+    if (xbox_va == 0x00093B84u)
+        return sub_00093B84_gen;
     if (xbox_va == 0xFE000068u)
         return bridge_rtl_init_ansi_string;
     if (xbox_va == 0xFE00017Cu)
