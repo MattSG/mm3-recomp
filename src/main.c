@@ -97,12 +97,18 @@ static LONG CALLBACK mm3_apu_mmio_handler(PEXCEPTION_POINTERS info)
     uintptr_t fault_address;
     uint32_t guest_address;
 
-    if (!g_apu_state || !info ||
+    if (!info ||
         info->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION)
         return EXCEPTION_CONTINUE_SEARCH;
 
     fault_address = info->ExceptionRecord->ExceptionInformation[1];
     guest_address = (uint32_t)(fault_address - (uintptr_t)g_xbox_mem_offset);
+    if (guest_address >= 0xFD008000u && guest_address < 0xFD009000u)
+        return nv2a_hook_handle_mmio(
+            info->ContextRecord, fault_address, guest_address,
+            info->ExceptionRecord->ExceptionInformation[0] ? 1 : 0)
+            ? EXCEPTION_CONTINUE_EXECUTION : EXCEPTION_CONTINUE_SEARCH;
+    if (!g_apu_state) return EXCEPTION_CONTINUE_SEARCH;
     if (guest_address < MM3_APU_BASE || guest_address >= MM3_APU_END)
         return EXCEPTION_CONTINUE_SEARCH;
 
@@ -219,6 +225,15 @@ int main(void)
         return 1;
     }
     nv2a_hook_init(g_xbox_mem_offset);
+    /* PVIDEO accesses must execute register semantics, including STOP. */
+    {
+        DWORD old_protect;
+        if (!VirtualProtect((void *)((uintptr_t)g_xbox_mem_offset + 0xFD008000u),
+                            0x1000, PAGE_NOACCESS, &old_protect)) {
+            fprintf(stderr, "[NV2A] could not trap PVIDEO page\n");
+            return 1;
+        }
+    }
     /* Retail behavior is SPAWN. INLINE is a bounded single-thread diagnostic
      * that removes cross-thread trace interleaving while locating startup. */
     xbox_SetThreadMode(getenv("MM3_THREAD_MODE") &&

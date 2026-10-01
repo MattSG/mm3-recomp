@@ -2,12 +2,12 @@
 
 ## Acceptance
 
-Not met. Latest native window is black at15sec and shows a dark, distorted vertical image at45/90sec. Menu, textured city/car/HUD, input, audio, ten minutes driving, pause/resume/menu and two full cold acceptance runs remain unproven.
+Not met. Latest strict native window is black at15sec and shows recognizable Microsoft Game Studios lettering with heavy block corruption at35sec. Menu, textured city/car/HUD, input, audio, ten minutes driving, pause/resume/menu and two full cold acceptance runs remain unproven.
 
 ## Current identity and reproducible commands
 
 - Source integration `471473a`, CPU integration `3a5d4cf`, seeds `e9611ef`; toolkit `e1ad75f` (CPU baseline00d2c2b). Source-only checkpoints; toolkit checkout clean.
-- Executable `build-msvc-tailfix/RelWithDebInfo/mm3_recomp.exe`, SHA256 `60D225B64099C57E1265A9E17069BEEBDD97C1A85DEA18ED20169C3756D477B2`. Runtime-only build completed with exit0; log `conformance_tmp/mm3_pvideo_build_20261001.log`. Toolkit `e1ad75f` adds PVIDEO scanout; precise precommit source hashes in `conformance_tmp/mm3_pvideo_source_identity_20261001.json`. Generated C unchanged.
+- Previous executable SHA256 `60D225B64099C57E1265A9E17069BEEBDD97C1A85DEA18ED20169C3756D477B2`; current executable `build-msvc-tailfix/RelWithDebInfo/mm3_recomp.exe`, SHA256 `3000C046A8479977964F8391C7789174647E6DD402662761865DEC56FE75D50B`. Runtime-only build completed with exit0; log `conformance_tmp/mm3_pvideo_build_20261001.log`. Toolkit `e1ad75f` adds PVIDEO scanout; precise precommit source hashes in `conformance_tmp/mm3_pvideo_source_identity_20261001.json`. Generated C unchanged.
 - XBE `game_files/default.xbe`, SHA256 `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`.
 - Build-time HEADs plus exact modified-source and analysis-input hashes: `conformance_tmp/mm3_bink_yuy2_source_identity_20261001.json`. Build used four project seeds plus two separately recorded BINKYUY2 candidates. The committed six-entry project seed list now contains the same union; no executable regenerated merely to change commit metadata.
 - Official analysis: from `tools/xboxrecomp`, venv Python `../../conformance_tmp/mm3genvenv/Scripts/python.exe -m tools.disasm ../../game_files/default.xbe --force --seed-functions ../../mm3_runtime_function_seeds.json`, then `-m tools.func_id` and `-m tools.abi_analysis` with the same XBE.
@@ -60,3 +60,12 @@ Not met. Latest native window is black at15sec and shows a dark, distorted verti
 - New native probe `mm3_bink_worker_arg_fixed_20261001.cdb.log` timed out45sec before worker breakpoint. No native resolution claimed. Older manual1E7B8F wrapper assumes the broken stack layout; original raw XBE reads normal context at entryESP+4 after preserving ESI/EDI. Next trace its caller and remove the obsolete compensation if confirmed. Acceptance remains unmet.
 - Follow-up confirmed legacy1E7B8F receives `[83ADE,431680]` from corrected bootstrap (`mm3_legacy_worker_entry_20261001.cdb.log`). Removed its obsolete argument overwrite and forced EBX. Exact original worker reads entryESP+4. Extended compiled check fails old wrapper, passes corrected delegation (`mm3_worker_wrapper_before_check_20261001.log`, `mm3_worker_wrapper_check_20261001.log`).
 - Native real2F75B0 now ESI01067040, waits valid48000006, returns102 timeout instead ofFFFFFFFF; `mm3_bink_worker_arg_fixed_wrapper_20261001.cdb.log`. New build exit0, SHA256 C8BD7B70E0187C2D66214CB9C006E160AC8AC2940150B4929A8E9776C7DB9DA3; `mm3_worker_wrapper_source_identity_20261001.json`. Visual acceptance still pending.
+
+
+## PVIDEO stop integration checkpoint
+
+- Actual late original3430A0 loop waits BUFFER0 after STOP1. Native30sec attach finds BUFFER1/STOP1 (`mm3_pvideo_stop_late_20261001.cdb.log`). Raw XBE proof `mm3_video_teardown_disasm_20261001.py`. Existing writable aperture bypassed device semantics. xemu primary reference: https://raw.githubusercontent.com/xemu-project/xemu/master/hw/xbox/nv2a/pvideo.c (STOP bit0 clears BUFFER; STOP reads0).
+- PVIDEO core implements stop command; existing decoder handles trapped PVIDEO page only through existing main VEH. Compositor snapshots the same model with SRW synchronization, normalized to dword indexing. Other aperture pages preserved. Original movie-teardown stop call now returns to1F299C: `mm3_pvideo_stop_fixed_20261001.cdb.log`. No guest register/instruction changes or polling acknowledgement workaround.
+- Focused compiled register check fails old handler and passes corrected stop/restart; `mm3_pvideo_register_before_check_20261001.log`, `mm3_pvideo_register_check_20261001.log`. Build exit0 `mm3_pvideo_mmio_build_20261001.log`; exact dirty-source hashes `mm3_pvideo_mmio_source_identity_20261001.json`; executable3000C046 as above, generated C unchanged.
+- Strict45sec run `strict_pvideo_mmio_20261001_01`: timeout, diagnostic/recovery environment cleared, controlled save root. Actual captures `mm3_pvideo_mmio_strict_20261001_t15.png` black / `_t35.png` recognizable Microsoft Game Studios lettering with heavy block corruption, inspected. This is the first recognizable native movie lettering here; it is not a menu/playability pass.
+- Next compare native Bink frame buffers/decode and xemu at matching PC/frame/thread to resolve corruption, then continue menu/city/input/audio acceptance. Worker teardown is corrected, not the entire startup. Upstream refreshed again: main1409a7d and same openPR162/161/160/159/158/157/135/134/133/128. No merge. I: free11,170,619,392 bytes; no cleanup. Bounded owned native/debugger probes stopped.
