@@ -834,18 +834,10 @@ void sub_00083A6C(void)
     abort();
 }
 
-/* The official body reads its worker context after a nested ret-4 helper.
- * Keep the real return sentinel intact while supplying that context slot. */
+/* The bootstrap supplies the original return-address/argument layout. */
 void sub_001E7B8F(void)
 {
-    uint32_t esp = g_esp;
-    uint32_t return_va = MEM32(esp + 4);
-    uint32_t context = MEM32(esp);
-
-    MEM32(esp + 4) = context;
-    g_ebx = context;
     sub_001E7B8F_gen();
-    MEM32(esp + 4) = return_va;
 }
 
 /* FPO/SEH frame transition: __SEH_prolog changes the guest frame to

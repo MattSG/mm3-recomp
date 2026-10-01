@@ -7,6 +7,7 @@
 
 static void check_indirect(uint32_t target);
 void sub_000838C3(void);
+void sub_001E7B8F_gen(void);
 #undef RECOMP_ICALL_SAFE
 #define RECOMP_ICALL_SAFE(target, saved_esp) check_indirect((uint32_t)(target))
 #include "worker_bootstrap_body.inc"
@@ -18,6 +19,14 @@ RECOMP_TLS int g_df;
 static jmp_buf terminated;
 static uint32_t context, calls;
 static unsigned char memory[4 * 1024 * 1024];
+
+void sub_001E7B8F_gen(void)
+{
+    assert(MEM32(g_esp) == 0x83ADEu);
+    assert(MEM32(g_esp + 4) == context);
+    assert(g_ebx == 0x87654321u);
+    calls++;
+}
 
 void sub_000838C3(void)
 {
@@ -66,6 +75,13 @@ int main(void)
             assert(!"bootstrap returned instead of terminating");
         }
     }
+    g_esp = 0x380000;
+    MEM32(g_esp) = 0x83ADEu;
+    MEM32(g_esp + 4) = context;
+    g_ebx = 0x87654321u;
+    calls = 0;
+    sub_001E7B8F();
+    assert(calls == 1);
     puts("PASS: bootstrap preserves callback context/return slot and thread exit status");
     return 0;
 }
