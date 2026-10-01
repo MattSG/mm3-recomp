@@ -6,12 +6,12 @@
 
 ## Reproducible source and build
 
-- Outer source: `ea348b3 fix(build): seed observed Bink callback functions`.
-- Toolkit: `ed03376 fix(seed): parse current ICALL failure wording`, clean detached checkout. Includes NEG flag repair `2c1b682`.
+- Generated source: `ea348b3 fix(build): seed observed Bink callback functions`; audio build uses outer `f86666e` plus toolkit `8d3a09b` (same verified audio source committed after build).
+- Toolkit: `8d3a09b fix(audio): initialize attached AC97 codec normally`, clean detached checkout; includes seed parser repair `ed03376`. Includes NEG flag repair `2c1b682`.
 - Generator script: `scripts/Generate-MM3Recomp.ps1`; input `game_files/default.xbe`, SHA-256 `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`.
 - Generated directory: `conformance_tmp/mm3_neg_flags_gen_20261001`, with 26,439 functions after two measured Bink seeds; separate official-generator SEH/ABI and memmove-tail overlays. No generated C was edited.
 - Build: `& 'C:/Program Files/Microsoft Visual Studio/18/Enterprise/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe' --build build-msvc-tailfix --config RelWithDebInfo --parallel 1`.
-- Executable: `build-msvc-tailfix/RelWithDebInfo/mm3_recomp.exe`; SHA-256 `627E1D69CE8F1AFDFB6E2DA8CB77467E565FAF07F78E5A333D0CBA156660F45E`. Preserved copy: `conformance_tmp/mm3_bink_seed_baseline_627e1d69.exe`.
+- Executable: `build-msvc-tailfix/RelWithDebInfo/mm3_recomp.exe`; SHA-256 `074493EC0515D00F7313679CE9B48D5D5462F3184829D7BFF627F1E83F8FBD99`. Preserved copy: `conformance_tmp/mm3_bink_seed_baseline_627e1d69.exe`.
 - Generation/build logs: `conformance_tmp/mm3_bink_seed_generation_20261001.log`, `mm3_bink_seed_build_20261001.log`.
 - Strict runner: `pwsh -NoProfile -File tools/powershell/run_clean_strict.ps1 -RunId <unique> -Seconds 900`; launches the executable above, clears runtime/diagnostic/recovery toggles, and hashes source/toolkit/executable. Process exit zero is not visual acceptance.
 
@@ -26,8 +26,8 @@
 ## Current failures and next actions
 
 - Diagnostic `RECOMP_AC97_READY=1` reaches Bink decode; native images `conformance_tmp/mm3_bink_seed_visual_20261001_01_t15.png` / `_t45.png` were inspected and are black.
-- First unresolved graphics targets in that run: `0x00359480` and `0x00359CC8`, caller `0x003599FD`. Later null virtual calls occur inside `0x002FD1F9/23B`. Audit original functions and recover measured graphics entries before interpreting rendering.
-- Cold runs `strict_bink_seeds_20261001_01/02` use outer `ea348b3`, toolkit `ed03376`, executable hash above. Both exit before gameplay. Strict startup previously paired native DirectSound `DSERR_NODRIVER` against xemu success: default AC'97 status is zero; the working device model is opt-in. Next: make faithful codec readiness/reset behavior normal initialization and repeat strict startup. xemu reports codec-ready bit 8 as read-only on GLOB_STA reads: https://github.com/xemu-project/xemu/blob/master/hw/audio/ac97.c. GP/EP DSP remains stubbed; no forced DSP acknowledgment is used.
+- First unresolved XPP input startup targets in that run: `0x00359480` and `0x00359CC8`, caller `0x003599FD`. Later null virtual calls occur inside `0x002FD1F9/23B`. Audit original functions and recover measured input entries before interpreting rendering.
+- Cold runs `strict_bink_seeds_20261001_01/02` use outer `ea348b3`, toolkit `ed03376`, executable hash above. Both exit before gameplay. Strict startup previously paired native DirectSound `DSERR_NODRIVER` against xemu success: default AC'97 status is zero; the working device model is opt-in. Toolkit `8d3a09b` now initializes codec readiness and reset behavior normally. Compiled actual-helper check `python -m tools.recomp.check_ac97_registers` passes. Fresh diagnostic-off CDB `mm3_ac97_default_fixed_20261001.cdb.log` proves status bit `0x100` and DirectSound EAX zero, versus prior `0x88780078`. Cold run `strict_ac97_default_20261001_01` still exits before menu. Incremental build log: `conformance_tmp/mm3_ac97_default_build_20261001.log`. xemu reports codec-ready bit 8 as read-only on GLOB_STA reads: https://github.com/xemu-project/xemu/blob/master/hw/audio/ac97.c. GP/EP DSP remains stubbed; no forced DSP acknowledgment is used.
 - Host audio output remains unavailable: XAudio2 mastering voice `0x80070490`, waveOut error 2; fresh xemu also logs `No default audio device available`. Rendering and guest initialization still have actionable source blockers, so the goal remains active.
 - TDATA directory opens succeed natively; `$u/contentmeta.xbx` is absent. Read-only FATX inspection reports an empty xemu E: root. Its same-PC runtime open result remains unpaired and is not a proven cause.
 
