@@ -24,7 +24,9 @@ New-Item -ItemType Directory -Force -Path $GeneratorDir | Out-Null
 $manifestCode = 'import json; from tools.recomp.manual_scan import scan; skip, wrap, _ = scan("../../src/recomp_manual.c"); json.dump({hex(a): "sub_%08X" % a for a in skip | wrap}, open("../../' + $GeneratorDir + '/manual_functions.json", "w"))'
 wsl.exe -d $Distro -- bash -lc "cd '$wslRepo/tools/xboxrecomp' && python3 -c '$manifestCode'"
 if ($LASTEXITCODE -ne 0) { throw 'Manual function manifest generation failed' }
-wsl.exe -d $Distro -- bash -lc "cd '$wslRepo/tools/xboxrecomp' && python3 -m tools.recomp ../../game_files/default.xbe --all --split 1000 --gen-dir ../../$($GeneratorDir)$traceArgument --manual-functions ../../$GeneratorDir/manual_functions.json --seh-prolog 0x00097AA4 --skip-binary-check"
+# The title uses both detected SEH prologs; a single override drops frame
+# publication/readback for callers of the other helper.
+wsl.exe -d $Distro -- bash -lc "cd '$wslRepo/tools/xboxrecomp' && python3 -m tools.recomp ../../game_files/default.xbe --all --split 1000 --gen-dir ../../$($GeneratorDir)$traceArgument --manual-functions ../../$GeneratorDir/manual_functions.json --skip-binary-check"
 if ($LASTEXITCODE -ne 0) {
     throw "XboxRecomp generation failed with exit code $LASTEXITCODE"
 }
