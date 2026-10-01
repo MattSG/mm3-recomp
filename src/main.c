@@ -114,9 +114,6 @@ static LONG CALLBACK mm3_apu_mmio_handler(PEXCEPTION_POINTERS info)
 
 static int mm3_apu_init(void)
 {
-    if (!getenv("RECOMP_AC97_READY"))
-        return 1;
-
     g_apu_state = mcpx_apu_init_standalone((uint8_t *)xbox_GetMemoryBase());
     if (!g_apu_state) {
         fprintf(stderr, "[APU] initialization failed\n");
