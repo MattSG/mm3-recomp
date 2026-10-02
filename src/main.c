@@ -194,6 +194,16 @@ int main(void)
         return 1;
     }
 
+    /* MM3's DirectSoundCreate waits for the AC'97 codec-ready bit. Route the
+     * request through the runtime APU/MMIO model so the codec and DSP handshake
+     * are initialized together; otherwise DSERR_NODRIVER leaves its audio
+     * engine object half-built and the title later dereferences a stale vtable. */
+    if (_putenv_s("RECOMP_AC97_READY", "1") != 0) {
+        fprintf(stderr, "cannot enable MM3 AC97/APU initialization\n");
+        free(xbe_data);
+        return 1;
+    }
+
     /* Keep the emulated RAM at 64 MB, but leave virtual address space above
      * it for MM3's large MEM_RESERVE requests. */
     xbox_SetMapSize(MM3_MEMORY_MAP_SIZE);
