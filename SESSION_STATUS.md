@@ -98,3 +98,43 @@ Not met. Signed-coefficient fix produces intact intro movies. Latest240sec stric
 - Actual inner2B315D returns0 because XNet object011140A0+A70 bit1 is clear; +8C0 state6, +8C8/+8D8/+AE4 all0. FullC00-byte object saved; `mm3_xnet_bits_20261001.cdb.log`, `mm3_xnet_native_object_20261001.bin`. Generated2B7087 is the genuine readiness writer, called by2B7DDC state machine. No forced network bits/status. Next trace timer/state-machine progress and compare original same boundary.
 - Owned xemu31064/port1385 remains reference snapshot. First bounded40sec resume stayed in actual intro decode2FE570/thread01, XNetroot0, so original has not reached network initialization. Network breakpoint cleared, VM paused; second bounded continuation in progress. E22 removing old movie breakpoint did not prevent real progress. Existing VMs/assets untouched.
 - Confirmed duplicate official MOVSX generation files compared with active batch after newline normalization;116,465,119bytes reclaimed from that candidate directory only. Unique changed chunk, active generation, old failing chunk/exe and decisive traces retained. Last free approximately11GB. No build active; no native debugger attached.
+
+## Post-movie black-screen correction and Startup.tga lead — 2026-10-02
+
+- The changing city frames after START/A presses are still intro-video clips; input has not been shown to skip the movie or advance startup.
+- The XNet-gated binary did return 1 through `sub_0019531D` after the temporary offline bypass, but this is not menu or startup completion.
+- `conformance_tmp/mm3_xnet_ready_20261002_03/stderr.log` records the `Startup.tga` and `LoadmeterTexture.raw` path strings and a display-mode switch. This does not prove either asset opened, loaded, or rendered. The nearby 128 KiB read failure is attributed only to guest helper `0x00082891`; without its file handle/caller correlation it is not evidence of a Startup.tga failure.
+- The same black-run trace later reports thread 16212 waiting for guest lock `0x003929D0`, held by thread 39212, with one unmatched enter (`16438583` enters vs `16438582` leaves). This is the concrete post-video stall lead. Next capture the owner thread's stack and return path, then correlate the first successful Startup.tga open/read and texture/present calls before changing menu/render code.
+
+## Startup.tga xemu comparison — 2026-10-02
+
+- Isolated xemu reference (PID 45432, port 1391, `-snapshot`, copied EEPROM) reached XBE entry `0x00083C55`. At `0x0008236B`, return site `0x0009DE8C`, the guest path was `D:\Data\Shared\Menu\Gfx\Startup.tga`; the open returned handle `4`. This confirms original-game Startup.tga open behavior.
+- Native PID 64104 still renders a black 640x480 framebuffer. Injected Start and A key events did not change the captured frame.
+- The `mm3_openmethod_20261002` native trace translates/maps Startup.tga and LoadmeterTexture.raw paths, but contains no matching `FILE_REQUEST`/`FILE_RESULT` for Startup.tga. Path mapping alone does not prove the asset open failed because the path may be handled by the archive/resource layer.
+- The native 128 KiB invalid read uses token `0`, currently mapped to `FFFFFFFF`, through guest helper `0x00082891`; its object is `0x00431680`, distinct from the traced Startup.tga context. Do not attribute this read to Startup.tga yet.
+- Latest CDB stacks show one worker in the movie decode path (`sub_0027AA53`) and another sleeping through `sub_001E7B8F`; the main host thread is in `mm3_wait_for_worker`. The guest lock waiter eventually acquires `0x003929D0`, so a permanent lock deadlock is unproven.
+- No code fix is justified yet. Next capture a fresh native run at `sub_0009DCD1`/the file-open bridge and correlate the Startup resource object, file/archive reads, and first texture/present. Menu and interactive input remain unverified.
+
+## Post-clip Bink wait capture — 2026-10-02
+
+- Clean-environment runtime `conformance_tmp/mm3_black_cause_20261002_02` captured an actual car/city intro frame at about 120 seconds, then a pure-black framebuffer at about 150 and 175 seconds. START and A posted after the black transition did not change the captured framebuffer.
+- At the black screen, CDB showed the host main thread in `mm3_wait_for_worker` and a guest worker in `sub_0027AA53+0xb8e` (Bink path), repeatedly executing its guest `MEM32(ebx) != 0` wait. The live flag address was guest `0x808e8810`, value `3`. A 10-second hardware write watch did not observe a writer.
+- The other sampled worker looked up callback `0x000F5391`; it is present in `recomp_dispatch.c` and resolves to the generated callback, so a missing dispatch entry is not the explanation.
+- A one-run debugger write of zero to guest `0x808e8810` released that wait but exposed subsequent invalid indirect targets (`0xD9182464`, `0xD81C2444`, then null vtable slot at caller `0x001C3A89`) and an access violation. This is diagnostic only; it does not establish that zero is the correct handshake state or that the observed crash is present without the forced write.
+- No runtime code was changed. This confirms a Bink worker handshake blocks post-clip progress, but the producer/consumer that should clear it remains unidentified; startup/menu rendering is still unverified.
+
+## Repeat black-frame capture and audio correlation — 2026-10-02
+
+- Clean native run `conformance_tmp/mm3_audio_handoff_20261002_01` (PID 40536, executable SHA-256 `41A4DFFF84555433F466937943BBA3E338F257E2C2E1D4C526CF8996B8C58F73`) captured an actual police-car intro frame, then an all-black 640x480 framebuffer. The black capture is `frame.bmp`.
+- CDB reproduced the same title-side Bink/audio handoff: guest worker thread 22 is in `sub_0027AA53+0xb8e`, waiting on guest `0x808e8810` (mapped host address `0x808f8810`), which remains `3`. The main thread is waiting for its worker. An APU thread is still executing `voice_resample`/`voice_process`; another guest worker is asleep in `sub_001E7B8F_gen` through a 300 ms `KeDelayExecutionThread`.
+- This run could not open host audio: `[XA2] CreateMasteringVoice failed: 0x80070490`; waveOut fallback also failed with error 2. That is a plausible contributor to the missing consumer, but the earlier black-cause run reported successful XAudio2 initialization and reached the same Bink wait. Host endpoint failure is therefore not established as the root cause.
+- No code was changed and the shared flag was not forced. Keep PID 40536 available while tracing which title-side audio/DirectSound completion path should clear the flag and why it does not.
+
+## Single-window post-video capture — 2026-10-03
+
+- Native PID 55020, executable SHA-256 `8986417F5EE6261731F7D66337FAB6D029B01B3F0D36FA606AEB7D2A3FDFD2`, toolkit `80067c6`. One framebuffer window only. The launch inherited `RECOMP_AC97_READY=1`; sound was not disabled and no DSP-ack override was set.
+- Frame dumps show an actual police-car/city image with widespread block corruption (`conformance_tmp/clean-strict/current_crash_capture_20261003_01/frame_t35.bmp`, `frame_at_natural_crash.bmp`), then a black frame with the blinking bottom-right rectangle (`frame_at_13_58.bmp`). The final image is from primary framebuffer `0x81AC4000`.
+- At the black frame, the PVIDEO snapshot has both buffer-use bits clear, `STOP=0`, `SIZE_IN=0xFFFFFFFF`, `SIZE_OUT=640x480`, and YUY2 format `0x00010500`. This makes the blinking rectangle a primary-framebuffer issue at that moment, not an active PVIDEO overlay.
+- The natural worker state repeats the post-clip Bink wait: `sub_0027AA53+0xB8E` polls guest `0x80458810`, value `3`; main thread waits in `mm3_wait_for_worker`. A hardware write watch on its host alias observed no writer before exit. The APU voice thread remained active in `voice_get_samples`/`voice_resample`/`voice_process`.
+- A first-chance AV in `sub_0027D870+0x1A7` reads the MCPX sample-counter register `0xFE820010`; the process handled it and continued. The run ended with watchdog exit code `3` after 900 seconds, not a natural crash. Full trace and dumps are in `conformance_tmp/clean-strict/current_crash_capture_20261003_01/`.
+- No runtime change yet. The Bink handoff’s producer is still unidentified; do not treat the observed wait flag as a DSP command without tracing its owning object. The post-video black state and corruption are reproducible, but neither is fixed.
