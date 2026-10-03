@@ -1269,6 +1269,11 @@ static inline RecompMmx MMX_PSADBW(RecompMmx a, RecompMmx b) {
  * ================================================================ */
 
 void recomp_unimpl(const char *text, uint32_t va);
-#define RECOMP_UNIMPL(_text, _va) recomp_unimpl((_text), (_va))
+#define RECOMP_UNIMPL(_text, _va) do { \
+    if ((uint32_t)(_va) == 0x0009379Eu) \
+        recomp_cpuid(eax, ecx, &eax, &ebx, &ecx, &edx); \
+    else \
+        recomp_unimpl((_text), (_va)); \
+} while (0)
 
 #endif /* RECOMP_TYPES_H */
