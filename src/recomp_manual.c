@@ -80,7 +80,7 @@ void sub_000252AF(void)
     uint32_t caller_ebx = g_ebx;
     uint32_t caller_esi = g_esi;
     uint32_t caller_edi = g_edi;
-    PUSH32(g_esp, MEM32(g_eax));
+    PUSH32(g_esp, g_eax - 4u);
     PUSH32(g_esp, 1);
     PUSH32(g_esp, MEM32(g_esp + 0x10));
     PUSH32(g_esp, MEM32(g_esp + 0x10));
@@ -96,6 +96,13 @@ void sub_000252AF(void)
     g_esp += 0x10;
     /* ICALL leaves the guest return sentinel for the callee's ret 8. */
     g_esp += 12;
+}
+
+/* 0x252DF is the one-byte RET tail at the end of the stream constructor.
+ * The title also calls that tail through a vtable entry. */
+void sub_000252DF(void)
+{
+    g_esp += 4u;
 }
 
 /* 0x2539A is an FPO helper whose nested calls may overwrite the emulated
@@ -341,6 +348,8 @@ recomp_func_t recomp_lookup_manual(uint32_t xbox_va)
 {
     if (xbox_va == 0x000252AFu)
         return sub_000252AF;
+    if (xbox_va == 0x000252DFu)
+        return sub_000252DF;
     if (xbox_va == 0x00021103u)
         return sub_00021103;
     if (xbox_va == 0x0007169Du)
