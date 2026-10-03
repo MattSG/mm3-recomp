@@ -105,10 +105,11 @@ static LONG CALLBACK mm3_apu_mmio_handler(PEXCEPTION_POINTERS info)
     fault_address = info->ExceptionRecord->ExceptionInformation[1];
     guest_address = (uint32_t)(fault_address - (uintptr_t)g_xbox_mem_offset);
     if (guest_address == 0xFD008700u &&
-        !info->ExceptionRecord->ExceptionInformation[0]) {
+        !info->ExceptionRecord->ExceptionInformation[0] &&
+        !getenv("RECOMP_FB_WINDOW")) {
         NV2AState *gpu = nv2a_get_state();
         if (gpu) {
-            /* ponytail: consume PVIDEO buffers on poll until scanout exists. */
+            /* ponytail: without a scanout window, consume rather than stall. */
             uint64_t buffer = nv2a_mmio_read(gpu, 0x8700, 4);
             nv2a_mmio_write(gpu, 0x8700, buffer & ~0x11u, 4);
         }
