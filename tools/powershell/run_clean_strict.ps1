@@ -28,7 +28,7 @@ $oldEnv = @{}
 $cleared = @()
 foreach ($entry in Get-ChildItem Env:) {
     if ($entry.Name -match '^(MM3_|RECOMP_|NV2A_)') {
-        if ($entry.Name -in @('MM3_SAVE_DIR', 'RECOMP_KEYBOARD')) { continue }
+        if ($entry.Name -in @('MM3_SAVE_DIR', 'RECOMP_KEYBOARD', 'RECOMP_FB_WINDOW')) { continue }
         $oldEnv[$entry.Name] = $entry.Value
         Remove-Item "Env:$($entry.Name)" -ErrorAction SilentlyContinue
         $cleared += $entry.Name
@@ -73,6 +73,7 @@ $result = [ordered]@{
     outer_commit = $outer
     toolkit_commit = $toolkit
     keyboard_input_enabled = ($env:RECOMP_KEYBOARD -and $env:RECOMP_KEYBOARD -ne '0')
+    framebuffer_window_enabled = ($env:RECOMP_FB_WINDOW -and $env:RECOMP_FB_WINDOW -ne '0')
     diagnostics_and_recovery_env_cleared = @($cleared | Sort-Object)
     save_dir_preserved = [bool]$env:MM3_SAVE_DIR
     stdout = $out
