@@ -60,3 +60,18 @@ fails to read `flashrom_path` and aborts with `Failed to load BIOS '(null)'`
 without ever building a `-bios` arg. Easiest fix: copy the real
 `xemu.toml` and only change the paths you need, rather than writing a config
 from scratch.
+
+## Tracy profiling
+
+Install the pinned Windows profiler with:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File tools\powershell\install_tracy.ps1
+```
+
+The executable is `tools\bin\tracy-0.14.1\tracy-profiler.exe`. Tracy is useful
+for CPU/thread timing and profiling; it does not diagnose incorrect pixels by
+itself. Capturing instrumented Tracy zones requires a build linked to the Tracy
+client. Windows call-stack sampling requires elevated privileges and usable
+debug symbols; keep the matching executable and PDB for each capture. Profiling
+can perturb timing, so confirm any race or crash with a normal run afterward.
