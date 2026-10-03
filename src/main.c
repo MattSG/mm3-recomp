@@ -10,6 +10,7 @@
 #include "recomp_funcs.h"
 #include "host_graphics.h"
 #include <nv2a/nv2a_mmio_hook.h>
+#include <nv2a/nv2a_state.h>
 
 #define MM3_XBE_PATH "game_files/default.xbe"
 #define MM3_GAME_DIR "game_files"
@@ -103,6 +104,15 @@ static LONG CALLBACK mm3_apu_mmio_handler(PEXCEPTION_POINTERS info)
 
     fault_address = info->ExceptionRecord->ExceptionInformation[1];
     guest_address = (uint32_t)(fault_address - (uintptr_t)g_xbox_mem_offset);
+    if (guest_address == 0xFD008700u &&
+        !info->ExceptionRecord->ExceptionInformation[0]) {
+        NV2AState *gpu = nv2a_get_state();
+        if (gpu) {
+            /* ponytail: consume PVIDEO buffers on poll until scanout exists. */
+            uint64_t buffer = nv2a_mmio_read(gpu, 0x8700, 4);
+            nv2a_mmio_write(gpu, 0x8700, buffer & ~0x11u, 4);
+        }
+    }
     if (guest_address >= 0xFD008000u && guest_address < 0xFD009000u)
         return nv2a_hook_handle_mmio(
             info->ContextRecord, fault_address, guest_address,
