@@ -1,4 +1,4 @@
-"""Remove two proven heuristic entry claims before validated coalescence."""
+"""Seed native menu constructors and repair proven GUI entry boundaries."""
 import argparse
 import json
 from pathlib import Path
@@ -9,6 +9,14 @@ args = parser.parse_args()
 repo = Path(__file__).resolve().parents[1]
 functions = json.loads((repo / 'tools/xboxrecomp/tools/disasm/output/functions.json').read_text())
 by_start = {int(item['start'], 16): item for item in functions}
+for entry in json.loads((repo / 'mm3_tail_constructor_functions.json').read_text()):
+    address = int(entry['start'], 16)
+    if address in by_start:
+        if int(by_start[address]['end'], 16) != int(entry['end'], 16):
+            raise RuntimeError(f'Native constructor bounds changed for {address:08X}')
+    else:
+        functions.append(entry)
+        by_start[address] = entry
 # F7FCF is the store following F7FC8's allocation call, reached by fallthrough.
 # Its apparent data pointer at 366EBC belongs to a numeric table, not a vtable.
 # F8000 is similarly the store following F7FFB's call. Immediate/data matches

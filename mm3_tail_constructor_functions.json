@@ -1,0 +1,17 @@
+[
+  {
+    "start": "0x00102096",
+    "end": "0x001020AA",
+    "size": 20,
+    "name": "sub_00102096",
+    "section": ".text",
+    "confidence": 1.0,
+    "detection_method": "mm3_native_tail_constructor",
+    "has_prologue": false,
+    "external_entry": true,
+    "num_instructions": 5,
+    "calls_to": ["0x001C3248"],
+    "called_by": ["0x0006EA4B"],
+    "note": "Native JMP at 0006EA56 constructs a 24-byte menu data object; the unresolved stub left a freed object's vtable in that allocation."
+  }
+]
