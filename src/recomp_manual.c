@@ -81,7 +81,10 @@ void sub_000252AF(void)
     uint32_t caller_ebx = g_ebx;
     uint32_t caller_esi = g_esi;
     uint32_t caller_edi = g_edi;
-    PUSH32(g_esp, g_eax - 4u);
+    /* Native 0x252AF is PUSH [EAX]: the stream's FILE pointer, not the
+     * containing polymorphic stream object. Passing EAX-4 makes fread
+     * interpret a vtable and path fields as CRT buffering state. */
+    PUSH32(g_esp, MEM32(g_eax));
     PUSH32(g_esp, 1);
     PUSH32(g_esp, MEM32(g_esp + 0x10));
     PUSH32(g_esp, MEM32(g_esp + 0x10));
@@ -265,7 +268,20 @@ void sub_0009418C(void)
     uint32_t ebx = g_ebx;
     uint32_t esi = g_esi;
     uint32_t edi = g_edi;
-    sub_0009418C_gen();
+ uint32_t path = MEM32(g_esp + 4u);
+ sub_0009418C_gen();
+ if (getenv("MM3_STREAM_TRACE")) {
+  static unsigned samples;
+  if (samples++ < 32) {
+   fprintf(stderr, "[CRT_OPEN] path=%08X FILE=%08X", path, g_eax);
+   if (path >= 0x10000u && path < 0x04000000u - 128u) {
+    fprintf(stderr, " name=");
+    for (unsigned i = 0; i < 128 && MEM8(path+i); ++i)
+     fputc(MEM8(path+i), stderr);
+   }
+   fprintf(stderr, "\n");
+  }
+ }
     g_ebp = ebp;
     g_seh_ebp = seh_ebp;
     g_ebx = ebx;
