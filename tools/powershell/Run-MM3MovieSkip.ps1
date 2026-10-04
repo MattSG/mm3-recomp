@@ -52,12 +52,15 @@ Write-Output "PID=$($process.Id) evidence=$run"
 $clock = [Diagnostics.Stopwatch]::StartNew()
 $activeMovie = ''
 $lastPress = -1000
-$seenLines = 0
+$stream = [IO.File]::Open($log, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+$reader = [IO.StreamReader]::new($stream)
+$pending = ''
 try {
     while (-not $process.HasExited -and $clock.Elapsed.TotalSeconds -lt $DurationSeconds) {
-        $lines = @(Get-Content -LiteralPath $log)
-        for ($i = $seenLines; $i -lt $lines.Count; $i++) {
-            $line = $lines[$i]
+        $parts = ($pending + $reader.ReadToEnd()) -split "`n"
+        $pending = $parts[-1]
+        for ($i = 0; $i -lt $parts.Count - 1; $i++) {
+            $line = $parts[$i]
             if ($line -match '\[MOVIE_FRAME\] total=(\d+) frame=(\d+)') {
                 $activeMovie = switch ([int]$Matches[1]) {
                     144 { 'dice.bik' }; 308 { 'msgs.bik' }; 3114 { 'intro.bik' }; default { '' }
@@ -66,7 +69,6 @@ try {
             if ($line -match '\[MOVIE_END\]') { $activeMovie = ''; Write-Output $line }
             if ($line -match '\[MOVIE_SKIP_INPUT\]|\[CRASH\]') { Write-Output $line }
         }
-        $seenLines = $lines.Count
         if ($InputMode -eq 'Live' -and $activeMovie -in $SkipMovies -and
             $clock.ElapsedMilliseconds - $lastPress -ge 500) {
             [IO.File]::AppendAllText($live, "$($Button):200`n")
@@ -76,6 +78,7 @@ try {
         $process.Refresh()
     }
 } finally {
+    $reader.Dispose()
     if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
 }
 # Timed mode is deliberately a fixed repeating timeline; use Live mode to
