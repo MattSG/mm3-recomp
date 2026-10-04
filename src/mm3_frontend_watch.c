@@ -7,6 +7,10 @@
 
 extern void sub_000FA37E_original(void);
 extern void sub_000858F3_original(void);
+extern void sub_0011935B_original(void);
+extern void sub_001253F4_original(void);
+void mm3_frontend_before_call(uint32_t va);
+void mm3_frontend_after_call(uint32_t va, uint32_t edi_before, uint32_t esp_before, uint32_t esi_before);
 extern intptr_t xbox_GetMemoryOffset(void);
 #define MM3_ARM_WATCH 0xE0424D33u
 static DWORD watch_thread;
@@ -18,6 +22,35 @@ static int child_constructor;
 static unsigned child_reports;
 static int child_factory;
 static unsigned factory_reports;
+static RECOMP_TLS uint32_t menu_owner;
+static RECOMP_TLS uint32_t menu_root;
+static RECOMP_TLS int menu_loading;
+static RECOMP_TLS uint32_t menu_virtual_target;
+
+void mm3_frontend_icall_site(uint32_t va, uint32_t site)
+{
+    if ((site == 0x001C36B1u || site == 0x001C403Bu) && menu_loading) {
+        uint32_t object = g_esi >= 0x10000u && g_esi < 0x08000000u-4u ? MEM32(g_esi) : 0;
+        menu_virtual_target = va;
+        fprintf(stderr, "[MENU_BIND] site=%08X target=%08X object=%08X vt=%08X ctx=%08X esi=%08X esp=%08X\n",
+            site, va, object, object >= 0x10000u && object < 0x08000000u-4u ? MEM32(object) : 0, MEM32(g_esp+4u), g_esi, g_esp);
+    }
+}
+
+void sub_0011935B(void)
+{
+    uint32_t di = g_edi, sp = g_esp, si = g_esi;
+    mm3_frontend_before_call(0x0011935Bu);
+    sub_0011935B_original();
+    mm3_frontend_after_call(0x0011935Bu, di, sp, si);
+}
+
+void sub_001253F4(void)
+{
+    fprintf(stderr, "[FRONTEND_INIT] object=%08X caller=%08X\n", g_ecx, MEM32(g_esp));
+    sub_001253F4_original();
+    fprintf(stderr, "[FRONTEND_INIT] returned eax=%08X\n", g_eax);
+}
 
 static void check_heap_frontier(uint32_t heap, uint32_t caller, const char *phase)
 {
@@ -110,6 +143,18 @@ void mm3_frontend_watch_enter(void)
 
 void mm3_frontend_before_call(uint32_t va)
 {
+    if (menu_loading && va == 0x001C4044u) {
+        fprintf(stderr, "[MENU_REF] source=%08X input=%08X old=%08X input_vt=%08X\n",
+            g_ecx, g_eax, MEM32(g_ecx), g_eax >= 0x10000u && g_eax < 0x08000000u-4u ? MEM32(g_eax) : 0);
+    }
+    if (getenv("MM3_FRONTEND_WRITE_WATCH") && (va == 0x0011935Bu || va == 0x001C5E11u)) {
+        uint32_t name = MEM32(g_esp + (va == 0x0011935Bu ? 8u : 4u));
+        if (va == 0x0011935Bu) { menu_owner = g_ecx; menu_loading = 1; }
+        else menu_root = g_ecx;
+        fprintf(stderr, "[MENU_LOAD_BEGIN] va=%08X owner=%08X eax=%08X name=%08X %.96s\n",
+                va, g_ecx, g_eax, name,
+                name >= 0x10000u && name < 0x08000000u-96u ? (const char *)(xbox_GetMemoryOffset()+name) : "invalid");
+    }
     if (va == 0x001C27E0u && MEM32(g_esp+8u) == 0x003A1124u && getenv("MM3_FRONTEND_WRITE_WATCH")) {
         static unsigned lookups;
         if (lookups++ < 8 && g_ecx >= 0x10000u && g_ecx < 0x08000000u-16u) {
@@ -139,6 +184,23 @@ void mm3_frontend_before_call(uint32_t va)
 
 void mm3_frontend_after_call(uint32_t va, uint32_t edi_before, uint32_t esp_before, uint32_t esi_before)
 {
+    if (menu_virtual_target && menu_virtual_target == va) {
+        fprintf(stderr, "[MENU_BIND_END] target=%08X esp=%08X->%08X eax=%08X\n", va, esp_before, g_esp, g_eax);
+        menu_virtual_target = 0;
+    }
+    if (menu_loading && (g_esi != esi_before || g_edi != edi_before || va == 0x001C369Eu || va == 0x001C5D15u || va == 0x001C4044u || va == 0x001C4851u)) {
+        static unsigned menu_calls;
+        if (menu_calls++ < 80)
+            fprintf(stderr, "[MENU_CALL] va=%08X esi=%08X->%08X edi=%08X->%08X esp=%08X->%08X eax=%08X\n",
+                va, esi_before, g_esi, edi_before, g_edi, esp_before, g_esp, g_eax);
+    }
+    if (getenv("MM3_FRONTEND_WRITE_WATCH") && (va == 0x0011935Bu || va == 0x001C5E11u)) {
+        uint32_t root = va == 0x0011935Bu ? MEM32(menu_owner+0xCu) : menu_root;
+        if (root >= 0x10000u && root < 0x08000000u-0x50u)
+            fprintf(stderr, "[MENU_LOAD_END] va=%08X root=%08X vt=%08X node=%08X scope=%08X r48=%08X r4c=%08X eax=%08X\n",
+                    va, root, MEM32(root), MEM32(root+8u), MEM32(root+0x30u), MEM32(root+0x48u), MEM32(root+0x4Cu), g_eax);
+        if (va == 0x0011935Bu) menu_loading = 0;
+    }
     if (va == 0x0006A965u && MEM32(esp_before) == 0x0011FB5Cu && getenv("MM3_FRONTEND_WRITE_WATCH")) {
         static unsigned reports;
         if (reports < 16 && g_eax < 0x08000000u-4u) {

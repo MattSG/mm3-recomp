@@ -4,6 +4,7 @@
 #include "recomp_funcs.h"
 void mm3_frontend_watch_enter(void);
 void mm3_frontend_before_call(uint32_t va);
+void mm3_frontend_icall_site(uint32_t va, uint32_t site);
 void mm3_frontend_after_call(uint32_t va, uint32_t edi_before, uint32_t esp_before, uint32_t esi_before);
 
 #undef RECOMP_ICALL_SAFE_AT
@@ -11,6 +12,7 @@ void mm3_frontend_after_call(uint32_t va, uint32_t edi_before, uint32_t esp_befo
     uint32_t _mm3_target = (uint32_t)(va), _mm3_saved = (saved_esp); \
     uint32_t _mm3_di = g_edi, _mm3_sp = g_esp, _mm3_si = g_esi; \
     mm3_frontend_before_call(_mm3_target); \
+    mm3_frontend_icall_site(_mm3_target, (site)); \
     RECOMP_ICALL_SAFE(_mm3_target, _mm3_saved); \
     mm3_frontend_after_call(_mm3_target, _mm3_di, _mm3_sp, _mm3_si); \
 } while (0)
