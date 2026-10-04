@@ -11,6 +11,7 @@
 #include "host_graphics.h"
 #include <nv2a/nv2a_mmio_hook.h>
 #include <nv2a/nv2a_state.h>
+#include <ohci.h>
 
 #define MM3_XBE_PATH "game_files/default.xbe"
 #define MM3_GAME_DIR "game_files"
@@ -104,6 +105,9 @@ static LONG CALLBACK mm3_apu_mmio_handler(PEXCEPTION_POINTERS info)
 
     fault_address = info->ExceptionRecord->ExceptionInformation[1];
     guest_address = (uint32_t)(fault_address - (uintptr_t)g_xbox_mem_offset);
+    if (xbox_OhciOwnsAddress(guest_address))
+        return xbox_OhciHandleMmio(info->ContextRecord, guest_address)
+            ? EXCEPTION_CONTINUE_EXECUTION : EXCEPTION_CONTINUE_SEARCH;
     if (guest_address == 0xFD008700u &&
         !info->ExceptionRecord->ExceptionInformation[0] &&
         !getenv("RECOMP_FB_WINDOW")) {
@@ -238,6 +242,9 @@ int main(void)
         free(xbe_data);
         return 1;
     }
+    /* The standalone host must initialize and route the optional USB model;
+     * otherwise XAPI reads zeroed MCPX RAM and never enumerates a pad. */
+    xbox_OhciInit();
     if (!mm3_graphics_init()) {
         mm3_apu_shutdown();
         xbox_kernel_shutdown();
