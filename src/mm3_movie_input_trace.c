@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <windows.h>
 #include "recomp_types.h"
 
@@ -7,6 +8,7 @@ void sub_001DB6E8_original(void);
 void sub_001F2A71_original(void);
 void sub_001F443D_original(void);
 void sub_0035BDC0_original(void);
+void xbox_WatchdogStart(void);
 
 void sub_0035BDC0(void)
 {
@@ -36,6 +38,10 @@ void sub_001DB6E8(void)
     fprintf(stderr, "[MOVIE_END] name=%s total=%u frame=%u elapsed_ms=%llu result=%02X\n",
             movie_name(), movie_total, movie_frame,
             (unsigned long long)(GetTickCount64() - movie_started), g_eax & 255u);
+    /* Register this worker's TLS registers, rather than the host entry
+     * thread's idle stack, when investigating post-intro waits. */
+    if (movie_total == 3114 && getenv("MM3_POST_MOVIE_WATCHDOG"))
+        xbox_WatchdogStart();
 }
 
 void sub_001F2A71(void)
