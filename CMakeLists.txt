@@ -9,6 +9,7 @@ set(RECOMP_GEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/recomp/gen" CACHE PATH
     "Directory containing generated recompilation C sources")
 option(MM3_RECOMP_ABI_CHECK "Check guest callee-saved register contracts" OFF)
 option(MM3_MOVIE_INPUT_TRACE "Observe movie completion and skip input" OFF)
+option(MM3_OFFLINE_XNET "Bypass MM3 network readiness for offline startup" ON)
 
 add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)
 
@@ -33,6 +34,11 @@ if(MM3_MOVIE_INPUT_TRACE)
         COMPILE_DEFINITIONS "sub_0035BDC0=sub_0035BDC0_original")
 endif()
 
+if(MM3_OFFLINE_XNET)
+    set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0016.c" APPEND PROPERTY
+        COMPILE_DEFINITIONS "sub_0019531D=sub_0019531D_original")
+endif()
+
 add_executable(${PROJECT_NAME}
     src/main.c
  src/host_graphics.c
@@ -43,6 +49,9 @@ add_executable(${PROJECT_NAME}
 
 if(MM3_MOVIE_INPUT_TRACE)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3_movie_input_trace.c)
+endif()
+if(MM3_OFFLINE_XNET)
+    target_sources(${PROJECT_NAME} PRIVATE src/mm3_offline_compat.c)
 endif()
 
 target_include_directories(${PROJECT_NAME} PRIVATE
