@@ -1,0 +1,7 @@
+[
+  {
+    "start": "0x000F7F58",
+    "end": "0x000F80B2",
+    "coalesce_starts": ["0x000F7FCF", "0x000F8000"]
+  }
+]
