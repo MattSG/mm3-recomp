@@ -110,6 +110,16 @@ void mm3_frontend_watch_enter(void)
 
 void mm3_frontend_before_call(uint32_t va)
 {
+    if (va == 0x001C27E0u && MEM32(g_esp+8u) == 0x003A1124u && getenv("MM3_FRONTEND_WRITE_WATCH")) {
+        static unsigned lookups;
+        if (lookups++ < 8 && g_ecx >= 0x10000u && g_ecx < 0x08000000u-16u) {
+            uint32_t inner = MEM32(g_ecx+8u);
+            uint32_t inner_vt = inner >= 0x10000u && inner < 0x08000000u-4u ? MEM32(inner) : 0;
+            fprintf(stderr, "[FRONTEND_LOOKUP_INPUT] manager=%08X parent=%08X inner=%08X prefix=%08X inner_vt=%08X inner40=%08X\n",
+                g_ecx, MEM32(g_ecx+4u), inner, MEM32(g_ecx+12u), inner_vt,
+                inner_vt >= 0x10000u && inner_vt < 0x08000000u-0x44u ? MEM32(inner_vt+0x40u) : 0);
+        }
+    }
     if (va == 0x000F859Du && getenv("MM3_FRONTEND_WRITE_WATCH")) child_factory = 1;
     if (va == 0x000FFD9Eu && getenv("MM3_FRONTEND_WRITE_WATCH")) {
         static unsigned roots;
@@ -136,6 +146,18 @@ void mm3_frontend_after_call(uint32_t va, uint32_t edi_before, uint32_t esp_befo
             ++reports;
                 fprintf(stderr, "[FRONTEND_SERVICE] input=%08X object=%08X vt=%08X target74=%08X esi=%08X edi=%08X\n",
                     esi_before, g_eax, vt, vt < 0x08000000u-0x78u ? MEM32(vt+0x74u) : 0, g_esi, g_edi);
+            if (g_edi >= 0x10000u && g_edi < 0x08000000u-0x10u) {
+                uint32_t root = MEM32(g_edi+0xCu);
+                if (root >= 0x10000u && root < 0x08000000u-0x34u) {
+                    uint32_t manager = MEM32(root+0x30u);
+                    if (manager >= 0x10000u && manager < 0x08000000u-4u) {
+                        uint32_t manager_vt = MEM32(manager);
+                        if (manager_vt >= 0x10000u && manager_vt < 0x08000000u-0x44u)
+                            fprintf(stderr, "[FRONTEND_LOOKUP] root=%08X manager=%08X vt=%08X target40=%08X\n",
+                                root, manager, manager_vt, MEM32(manager_vt+0x40u));
+                    }
+                }
+            }
         }
     }
     if (child_factory && g_esi != esi_before && factory_reports++ < 64)
