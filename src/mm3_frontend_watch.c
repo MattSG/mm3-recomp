@@ -29,6 +29,10 @@ static RECOMP_TLS uint32_t menu_virtual_target;
 
 void mm3_frontend_icall_site(uint32_t va, uint32_t site)
 {
+    if (site == 0x001C3A79u && getenv("MM3_HEAP_FRONTIER")) {
+        menu_virtual_target = va;
+        fprintf(stderr, "[MENU_FACTORY] factory=%08X vt=%08X target=%08X esp=%08X frame=%08X\n", g_ebx, MEM32(g_ebx), va, g_esp, g_ebp);
+    }
     if ((site == 0x001C36B1u || site == 0x001C403Bu) && menu_loading) {
         uint32_t object = g_esi >= 0x10000u && g_esi < 0x08000000u-4u ? MEM32(g_esi) : 0;
         menu_virtual_target = va;
@@ -200,6 +204,8 @@ void mm3_frontend_after_call(uint32_t va, uint32_t edi_before, uint32_t esp_befo
     if ((va == 0x000127D6u || va == 0x00018B86u) && getenv("MM3_HEAP_FRONTIER") && string_returns[va == 0x00018B86u]++ < 20)
         fprintf(stderr, "[MENU_STRING_END] va=%08X esp=%08X->%08X eax=%08X esi=%08X->%08X edi=%08X->%08X\n", va, esp_before, g_esp, g_eax, esi_before, g_esi, edi_before, g_edi);
     if (menu_virtual_target && menu_virtual_target == va) {
+        if (getenv("MM3_HEAP_FRONTIER"))
+            fprintf(stderr, "[MENU_FACTORY_RETURN] target=%08X object=%08X vt=%08X\n", va, g_eax, g_eax >= 0x10000u && g_eax < 0x08000000u-4u ? MEM32(g_eax) : 0);
         fprintf(stderr, "[MENU_BIND_END] target=%08X esp=%08X->%08X eax=%08X\n", va, esp_before, g_esp, g_eax);
         menu_virtual_target = 0;
     }
