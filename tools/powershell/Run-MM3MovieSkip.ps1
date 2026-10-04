@@ -1,3 +1,20 @@
+<#
+.SYNOPSIS
+Run MM3 with real emulated USB presses to shorten intro playback.
+.DESCRIPTION
+Requires an executable built with MM3_MOVIE_INPUT_TRACE=ON. The optional
+wrappers observe movie boundaries and the game's own skip decision; they never
+change guest state. Live mode presses only during selected movies and stops
+pressing once they close. Timed mode repeats a fixed USB timeline.
+Each run has separate save data and logs under conformance_tmp. Only one recomp
+instance is allowed, and this harness stops its own process at the time limit.
+.EXAMPLE
+pwsh tools/powershell/Run-MM3MovieSkip.ps1
+.EXAMPLE
+pwsh tools/powershell/Run-MM3MovieSkip.ps1 -Headless -SkipMovies intro.bik
+.EXAMPLE
+pwsh tools/powershell/Run-MM3MovieSkip.ps1 -Headless -InputMode Timed
+#>
 param(
     [string]$Executable = 'build-msvc-tailfix/movie-input/RelWithDebInfo/mm3_recomp.exe',
     [ValidateSet('Live', 'Timed')][string]$InputMode = 'Live',
@@ -14,6 +31,10 @@ $exe = if ([IO.Path]::IsPathRooted($Executable)) { $Executable } else { Join-Pat
 if (-not (Test-Path -LiteralPath $exe)) { throw "Executable missing: $exe" }
 if (Get-Process -Name mm3_recomp -ErrorAction SilentlyContinue) {
     throw 'Stop the existing recomp instance before launching another.'
+}
+if ($InputMode -eq 'Timed' -and
+    (@($SkipMovies).Count -ne 3 -or @('dice.bik', 'msgs.bik', 'intro.bik' | Where-Object { $_ -notin $SkipMovies }).Count)) {
+    throw 'Use Live mode to target individual movies; Timed mode presses on a fixed timeline.'
 }
 $run = Join-Path $repo ('conformance_tmp/movie_skip_' + (Get-Date -Format 'yyyyMMdd_HHmmss_fff'))
 New-Item -ItemType Directory -Path (Join-Path $run 'save/Cache') -Force | Out-Null
@@ -52,10 +73,11 @@ Write-Output "PID=$($process.Id) evidence=$run"
 $clock = [Diagnostics.Stopwatch]::StartNew()
 $activeMovie = ''
 $lastPress = -1000
-$stream = [IO.File]::Open($log, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
-$reader = [IO.StreamReader]::new($stream)
+$reader = $null
 $pending = ''
 try {
+    $stream = [IO.File]::Open($log, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+    $reader = [IO.StreamReader]::new($stream)
     while (-not $process.HasExited -and $clock.Elapsed.TotalSeconds -lt $DurationSeconds) {
         $parts = ($pending + $reader.ReadToEnd()) -split "`n"
         $pending = $parts[-1]
@@ -78,7 +100,7 @@ try {
         $process.Refresh()
     }
 } finally {
-    $reader.Dispose()
+    if ($reader) { $reader.Dispose() }
     if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
 }
 # Timed mode is deliberately a fixed repeating timeline; use Live mode to
