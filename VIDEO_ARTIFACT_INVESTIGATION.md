@@ -9,6 +9,14 @@
 
 Date: 2026-10-04
 
+## Colour planes and black-flash fix
+
+- A complete-sequence comparison recorded 3,566 original decoder outputs. Matching compressed-data prefixes against rebuilt captures gave 3,565 byte-identical Y/U/V triples. One host capture was invalid: `gu` stopped at another `sub_002FBC10` breakpoint rather than its return, and its saved image matched the preceding original frame. Replaying that packet (`msgs.bik` frame index 153) separately produced identical complete compressed video data (17,296 bytes), previous YUV data (460,800 bytes), and final YUV data (460,800 bytes). Final replay hash: `F78FF10DB56538CB95EDF682168CB8566A3E68C4D3A98832F91B8735290D1C8E`.
+- Capturing framebuffer refreshes during a bright scene found 9 completely black images out of 60. `fb_overlay` consumed the PVIDEO pending bit after one refresh; the next refresh rebuilt the black base framebuffer and no longer drew the video.
+- Scanout now owns a copy of the accepted YUY2 submission and its registers, retaining it between submissions while allowing guest bank reuse. STOP (bit 0) or an invalid-size teardown clears the retained overlay. After rebuilding, the equivalent 60-refresh sample contained zero black images; every sample had at least 307,037 nonblack pixels.
+- The xemu [PVIDEO register implementation](https://github.com/xemu-project/xemu/blob/master/hw/xbox/nv2a/pvideo.c) clears the overlay at STOP, and its [display implementation](https://github.com/xemu-project/xemu/blob/master/hw/xbox/nv2a/pgraph/gl/display.c) composites an enabled overlay on successive display refreshes. This supports retaining displayed content separately from consumed pending work in this runtime.
+- Evidence: ignored `conformance_tmp/bink_all_movies_movsx_20261004/` and `conformance_tmp/pvideo_hold_20261004/`. Latest executable SHA-256: `53E69BDA9BB1F102F4E0E1874F33194D5198A3A70E1CFA928629DB9A7B24A9B5`. Normal full-sequence playback verification remains pending.
+
 ## Windows regeneration and runtime
 
 - Regenerated all game C from `game_files/default.xbe` with XboxRecomp commit `ffbf50d` and the current manual-function list: 26,409 of 26,446 functions translated, zero translation failures.
