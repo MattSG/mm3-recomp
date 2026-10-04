@@ -25,4 +25,11 @@ Trace the guest Bink decoder through completion of the full frame, then compare 
 - All four snapshots are byte-identical (SHA-256 `33771b78ae50b54d445054ed870e9723689151762d3e13eaf1439477647287bd`). The scattered block errors are already present at helper entry; the outer decode returns through `sub_002F5E20` do not alter this Y buffer.
 - Compared with the FFmpeg reference PGM (`640x480`), the captured image has MAE `26.3923`, with 302,907 of 307,200 bytes differing. The scene is recognizable, but block-shaped errors remain. The next investigation should focus inside `sub_002F9E50` or on its inputs/state, including prior-frame state for delta blocks.
 
+## Original Xbox comparison
+
+- xemu reached XBE entry `0x00083C55`. Its `sub_002F9E50` hit used an 8 KiB input capture byte-for-byte equal to the same PTS 24 prefix from `msgs.bik` as the Windows recomp capture.
+- At the matching final helper call (return address `0x002FBD6C`, mode `0x4000`), the original and recomp scalar arguments matched. The original output buffer was already a clean frame before this call; its entry and return snapshots are identical. The host output buffer was already corrupted before the same call; its entry and return snapshots are also identical.
+- Against FFmpeg's PTS 24 luma reference, xemu's frame MAE is `11.7564`; the host recomp's is `26.3923`. The host image is visibly more corrupted than the original. This rules out the final helper call and presentation as the first divergence: the next comparison needs the earlier `sub_002F9E50` calls within `sub_002FBC10`.
+- The seeded generation added `sub_002F8E90` to C and the dispatch table, but it did not change this PTS 24 capture. A 60-second run through `dice.bik`, `msgs.bik`, and `intro.bik` did not hit that callback. Its absence is not yet a demonstrated cause for this packet path.
+
 XboxRecomp issue [#127](https://github.com/sp00nznet/xboxrecomp/issues/127) reports a Black recompilation stalled before its first valid D3D Present. It is useful context for the zero-draw frontier, but does not establish a cause for MM3's Bink pixel corruption.
