@@ -10,11 +10,23 @@ set(RECOMP_GEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/recomp/gen" CACHE PATH
 option(MM3_RECOMP_ABI_CHECK "Check guest callee-saved register contracts" OFF)
 option(MM3_MOVIE_INPUT_TRACE "Observe movie completion and skip input" OFF)
 option(MM3_OFFLINE_XNET "Bypass MM3 network readiness for offline startup" ON)
+option(MM3_FRONTEND_WATCH "Trace writes to the RootLevel child pointer" OFF)
 
 add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)
 
 file(GLOB RECOMP_GEN_SOURCES CONFIGURE_DEPENDS
     "${RECOMP_GEN_DIR}/*.c")
+if(MM3_FRONTEND_WATCH)
+    set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0011.c" APPEND PROPERTY
+        COMPILE_DEFINITIONS "sub_000FA37E=sub_000FA37E_original")
+    if(MSVC)
+        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0011.c" APPEND PROPERTY
+            COMPILE_OPTIONS "/FI${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
+    else()
+        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0011.c" APPEND PROPERTY
+            COMPILE_OPTIONS "-include" "${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
+    endif()
+endif()
 
 # 0x252AF is supplied by recomp_manual.c.  The generator also lists it in the
 # aggregate unresolved-stub TU; rename that one fallback so the real override
@@ -53,6 +65,9 @@ if(MM3_MOVIE_INPUT_TRACE)
 endif()
 if(MM3_OFFLINE_XNET)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3_offline_compat.c)
+endif()
+if(MM3_FRONTEND_WATCH)
+    target_sources(${PROJECT_NAME} PRIVATE src/mm3_frontend_watch.c)
 endif()
 
 target_include_directories(${PROJECT_NAME} PRIVATE
