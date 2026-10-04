@@ -20,10 +20,10 @@ if(MM3_FRONTEND_WATCH)
     set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0011.c" APPEND PROPERTY
         COMPILE_DEFINITIONS "sub_000FA37E=sub_000FA37E_original")
     if(MSVC)
-        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0011.c" APPEND PROPERTY
+        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0011.c" "${RECOMP_GEN_DIR}/recomp_0012.c" APPEND PROPERTY
             COMPILE_OPTIONS "/FI${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
     else()
-        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0011.c" APPEND PROPERTY
+        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0011.c" "${RECOMP_GEN_DIR}/recomp_0012.c" APPEND PROPERTY
             COMPILE_OPTIONS "-include" "${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
     endif()
 endif()

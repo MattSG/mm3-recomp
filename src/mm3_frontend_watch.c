@@ -97,6 +97,15 @@ void mm3_frontend_before_call(uint32_t va)
 
 void mm3_frontend_after_call(uint32_t va, uint32_t edi_before, uint32_t esp_before, uint32_t esi_before)
 {
+    if (va == 0x0006A965u && MEM32(esp_before) == 0x0011FB5Cu && getenv("MM3_FRONTEND_WRITE_WATCH")) {
+        static unsigned reports;
+        if (reports < 16 && g_eax < 0x08000000u-4u) {
+            uint32_t vt = MEM32(g_eax);
+            ++reports;
+                fprintf(stderr, "[FRONTEND_SERVICE] input=%08X object=%08X vt=%08X target74=%08X esi=%08X edi=%08X\n",
+                    esi_before, g_eax, vt, vt < 0x08000000u-0x78u ? MEM32(vt+0x74u) : 0, g_esi, g_edi);
+        }
+    }
     if (child_factory && g_esi != esi_before && factory_reports++ < 64)
         fprintf(stderr, "[FRONTEND_FACTORY_CALL] va=%08X esi=%08X->%08X edi=%08X->%08X esp=%08X->%08X eax=%08X ebp=%08X\n",
                 va, esi_before, g_esi, edi_before, g_edi, esp_before, g_esp, g_eax, g_ebp);
