@@ -43,6 +43,7 @@ add_executable(${PROJECT_NAME}
     src/main.c
  src/host_graphics.c
  src/mm3_memory_compat.c
+ src/mm3_memory_tails.c
  src/recomp_manual.c
  src/recomp_trace_probe.c
  ${RECOMP_GEN_SOURCES})

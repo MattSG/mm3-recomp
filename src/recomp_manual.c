@@ -66,6 +66,7 @@ extern void sub_000943ED_gen(void) /* generated body with ABI wrapper */;
 extern void sub_0002539A_gen(void) /* generated body with ABI wrapper */;
 extern void sub_001E7B8F_gen(void) /* generated body with worker-context overlay */;
 extern void sub_00093B04_gen(void) /* recovered memmove tail body */;
+extern void sub_00093AFC(void);
 extern void sub_00093B58_gen(void);
 extern void sub_00093B60_gen(void);
 extern void sub_00093B70_gen(void);
@@ -346,6 +347,8 @@ void sub_00093B04(void)
 
 recomp_func_t recomp_lookup_manual(uint32_t xbox_va)
 {
+    if (xbox_va == 0x00093AFCu)
+        return sub_00093AFC;
     if (xbox_va == 0x000252AFu)
         return sub_000252AF;
     if (xbox_va == 0x000252DFu)
