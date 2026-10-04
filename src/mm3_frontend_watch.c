@@ -78,6 +78,9 @@ void sub_000858F3(void)
 {
     uint32_t heap = MEM32(g_esp+4u), caller = MEM32(g_esp);
     int trace = getenv("MM3_HEAP_FRONTIER") != NULL;
+    if (trace && (heap < 0x10000u || (heap & 0xFFFu)))
+        fprintf(stderr, "[HEAP_INVALID_ARGUMENT] heap=%08X caller=%08X esp=%08X ebp=%08X seh=%08X args=%08X,%08X,%08X,%08X\n",
+            heap, caller, g_esp, g_ebp, g_seh_ebp, MEM32(g_esp+4u), MEM32(g_esp+8u), MEM32(g_esp+12u), MEM32(g_esp+16u));
     if (trace) check_heap_frontier(heap, caller, "before");
     sub_000858F3_original();
     if (trace) check_heap_frontier(heap, caller, "after");
