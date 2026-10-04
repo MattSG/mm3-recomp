@@ -19,4 +19,10 @@ Date: 2026-10-04
 
 Trace the guest Bink decoder through completion of the full frame, then compare the finalized Y plane and presentation buffer against the same decoded Bink frame. Continue from the guest decoder and its memory/write bounds; the Media Foundation pump was not active in this run.
 
+## Decoder return-boundary capture
+
+- Captured the 307,200-byte Y buffer at `sub_002F9E50` entry and after returns through `sub_002F9E50`, `sub_002FBC10`, and `sub_002F5E20` for the PTS 24 packet.
+- All four snapshots are byte-identical (SHA-256 `33771b78ae50b54d445054ed870e9723689151762d3e13eaf1439477647287bd`). The scattered block errors are already present at helper entry; the outer decode returns through `sub_002F5E20` do not alter this Y buffer.
+- Compared with the FFmpeg reference PGM (`640x480`), the captured image has MAE `26.3923`, with 302,907 of 307,200 bytes differing. The scene is recognizable, but block-shaped errors remain. The next investigation should focus inside `sub_002F9E50` or on its inputs/state, including prior-frame state for delta blocks.
+
 XboxRecomp issue [#127](https://github.com/sp00nznet/xboxrecomp/issues/127) reports a Black recompilation stalled before its first valid D3D Present. It is useful context for the zero-draw frontier, but does not establish a cause for MM3's Bink pixel corruption.
