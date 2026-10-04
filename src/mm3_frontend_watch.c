@@ -146,6 +146,12 @@ void mm3_frontend_watch_enter(void)
 
 void mm3_frontend_before_call(uint32_t va)
 {
+    static unsigned string_calls[2];
+    static unsigned erase_copies;
+    if (va == 0x00093860u && MEM32(g_esp) == 0x00012829u && MEM32(g_esp+12u) && getenv("MM3_HEAP_FRONTIER") && erase_copies++ < 10)
+        fprintf(stderr, "[MENU_ERASE_COPY] esp=%08X frame=%08X dst=%08X src=%08X count=%08X\n", g_esp, g_ebp, MEM32(g_esp+4u), MEM32(g_esp+8u), MEM32(g_esp+12u));
+    if ((va == 0x000127D6u || va == 0x00018B86u) && getenv("MM3_HEAP_FRONTIER") && string_calls[va == 0x00018B86u]++ < 20)
+        fprintf(stderr, "[MENU_STRING_BEGIN] va=%08X caller=%08X esp=%08X ebp=%08X ecx=%08X args=%08X,%08X,%08X\n", va, MEM32(g_esp), g_esp, g_ebp, g_ecx, MEM32(g_esp+4u), MEM32(g_esp+8u), MEM32(g_esp+12u));
     if (menu_loading && va == 0x001C4044u) {
         fprintf(stderr, "[MENU_REF] source=%08X input=%08X old=%08X input_vt=%08X\n",
             g_ecx, g_eax, MEM32(g_ecx), g_eax >= 0x10000u && g_eax < 0x08000000u-4u ? MEM32(g_eax) : 0);
@@ -187,6 +193,12 @@ void mm3_frontend_before_call(uint32_t va)
 
 void mm3_frontend_after_call(uint32_t va, uint32_t edi_before, uint32_t esp_before, uint32_t esi_before)
 {
+    static unsigned string_returns[2];
+    static unsigned erase_returns;
+    if (va == 0x00093860u && g_esp != esp_before+4u && getenv("MM3_HEAP_FRONTIER") && erase_returns++ < 10)
+        fprintf(stderr, "[MENU_ERASE_COPY_END] esp=%08X->%08X eax=%08X esi=%08X->%08X edi=%08X->%08X\n", esp_before, g_esp, g_eax, esi_before, g_esi, edi_before, g_edi);
+    if ((va == 0x000127D6u || va == 0x00018B86u) && getenv("MM3_HEAP_FRONTIER") && string_returns[va == 0x00018B86u]++ < 20)
+        fprintf(stderr, "[MENU_STRING_END] va=%08X esp=%08X->%08X eax=%08X esi=%08X->%08X edi=%08X->%08X\n", va, esp_before, g_esp, g_eax, esi_before, g_esi, edi_before, g_edi);
     if (menu_virtual_target && menu_virtual_target == va) {
         fprintf(stderr, "[MENU_BIND_END] target=%08X esp=%08X->%08X eax=%08X\n", va, esp_before, g_esp, g_eax);
         menu_virtual_target = 0;
