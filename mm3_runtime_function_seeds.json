@@ -30,5 +30,9 @@
  {
   "start": "0x00307C70",
   "note": "Indirect-call target observed at runtime; original BINKYUY2 MMX converter matches xemu output and stack contract."
+ },
+ {
+  "start": "0x0022FA0A",
+  "note": "Post-intro frontend callback repeatedly invoked from 0x0022DE38; original entry allocates a large stack frame through the stack probe at 0x000957D0."
  }
 ]
