@@ -1,5 +1,12 @@
 # MM3 video artifact checkpoint
 
+## Verified first-video decoder fix
+
+- Compared the first 40 decoder outputs with original Xbox execution in xemu. All compressed-input prefixes matched. Frames 1-5 matched exactly; frame 6 first diverged in one 8x8 luma block at x=200-207, y=96-103. Subsequent frames accumulated further errors.
+- A write watchpoint identified the scalar Bink IDCT at `sub_002FE550`. Original instruction `0x002FE5FC` is `movsx ebp,bp`; the lifter omitted BP/SP from its signed 16-bit register cases and emitted `ebp = LO16(ebp)`. Negative coefficients became large positive values.
+- XboxRecomp commit `5d0b56be1a58d4cc8a58d8f34a0faf30f3898f2d` fixes generic MOVSX lifting for BP and SP. Full seeded C regeneration and a Windows MSVC build succeeded. Executable SHA-256: `E08E180C0483580B249011DBDC19E3FA6A631B8A9FCC6D168A2AD12463C37324`.
+- After the fix, all 40 captured luma frames match xemu byte for byte (307,200 bytes each). Evidence is under ignored `conformance_tmp/bink_first_frames_20261004/`. This proves the initial luma corruption fix; complete colour-plane and playback verification across all three movies is still pending.
+
 Date: 2026-10-04
 
 ## Windows regeneration and runtime
