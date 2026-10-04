@@ -773,8 +773,9 @@ void sub_00083A6C(void)
     RECOMP_ABI_CALL(0x00094FC0u, sub_00094FC0);
     ebp = g_seh_ebp;
 
-    /* MM3's startup TLS slot holds the worker frame at EBP+0x10. */
-    MEM32(MEM32(XBOX_FS_BASE + 0x28u) + 0x28u) = ebp + 0x10u;
+    /* The kernel owns this worker's TLS block through fs:[0x28]+0x28.
+     * Keep it there: redirecting the context into EBP+0x10 shares mutable
+     * startup state and overwrites caller frames when workers overlap. */
 
     MEM32(ebp - 4) = MEM32(ebp - 4) & 0;
     eax = MEM32(XBOX_FS_BASE + 0x28u);
