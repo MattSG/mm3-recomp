@@ -8,6 +8,7 @@ set(XBOXRECOMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tools/xboxrecomp" CACHE PATH
 set(RECOMP_GEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/recomp/gen" CACHE PATH
     "Directory containing generated recompilation C sources")
 option(MM3_RECOMP_ABI_CHECK "Check guest callee-saved register contracts" OFF)
+option(MM3_MOVIE_INPUT_TRACE "Observe movie completion and skip input" OFF)
 
 add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)
 
@@ -23,6 +24,15 @@ if(EXISTS "${RECOMP_UNRESOLVED_STUB}")
         PROPERTIES COMPILE_DEFINITIONS "sub_000252AF=sub_000252AF_unresolved")
 endif()
 
+if(MM3_MOVIE_INPUT_TRACE)
+    set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0017.c" APPEND PROPERTY
+        COMPILE_DEFINITIONS "sub_001DB6E8=sub_001DB6E8_original")
+    set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0018.c" APPEND PROPERTY
+        COMPILE_DEFINITIONS "sub_001F2A71=sub_001F2A71_original;sub_001F443D=sub_001F443D_original")
+    set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0026.c" APPEND PROPERTY
+        COMPILE_DEFINITIONS "sub_0035BDC0=sub_0035BDC0_original")
+endif()
+
 add_executable(${PROJECT_NAME}
     src/main.c
  src/host_graphics.c
@@ -30,6 +40,10 @@ add_executable(${PROJECT_NAME}
  src/recomp_manual.c
  src/recomp_trace_probe.c
  ${RECOMP_GEN_SOURCES})
+
+if(MM3_MOVIE_INPUT_TRACE)
+    target_sources(${PROJECT_NAME} PRIVATE src/mm3_movie_input_trace.c)
+endif()
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     src

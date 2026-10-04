@@ -1,0 +1,82 @@
+param(
+    [string]$Executable = 'build-msvc-tailfix/movie-input/RelWithDebInfo/mm3_recomp.exe',
+    [ValidateSet('Live', 'Timed')][string]$InputMode = 'Live',
+    [ValidateSet('start', 'a', 'b')][string]$Button = 'start',
+    [ValidateSet('dice.bik', 'msgs.bik', 'intro.bik')]
+    [string[]]$SkipMovies = @('dice.bik', 'msgs.bik', 'intro.bik'),
+    [ValidateRange(1, 180)][int]$DurationSeconds = 45,
+    [switch]$Headless
+)
+
+$ErrorActionPreference = 'Stop'
+$repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+$exe = if ([IO.Path]::IsPathRooted($Executable)) { $Executable } else { Join-Path $repo $Executable }
+if (-not (Test-Path -LiteralPath $exe)) { throw "Executable missing: $exe" }
+if (Get-Process -Name mm3_recomp -ErrorAction SilentlyContinue) {
+    throw 'Stop the existing recomp instance before launching another.'
+}
+$run = Join-Path $repo ('conformance_tmp/movie_skip_' + (Get-Date -Format 'yyyyMMdd_HHmmss_fff'))
+New-Item -ItemType Directory -Path (Join-Path $run 'save/Cache') -Force | Out-Null
+$live = Join-Path $run 'pad.txt'
+[IO.File]::WriteAllText($live, '')
+$log = Join-Path $run 'stderr.log'
+$settings = @{
+    RECOMP_USB = '1'; RECOMP_INPUT_DIAG = '1'; RECOMP_USB_STATS = '1'
+    MM3_SAVE_DIR = (Join-Path $run 'save')
+    RECOMP_PAD_PRESS = $null; RECOMP_PAD_SCRIPT = $null; RECOMP_PAD_LIVE = $null
+    RECOMP_FB_WINDOW = $(if ($Headless) { $null } else { '1' })
+}
+if ($InputMode -eq 'Live') { $settings.RECOMP_PAD_LIVE = $live }
+else {
+    $settings.RECOMP_PAD_SCRIPT = ((0..([Math]::Min(255, $DurationSeconds * 2)) |
+        ForEach-Object { '{0}:{1}:200' -f (500 + $_ * 500), $Button }) -join ',')
+}
+$previous = @{}
+try {
+    foreach ($key in $settings.Keys) {
+        $previous[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
+        [Environment]::SetEnvironmentVariable($key, $settings[$key], 'Process')
+    }
+    $launch = @{
+        FilePath = $exe; WorkingDirectory = $repo; PassThru = $true
+        WindowStyle = $(if ($Headless) { 'Hidden' } else { 'Normal' })
+        RedirectStandardOutput = (Join-Path $run 'stdout.log'); RedirectStandardError = $log
+    }
+    $process = Start-Process @launch
+} finally {
+    foreach ($key in $previous.Keys) {
+        [Environment]::SetEnvironmentVariable($key, $previous[$key], 'Process')
+    }
+}
+Write-Output "PID=$($process.Id) evidence=$run"
+$clock = [Diagnostics.Stopwatch]::StartNew()
+$activeMovie = ''
+$lastPress = -1000
+$seenLines = 0
+try {
+    while (-not $process.HasExited -and $clock.Elapsed.TotalSeconds -lt $DurationSeconds) {
+        $lines = @(Get-Content -LiteralPath $log)
+        for ($i = $seenLines; $i -lt $lines.Count; $i++) {
+            $line = $lines[$i]
+            if ($line -match '\[MOVIE_FRAME\] total=(\d+) frame=(\d+)') {
+                $activeMovie = switch ([int]$Matches[1]) {
+                    144 { 'dice.bik' }; 308 { 'msgs.bik' }; 3114 { 'intro.bik' }; default { '' }
+                }
+            }
+            if ($line -match '\[MOVIE_END\]') { $activeMovie = ''; Write-Output $line }
+            if ($line -match '\[MOVIE_SKIP_INPUT\]|\[CRASH\]') { Write-Output $line }
+        }
+        $seenLines = $lines.Count
+        if ($InputMode -eq 'Live' -and $activeMovie -in $SkipMovies -and
+            $clock.ElapsedMilliseconds - $lastPress -ge 500) {
+            [IO.File]::AppendAllText($live, "$($Button):200`n")
+            $lastPress = $clock.ElapsedMilliseconds
+        }
+        Start-Sleep -Milliseconds 100
+        $process.Refresh()
+    }
+} finally {
+    if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+}
+# Timed mode is deliberately a fixed repeating timeline; use Live mode to
+# target selected movies. Both paths generate USB reports, never desktop keys.
