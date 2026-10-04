@@ -34,5 +34,9 @@
  {
   "start": "0x0022FA0A",
   "note": "Post-intro frontend callback repeatedly invoked from 0x0022DE38; original entry allocates a large stack frame through the stack probe at 0x000957D0."
+ },
+ {
+  "start": "0x0022CC2B",
+  "note": "Post-intro initialization callback invoked indirectly from 0x000888B8, returning to 0x000888BA; original entry saves registers and uses the supplied ECX object."
  }
 ]
