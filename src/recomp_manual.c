@@ -951,6 +951,24 @@ void recomp_icall_not_code_log(uint32_t xbox_va)
         caller = MEM32(g_esp);
     fprintf(stderr, "[ICALL] non-code target 0x%08X slot=0x%08X caller=0x%08X esp=0x%08X\n",
             xbox_va, slot, caller, g_esp);
+    if (getenv("MM3_FRONTEND_ICALL_TRACE") &&
+        (caller == 0x0011FB9Cu || caller == 0x000FB05Eu)) {
+        static unsigned samples;
+        if (samples++ < 8) {
+            fprintf(stderr, "[FRONTEND_ICALL] eax=%08X ecx=%08X edx=%08X esi=%08X edi=%08X\n",
+                    g_eax, g_ecx, g_edx, g_esi, g_edi);
+            uint32_t pointers[] = {g_eax, g_ecx, g_esi, g_edi};
+            for (unsigned i = 0; i < 4; ++i) {
+                uint32_t p = pointers[i];
+                if (p >= 0x10000u && p < 0x04000000u - 0x80u) {
+                    fprintf(stderr, "[FRONTEND_ICALL] object %08X:", p);
+                    for (unsigned j = 0; j < 32; ++j)
+                        fprintf(stderr, " %08X", MEM32(p + 4u * j));
+                    fprintf(stderr, "\n");
+                }
+            }
+        }
+    }
 }
 
 /* Project override for the one startup allocator entry whose generated FPO
