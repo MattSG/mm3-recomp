@@ -8,6 +8,8 @@ change guest state. Live mode presses only during selected movies and stops
 pressing once they close. Timed mode repeats a fixed USB timeline.
 Each run has separate save data and logs under conformance_tmp. Only one recomp
 instance is allowed, and this harness stops its own process at the time limit.
+TracePostMovieFrame requests one GPU frame trace five seconds after intro.bik
+closes; set RECOMP_PB_EXEC=1 to execute and observe the GPU command stream.
 .EXAMPLE
 pwsh tools/powershell/Run-MM3MovieSkip.ps1
 .EXAMPLE
@@ -22,10 +24,17 @@ param(
     [ValidateSet('dice.bik', 'msgs.bik', 'intro.bik')]
     [string[]]$SkipMovies = @('dice.bik', 'msgs.bik', 'intro.bik'),
     [ValidateRange(1, 180)][int]$DurationSeconds = 45,
-    [switch]$Headless
+    [switch]$Headless,
+    [switch]$TracePostMovieFrame
 )
 
 $ErrorActionPreference = 'Stop'
+function Set-RunEnvironment([string]$Name, $Value) {
+    # Preserve a real null through PowerShell's string argument conversion.
+    # An empty environment value still enables C flags tested with getenv.
+    $text = if ($null -eq $Value) { [NullString]::Value } else { [string]$Value }
+    [Environment]::SetEnvironmentVariable($Name, $text, 'Process')
+}
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $exe = if ([IO.Path]::IsPathRooted($Executable)) { $Executable } else { Join-Path $repo $Executable }
 if (-not (Test-Path -LiteralPath $exe)) { throw "Executable missing: $exe" }
@@ -47,6 +56,10 @@ $settings = @{
     RECOMP_PAD_PRESS = $null; RECOMP_PAD_SCRIPT = $null; RECOMP_PAD_LIVE = $null
     RECOMP_FB_WINDOW = $(if ($Headless) { $null } else { '1' })
 }
+if ($TracePostMovieFrame) {
+    $settings.RECOMP_FRAME_TRACE = (Join-Path $run 'frame.flag')
+    $settings.RECOMP_FRAME_TRACE_METHODS = $null
+}
 if ($InputMode -eq 'Live') { $settings.RECOMP_PAD_LIVE = $live }
 else {
     $settings.RECOMP_PAD_SCRIPT = ((0..([Math]::Min(255, $DurationSeconds * 2)) |
@@ -56,7 +69,7 @@ $previous = @{}
 try {
     foreach ($key in $settings.Keys) {
         $previous[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
-        [Environment]::SetEnvironmentVariable($key, $settings[$key], 'Process')
+        Set-RunEnvironment $key $settings[$key]
     }
     $launch = @{
         FilePath = $exe; WorkingDirectory = $repo; PassThru = $true
@@ -66,7 +79,7 @@ try {
     $process = Start-Process @launch
 } finally {
     foreach ($key in $previous.Keys) {
-        [Environment]::SetEnvironmentVariable($key, $previous[$key], 'Process')
+        Set-RunEnvironment $key $previous[$key]
     }
 }
 Write-Output "PID=$($process.Id) evidence=$run"
@@ -75,6 +88,7 @@ $activeMovie = ''
 $lastPress = -1000
 $reader = $null
 $pending = ''
+$frameTraceAt = [long]::MaxValue
 try {
     $stream = [IO.File]::Open($log, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
     $reader = [IO.StreamReader]::new($stream)
@@ -88,8 +102,17 @@ try {
                     144 { 'dice.bik' }; 308 { 'msgs.bik' }; 3114 { 'intro.bik' }; default { '' }
                 }
             }
-            if ($line -match '\[MOVIE_END\]') { $activeMovie = ''; Write-Output $line }
+            if ($line -match '\[MOVIE_END\]') {
+                $activeMovie = ''; Write-Output $line
+                if ($TracePostMovieFrame -and $line -match 'name=intro.bik') {
+                    $frameTraceAt = $clock.ElapsedMilliseconds + 5000
+                }
+            }
             if ($line -match '\[MOVIE_SKIP_INPUT\]|\[CRASH\]') { Write-Output $line }
+        }
+        if ($clock.ElapsedMilliseconds -ge $frameTraceAt) {
+            [IO.File]::WriteAllText($settings.RECOMP_FRAME_TRACE, 'capture')
+            $frameTraceAt = [long]::MaxValue
         }
         if ($InputMode -eq 'Live' -and $activeMovie -in $SkipMovies -and
             $clock.ElapsedMilliseconds - $lastPress -ge 500) {
