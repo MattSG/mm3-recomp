@@ -239,7 +239,11 @@ void sub_00084020(void) { call_alternate_seh_preserving(sub_00084020_gen); }
 void sub_0008427E(void) { call_alternate_seh_preserving(sub_0008427E_gen); }
 void sub_000842EA(void) { call_alternate_seh_preserving(sub_000842EA_gen); }
 void sub_000854CF(void) { call_alternate_seh_preserving(sub_000854CF_gen); }
+#ifdef MM3_HEAP_WATCH_WRAPPER
+void sub_000858F3_original(void)
+#else
 void sub_000858F3(void)
+#endif
 {
     static unsigned calls;
     if (calls++ < 8)
