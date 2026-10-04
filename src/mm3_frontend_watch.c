@@ -6,6 +6,7 @@
 #include "recomp_funcs.h"
 
 extern void sub_000FA37E_original(void);
+extern void sub_000858F3_original(void);
 extern intptr_t xbox_GetMemoryOffset(void);
 #define MM3_ARM_WATCH 0xE0424D33u
 static DWORD watch_thread;
@@ -17,6 +18,37 @@ static int child_constructor;
 static unsigned child_reports;
 static int child_factory;
 static unsigned factory_reports;
+
+static void check_heap_frontier(uint32_t heap, uint32_t caller, const char *phase)
+{
+    static unsigned reports;
+    if (reports >= 24 || heap < 0x10000u || heap >= 0x08000000u-0x580u) return;
+    for (unsigned bin = 0; bin < 128; ++bin) {
+        uint32_t head = heap + 0x180u + bin*8u;
+        for (unsigned side = 0; side < 2; ++side) {
+            uint32_t node = MEM32(head + side*4u);
+            if (node == head || !node) continue;
+            uint32_t next = 0, prev = 0;
+            int invalid = node >= 0x08000000u-8u || (node & 7u);
+            if (!invalid) {
+                next = MEM32(node); prev = MEM32(node+4u);
+                invalid = next >= 0x08000000u || prev >= 0x08000000u || (next & 7u) || (prev & 7u);
+            }
+            if (invalid && reports++ < 24)
+                fprintf(stderr, "[HEAP_FRONTIER] phase=%s heap=%08X caller=%08X bin=%u side=%u node=%08X next=%08X prev=%08X thread=%u\n",
+                    phase, heap, caller, bin, side, node, next, prev, GetCurrentThreadId());
+        }
+    }
+}
+
+void sub_000858F3(void)
+{
+    uint32_t heap = MEM32(g_esp+4u), caller = MEM32(g_esp);
+    int trace = getenv("MM3_HEAP_FRONTIER") != NULL;
+    if (trace) check_heap_frontier(heap, caller, "before");
+    sub_000858F3_original();
+    if (trace) check_heap_frontier(heap, caller, "after");
+}
 
 static LONG CALLBACK frontend_write_exception(EXCEPTION_POINTERS *p)
 {

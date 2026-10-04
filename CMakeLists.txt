@@ -17,6 +17,8 @@ add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)
 file(GLOB RECOMP_GEN_SOURCES CONFIGURE_DEPENDS
     "${RECOMP_GEN_DIR}/*.c")
 if(MM3_FRONTEND_WATCH)
+    set_property(SOURCE "src/recomp_manual.c" APPEND PROPERTY
+        COMPILE_DEFINITIONS "sub_000858F3=sub_000858F3_original")
     set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0011.c" APPEND PROPERTY
         COMPILE_DEFINITIONS "sub_000FA37E=sub_000FA37E_original")
     if(MSVC)
