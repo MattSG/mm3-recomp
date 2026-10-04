@@ -15,7 +15,13 @@ Date: 2026-10-04
 - Capturing framebuffer refreshes during a bright scene found 9 completely black images out of 60. `fb_overlay` consumed the PVIDEO pending bit after one refresh; the next refresh rebuilt the black base framebuffer and no longer drew the video.
 - Scanout now owns a copy of the accepted YUY2 submission and its registers, retaining it between submissions while allowing guest bank reuse. STOP (bit 0) or an invalid-size teardown clears the retained overlay. After rebuilding, the equivalent 60-refresh sample contained zero black images; every sample had at least 307,037 nonblack pixels.
 - The xemu [PVIDEO register implementation](https://github.com/xemu-project/xemu/blob/master/hw/xbox/nv2a/pvideo.c) clears the overlay at STOP, and its [display implementation](https://github.com/xemu-project/xemu/blob/master/hw/xbox/nv2a/pgraph/gl/display.c) composites an enabled overlay on successive display refreshes. This supports retaining displayed content separately from consumed pending work in this runtime.
-- Evidence: ignored `conformance_tmp/bink_all_movies_movsx_20261004/` and `conformance_tmp/pvideo_hold_20261004/`. Latest executable SHA-256: `53E69BDA9BB1F102F4E0E1874F33194D5198A3A70E1CFA928629DB9A7B24A9B5`. Normal full-sequence playback verification remains pending.
+- Evidence: ignored `conformance_tmp/bink_all_movies_movsx_20261004/` and `conformance_tmp/pvideo_hold_20261004/`. Latest executable SHA-256: `53E69BDA9BB1F102F4E0E1874F33194D5198A3A70E1CFA928629DB9A7B24A9B5`.
+
+## Playback acceptance
+
+- A 130-second normal Windows run opened all three movies and produced framebuffer captures of the DICE logo, Microsoft intro, and main intro scenes without the former block corruption. No crash was reported. Captures include `normal1/frame_015.bmp`, `frame_022.bmp`, and `frame_125.bmp` under the evidence directory above.
+- A second cold run used `run_clean_strict.ps1` with framebuffer sampling disabled. The user confirmed: "Video looks good, just a bit laggy", followed by "Lag is done goal complete". The remaining validation process was stopped after acceptance.
+- Video milestone commits: outer `515ddaf` (signed IDCT coefficients) and `99cb046` (persistent overlay); nested XboxRecomp `5d0b56b` and `fe42f62`. Audio is outside this verification.
 
 ## Windows regeneration and runtime
 
