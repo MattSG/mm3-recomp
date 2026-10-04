@@ -1,5 +1,13 @@
 [
  {
+  "start": "0x0035D41D",
+  "note": "XID input-report completion callback observed from 0x0035D30F and 0x0035DCAB; missing dispatch entry prevents reports updating gamepad state."
+ },
+ {
+  "start": "0x0035DD28",
+  "note": "XID device-add callback observed from USB enumeration caller 0x0035BDAE; missing dispatch entry prevents controller initialization."
+ },
+ {
   "start": "0x002F6AC0",
   "note": "Indirect-call target observed at runtime; decodes as a function body."
  },
