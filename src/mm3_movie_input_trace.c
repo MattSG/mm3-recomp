@@ -37,10 +37,12 @@ void sub_001DB6E8(void)
     movie_total = movie_frame = 0;
     movie_started = GetTickCount64();
     fprintf(stderr, "[MOVIE_BEGIN] t=%llu\n", (unsigned long long)movie_started);
+    fflush(stderr);
     sub_001DB6E8_original();
     fprintf(stderr, "[MOVIE_END] name=%s total=%u frame=%u elapsed_ms=%llu result=%02X\n",
             movie_name(), movie_total, movie_frame,
             (unsigned long long)(GetTickCount64() - movie_started), g_eax & 255u);
+    fflush(stderr);
     /* Register this worker's TLS registers, rather than the host entry
      * thread's idle stack, when investigating post-intro waits. */
     if (movie_total == 3114 && getenv("MM3_POST_MOVIE_WATCHDOG"))
@@ -52,9 +54,11 @@ void sub_001F2A71(void)
     uint32_t handle = MEM32(g_ecx + 0xCu);
     uint32_t total = MEM32(handle + 8u);
     uint32_t frame = MEM32(handle + 0xCu);
-    if (total != movie_total || frame / 30u != movie_frame / 30u)
+    if (total != movie_total || frame / 30u != movie_frame / 30u) {
         fprintf(stderr, "[MOVIE_FRAME] total=%u frame=%u elapsed_ms=%llu\n",
                 total, frame, (unsigned long long)(GetTickCount64() - movie_started));
+        fflush(stderr);
+    }
     movie_total = total;
     movie_frame = frame;
     sub_001F2A71_original();
@@ -66,7 +70,9 @@ void sub_001F443D(void)
     uint32_t controller = g_ebx;
     uint32_t caller = MEM32(g_esp);
     sub_001F443D_original();
-    if (caller == 0x001DB981u && (g_eax & 255u))
+    if (caller == 0x001DB981u && (g_eax & 255u)) {
         fprintf(stderr, "[MOVIE_SKIP_INPUT] action=%u controller=%08X frame=%u/%u\n",
                 action, controller, movie_frame, movie_total);
+        fflush(stderr);
+    }
 }

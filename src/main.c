@@ -91,6 +91,7 @@ static LONG WINAPI mm3_crash_report(EXCEPTION_POINTERS *info)
                     i, MEM32(bucket), MEM32(bucket + 4));
         }
     }
+    fflush(stderr);
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
@@ -200,7 +201,14 @@ int main(void)
     size_t xbe_size = 0;
 
     setvbuf(stdout, NULL, _IONBF, 0);
-    setvbuf(stderr, NULL, _IONBF, 0);
+    /* Unbuffered redirected stderr made diagnostic formatting issue many
+     * tiny Windows writes and stalled the renderer on the shared FILE lock.
+     * Movie markers and crash reports explicitly flush when needed. */
+    static char stderr_buffer[64 * 1024];
+    if (getenv("MM3_LOG_UNBUFFERED"))
+        setvbuf(stderr, NULL, _IONBF, 0);
+    else
+        setvbuf(stderr, stderr_buffer, _IOFBF, sizeof stderr_buffer);
     SetUnhandledExceptionFilter(mm3_crash_report);
     puts("MM3 static recompilation");
 
