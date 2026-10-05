@@ -157,10 +157,13 @@ void sub_000858F3(void)
             heap, caller, g_esp, g_ebp, g_seh_ebp, MEM32(g_esp+4u), MEM32(g_esp+8u), MEM32(g_esp+12u), MEM32(g_esp+16u));
     if (trace) check_heap_frontier(heap, caller, "before");
     sub_000858F3_original();
-    if (g_eax && g_eax < 0x00500000u && getenv("MM3_HEAP_FRONTIER")) {
+    if (g_eax && g_eax < 0x00500000u &&
+        (trace || getenv("MM3_HEAP_RETURN_TRACE"))) {
+        static LONG return_breaks;
         fprintf(stderr, "[HEAP_RETURN_INVALID] heap=%08X caller=%08X size=%u result=%08X esp=%08X\n",
                 heap, caller, size, g_eax, g_esp);
-        if (getenv("RECOMP_HEAP_RETURN_BREAK")) DebugBreak();
+        if (getenv("RECOMP_HEAP_RETURN_BREAK") &&
+            InterlockedCompareExchange(&return_breaks, 1, 0) == 0) DebugBreak();
     }
     if (trace) check_heap_frontier(heap, caller, "after");
 }
