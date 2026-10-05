@@ -178,4 +178,10 @@
     "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":11,
     "calls_to":["0x0010C432"], "called_by":[], "note":"Observed menu factory stub; native constructs base, installs vtable 0037B3C0 and clears fields 40 through 58."
   }
+  ,{
+    "start":"0x0010C86F", "end":"0x0010C895", "size":38, "name":"sub_0010C86F", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":12,
+    "calls_to":["0x0010C432"], "called_by":[],
+    "note":"Last observed unresolved menu factory constructor in the nine-constructor probe. Native constructs base, installs vtable 0037B178 and clears fields 40 through 5C."
+  }
 ]
