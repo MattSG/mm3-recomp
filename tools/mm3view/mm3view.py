@@ -5,7 +5,7 @@
     ls    [glob]           list assets (loose files, Data_hd.zip, Data_dvd.zip)
     get   <path> [-o dir]  extract one asset as-is
     tex   [glob]           textures/UI (.cdds .dds .tga .raw) -> PNGs + index.html
-    model <body.cmp> [n]   car model + materialSet<n>.omb -> self-contained .html
+    model <glob> [n]       car body.cmp + materialSet<n>.omb -> models/<car>_<n>.html
     map   <City>           city heightmap cells -> one labelled PNG
 
 Paths are case-insensitive and relative to Data/ (zip members) or
@@ -305,48 +305,65 @@ def read_cmp(data):
 
 
 def mesh_triangles(m, xforms, matrices):
-    """-> {material: (positions Nx3, uvs Nx2)} as unindexed triangle soup."""
+    """-> {material: Nx12 float32 rows of pos, normal, uv, specPow, env, amb, specInt},
+    unindexed, three rows per triangle.
+
+    A mesh's primitive groups are draw batches; each vertex carries the omb
+    material it actually uses, so a triangle takes its first vertex's."""
     w = m["verts"]
     size = m["aabb"][1] - m["aabb"][0]
     pos = np.stack([_bits(w[:, 0], 0, 11) / 1024 * size[0],
                     _bits(w[:, 0], 11, 11) / 1024 * size[1],
                     -_bits(w[:, 0], 22, 10) / 512 * size[2]], 1)
+    nrm = np.stack([_bits(w[:, 1], 0, 11) / 1024, _bits(w[:, 1], 11, 11) / 1024,
+                    -_bits(w[:, 1], 22, 10) / 512], 1)
     uv = np.stack([_bits(w[:, 2], 0, 11) / 1024, _bits(w[:, 2], 11, 11) / 1024], 1)
+    spec = np.stack([(w[:, 5] >> s & 0xFF) / 255 for s in (0, 8, 16, 24)], 1)
+
+    def move(lin, t, sel=slice(None)):
+        pos[sel] = pos[sel] @ lin.T + t
+        nrm[sel] = nrm[sel] @ lin.T
+
     if m["skinned"]:
         mid = (w[:, 3] >> 8 & 0xFF) // 37
         for i in np.unique(mid):
             if int(i) in matrices:
-                lin, t = _matrix(matrices[int(i)])
-                pos[mid == i] = pos[mid == i] @ lin.T + t
+                move(*_matrix(matrices[int(i)]), mid == i)
     for lin, t in xforms:
-        pos = pos @ lin.T + t
+        move(lin, t)
+    nrm /= np.linalg.norm(nrm, axis=1, keepdims=True) + 1e-9
 
-    tris = {}
-    for (strip, off, cnt), mat in m["prims"]:
+    tris = []
+    for (strip, off, cnt), _batch in m["prims"]:
         if strip:
             idx = np.arange(off, off + cnt + 3)
             t = np.stack([idx[:-2], idx[1:-1], idx[2:]], 1)
             t[1::2] = t[1::2, ::-1]
         else:
             t = m["indices"][off:off + (cnt + 1) * 3].reshape(-1, 3).astype(np.int64)
-        t = t[(t[:, 0] != t[:, 1]) & (t[:, 1] != t[:, 2]) & (t[:, 0] != t[:, 2])]
-        tris.setdefault(mat, []).append(t.reshape(-1))
-    return {k: (pos[np.concatenate(v)], uv[np.concatenate(v)]) for k, v in tris.items()}
+        tris.append(t[(t[:, 0] != t[:, 1]) & (t[:, 1] != t[:, 2]) & (t[:, 0] != t[:, 2])])
+    t = np.concatenate(tris)
+    rows = np.concatenate([pos, nrm, uv, spec], 1).astype(np.float32)
+    mat = (w[t[:, 0], 3] & 0xFF) // 11
+    return {int(k): rows[t[mat == k].reshape(-1)] for k in np.unique(mat)}
 
 
-def material_image(data, folder, mat):
+def texture_key(data, folder, name):
+    """omb texture path ('+Cars\\NewBeetle\\x.dds') -> data key, or None."""
+    stem = name.lstrip("+").replace("\\", "/").rsplit(".", 1)[0].lower()
+    for k in (f"{stem}.cdds", f"{stem}.dds", f"{folder}/{stem.rsplit('/', 1)[-1]}.cdds"):
+        if k in data.files:
+            return k
+    print(f"texture {name} not found", file=sys.stderr)
+
+
+def material_image(tex, mat):
     """Bake an omb material's colour, texture and mode into one RGBA image,
     as cmpviewer's fragment shader combines them."""
     color = np.array(mat["color"], np.float32) / 255
-    solid = Image.new("RGBA", (1, 1), tuple(mat["color"]))
-    if mat["texture"].lower() == "no":
-        return solid
-    stem = mat["texture"].replace("\\", "/").rsplit("/", 1)[-1].rsplit(".", 1)[0].lower()
-    keys = data.glob(f"{folder}/{stem}.*dds") or data.glob(f"*/{stem}.*dds")
-    if not keys:
-        print(f"texture {mat['texture']} not found", file=sys.stderr)
-        return solid
-    t = np.asarray(load_image(keys[0], data.read(keys[0])), np.float32) / 255
+    if tex is None:
+        return Image.new("RGBA", (1, 1), tuple(mat["color"]))
+    t = np.asarray(tex, np.float32) / 255
     rgb, a = t[..., :3], t[..., 3:]
     if mat["mode"] == 0:  # decal
         t = np.concatenate([color[:3] * (1 - a) + rgb * a, np.full_like(a, color[3])], -1)
@@ -362,69 +379,130 @@ def _b64(img):
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
-def cmd_model(data, args):
-    key = args.cmp.lower()
+def export_model(data, key, mset, out_dir):
     folder = key.rsplit("/", 1)[0]
-    omb = f"{folder}/materialset{args.set}.omb"
+    omb = f"{folder}/materialset{mset}.omb"
     mats = read_omb(data.read(omb)) if omb in data.files else []
     if not mats:
         print(f"{omb} not found, drawing grey", file=sys.stderr)
     groups = {}
     for path, m, xforms, matrices in read_cmp(data.read(key)):
-        for mat, (p, uv) in mesh_triangles(m, xforms, matrices).items():
-            g = groups.setdefault(mat, ([], []))
-            g[0].append(p)
-            g[1].append(uv)
-        print(f"{path}: {len(m['verts'])} verts")
+        for mat, rows in mesh_triangles(m, xforms, matrices).items():
+            groups.setdefault(mat, []).append(rows)
+
+    # Every texture in the car's folder, plus shared ones its materials name.
+    keys = sorted(k for k in data.glob(f"{folder}/*") if k.endswith("dds"))
+    keys += [texture_key(data, folder, m["texture"]) for m in mats if m["texture"].lower() != "no"]
+    textures = {k: load_image(k, data.read(k)) for k in dict.fromkeys(keys) if k}
+
     parts = []
-    for mat, (p, uv) in sorted(groups.items()):
-        img = material_image(data, folder, mats[mat]) if mat < len(mats) else Image.new("RGBA", (1, 1), "grey")
+    for mat, rows in sorted(groups.items()):
+        rows = np.concatenate(rows)
+        om = mats[mat] if mat < len(mats) else dict(name=f"#{mat}", texture="No", color=(128, 128, 128, 255), mode=0)
+        tk = texture_key(data, folder, om["texture"]) if om["texture"].lower() != "no" else None
+        img = material_image(textures.get(tk), om)
         parts.append(dict(
-            name=mats[mat]["name"] if mat < len(mats) else str(mat),
-            pos=base64.b64encode(np.concatenate(p).astype("<f4").tobytes()).decode(),
-            uv=base64.b64encode(np.concatenate(uv).astype("<f4").tobytes()).decode(),
-            tex=_b64(img), alpha=bool(np.asarray(img)[..., 3].min() < 255)))
-    out = args.out / (key.replace("/", "_") + f"{args.set}.html")
+            name=om["name"], texture=tk, mode=("decal", "transparency", "replace", "modulate")[om["mode"] & 3],
+            color="#%02x%02x%02x%02x" % tuple(om["color"]), tris=len(rows) // 3,
+            rows=base64.b64encode(rows.tobytes()).decode(), tex=_b64(img),
+            alpha=bool(np.asarray(img)[..., 3].min() < 255),
+            # ponytail: per-material averages of the per-vertex spec/env bytes;
+            # a custom shader could use them per vertex.
+            spec=rows[:, 8:12].mean(0).round(3).tolist()))
+    out = out_dir / f"{folder.rsplit('/', 1)[-1]}_{mset}.html"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(MODEL_HTML.replace("%TITLE%", key).replace("%PARTS%", json.dumps(parts)))
-    print(f"{len(parts)} materials -> {out}")
+    out.write_text(MODEL_HTML.replace("%TITLE%", key).replace("%PARTS%", json.dumps(parts)).replace(
+        "%TEXTURES%", json.dumps({k: _b64(v) for k, v in textures.items()})), encoding="utf-8")
+    print(f"{key}: {len(parts)} materials, {len(textures)} textures -> {out}")
 
 
-MODEL_HTML = """<!doctype html><title>%TITLE%</title>
-<style>body{margin:0;overflow:hidden;font:12px monospace;color:#ccc}
-#ui{position:absolute;top:4px;left:4px;background:#0008;padding:4px;max-height:95vh;overflow:auto}</style>
-<div id=ui><b>%TITLE%</b><br>drag: orbit, wheel: zoom, right-drag: pan<br></div>
+def cmd_model(data, args):
+    out_dir = args.out / "models"
+    for key in sorted(data.glob(args.cmp)):
+        export_model(data, key, args.set, out_dir)
+    pages = sorted(p.name for p in out_dir.glob("*.html") if p.name != "index.html")
+    (out_dir / "pages.js").write_text("pages = " + json.dumps(pages))
+    (out_dir / "index.html").write_text(
+        "<!doctype html><title>mm3 models</title><style>body{background:#333;color:#ccc;font:13px monospace}"
+        "a{color:#8cf}</style>\n" + "<br>\n".join(f'<a href="{p}">{p[:-5]}</a>' for p in pages))
+
+
+MODEL_HTML = """<!doctype html><meta charset=utf-8><title>%TITLE%</title>
+<style>body{margin:0;overflow:hidden;font:12px monospace;color:#ccc;background:#404850}
+#ui{position:absolute;top:4px;left:4px;bottom:4px;width:300px;background:#000a;padding:6px;overflow:auto}
+#ui h3{margin:8px 0 4px;font-size:12px;color:#fff}
+.row{display:flex;align-items:center;gap:4px;padding:1px 0}.row:hover{background:#fff2}
+.sw{width:28px;height:28px;flex:none;object-fit:contain;border:1px solid #666;cursor:zoom-in;
+background:repeating-conic-gradient(#555 0 25%,#777 0 50%) 0/8px 8px}
+.sw:hover{border-color:#fff}small{color:#888}select{width:100%}
+#zoom{display:none;position:absolute;inset:0;background:#000c;cursor:zoom-out;align-items:center;
+justify-content:center;flex-direction:column}#zoom img{max-width:90vw;max-height:85vh;min-width:256px;
+image-rendering:pixelated;background:repeating-conic-gradient(#555 0 25%,#777 0 50%) 0/16px 16px}</style>
+<div id=ui><select id=pick></select><b>%TITLE%</b><br><small>drag orbit · wheel zoom · right-drag pan<br>
+hover a row to highlight it on the car · click a swatch to enlarge</small>
+<label class=row><input type=checkbox id=wire> wireframe</label>
+<h3>Materials</h3><div id=mats></div><h3>Textures</h3><div id=texs></div></div>
+<div id=zoom><img><div></div></div>
+<script src=pages.js></script>
 <script type=importmap>{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js",
 "three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
 <script type=module>
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-const parts = %PARTS%;
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+const parts = %PARTS%, textures = %TEXTURES%, $ = id => document.getElementById(id);
 const f32 = s => new Float32Array(Uint8Array.from(atob(s), c => c.charCodeAt(0)).buffer);
-const scene = new THREE.Scene(); scene.background = new THREE.Color(0x404850);
-scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 2.5));
-const sun = new THREE.DirectionalLight(0xffffff, 1.5); sun.position.set(3, 5, 4); scene.add(sun);
-const root = new THREE.Group(); scene.add(root);
-for (const p of parts) {
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(f32(p.pos), 3));
-  g.setAttribute('uv', new THREE.BufferAttribute(f32(p.uv), 2));
-  g.computeVertexNormals();
-  const map = new THREE.TextureLoader().load(p.tex);
-  map.wrapS = map.wrapT = THREE.RepeatWrapping; map.colorSpace = THREE.SRGBColorSpace;
-  const mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({map, side: THREE.DoubleSide,
-    transparent: p.alpha, depthWrite: !p.alpha}));
-  root.add(mesh);
-  const l = document.createElement('label');
-  l.innerHTML = `<input type=checkbox checked> ${p.name}<br>`;
-  l.firstChild.onchange = e => mesh.visible = e.target.checked;
-  document.getElementById('ui').append(l);
-}
-const box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3()).length();
-const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, size / 100, size * 10);
-camera.position.copy(box.getCenter(new THREE.Vector3())).add(new THREE.Vector3(size, size / 2, size));
+$('zoom').onclick = () => $('zoom').style.display = 'none';
+const swatch = (src, title) => {
+  const i = Object.assign(new Image(), {src, title, className: 'sw'});
+  i.onclick = e => { e.preventDefault(); $('zoom').style.display = 'flex';
+    $('zoom').querySelector('img').src = src; $('zoom').querySelector('div').textContent = title; };
+  return i;
+};
+for (const p of window.pages || []) $('pick').add(new Option(p.slice(0, -5), p, false, location.pathname.endsWith(p)));
+$('pick').onchange = e => location = e.target.value;
+
 const renderer = new THREE.WebGLRenderer({antialias: true});
 document.body.append(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x404850);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+const sun = new THREE.DirectionalLight(0xffffff, 2); sun.position.set(3, 5, 4); scene.add(sun);
+const root = new THREE.Group(); scene.add(root);
+const glow = pick => root.children.forEach((o, i) => o.material.emissive.set(pick(parts[i]) ? 0x884400 : 0));
+
+for (const p of parts) {
+  const rows = new THREE.InterleavedBuffer(f32(p.rows), 12), g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.InterleavedBufferAttribute(rows, 3, 0));
+  g.setAttribute('normal', new THREE.InterleavedBufferAttribute(rows, 3, 3));
+  g.setAttribute('uv', new THREE.InterleavedBufferAttribute(rows, 2, 6));
+  const map = new THREE.TextureLoader().load(p.tex);
+  map.flipY = false;  // D3D UVs: v=0 is the top row
+  map.wrapS = map.wrapT = THREE.RepeatWrapping; map.colorSpace = THREE.SRGBColorSpace;
+  const [specPow, env, , specInt] = p.spec;
+  // env is a reflection amount (car paint has more than chrome), so it drives a clear coat.
+  const mat = new THREE.MeshPhysicalMaterial({map, side: THREE.DoubleSide, transparent: p.alpha,
+    depthWrite: !p.alpha, roughness: 1 - 0.85 * specPow * Math.sqrt(specInt), metalness: 0,
+    clearcoat: env, clearcoatRoughness: 0.1});
+  const mesh = new THREE.Mesh(g, mat); root.add(mesh);
+  const row = document.createElement('label'); row.className = 'row';
+  row.innerHTML = `<input type=checkbox checked><span>${p.name}<br><small>${p.mode} ${p.color} ${p.tris} tris<br>${p.texture || 'no texture'}</small></span>`;
+  row.prepend(swatch(p.tex, `${p.name}: ${p.texture || p.color} baked as ${p.mode}`));
+  row.querySelector('input').onchange = e => mesh.visible = e.target.checked;
+  row.onmouseenter = () => glow(q => q === p); row.onmouseleave = () => glow(() => false);
+  $('mats').append(row);
+}
+for (const [k, src] of Object.entries(textures)) {
+  const row = document.createElement('div'); row.className = 'row';
+  const sw = swatch(src, k); row.append(sw, k.split('/').pop());
+  sw.onload = () => row.append(Object.assign(document.createElement('small'), {textContent: ` ${sw.naturalWidth}x${sw.naturalHeight}`}));
+  row.onmouseenter = () => glow(q => q.texture === k); row.onmouseleave = () => glow(() => false);
+  $('texs').append(row);
+}
+$('wire').onchange = e => root.children.forEach(o => o.material.wireframe = e.target.checked);
+
+const box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3()).length();
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, size / 100, size * 10);
+camera.position.copy(box.getCenter(new THREE.Vector3())).add(new THREE.Vector3(-size * 0.9, size * 0.4, size * 0.9));
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.copy(box.getCenter(new THREE.Vector3()));
 onresize = () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); };
