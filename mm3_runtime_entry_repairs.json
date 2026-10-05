@@ -13,5 +13,15 @@
     "start": "0x00104DD3",
     "end": "0x00104F7B",
     "note": "Car-selection drawing callback observed at 0x00104D2B. Original function returns with ret 20."
+  },
+  {
+    "start": "0x00132E3F",
+    "end": "0x00132FD5",
+    "note": "Second Cruise attribute-list provider, reached through virtual thunk 0x00132FD5. Its unresolved stub returns the vtable and repeats the invalid resource-string dereference."
+  },
+  {
+    "start": "0x00110A14",
+    "end": "0x00110E48",
+    "note": "Car-preview drawing method observed from 0x00111267 after restoring the outer callback; original epilogue ret 28."
   }
 ]

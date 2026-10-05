@@ -6,6 +6,8 @@ mm3_recomp_func_t mm3_lookup_memory_tail(uint32_t va);
 void sub_000D66A3(void);
 void sub_00104DD3(void);
 void sub_0013679A(void);
+void sub_00132E3F(void);
+void sub_00110A14(void);
 
 /* Keep title-specific recovered entries separate from the shared toolkit
  * and the existing manual ABI/SEH compatibility implementations. */
@@ -17,6 +19,8 @@ mm3_recomp_func_t recomp_lookup_manual(uint32_t va)
     case 0x000D66A3u: return sub_000D66A3;
     case 0x00104DD3u: return sub_00104DD3;
     case 0x0013679Au: return sub_0013679A;
+    case 0x00132E3Fu: return sub_00132E3F;
+    case 0x00110A14u: return sub_00110A14;
     default: return recomp_lookup_manual_base(va);
     }
 }
