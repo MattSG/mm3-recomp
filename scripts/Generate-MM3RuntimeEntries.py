@@ -27,4 +27,11 @@ for entry in entries:
     if not body:
         raise RuntimeError(f'Generation failed: {entry["start"]}')
     code.append(body)
+code += ['typedef void (*mm3_recovered_func_t)(void);',
+         'mm3_recovered_func_t mm3_lookup_recovered_entry(uint32_t va)',
+         '{', '    switch (va) {']
+for entry in entries:
+    address = int(entry['start'], 16)
+    code.append(f'    case 0x{address:08X}u: return sub_{address:08X};')
+code += ['    default: return (mm3_recovered_func_t)0;', '    }', '}']
 (out / 'recomp_runtime_entries.c').write_text('\n'.join(code), encoding='utf-8')

@@ -23,5 +23,65 @@
     "start": "0x00110A14",
     "end": "0x00110E48",
     "note": "Car-preview drawing method observed from 0x00111267 after restoring the outer callback; original epilogue ret 28."
+  },
+  {
+    "start": "0x0012C5A6",
+    "end": "0x0012C60F",
+    "note": "Unresolved class metadata/default-object provider in the Cruise loading family. Original static initialization and return epilogue verified; bounds end at the following detected function."
+  },
+  {
+    "start": "0x0012CE83",
+    "end": "0x0012CEEC",
+    "note": "Unresolved class metadata/default-object provider in the Cruise loading family. Original static initialization and return epilogue verified; bounds end at the following detected function."
+  },
+  {
+    "start": "0x0012DDCC",
+    "end": "0x0012DE32",
+    "note": "Unresolved class metadata/default-object provider in the Cruise loading family. Original static initialization and return epilogue verified; bounds end at the following detected function."
+  },
+  {
+    "start": "0x0012E665",
+    "end": "0x0012E6CB",
+    "note": "Unresolved class metadata/default-object provider in the Cruise loading family. Original static initialization and return epilogue verified; bounds end at the following detected function."
+  },
+  {
+    "start": "0x00130516",
+    "end": "0x00130631",
+    "note": "Unresolved class metadata/default-object provider in the Cruise loading family. Original static initialization and return epilogue verified; bounds end at the following detected function."
+  },
+  {
+    "start": "0x00134EA6",
+    "end": "0x00134F0F",
+    "note": "Unresolved class metadata/default-object provider in the Cruise loading family. Original static initialization and return epilogue verified; bounds end at the following detected function."
+  },
+  {
+    "start": "0x001350B9",
+    "end": "0x00135122",
+    "note": "Unresolved class metadata/default-object provider in the Cruise loading family. Original static initialization and return epilogue verified; bounds end at the following detected function."
+  },
+  {
+    "start": "0x00135A5A",
+    "end": "0x00135AC3",
+    "note": "Unresolved class metadata/default-object provider in the Cruise loading family. Original static initialization and return epilogue verified; bounds end at the following detected function."
+  },
+  {
+    "start": "0x00135D26",
+    "end": "0x00135D8C",
+    "note": "Unresolved class metadata/default-object provider in the Cruise loading family. Original static initialization and return epilogue verified; bounds end at the following detected function."
+  },
+  {
+    "start": "0x0013B58A",
+    "end": "0x0013B5F0",
+    "note": "Unresolved class metadata/default-object provider in the Cruise loading family. Original static initialization and return epilogue verified; bounds end at the following detected function."
+  },
+  {
+    "start": "0x0013BC9D",
+    "end": "0x0013BDFB",
+    "note": "Unresolved class metadata/default-object provider in the Cruise loading family. Original static initialization and return epilogue verified; bounds end at the following detected function."
+  },
+  {
+    "start": "0x0013CF18",
+    "end": "0x0013CF7E",
+    "note": "Unresolved class metadata/default-object provider in the Cruise loading family. Original static initialization and return epilogue verified; bounds end at the following detected function."
   }
 ]

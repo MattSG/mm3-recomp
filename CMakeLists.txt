@@ -81,8 +81,15 @@ add_executable(${PROJECT_NAME}
 
 set_property(SOURCE src/recomp_manual.c APPEND PROPERTY COMPILE_DEFINITIONS
     "recomp_lookup_manual=recomp_lookup_manual_base")
-set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_stubs_unresolved.c" APPEND PROPERTY
-    COMPILE_DEFINITIONS "sub_0013679A=sub_0013679A_unresolved;sub_00132E3F=sub_00132E3F_unresolved")
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/mm3_runtime_entry_repairs.json" runtime_entries_json)
+string(JSON runtime_entry_count LENGTH "${runtime_entries_json}")
+math(EXPR runtime_entry_last "${runtime_entry_count} - 1")
+foreach(runtime_entry_index RANGE 0 ${runtime_entry_last})
+    string(JSON runtime_entry_start GET "${runtime_entries_json}" ${runtime_entry_index} start)
+    string(SUBSTRING "${runtime_entry_start}" 2 8 runtime_entry_suffix)
+    set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_stubs_unresolved.c" APPEND PROPERTY
+        COMPILE_DEFINITIONS "sub_${runtime_entry_suffix}=sub_${runtime_entry_suffix}_unresolved")
+endforeach()
 
 if(MM3_MOVIE_INPUT_TRACE)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3_movie_input_trace.c)
