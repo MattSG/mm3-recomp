@@ -89,4 +89,40 @@
     "calls_to": ["0x0010DD0F"], "called_by": [],
     "note": "Observed unresolved call from menu factory 001C3A7C. Native constructor installs vtable 0037B818 and clears fields 4C through 80 after base construction."
   }
+  ,{
+    "start":"0x0010CB4A", "end":"0x0010CB56", "size":12, "name":"sub_0010CB4A", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":3,
+    "calls_to":["0x0010C6B5"], "called_by":[],
+    "note":"Observed menu factory stub; native base construction followed by vtable 0037B658."
+  },{
+    "start":"0x001022FB", "end":"0x00102319", "size":30, "name":"sub_001022FB", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":9,
+    "calls_to":[], "called_by":[],
+    "note":"Observed menu factory stub; native initializes vtable 00379298, zero fields and default float fields."
+  },{
+    "start":"0x00112E1A", "end":"0x00112E46", "size":44, "name":"sub_00112E1A", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":18,
+    "calls_to":["0x000C7BE4"], "called_by":[],
+    "note":"Observed menu construction stub at caller 001C3796; native preserves ESI/EDI, constructs base, clears fields and installs vtable 0037C800."
+  },{
+    "start":"0x0024D7BF", "end":"0x0024D7D6", "size":23, "name":"sub_0024D7BF", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":6,
+    "calls_to":["0x000C5BC0"], "called_by":[],
+    "note":"Observed menu factory stub; native constructs base, installs vtable 0037CAB0 and sets field 20 to one."
+  },{
+    "start":"0x000FB92B", "end":"0x000FB94F", "size":36, "name":"sub_000FB92B", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_menu_accessor", "has_prologue":false, "external_entry":true, "num_instructions":10,
+    "calls_to":[], "called_by":["0x000FB991"],
+    "note":"Observed unresolved menu geometry setter. Native writes scaled float and second argument through virtual-base adjustment and returns with RET 8."
+  },{
+    "start":"0x000FBD94", "end":"0x000FBDB8", "size":36, "name":"sub_000FBD94", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_menu_accessor", "has_prologue":false, "external_entry":true, "num_instructions":10,
+    "calls_to":[], "called_by":["0x000FBE01"],
+    "note":"Observed unresolved menu geometry setter for second virtual-base layout; native writes scaled float and second argument and returns with RET 8."
+  },{
+    "start":"0x000FB8FF", "end":"0x000FB92B", "size":44, "name":"sub_000FB8FF", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_menu_accessor", "has_prologue":false, "external_entry":true, "num_instructions":14,
+    "calls_to":[], "called_by":["0x0010024D"],
+    "note":"Observed unresolved menu geometry getter; native writes both output floats and normalizes the first, then RET 8."
+  }
 ]
