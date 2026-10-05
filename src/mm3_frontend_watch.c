@@ -147,16 +147,62 @@ static void check_heap_frontier(uint32_t heap, uint32_t caller, const char *phas
     }
 }
 
+extern void sub_000860AA_original(void);
+
+static uint32_t heap_bad_free_link(uint32_t heap)
+{
+    uint32_t head, node;
+    if (heap < 0x00500000u || heap > 0x07FFF000u) return 0;
+    head = heap + 0x180u;
+    node = MEM32(head);
+    for (unsigned i = 0; node != head && i < 128; ++i) {
+        if (node && node < 0x00500000u) return node;
+        if (node < 0x00500000u || node > 0x07FFFFF8u) return 0;
+        node = MEM32(node);
+    }
+    return 0;
+}
+
+static void heap_link_transition(uint32_t heap, uint32_t caller, uint32_t argument,
+    uint32_t before, const char *operation)
+{
+    uint32_t after = heap_bad_free_link(heap);
+    if (!before && after) {
+        fprintf(stderr, "[HEAP_FREE_LINK_CORRUPTED] operation=%s heap=%08X caller=%08X argument=%08X link=%08X esp=%08X\n",
+            operation, heap, caller, argument, after, g_esp);
+        if (getenv("RECOMP_HEAP_LINK_BREAK") && IsDebuggerPresent()) DebugBreak();
+    }
+}
+
+void sub_000860AA(void)
+{
+    uint32_t heap = MEM32(g_esp+4u), caller = MEM32(g_esp), pointer = MEM32(g_esp+12u);
+    int trace = getenv("MM3_HEAP_LINK_TRACE") != NULL;
+    uint32_t before = trace ? heap_bad_free_link(heap) : 0;
+    if (trace && pointer && pointer < 0x00500000u) {
+        fprintf(stderr, "[HEAP_FREE_INVALID_ARGUMENT] heap=%08X caller=%08X pointer=%08X esp=%08X ebp=%08X stack=%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X\n",
+            heap, caller, pointer, g_esp, g_ebp,
+            MEM32(g_esp+16u), MEM32(g_esp+20u), MEM32(g_esp+24u), MEM32(g_esp+28u),
+            MEM32(g_esp+32u), MEM32(g_esp+36u), MEM32(g_esp+40u), MEM32(g_esp+44u));
+        if (getenv("RECOMP_HEAP_LINK_BREAK") && IsDebuggerPresent()) DebugBreak();
+    }
+    sub_000860AA_original();
+    if (trace) heap_link_transition(heap, caller, pointer, before, "free");
+}
+
 void sub_000858F3(void)
 {
     uint32_t heap = MEM32(g_esp+4u), caller = MEM32(g_esp);
     uint32_t size = MEM32(g_esp+12u);
     int trace = getenv("MM3_HEAP_FRONTIER") != NULL;
+    int link_trace = getenv("MM3_HEAP_LINK_TRACE") != NULL;
+    uint32_t bad_before = link_trace ? heap_bad_free_link(heap) : 0;
     if (trace && (heap < 0x10000u || (heap & 0xFFFu)))
         fprintf(stderr, "[HEAP_INVALID_ARGUMENT] heap=%08X caller=%08X esp=%08X ebp=%08X seh=%08X args=%08X,%08X,%08X,%08X\n",
             heap, caller, g_esp, g_ebp, g_seh_ebp, MEM32(g_esp+4u), MEM32(g_esp+8u), MEM32(g_esp+12u), MEM32(g_esp+16u));
     if (trace) check_heap_frontier(heap, caller, "before");
     sub_000858F3_original();
+    if (link_trace) heap_link_transition(heap, caller, size, bad_before, "allocate");
     if (g_eax && g_eax < 0x00500000u &&
         (trace || getenv("MM3_HEAP_RETURN_TRACE"))) {
         static LONG return_breaks;

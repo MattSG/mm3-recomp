@@ -252,7 +252,11 @@ void sub_000858F3(void)
                 MEM32(g_esp + 12), g_esi, g_edi);
     call_alternate_seh_preserving(sub_000858F3_gen);
 }
+#ifdef MM3_HEAP_WATCH_WRAPPER
+void sub_000860AA_original(void) { call_alternate_seh_preserving(sub_000860AA_gen); }
+#else
 void sub_000860AA(void) { call_alternate_seh_preserving(sub_000860AA_gen); }
+#endif
 void sub_0008629E(void) { call_alternate_seh_preserving(sub_0008629E_gen); }
 void sub_00096738(void) { sub_00096738_gen(); }
 /* The generated alternate-SEH overlay already owns both frame transitions.
