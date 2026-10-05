@@ -1,0 +1,17 @@
+[
+  {
+    "start": "0x0013679A",
+    "end": "0x001369A8",
+    "note": "Attribute-list virtual method tail target. The unresolved stub returns the object's vtable, causing Cruise resource lookup to dereference code bytes as strings."
+  },
+  {
+    "start": "0x000D66A3",
+    "end": "0x000D676B",
+    "note": "Car-preview render-data virtual method called from 0x0007075C; returns data and fills format/stride output arguments."
+  },
+  {
+    "start": "0x00104DD3",
+    "end": "0x00104F7B",
+    "note": "Car-selection drawing callback observed at 0x00104D2B. Original function returns with ret 20."
+  }
+]

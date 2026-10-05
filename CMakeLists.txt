@@ -74,9 +74,15 @@ add_executable(${PROJECT_NAME}
  src/host_graphics.c
  src/mm3_memory_compat.c
  src/mm3_memory_tails.c
+ src/mm3_runtime_entries.c
  src/recomp_manual.c
  src/recomp_trace_probe.c
  ${RECOMP_GEN_SOURCES})
+
+set_property(SOURCE src/recomp_manual.c APPEND PROPERTY COMPILE_DEFINITIONS
+    "recomp_lookup_manual=recomp_lookup_manual_base")
+set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_stubs_unresolved.c" APPEND PROPERTY
+    COMPILE_DEFINITIONS "sub_0013679A=sub_0013679A_unresolved")
 
 if(MM3_MOVIE_INPUT_TRACE)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3_movie_input_trace.c)
