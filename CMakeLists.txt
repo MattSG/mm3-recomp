@@ -21,7 +21,7 @@ if(MM3_FRONTEND_WATCH)
         COMPILE_DEFINITIONS "MM3_HEAP_WATCH_WRAPPER=1")
     # Seeded functions can move between split files after regeneration.
     # Bind diagnostic aliases to their actual definition instead of an index.
-    foreach(wrapped_function sub_000FA37E sub_0011935B sub_001253F4)
+  foreach(wrapped_function sub_000FA37E sub_0011935B sub_001253F4 sub_0008E420)
         set(wrapper_owners "")
         foreach(generated_source IN LISTS RECOMP_GEN_SOURCES)
             file(STRINGS "${generated_source}" wrapper_signature

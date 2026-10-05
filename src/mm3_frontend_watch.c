@@ -9,6 +9,24 @@ extern void sub_000FA37E_original(void);
 extern void sub_000858F3_original(void);
 extern void sub_0011935B_original(void);
 extern void sub_001253F4_original(void);
+extern void sub_0008E420_original(void);
+
+void sub_0008E420(void)
+{
+    uint32_t size = MEM32(g_esp + 4u), caller = MEM32(g_esp);
+    uint32_t callback = MEM32(0x003BDF9Cu), before = g_esp;
+    int trace = getenv("MM3_BINK_ALLOC_TRACE") != NULL;
+    sub_0008E420_original();
+    if (trace) {
+        static RECOMP_TLS unsigned reports;
+        int invalid = g_eax && g_eax < 0x00500000u;
+        if (reports++ < 64 || invalid)
+            fprintf(stderr, "[BINK_ALLOC] size=%u caller=%08X callback=%08X result=%08X esp=%08X->%08X\n",
+                    size, caller, callback, g_eax, before, g_esp);
+        if (invalid && getenv("RECOMP_BINK_ALLOC_BREAK"))
+            DebugBreak();
+    }
+}
 void mm3_frontend_before_call(uint32_t va);
 void mm3_frontend_after_call(uint32_t va, uint32_t edi_before, uint32_t esp_before, uint32_t esi_before);
 extern intptr_t xbox_GetMemoryOffset(void);
