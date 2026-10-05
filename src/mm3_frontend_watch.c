@@ -272,8 +272,20 @@ void mm3_frontend_watch_enter(void)
     arm_frontend_watch(g_edi);
 }
 
+/* Environment switches are fixed before the guest starts. Avoid the CRT's
+ * process-wide environment lock on every disabled diagnostic call hook. */
+static int mm3_frontend_call_watch_enabled(void)
+{
+    static RECOMP_TLS int enabled = -1;
+    if (enabled < 0)
+        enabled = getenv("MM3_FRONTEND_WRITE_WATCH") != NULL ||
+                  getenv("MM3_HEAP_FRONTIER") != NULL;
+    return enabled;
+}
+
 void mm3_frontend_before_call(uint32_t va)
 {
+    if (!mm3_frontend_call_watch_enabled()) return;
     static unsigned string_calls[2];
     static unsigned erase_copies;
     if (va == 0x00093860u && MEM32(g_esp) == 0x00012829u && MEM32(g_esp+12u) && getenv("MM3_HEAP_FRONTIER") && erase_copies++ < 10)
@@ -321,6 +333,7 @@ void mm3_frontend_before_call(uint32_t va)
 
 void mm3_frontend_after_call(uint32_t va, uint32_t edi_before, uint32_t esp_before, uint32_t esi_before)
 {
+    if (!mm3_frontend_call_watch_enabled()) return;
     if (menu_size_target && menu_size_target == va) {
         fprintf(stderr, "[MENU_SIZE_RETURN] target=%08X size=%08X esp=%08X->%08X\n", va, g_eax, esp_before, g_esp);
         menu_size_target = 0;
