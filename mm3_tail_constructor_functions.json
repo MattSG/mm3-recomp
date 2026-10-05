@@ -29,4 +29,34 @@
     "called_by": ["0x0007DC3A"],
     "note": "Native JMP at 0007DC45 initializes a 36-byte menu object and vtable 0036E7F0; the unresolved stub left allocation contents as its vtable."
   }
+  ,{
+    "start": "0x0011356D",
+    "end": "0x00113611",
+    "size": 164,
+    "name": "sub_0011356D",
+    "section": ".text",
+    "confidence": 1.0,
+    "detection_method": "mm3_native_tail_constructor",
+    "has_prologue": false,
+    "external_entry": true,
+    "num_instructions": 52,
+    "calls_to": [],
+    "called_by": ["0x0006BA57"],
+    "note": "Native JMP at 0006BA65 initializes a 172-byte menu object with vtable 0037C8D0; observed factory results contained stale text instead."
+  },
+  {
+    "start": "0x000C46C8",
+    "end": "0x000C46E5",
+    "size": 29,
+    "name": "sub_000C46C8",
+    "section": ".text",
+    "confidence": 1.0,
+    "detection_method": "mm3_native_tail_constructor",
+    "has_prologue": false,
+    "external_entry": true,
+    "num_instructions": 9,
+    "calls_to": [],
+    "called_by": ["0x0007D789"],
+    "note": "Native JMP at 0007D794 initializes a 24-byte menu object with vtable 0036FAA0; observed factory results contained allocation contents instead."
+  }
 ]
