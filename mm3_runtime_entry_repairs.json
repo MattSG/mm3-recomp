@@ -151,5 +151,10 @@
     "start": "0x001CAF8D",
     "end": "0x001CAFA8",
     "note": "Cruise vehicle-state initialization callback invoked by 0x00220702. Reset original state and floating-point fields; boundary is the next original leaf entry."
+  },
+  {
+    "start": "0x002533EB",
+    "end": "0x002533FE",
+    "note": "Runtime virtual callback reached from 0x000FA707 when entering gameplay. Forward the original float argument to 0x002513B6 with the original this-pointer adjustment and ret 4 cleanup."
   }
 ]
