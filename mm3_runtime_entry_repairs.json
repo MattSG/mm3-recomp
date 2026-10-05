@@ -131,5 +131,25 @@
     "x87_extended_constants": [
       "0x00393816"
     ]
+  },
+  {
+    "start": "0x00109367",
+    "end": "0x0010937F",
+    "note": "Runtime attribute-object constructor: initialize original vtable and fields instead of returning an empty unresolved stub."
+  },
+  {
+    "start": "0x0023F023",
+    "end": "0x0023F05A",
+    "note": "Runtime attribute-object constructor reached while loading Cruise. Restore original vtable, field defaults, and float defaults."
+  },
+  {
+    "start": "0x0023DC1B",
+    "end": "0x0023DC38",
+    "note": "Runtime attribute-object constructor reached while loading Cruise. Restore original vtable and fields."
+  },
+  {
+    "start": "0x001CAF8D",
+    "end": "0x001CAFA8",
+    "note": "Cruise vehicle-state initialization callback invoked by 0x00220702. Reset original state and floating-point fields; boundary is the next original leaf entry."
   }
 ]
