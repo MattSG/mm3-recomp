@@ -125,4 +125,20 @@
     "calls_to":[], "called_by":["0x0010024D"],
     "note":"Observed unresolved menu geometry getter; native writes both output floats and normalizes the first, then RET 8."
   }
+  ,{
+    "start":"0x0023E201", "end":"0x0023E240", "size":63, "name":"sub_0023E201", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":15,
+    "calls_to":["0x0010842A"], "called_by":[],
+    "note":"Observed unresolved menu factory constructor. Native constructs base, clears fields AC through C0, installs vtable 00379F40 and sets field C to seven."
+  },{
+    "start":"0x001054C8", "end":"0x001054F9", "size":49, "name":"sub_001054C8", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":17,
+    "calls_to":[], "called_by":[],
+    "note":"Observed unresolved menu factory constructor. Native initializes vtable 003798F0, float fields 24 and 28 to one, and other fields to zero."
+  },{
+    "start":"0x00104D69", "end":"0x00104D92", "size":41, "name":"sub_00104D69", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":14,
+    "calls_to":[], "called_by":[],
+    "note":"Observed unresolved menu factory constructor. Native installs vtable 00379800 and clears fields 4 through 28."
+  }
 ]
