@@ -104,6 +104,8 @@ set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0000.c" APPEND PROPERTY
     COMPILE_DEFINITIONS "sub_000145DC=sub_000145DC_original")
 set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0018.c" APPEND PROPERTY
     COMPILE_DEFINITIONS "sub_001F02AD=sub_001F02AD_original")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/mm3_runtime_entry_repairs.json")
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/mm3_runtime_entry_repairs.json" runtime_entries_json)
 string(JSON runtime_entry_count LENGTH "${runtime_entries_json}")
 math(EXPR runtime_entry_last "${runtime_entry_count} - 1")
