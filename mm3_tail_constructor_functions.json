@@ -184,4 +184,10 @@
     "calls_to":["0x0010C432"], "called_by":[],
     "note":"Last observed unresolved menu factory constructor in the nine-constructor probe. Native constructs base, installs vtable 0037B178 and clears fields 40 through 5C."
   }
+  ,{
+    "start":"0x00112CEB", "end":"0x00112D05", "size":26, "name":"sub_00112CEB", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":9,
+    "calls_to":["0x00112C4B"], "called_by":[],
+    "note":"Observed unresolved menu factory constructor after restoring 0010C86F. Native constructs base, sets field 1C to minus one, clears 20 and installs vtable 0037C508 while preserving ESI."
+  }
 ]
