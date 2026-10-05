@@ -19,10 +19,24 @@ file(GLOB RECOMP_GEN_SOURCES CONFIGURE_DEPENDS
 if(MM3_FRONTEND_WATCH)
     set_property(SOURCE "src/recomp_manual.c" APPEND PROPERTY
         COMPILE_DEFINITIONS "MM3_HEAP_WATCH_WRAPPER=1")
-    set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0012.c" APPEND PROPERTY
-        COMPILE_DEFINITIONS "sub_001253F4=sub_001253F4_original")
-    set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0011.c" APPEND PROPERTY
-        COMPILE_DEFINITIONS "sub_000FA37E=sub_000FA37E_original" "sub_0011935B=sub_0011935B_original")
+    # Seeded functions can move between split files after regeneration.
+    # Bind diagnostic aliases to their actual definition instead of an index.
+    foreach(wrapped_function sub_000FA37E sub_0011935B sub_001253F4)
+        set(wrapper_owners "")
+        foreach(generated_source IN LISTS RECOMP_GEN_SOURCES)
+            file(STRINGS "${generated_source}" wrapper_signature
+                REGEX "^void ${wrapped_function}\\(void\\)$" LIMIT_COUNT 1)
+            if(wrapper_signature)
+                list(APPEND wrapper_owners "${generated_source}")
+            endif()
+        endforeach()
+        list(LENGTH wrapper_owners wrapper_owner_count)
+        if(NOT wrapper_owner_count EQUAL 1)
+            message(FATAL_ERROR "Expected one generated definition for ${wrapped_function}; found ${wrapper_owner_count}")
+        endif()
+        set_property(SOURCE ${wrapper_owners} APPEND PROPERTY
+            COMPILE_DEFINITIONS "${wrapped_function}=${wrapped_function}_original")
+    endforeach()
     if(MSVC)
         set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0000.c" "${RECOMP_GEN_DIR}/recomp_0011.c" "${RECOMP_GEN_DIR}/recomp_0012.c" "${RECOMP_GEN_DIR}/recomp_0017.c" "${RECOMP_GEN_DIR}/recomp_0020.c" APPEND PROPERTY
             COMPILE_OPTIONS "/FI${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
