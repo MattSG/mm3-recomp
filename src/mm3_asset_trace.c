@@ -18,6 +18,24 @@ static int asset_trace_enabled(void)
     return enabled;
 }
 
+void mm3_asset_math_trace(uint32_t va, int after, uint32_t original_sp)
+{
+    static RECOMP_TLS unsigned reports;
+    static RECOMP_TLS unsigned depth;
+    if (!asset_trace_enabled()) return;
+    if (va == 0x25371Cu && !after) ++depth;
+    if (!depth && va != 0x1CCD2Au) return;
+    if (va != 0x9B8C2u && va != 0x9B3DCu && va != 0x9BB15u &&
+        va != 0x9BC52u && va != 0x9B94Eu && va != 0x1CCD2Au &&
+        va != 0x25371Cu && va != 0x1CB15Fu) return;
+    if (reports < 160) {
+    ++reports;
+    fprintf(stderr, "[ASSET_MATH_%s] va=%08X esp=%08X before=%08X ebp=%08X seh=%08X ebx=%08X esi=%08X edi=%08X\n",
+            after ? "END" : "BEGIN", va, g_esp, original_sp, g_ebp, g_seh_ebp, g_ebx, g_esi, g_edi);
+    }
+    if (va == 0x25371Cu && after) --depth;
+}
+
 static void trace_copy(uint32_t va, void (*body)(void), unsigned cleanup)
 {
     uint32_t sp = g_esp, bx = g_ebx, si = g_esi, di = g_edi;

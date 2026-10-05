@@ -92,16 +92,44 @@
   {
     "start": "0x0009BB15",
     "end": "0x0009BC04",
-    "note": "Runtime x87 math dispatch entry repeatedly reached through 0x0009B8E1 during Cruise loading. Inherits the caller's math frame; outgoing helpers 9BC52 and 9BC95 already have detected bodies."
-  } ,
+    "note": "Runtime x87 math dispatch entry repeatedly reached through 0x0009B8E1 during Cruise loading. Inherits the caller's math frame; outgoing helpers 9BC52 and 9BC95 already have detected bodies.",
+    "x87_extended_constants": [
+      "0x003937F8"
+    ],
+    "x87_helper_unwinds_caller": true
+  },
   {
     "start": "0x0009BB04",
     "end": "0x0009BC04",
-    "note": "Related x87 power dispatch entry sharing the caller's frame and the 9BB22 result path."
+    "note": "Related x87 power dispatch entry sharing the caller's frame and the 9BB22 result path.",
+    "x87_extended_constants": [
+      "0x003937F8"
+    ],
+    "x87_helper_unwinds_caller": true
   },
   {
     "start": "0x0009BB11",
     "end": "0x0009BC04",
-    "note": "Backward shared x87 logarithm continuation referenced by the power dispatch path; preserve x87 stack and inherited frame."
+    "note": "Backward shared x87 logarithm continuation referenced by the power dispatch path; preserve x87 stack and inherited frame.",
+    "x87_extended_constants": [
+      "0x003937F8"
+    ],
+    "x87_helper_unwinds_caller": true
+  },
+  {
+    "start": "0x0009BC04",
+    "end": "0x0009BC35",
+    "note": "Original x87 overflow continuation pops the helper return address and returns from its caller. Recover the complete extended infinity operand.",
+    "x87_extended_constants": [
+      "0x003937F8"
+    ]
+  },
+  {
+    "start": "0x0009BC52",
+    "end": "0x0009BC95",
+    "note": "Original x87 exponential range-reduction helper. Its 80-bit 32767.5 range limit must not be read as a 32-bit zero.",
+    "x87_extended_constants": [
+      "0x00393816"
+    ]
   }
 ]

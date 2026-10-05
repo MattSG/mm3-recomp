@@ -46,6 +46,21 @@ if(MM3_FRONTEND_WATCH)
     endif()
 endif()
 
+if(MM3_FRONTEND_WATCH)
+    if(MSVC)
+        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0008.c" "${RECOMP_GEN_DIR}/recomp_runtime_entries.c" APPEND PROPERTY
+            COMPILE_OPTIONS "/FI${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
+    else()
+        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0008.c" "${RECOMP_GEN_DIR}/recomp_runtime_entries.c" APPEND PROPERTY
+            COMPILE_OPTIONS "-include" "${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
+    endif()
+endif()
+
+# Recovered x87 helpers preserve extended operands and their original unusual
+# stack return. Keep the base lift available without duplicate public bodies.
+set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0008.c" APPEND PROPERTY
+    COMPILE_DEFINITIONS "sub_0009BC04=sub_0009BC04_original" "sub_0009BC52=sub_0009BC52_original")
+
 # 0x252AF is supplied by recomp_manual.c.  The generator also lists it in the
 # aggregate unresolved-stub TU; rename that one fallback so the real override
 # owns the dispatch symbol without editing generated output.
