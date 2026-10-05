@@ -30,6 +30,8 @@ param(
     [ValidateSet('dice.bik', 'msgs.bik', 'intro.bik', 'AttractMode0.bik', 'AttractMode1.bik', 'AttractMode2.bik')]
     [string[]]$SkipMovies = @('dice.bik', 'msgs.bik', 'intro.bik'),
     [ValidateRange(1, 600)][int]$DurationSeconds = 45,
+    [ValidateRange(0, 600)][int]$SkipDelaySeconds = 0,
+
     [switch]$Headless,
     [switch]$TracePostMovieFrame,
     [switch]$DspPassthrough
@@ -102,6 +104,7 @@ Write-Output "PID=$($process.Id) evidence=$run"
 $clock = [Diagnostics.Stopwatch]::StartNew()
 $activeMovie = ''
 $lastPress = -1000
+$movieStartedAt = 0
 $reader = $null
 $pending = ''
 $frameTraceAt = [long]::MaxValue
@@ -114,8 +117,13 @@ try {
         for ($i = 0; $i -lt $parts.Count - 1; $i++) {
             $line = $parts[$i]
             if ($line -match '\[MOVIE_FRAME\] total=(\d+) frame=(\d+)') {
+                $previousMovie = $activeMovie
                 $activeMovie = switch ([int]$Matches[1]) {
                     144 { 'dice.bik' }; 308 { 'msgs.bik' }; 3114 { 'intro.bik' }; 3092 { 'AttractMode2.bik' }; 3108 { 'AttractMode0.bik' }; 3250 { 'AttractMode1.bik' }; default { '' }
+                }
+                if ($activeMovie -ne $previousMovie) {
+                    $movieStartedAt = $clock.ElapsedMilliseconds
+                    Write-Output "MOVIE_WAIT name=$activeMovie delay=$SkipDelaySeconds"
                 }
             }
             if ($line -match '\[MOVIE_END\]') {
@@ -131,6 +139,7 @@ try {
             $frameTraceAt = [long]::MaxValue
         }
         if ($InputMode -eq 'Live' -and $activeMovie -in $SkipMovies -and
+            $clock.ElapsedMilliseconds - $movieStartedAt -ge ($SkipDelaySeconds * 1000) -and
             $clock.ElapsedMilliseconds - $lastPress -ge 500) {
             [IO.File]::AppendAllText($live, "$($Button):200`n")
             $lastPress = $clock.ElapsedMilliseconds
