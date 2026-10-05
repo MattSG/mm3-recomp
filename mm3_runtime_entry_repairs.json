@@ -83,5 +83,10 @@
     "start": "0x0013CF18",
     "end": "0x0013CF7E",
     "note": "Unresolved class metadata/default-object provider in the Cruise loading family. Original static initialization and return epilogue verified; bounds end at the following detected function."
+  },
+  {
+    "start": "0x001FFDA1",
+    "end": "0x001FFE78",
+    "note": "Runtime state callback invoked through 0x000888BA during Cruise loading. Missing dispatch silently discards the original state/event updates. Original epilogue and next-function boundary verified."
   }
 ]
