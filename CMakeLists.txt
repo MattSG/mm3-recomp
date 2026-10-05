@@ -38,10 +38,10 @@ if(MM3_FRONTEND_WATCH)
             COMPILE_DEFINITIONS "${wrapped_function}=${wrapped_function}_original")
     endforeach()
     if(MSVC)
-        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0000.c" "${RECOMP_GEN_DIR}/recomp_0011.c" "${RECOMP_GEN_DIR}/recomp_0012.c" "${RECOMP_GEN_DIR}/recomp_0017.c" "${RECOMP_GEN_DIR}/recomp_0020.c" APPEND PROPERTY
+        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0000.c" "${RECOMP_GEN_DIR}/recomp_0011.c" "${RECOMP_GEN_DIR}/recomp_0012.c" "${RECOMP_GEN_DIR}/recomp_0017.c" "${RECOMP_GEN_DIR}/recomp_0020.c" "${RECOMP_GEN_DIR}/recomp_stubs_unresolved.c" APPEND PROPERTY
             COMPILE_OPTIONS "/FI${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
     else()
-        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0000.c" "${RECOMP_GEN_DIR}/recomp_0011.c" "${RECOMP_GEN_DIR}/recomp_0012.c" "${RECOMP_GEN_DIR}/recomp_0017.c" "${RECOMP_GEN_DIR}/recomp_0020.c" APPEND PROPERTY
+        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0000.c" "${RECOMP_GEN_DIR}/recomp_0011.c" "${RECOMP_GEN_DIR}/recomp_0012.c" "${RECOMP_GEN_DIR}/recomp_0017.c" "${RECOMP_GEN_DIR}/recomp_0020.c" "${RECOMP_GEN_DIR}/recomp_stubs_unresolved.c" APPEND PROPERTY
             COMPILE_OPTIONS "-include" "${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
     endif()
 endif()

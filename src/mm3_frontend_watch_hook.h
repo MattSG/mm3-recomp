@@ -3,6 +3,8 @@
 #define RECOMP_GENERATED_CODE
 #include "recomp_funcs.h"
 void mm3_frontend_watch_enter(void);
+void mm3_frontend_unresolved_stub(uint32_t va);
+#define RECOMP_UNRESOLVED_STUB_OBSERVE(va) mm3_frontend_unresolved_stub(va)
 void mm3_frontend_before_call(uint32_t va);
 void mm3_frontend_icall_site(uint32_t va, uint32_t site);
 void mm3_frontend_after_call(uint32_t va, uint32_t edi_before, uint32_t esp_before, uint32_t esi_before);

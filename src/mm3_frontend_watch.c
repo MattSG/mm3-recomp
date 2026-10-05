@@ -27,6 +27,27 @@ static RECOMP_TLS uint32_t menu_root;
 static RECOMP_TLS int menu_loading;
 static RECOMP_TLS uint32_t menu_virtual_target;
 static RECOMP_TLS uint32_t menu_size_target;
+static RECOMP_TLS struct { uint32_t va, calls; } unresolved_stubs[512];
+static RECOMP_TLS unsigned unresolved_stub_count;
+
+void mm3_frontend_unresolved_stub(uint32_t va)
+{
+    unsigned i;
+    uint32_t count;
+    if (!getenv("MM3_UNRESOLVED_STUB_TRACE")) return;
+    for (i = 0; i < unresolved_stub_count; ++i)
+        if (unresolved_stubs[i].va == va) break;
+    if (i == unresolved_stub_count) {
+        if (i == 512) return;
+        unresolved_stubs[i].va = va;
+        ++unresolved_stub_count;
+    }
+    count = ++unresolved_stubs[i].calls;
+    if (count == 1 || (count >= 1024 && !(count & (count-1u))))
+        fprintf(stderr, "[UNRESOLVED_STUB] va=%08X count=%u caller=%08X eax=%08X ecx=%08X esp=%08X thread=%u\n", va, count,
+                g_esp >= 0x10000u && g_esp < 0x08000000u-4u ? MEM32(g_esp) : 0,
+                g_eax, g_ecx, g_esp, GetCurrentThreadId());
+}
 
 void mm3_frontend_icall_site(uint32_t va, uint32_t site)
 {
