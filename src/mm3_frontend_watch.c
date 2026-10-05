@@ -10,6 +10,31 @@ extern void sub_000858F3_original(void);
 extern void sub_0011935B_original(void);
 extern void sub_001253F4_original(void);
 extern void sub_0008E420_original(void);
+extern void sub_0008E3C0_original(void);
+
+void sub_0008E3C0(void)
+{
+    uint32_t header = MEM32(g_esp + 4u), caller = MEM32(g_esp);
+    uint32_t total = MEM32(0x003BDF78u), count = MEM32(0x003BDF7Cu);
+    uint32_t outputs = MEM32(0x00392FF8u), sizes = MEM32(0x00392FFCu);
+    int trace = getenv("MM3_BINK_ALLOC_TRACE") != NULL;
+    sub_0008E3C0_original();
+    if (trace) {
+        int invalid = g_eax && g_eax < 0x00500000u;
+        fprintf(stderr, "[BINK_LAYOUT] caller=%08X header=%u total=%u count=%u result=%08X outputs=%08X sizes=%08X\n",
+                caller, header, total, count, g_eax, outputs, sizes);
+        if (outputs >= 0x10000u && outputs < 0x08000000u - 256u &&
+            sizes >= 0x10000u && sizes < 0x08000000u - 256u)
+            for (uint32_t i = 0; i < count && i < 64; ++i) {
+                uint32_t output = MEM32(outputs + i*4u);
+                uint32_t value = output >= 0x10000u && output < 0x08000000u-4u ? MEM32(output) : 0;
+                fprintf(stderr, "[BINK_LAYOUT_FIELD] index=%u output=%08X size=%u value=%08X\n",
+                        i, output, MEM32(sizes + i*4u), value);
+                if (value && value < 0x00500000u) invalid = 1;
+            }
+        if (invalid && getenv("RECOMP_BINK_ALLOC_BREAK")) DebugBreak();
+    }
+}
 
 void sub_0008E420(void)
 {
