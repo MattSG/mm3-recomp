@@ -285,6 +285,8 @@ static int mm3_frontend_call_watch_enabled(void)
 
 void mm3_frontend_before_call(uint32_t va)
 {
+    extern void mm3_asset_small_copy_begin(void);
+    if (va == 0x000120B6u) mm3_asset_small_copy_begin();
     if (!mm3_frontend_call_watch_enabled()) return;
     static unsigned string_calls[2];
     static unsigned erase_copies;
@@ -333,6 +335,8 @@ void mm3_frontend_before_call(uint32_t va)
 
 void mm3_frontend_after_call(uint32_t va, uint32_t edi_before, uint32_t esp_before, uint32_t esi_before)
 {
+    extern void mm3_asset_small_copy_end(uint32_t, uint32_t, uint32_t);
+    if (va == 0x000120B6u) mm3_asset_small_copy_end(esp_before, esi_before, edi_before);
     if (!mm3_frontend_call_watch_enabled()) return;
     if (menu_size_target && menu_size_target == va) {
         fprintf(stderr, "[MENU_SIZE_RETURN] target=%08X size=%08X esp=%08X->%08X\n", va, g_eax, esp_before, g_esp);

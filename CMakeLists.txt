@@ -75,12 +75,20 @@ add_executable(${PROJECT_NAME}
  src/mm3_memory_compat.c
  src/mm3_memory_tails.c
  src/mm3_runtime_entries.c
+ src/mm3_asset_trace.c
+ src/mm3_stream_compat.c
  src/recomp_manual.c
  src/recomp_trace_probe.c
  ${RECOMP_GEN_SOURCES})
 
 set_property(SOURCE src/recomp_manual.c APPEND PROPERTY COMPILE_DEFINITIONS
     "recomp_lookup_manual=recomp_lookup_manual_base")
+set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0014.c" APPEND PROPERTY
+    COMPILE_DEFINITIONS "sub_00170E5D=sub_00170E5D_original")
+set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0000.c" APPEND PROPERTY
+    COMPILE_DEFINITIONS "sub_000145DC=sub_000145DC_original")
+set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0018.c" APPEND PROPERTY
+    COMPILE_DEFINITIONS "sub_001F02AD=sub_001F02AD_original")
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/mm3_runtime_entry_repairs.json" runtime_entries_json)
 string(JSON runtime_entry_count LENGTH "${runtime_entries_json}")
 math(EXPR runtime_entry_last "${runtime_entry_count} - 1")
