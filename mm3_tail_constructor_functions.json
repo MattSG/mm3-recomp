@@ -74,4 +74,19 @@
     "called_by": ["0x001021B5"],
     "note": "Native size accessor tail-dispatches to the underlying buffer's vtable slot 8. Its unresolved stub returned a data-object address as a byte count, exhausting the heap and blocking contiguous allocations during FrontEnd loading."
   }
+  ,{
+    "start": "0x0010C9FB", "end": "0x0010CA07", "size": 12,
+    "name": "sub_0010C9FB", "section": ".text", "confidence": 1.0,
+    "detection_method": "mm3_native_tail_constructor", "has_prologue": false,
+    "external_entry": true, "num_instructions": 3,
+    "calls_to": ["0x0010C432"], "called_by": [],
+    "note": "Observed unresolved call from menu factory 001C3A7C. Native constructor invokes base constructor and installs vtable 0037B588."
+  },{
+    "start": "0x0010DD80", "end": "0x0010DDBB", "size": 59,
+    "name": "sub_0010DD80", "section": ".text", "confidence": 1.0,
+    "detection_method": "mm3_native_tail_constructor", "has_prologue": false,
+    "external_entry": true, "num_instructions": 18,
+    "calls_to": ["0x0010DD0F"], "called_by": [],
+    "note": "Observed unresolved call from menu factory 001C3A7C. Native constructor installs vtable 0037B818 and clears fields 4C through 80 after base construction."
+  }
 ]
