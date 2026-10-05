@@ -21,9 +21,9 @@ param(
     [string]$Executable = 'build-msvc-tailfix/movie-input/RelWithDebInfo/mm3_recomp.exe',
     [ValidateSet('Live', 'Timed')][string]$InputMode = 'Live',
     [ValidateSet('start', 'a', 'b')][string]$Button = 'start',
-    [ValidateSet('dice.bik', 'msgs.bik', 'intro.bik')]
+    [ValidateSet('dice.bik', 'msgs.bik', 'intro.bik', 'AttractMode2.bik')]
     [string[]]$SkipMovies = @('dice.bik', 'msgs.bik', 'intro.bik'),
-    [ValidateRange(1, 180)][int]$DurationSeconds = 45,
+    [ValidateRange(1, 600)][int]$DurationSeconds = 45,
     [switch]$Headless,
     [switch]$TracePostMovieFrame
 )
@@ -99,7 +99,7 @@ try {
             $line = $parts[$i]
             if ($line -match '\[MOVIE_FRAME\] total=(\d+) frame=(\d+)') {
                 $activeMovie = switch ([int]$Matches[1]) {
-                    144 { 'dice.bik' }; 308 { 'msgs.bik' }; 3114 { 'intro.bik' }; default { '' }
+                    144 { 'dice.bik' }; 308 { 'msgs.bik' }; 3114 { 'intro.bik' }; 3092 { 'AttractMode2.bik' }; default { '' }
                 }
             }
             if ($line -match '\[MOVIE_END\]') {
