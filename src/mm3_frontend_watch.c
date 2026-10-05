@@ -285,6 +285,11 @@ static int mm3_frontend_call_watch_enabled(void)
 
 void mm3_frontend_before_call(uint32_t va)
 {
+    static RECOMP_TLS int heap_free_trace = -1;
+    static RECOMP_TLS unsigned heap_free_samples;
+    if (heap_free_trace < 0) heap_free_trace = getenv("MM3_HEAP_FREE_TRACE") != NULL;
+    if (heap_free_trace && (va == 0x00084709u || va == 0x00085225u || va == 0x000849AEu) && heap_free_samples++ < 512)
+        fprintf(stderr, "[HEAP_FREE_BEGIN] va=%08X caller=%08X sp=%08X bp=%08X si=%08X bx=%08X args=%08X,%08X,%08X,%08X\n", va, MEM32(g_esp), g_esp, g_ebp, g_esi, g_ebx, MEM32(g_esp+4u), MEM32(g_esp+8u), MEM32(g_esp+12u), MEM32(g_esp+16u));
     extern void mm3_asset_math_trace(uint32_t, int, uint32_t);
     mm3_asset_math_trace(va, 0, g_esp);
     extern void mm3_asset_small_copy_begin(void);
@@ -337,6 +342,11 @@ void mm3_frontend_before_call(uint32_t va)
 
 void mm3_frontend_after_call(uint32_t va, uint32_t edi_before, uint32_t esp_before, uint32_t esi_before)
 {
+    static RECOMP_TLS int heap_free_trace = -1;
+    static RECOMP_TLS unsigned heap_free_samples;
+    if (heap_free_trace < 0) heap_free_trace = getenv("MM3_HEAP_FREE_TRACE") != NULL;
+    if (heap_free_trace && (va == 0x00084709u || va == 0x00085225u || va == 0x000849AEu) && heap_free_samples++ < 512)
+        fprintf(stderr, "[HEAP_FREE_END] va=%08X sp=%08X before=%08X bp=%08X si=%08X before_si=%08X bx=%08X ax=%08X\n", va, g_esp, esp_before, g_ebp, g_esi, esi_before, g_ebx, g_eax);
     extern void mm3_asset_math_trace(uint32_t, int, uint32_t);
     mm3_asset_math_trace(va, 1, esp_before);
     extern void mm3_asset_small_copy_end(uint32_t, uint32_t, uint32_t);

@@ -48,10 +48,10 @@ endif()
 
 if(MM3_FRONTEND_WATCH)
     if(MSVC)
-        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0008.c" "${RECOMP_GEN_DIR}/recomp_runtime_entries.c" APPEND PROPERTY
+        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_000860aa_seh.c" "${RECOMP_GEN_DIR}/recomp_0008.c" "${RECOMP_GEN_DIR}/recomp_runtime_entries.c" APPEND PROPERTY
             COMPILE_OPTIONS "/FI${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
     else()
-        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0008.c" "${RECOMP_GEN_DIR}/recomp_runtime_entries.c" APPEND PROPERTY
+        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_000860aa_seh.c" "${RECOMP_GEN_DIR}/recomp_0008.c" "${RECOMP_GEN_DIR}/recomp_runtime_entries.c" APPEND PROPERTY
             COMPILE_OPTIONS "-include" "${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
     endif()
 endif()
@@ -97,7 +97,7 @@ add_executable(${PROJECT_NAME}
  ${RECOMP_GEN_SOURCES})
 
 set_property(SOURCE src/recomp_manual.c APPEND PROPERTY COMPILE_DEFINITIONS
-    "recomp_lookup_manual=recomp_lookup_manual_base")
+    "recomp_lookup_manual=recomp_lookup_manual_base" "sub_00083A6C=sub_00083A6C_original")
 set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0014.c" APPEND PROPERTY
     COMPILE_DEFINITIONS "sub_00170E5D=sub_00170E5D_original")
 set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0000.c" APPEND PROPERTY
