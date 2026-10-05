@@ -27,7 +27,9 @@ static const char *movie_name(void)
 {
     return movie_total == 144 ? "dice.bik" : movie_total == 308 ? "msgs.bik"
         : movie_total == 3114 ? "intro.bik"
-        : movie_total == 3092 ? "AttractMode2.bik" : "unknown";
+        : movie_total == 3092 ? "AttractMode2.bik"
+        : movie_total == 3108 ? "AttractMode0.bik"
+        : movie_total == 3250 ? "AttractMode1.bik" : "unknown";
 }
 
 void sub_001DB6E8(void)
