@@ -30,25 +30,36 @@ extern bool apu_hook_handle_mmio(PCONTEXT context, uintptr_t fault_address,
 
 static PVOID g_mm3_apu_veh;
 
-static DWORD WINAPI mm3_wait_for_worker(LPVOID context)
+static HANDLE g_mm3_main_worker;
+static HANDLE g_mm3_main_worker_ready;
+static int g_mm3_inline_threads;
+extern void sub_00083A6C_original(void);
+
+/* Register the first XAPI worker before it can create background workers.
+ * The runtime's debug handle changes on every spawn and cannot determine
+ * the lifetime of the game. This wrapper preserves the guest register ABI. */
+void sub_00083A6C(void)
 {
-    HANDLE done = (HANDLE)context;
-
-    for (;;) {
-        HANDLE guest_thread = (HANDLE)xbox_thread_debug_handle();
-        HANDLE duplicate = NULL;
-
-        if (guest_thread && DuplicateHandle(GetCurrentProcess(), guest_thread,
-                                            GetCurrentProcess(), &duplicate,
-                                            SYNCHRONIZE, FALSE, 0)) {
-            WaitForSingleObject(duplicate, INFINITE);
-            CloseHandle(duplicate);
-            SetEvent(done);
-            return 0;
+    if (!g_mm3_inline_threads &&
+        !InterlockedCompareExchangePointer((PVOID volatile *)&g_mm3_main_worker,
+                                           NULL, NULL)) {
+        HANDLE current = NULL;
+        if (!DuplicateHandle(GetCurrentProcess(), GetCurrentThread(),
+                             GetCurrentProcess(), &current,
+                             SYNCHRONIZE, FALSE, 0)) {
+            fprintf(stderr, "cannot register MM3 main worker: %lu\n", GetLastError());
+            ExitProcess(1);
         }
-
-        Sleep(1);
+        if (InterlockedCompareExchangePointer((PVOID volatile *)&g_mm3_main_worker,
+                                              current, NULL)) {
+            CloseHandle(current);
+        } else {
+            fprintf(stderr, "[MM3_MAIN_THREAD] tid=%lu entry=00083A6C\n",
+                    GetCurrentThreadId());
+            SetEvent(g_mm3_main_worker_ready);
+        }
     }
+    sub_00083A6C_original();
 }
 
 static LONG WINAPI mm3_crash_report(EXCEPTION_POINTERS *info)
@@ -284,19 +295,15 @@ int main(void)
     }
     /* Retail behavior is SPAWN. INLINE is a bounded single-thread diagnostic
      * that removes cross-thread trace interleaving while locating startup. */
-    xbox_SetThreadMode(getenv("MM3_THREAD_MODE") &&
-                       _stricmp(getenv("MM3_THREAD_MODE"), "inline") == 0
-                           ? XBOX_THREAD_MODE_INLINE
-                           : XBOX_THREAD_MODE_SPAWN);
+    g_mm3_inline_threads = getenv("MM3_THREAD_MODE") &&
+                          _stricmp(getenv("MM3_THREAD_MODE"), "inline") == 0;
+    xbox_SetThreadMode(g_mm3_inline_threads ? XBOX_THREAD_MODE_INLINE : XBOX_THREAD_MODE_SPAWN);
 
     if (!recomp_dispatch_init())
         fprintf(stderr, "dispatch table allocation failed; using binary lookup\n");
 
-    HANDLE worker_done = CreateEventA(NULL, TRUE, FALSE, NULL);
-    HANDLE worker_waiter = worker_done
-        ? CreateThread(NULL, 0, mm3_wait_for_worker, worker_done, 0, NULL)
-        : NULL;
-    if (!worker_waiter) {
+    g_mm3_main_worker_ready = CreateEventA(NULL, TRUE, FALSE, NULL);
+    if (!g_mm3_main_worker_ready) {
         fprintf(stderr, "cannot create MM3 worker monitor\n");
         mm3_apu_shutdown();
         xbox_kernel_shutdown();
@@ -324,9 +331,12 @@ int main(void)
     }
     puts("starting XBE entry point 0x00083C55");
     xbe_entry_point();
-    WaitForSingleObject(worker_done, INFINITE);
-    CloseHandle(worker_waiter);
-    CloseHandle(worker_done);
+    if (!g_mm3_inline_threads) {
+        WaitForSingleObject(g_mm3_main_worker_ready, INFINITE);
+        WaitForSingleObject(g_mm3_main_worker, INFINITE);
+        CloseHandle(g_mm3_main_worker);
+    }
+    CloseHandle(g_mm3_main_worker_ready);
 
     mm3_apu_shutdown();
     xbox_kernel_shutdown();
