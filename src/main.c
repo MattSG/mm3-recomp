@@ -68,7 +68,19 @@ static LONG WINAPI mm3_crash_report(EXCEPTION_POINTERS *info)
             context ? (void *)context->Rsp : NULL,
             context ? context->Rax : 0,
             context ? context->Rdx : 0);
-    fprintf(stderr, "[CRASH] module=%p rip_rva=0x%llX\n",
+    {
+        void *frames[16];
+        USHORT count = CaptureStackBackTrace(0, 16, frames, NULL);
+        USHORT i;
+        for (i = 0; i < count; ++i)
+            fprintf(stderr, "[CRASH_NATIVE] frame=%u rva=0x%llX\n",
+                    (unsigned)i,
+                    (unsigned long long)((uintptr_t)frames[i] - module_base));
+        if (g_ebp >= 0x10000u && g_ebp < MM3_MEMORY_MAP_SIZE - 8u)
+            fprintf(stderr, "[CRASH_CALLER] frame=%08X parent=%08X return=%08X\n",
+                    g_ebp, MEM32(g_ebp), MEM32(g_ebp + 4u));
+    }
+   fprintf(stderr, "[CRASH] module=%p rip_rva=0x%llX\n",
             (void *)module_base,
             context ? (unsigned long long)((uintptr_t)context->Rip - module_base) : 0);
     fprintf(stderr, "[CRASH] xbox_mem_offset=%lld memory_base=%p\n",
