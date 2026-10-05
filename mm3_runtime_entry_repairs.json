@@ -88,5 +88,20 @@
     "start": "0x001FFDA1",
     "end": "0x001FFE78",
     "note": "Runtime state callback invoked through 0x000888BA during Cruise loading. Missing dispatch silently discards the original state/event updates. Original epilogue and next-function boundary verified."
+  },
+  {
+    "start": "0x0009BB15",
+    "end": "0x0009BC04",
+    "note": "Runtime x87 math dispatch entry repeatedly reached through 0x0009B8E1 during Cruise loading. Inherits the caller's math frame; outgoing helpers 9BC52 and 9BC95 already have detected bodies."
+  } ,
+  {
+    "start": "0x0009BB04",
+    "end": "0x0009BC04",
+    "note": "Related x87 power dispatch entry sharing the caller's frame and the 9BB22 result path."
+  },
+  {
+    "start": "0x0009BB11",
+    "end": "0x0009BC04",
+    "note": "Backward shared x87 logarithm continuation referenced by the power dispatch path; preserve x87 stack and inherited frame."
   }
 ]
