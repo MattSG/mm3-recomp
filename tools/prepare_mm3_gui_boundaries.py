@@ -1,4 +1,4 @@
-"""Seed native menu constructors and repair proven GUI entry boundaries."""
+"""Seed native menu tail entries and repair proven GUI entry boundaries."""
 import argparse
 import json
 from pathlib import Path

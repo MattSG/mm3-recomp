@@ -59,4 +59,19 @@
     "called_by": ["0x0007D789"],
     "note": "Native JMP at 0007D794 initializes a 24-byte menu object with vtable 0036FAA0; observed factory results contained allocation contents instead."
   }
+  ,{
+    "start": "0x00018F0D",
+    "end": "0x00018F21",
+    "size": 20,
+    "name": "sub_00018F0D",
+    "section": ".text",
+    "confidence": 1.0,
+    "detection_method": "mm3_native_tail_accessor",
+    "has_prologue": false,
+    "external_entry": true,
+    "num_instructions": 8,
+    "calls_to": [],
+    "called_by": ["0x001021B5"],
+    "note": "Native size accessor tail-dispatches to the underlying buffer's vtable slot 8. Its unresolved stub returned a data-object address as a byte count, exhausting the heap and blocking contiguous allocations during FrontEnd loading."
+  }
 ]
