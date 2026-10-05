@@ -141,4 +141,41 @@
     "calls_to":[], "called_by":[],
     "note":"Observed unresolved menu factory constructor. Native installs vtable 00379800 and clears fields 4 through 28."
   }
+  ,{
+    "start":"0x000C2AE9", "end":"0x000C2B05", "size":28, "name":"sub_000C2AE9", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":10,
+    "calls_to":[], "called_by":[], "note":"Observed menu factory stub; native initializes vtable 0036E710, zero fields and unit float fields."
+  },{
+    "start":"0x0011156F", "end":"0x0011159D", "size":46, "name":"sub_0011156F", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":16,
+    "calls_to":[], "called_by":[], "note":"Observed menu factory stub; native initializes vtable 0037C318 and zeroes fields through 2C."
+  },{
+    "start":"0x0010CB12", "end":"0x0010CB26", "size":20, "name":"sub_0010CB12", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":5,
+    "calls_to":["0x0010C6B5"], "called_by":[], "note":"Observed menu factory stub; native constructs base, clears 74/78 and installs vtable 0037B0A0."
+  },{
+    "start":"0x0010CB26", "end":"0x0010CB3A", "size":20, "name":"sub_0010CB26", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":5,
+    "calls_to":["0x0010C6B5"], "called_by":[], "note":"Observed menu factory stub; native constructs base, clears 74/78 and installs vtable 0037B268."
+  },{
+    "start":"0x0010744E", "end":"0x00107490", "size":66, "name":"sub_0010744E", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":23,
+    "calls_to":["0x00107BE5","0x0001259E"], "called_by":[], "note":"Observed menu factory stub; native constructs base and two member arrays, installs vtable 0037A1C8, sets field C to two and preserves ESI/EDI."
+  },{
+    "start":"0x00114997", "end":"0x001149C2", "size":43, "name":"sub_00114997", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":19,
+    "calls_to":[], "called_by":[], "note":"Observed menu factory stub; native constructs through ECX, installs vtable 0037CB40, clears member fields and returns object in EAX."
+  },{
+    "start":"0x0010CB3A", "end":"0x0010CB4A", "size":16, "name":"sub_0010CB3A", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":4,
+    "calls_to":["0x0010C6B5"], "called_by":[], "note":"Observed menu factory stub; native constructs base, clears 74 and installs vtable 0037B490."
+  },{
+    "start":"0x00248A50", "end":"0x00248A64", "size":20, "name":"sub_00248A50", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":5,
+    "calls_to":["0x0011097C"], "called_by":[], "note":"Observed menu factory stub; native constructs base, clears 6C/70 and installs vtable 0037C028."
+  },{
+    "start":"0x0010C9D3", "end":"0x0010C9F6", "size":35, "name":"sub_0010C9D3", "section":".text", "confidence":1.0,
+    "detection_method":"mm3_native_tail_constructor", "has_prologue":false, "external_entry":true, "num_instructions":11,
+    "calls_to":["0x0010C432"], "called_by":[], "note":"Observed menu factory stub; native constructs base, installs vtable 0037B3C0 and clears fields 40 through 58."
+  }
 ]
