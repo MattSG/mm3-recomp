@@ -92,3 +92,8 @@ disasm_*.txt
 xemu.log
 # Local dependency install
 node_modules/
+
+# Local game-data copies and per-machine tool settings
+backups/
+game_files_dlc/
+.claude/
