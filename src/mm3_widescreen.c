@@ -15,6 +15,7 @@ extern void sub_0025968E_original(void);
 extern float nv2a_d3d_display_aspect(void);
 extern void nv2a_d3d_note_race_camera(void);
 extern void nv2a_d3d_note_frontend_camera(void);
+extern void nv2a_d3d_set_hud_start(float x0, float y0, float x1, float y1);
 
 void sub_0025968E(void)
 {
@@ -38,8 +39,12 @@ void sub_0025968E(void)
      * It is also how the renderer knows a race has started, so its HUD can
      * move out to the screen edges (nv2a_d3d11.c); the race camera builds its
      * projection once per race, car select's (0xE51EE) every frame. */
-    if (MEM32(g_esp) == 0x000F4AF5u && MEM32(g_ebp + 4) == 0x00210E1Eu)
+    if (MEM32(g_esp) == 0x000F4AF5u && MEM32(g_ebp + 4) == 0x00210E1Eu) {
+        /* The race HUD starts with the minimap's base quad; 2D drawn ahead of
+         * it is the name tags over cars, positioned through this camera. */
+        nv2a_d3d_set_hud_start(50.0f, 320.0f, 178.0f, 448.0f);
         nv2a_d3d_note_race_camera();
+    }
     else if (MEM32(g_esp) == 0x000F4AF5u && MEM32(g_ebp + 4) == 0x000E51EEu)
         nv2a_d3d_note_frontend_camera();       /* car select's turntable */
     if (MEM32(g_esp) == 0x000F4AF5u && MEM32(g_ebp + 4) == 0x00210E1Eu &&
