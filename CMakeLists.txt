@@ -111,7 +111,7 @@ foreach(distance_chunk 0010 0011 0014 0019 0020)
     elseif(distance_chunk STREQUAL "0014")
         set(distance_functions 001661D0)
     elseif(distance_chunk STREQUAL "0019")
-        set(distance_functions 002256C7)
+        set(distance_functions 002256C7 002203E5)
     else()
         set(distance_functions 0022F298)
     endif()
@@ -141,6 +141,7 @@ add_executable(${PROJECT_NAME}
  src/recomp_manual.c
  src/mm3_widescreen.c
  src/mm3_render_distance.c
+ src/mm3_debug_teleport.c
  src/recomp_trace_probe.c
  ${RECOMP_GEN_SOURCES})
 
