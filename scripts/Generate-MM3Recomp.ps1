@@ -75,6 +75,8 @@ Set-Content -LiteralPath (Join-Path $GeneratorDir ("recomp_{0}_tail.c" -f $addre
 # Keep runtime semantics project-owned while leaving tools/xboxrecomp untouched.
 $runtimeHeader = Join-Path $repo 'src\recomp\gen_trace\recomp_types.h'
 Copy-Item -LiteralPath $runtimeHeader -Destination (Join-Path $GeneratorDir 'recomp_types.h') -Force
+$cpuHeader = Join-Path $repo 'src\recomp\gen_trace\recomp_cpu.h'
+Copy-Item -LiteralPath $cpuHeader -Destination (Join-Path $GeneratorDir 'recomp_cpu.h') -Force
 
 # Generate alternate-SEH bodies through the official generator as overlays.
 # They stay separate so the normal title-wide prolog remains 97AA4.

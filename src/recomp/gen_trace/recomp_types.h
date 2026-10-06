@@ -287,6 +287,17 @@ static inline double recomp_frndint(double value, uint16_t control) {
     return rounded == 0.0 ? copysign(0.0, value) : rounded;
 }
 
+static inline double recomp_fp_round24(double value) {
+    double magnitude = fabs(value);
+    int exponent;
+    if ((magnitude <= 3.4028234663852886e38 && magnitude >= 1.1754943508222875e-38)
+        || magnitude == 0.0 || value != value || magnitude == INFINITY)
+        return (double)(float)value;
+    value = frexp(value, &exponent);
+    return ldexp((double)(float)value, exponent);
+}
+#define RECOMP_FP_PC(value) ((g_fp_control_word & 0x300u) ? (double)(value) : recomp_fp_round24(value))
+
 /* x87 integer stores use the guest RC bits, independently of host rounding.
  * Masked invalid conversions store the signed integer-indefinite value. */
 static inline int64_t recomp_fist(double value, uint16_t control, unsigned bits) {
@@ -532,6 +543,28 @@ RECOMP_XMM_BITWISE(XMM_CMP_EQ,  (a.f[i] == b.f[i]) ? 0xFFFFFFFFu : 0u)
 RECOMP_XMM_BITWISE(XMM_CMP_LT,  (a.f[i] <  b.f[i]) ? 0xFFFFFFFFu : 0u)
 RECOMP_XMM_BITWISE(XMM_CMP_LE,  (a.f[i] <= b.f[i]) ? 0xFFFFFFFFu : 0u)
 RECOMP_XMM_BITWISE(XMM_CMP_NEQ, (a.f[i] == b.f[i]) ? 0u : 0xFFFFFFFFu)
+
+static inline int recomp_cmp_pred(float a, float b, int p) {
+    switch (p & 7) {
+    case 0: return a == b;
+    case 1: return a < b;
+    case 2: return a <= b;
+    case 3: return a != a || b != b;
+    case 4: return !(a == b);
+    case 5: return !(a < b);
+    case 6: return !(a <= b);
+    default: return !(a != a || b != b);
+    }
+}
+static inline RecompXmm XMM_CMP_PRED(RecompXmm a, RecompXmm b, int p) {
+    RecompXmm r; int i;
+    for (i = 0; i < 4; ++i)
+        r.u[i] = recomp_cmp_pred(a.f[i], b.f[i], p) ? 0xFFFFFFFFu : 0u;
+    return r;
+}
+RECOMP_XMM_LANEWISE(XMM_SQRT,  sqrtf(b.f[i]))
+RECOMP_XMM_LANEWISE(XMM_RSQRT, 1.0f / sqrtf(b.f[i]))
+RECOMP_XMM_LANEWISE(XMM_RCP,   1.0f / b.f[i])
 
 /** movmskps: the four lane sign bits, packed into the low nibble. */
 static inline uint32_t XMM_MOVEMASK(RecompXmm a) {
@@ -943,6 +976,10 @@ void recomp_abi_violation_log(uint32_t va, uint32_t ebx0, uint32_t esi0,
     else { RECOMP_ICALL_OBSERVE(_va, RECOMP_ICALL_SEEN_UNRESOLVED); \
            recomp_icall_fail_log(_va); g_esp = (saved_esp); eax = 0; } \
 } while(0)
+
+#define RECOMP_ICALL_SAFE_AT(xbox_va, saved_esp, site) do { \
+    RECOMP_ICALL_SAFE((xbox_va), (saved_esp)); \
+} while (0)
 
 /**
  * RECOMP_ITAIL - Indirect tail call (jmp through function pointer).
