@@ -100,7 +100,7 @@ endif()
 
 # Rename definitions only: renaming every reference with a compile definition
 # would bypass the distance hooks for callers in the same generated chunk.
-foreach(distance_chunk 0010 0011 0014 0020)
+foreach(distance_chunk 0010 0011 0014 0019 0020)
     set(distance_input "${RECOMP_GEN_DIR}/recomp_${distance_chunk}.c")
     set(distance_output "${CMAKE_CURRENT_BINARY_DIR}/render_distance/recomp_${distance_chunk}.c")
     file(READ "${distance_input}" distance_content)
@@ -110,6 +110,8 @@ foreach(distance_chunk 0010 0011 0014 0020)
         set(distance_functions 000FE71E)
     elseif(distance_chunk STREQUAL "0014")
         set(distance_functions 001661D0)
+    elseif(distance_chunk STREQUAL "0019")
+        set(distance_functions 002256C7)
     else()
         set(distance_functions 0022F298)
     endif()
@@ -201,7 +203,7 @@ if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /bigobj)
 endif()
 
-foreach(distance_chunk 0010 0011 0014 0020)
+foreach(distance_chunk 0010 0011 0014 0019 0020)
     foreach(distance_property COMPILE_DEFINITIONS COMPILE_OPTIONS COMPILE_FLAGS)
         get_source_file_property(distance_property_value
             "${RECOMP_GEN_DIR}/recomp_${distance_chunk}.c" ${distance_property})

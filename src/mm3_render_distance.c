@@ -120,3 +120,18 @@ void sub_000F4AC3(void)
         MEMF(g_esp + 0x10) *= distance_scale();
     sub_000F4AC3_original();
 }
+
+extern void sub_002256C7_original(void);
+void sub_002256C7(void)
+{
+    uint32_t self = g_ecx, ps;
+    sub_002256C7_original();
+    /* The particle manager starts its systems with a maximum overdraw of 12
+     * (an NV2A fill-rate budget, copied into every emitter); its own
+     * particleSetMaxOverdraw setter accepts up to 255. */
+    ps = MEM32(self + 4);
+    if (ps && MEM32(ps + 0x524) == 12u && distance_scale() > 1.0f) {
+        MEM32(ps + 0x524) = 255u;
+        fprintf(stderr, "[MM3_DISTANCE] particle max overdraw 12 -> 255\n");
+    }
+}
