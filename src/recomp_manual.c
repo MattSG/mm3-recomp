@@ -81,6 +81,32 @@ void sub_000252AF(void)
     uint32_t caller_ebx = g_ebx;
     uint32_t caller_esi = g_esi;
     uint32_t caller_edi = g_edi;
+    uint32_t trace_context = g_eax - 4u;
+    uint32_t trace_field;
+    unsigned trace_char;
+    static unsigned trace_count;
+    int trace_call = trace_count++ < 20;
+    if (trace_call)
+        fprintf(stderr, "[252AF_ENTRY] esp=%08X ebp=%08X seh=%08X eax=%08X ret=%08X args=%08X,%08X,%08X ctx=%08X:{%08X,%08X,%08X,%08X,%08X,%08X}\n",
+                g_esp, g_ebp, g_seh_ebp, g_eax,
+                MEM32(g_esp), MEM32(g_esp + 4), MEM32(g_esp + 8),
+                MEM32(g_esp + 12), g_eax - 4u, MEM32(g_eax - 4u),
+                MEM32(g_eax), MEM32(g_eax + 4u), MEM32(g_eax + 8u),
+                MEM32(g_eax + 12u), MEM32(g_eax + 16u));
+    if (trace_call) {
+        for (trace_field = 3; trace_field <= 5; trace_field++) {
+            uint32_t text_va = MEM32(trace_context + trace_field * 4u);
+            if (text_va >= 0x01000000u && text_va < 0x02000000u) {
+                fprintf(stderr, "[252AF_CTX_TEXT] field=%u va=%08X text=", trace_field, text_va);
+                for (trace_char = 0; trace_char < 80; trace_char++) {
+                    unsigned char ch = MEM8(text_va + trace_char);
+                    if (ch == 0) break;
+                    fputc(ch >= 32 && ch <= 126 ? ch : '.', stderr);
+                }
+                fputc('\n', stderr);
+            }
+        }
+    }
     /* Native 0x252AF is PUSH [EAX]: the stream's FILE pointer, not the
      * containing polymorphic stream object. Passing EAX-4 makes fread
      * interpret a vtable and path fields as CRT buffering state. */
@@ -88,6 +114,10 @@ void sub_000252AF(void)
     PUSH32(g_esp, 1);
     PUSH32(g_esp, MEM32(g_esp + 0x10));
     PUSH32(g_esp, MEM32(g_esp + 0x10));
+    if (trace_call)
+        fprintf(stderr, "[252AF_ARGS] esp=%08X values=%08X,%08X,%08X,%08X\n",
+                g_esp, MEM32(g_esp), MEM32(g_esp + 4),
+                MEM32(g_esp + 8), MEM32(g_esp + 12));
     uint32_t args_esp = g_esp;
     PUSH32(g_esp, 0x000252C0u);
     RECOMP_ABI_CALL(0x0009492Bu, sub_0009492B);
@@ -318,6 +348,50 @@ void sub_000943ED(void)
 
 /* Project-side fallbacks for the two string thunks used by title-data lookup.
  * The linked kernel archive currently exposes these as zero-return stubs. */
+extern uint32_t xbox_HeapAlloc(uint32_t size, uint32_t alignment);
+
+static void bridge_ob_reference_object_by_handle(void)
+{
+    static uint32_t thread_object;
+    uint32_t handle = MEM32(g_esp + 4u);
+    uint32_t object_type = MEM32(g_esp + 8u);
+    uint32_t object_out = MEM32(g_esp + 12u);
+
+    if (!object_out) {
+        g_eax = 0xC000000Du; /* STATUS_INVALID_PARAMETER */
+    } else if (!handle || handle == UINT32_MAX) {
+        MEM32(object_out) = 0;
+        g_eax = 0xC0000008u; /* STATUS_INVALID_HANDLE */
+    } else if (object_type == 0x00740040u) {
+        /* MM3 polls Thread+0x120 until it leaves STATUS_PENDING (0x103).
+         * The host handle token is not a guest object address, so represent
+         * this startup worker with a guest object and mark it signaled. */
+        if (!thread_object) {
+            uint32_t i;
+            thread_object = xbox_HeapAlloc(0x124u, 16u);
+            if (!thread_object) {
+                MEM32(object_out) = 0;
+                g_eax = 0xC0000017u; /* STATUS_NO_MEMORY */
+                g_esp += 16u;
+                return;
+            }
+            for (i = 0; i < 0x124u; ++i)
+                MEM8(thread_object + i) = 0;
+            MEM32(thread_object + 4u) = 1;
+            MEM32(thread_object + 0x120u) = 0;
+        }
+        MEM32(object_out) = thread_object;
+        g_eax = 0;
+    } else {
+        /* MM3 uses its guest object token in the same places the kernel bridge
+         * uses a host handle. Return that token so guest object-field reads
+         * keep addressing guest RAM instead of turning success into NULL. */
+        MEM32(object_out) = handle;
+        g_eax = 0;
+    }
+    g_esp += 16u;
+}
+
 static void bridge_rtl_init_ansi_string(void)
 {
     uint32_t dest = MEM32(g_esp + 4u);
@@ -420,6 +494,8 @@ recomp_func_t recomp_lookup_manual(uint32_t xbox_va)
         return sub_00093B70_gen;
     if (xbox_va == 0x00093B84u)
         return sub_00093B84_gen;
+    if (xbox_va == 0xFE000120u)
+        return bridge_ob_reference_object_by_handle;
     if (xbox_va == 0xFE000068u)
         return bridge_rtl_init_ansi_string;
     if (xbox_va == 0xFE00017Cu)
