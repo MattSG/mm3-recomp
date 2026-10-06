@@ -98,6 +98,36 @@ if(MM3_OFFLINE_XNET)
         COMPILE_DEFINITIONS "sub_0019531D=sub_0019531D_original")
 endif()
 
+# Rename definitions only: renaming every reference with a compile definition
+# would bypass the distance hooks for callers in the same generated chunk.
+foreach(distance_chunk 0010 0011 0014 0020)
+    set(distance_input "${RECOMP_GEN_DIR}/recomp_${distance_chunk}.c")
+    set(distance_output "${CMAKE_CURRENT_BINARY_DIR}/render_distance/recomp_${distance_chunk}.c")
+    file(READ "${distance_input}" distance_content)
+    if(distance_chunk STREQUAL "0010")
+        set(distance_functions 000D9E2E 000E2D5B 000F4AC3)
+    elseif(distance_chunk STREQUAL "0011")
+        set(distance_functions 000FE71E)
+    elseif(distance_chunk STREQUAL "0014")
+        set(distance_functions 001661D0)
+    else()
+        set(distance_functions 0022F298)
+    endif()
+    foreach(distance_function IN LISTS distance_functions)
+        string(REGEX MATCHALL "void sub_${distance_function}\\(void\\)" distance_definitions "${distance_content}")
+        list(LENGTH distance_definitions distance_definition_count)
+        if(NOT distance_definition_count EQUAL 1)
+            message(FATAL_ERROR "Expected one definition of sub_${distance_function} in ${distance_input}")
+        endif()
+        string(REPLACE "void sub_${distance_function}(void)"
+            "void sub_${distance_function}_original(void)" distance_content "${distance_content}")
+    endforeach()
+    file(CONFIGURE OUTPUT "${distance_output}" CONTENT "${distance_content}" @ONLY)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${distance_input}")
+    list(REMOVE_ITEM RECOMP_GEN_SOURCES "${distance_input}")
+    list(APPEND RECOMP_GEN_SOURCES "${distance_output}")
+endforeach()
+
 add_executable(${PROJECT_NAME}
     src/main.c
  src/host_graphics.c
@@ -108,6 +138,7 @@ add_executable(${PROJECT_NAME}
  src/mm3_stream_compat.c
  src/recomp_manual.c
  src/mm3_widescreen.c
+ src/mm3_render_distance.c
  src/recomp_trace_probe.c
  ${RECOMP_GEN_SOURCES})
 
@@ -169,3 +200,14 @@ endif()
 if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /bigobj)
 endif()
+
+foreach(distance_chunk 0010 0011 0014 0020)
+    foreach(distance_property COMPILE_DEFINITIONS COMPILE_OPTIONS COMPILE_FLAGS)
+        get_source_file_property(distance_property_value
+            "${RECOMP_GEN_DIR}/recomp_${distance_chunk}.c" ${distance_property})
+        if(distance_property_value)
+            set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/render_distance/recomp_${distance_chunk}.c"
+                PROPERTY ${distance_property} "${distance_property_value}")
+        endif()
+    endforeach()
+endforeach()
