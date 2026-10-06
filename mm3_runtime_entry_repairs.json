@@ -156,5 +156,10 @@
     "start": "0x002533EB",
     "end": "0x002533FE",
     "note": "Runtime virtual callback reached from 0x000FA707 when entering gameplay. Forward the original float argument to 0x002513B6 with the original this-pointer adjustment and ret 4 cleanup."
+  },
+  {
+    "start": "0x000E5318",
+    "end": "0x000E53E6",
+    "note": "Virtual method in vtables 0x378A80/0x378AA0 slot +0x1C, called from 0x000E59C9 while driving. Reached only through the vtable, so analysis missed it; the failed indirect call recursed until a native stack overflow 10-20 s into a race. Ends at ret 10h (0x000E53E3)."
   }
 ]

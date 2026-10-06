@@ -107,6 +107,7 @@ add_executable(${PROJECT_NAME}
  src/mm3_asset_trace.c
  src/mm3_stream_compat.c
  src/recomp_manual.c
+ src/mm3_widescreen.c
  src/recomp_trace_probe.c
  ${RECOMP_GEN_SOURCES})
 
@@ -118,6 +119,9 @@ set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0000.c" APPEND PROPERTY
     COMPILE_DEFINITIONS "sub_000145DC=sub_000145DC_original")
 set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0018.c" APPEND PROPERTY
     COMPILE_DEFINITIONS "sub_001F02AD=sub_001F02AD_original")
+# Widescreen: src/mm3_widescreen.c wraps the projection-matrix builder.
+set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0022.c" APPEND PROPERTY
+    COMPILE_DEFINITIONS "sub_0025968E=sub_0025968E_original")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/mm3_runtime_entry_repairs.json")
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/mm3_runtime_entry_repairs.json" runtime_entries_json)
