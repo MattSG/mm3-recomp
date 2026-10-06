@@ -12,12 +12,22 @@ extern void sub_001253F4_original(void);
 extern void sub_0008E420_original(void);
 extern void sub_0008E3C0_original(void);
 
+/* Environment switches are fixed before the guest starts; getenv takes the
+ * CRT's environment lock and scans the block, far too slow for the heap's
+ * every allocation and free. */
+static int bink_alloc_trace = -1, unresolved_trace = -1, heap_link_trace = -1, heap_frontier = -1;
+static int env_flag(int *slot, const char *name)
+{
+    if (*slot < 0) *slot = getenv(name) != NULL;
+    return *slot;
+}
+
 void sub_0008E3C0(void)
 {
     uint32_t header = MEM32(g_esp + 4u), caller = MEM32(g_esp);
     uint32_t total = MEM32(0x003BDF78u), count = MEM32(0x003BDF7Cu);
     uint32_t outputs = MEM32(0x00392FF8u), sizes = MEM32(0x00392FFCu);
-    int trace = getenv("MM3_BINK_ALLOC_TRACE") != NULL;
+    int trace = env_flag(&bink_alloc_trace, "MM3_BINK_ALLOC_TRACE");
     sub_0008E3C0_original();
     if (trace) {
         int invalid = g_eax && g_eax < 0x00500000u;
@@ -40,7 +50,7 @@ void sub_0008E420(void)
 {
     uint32_t size = MEM32(g_esp + 4u), caller = MEM32(g_esp);
     uint32_t callback = MEM32(0x003BDF9Cu), before = g_esp;
-    int trace = getenv("MM3_BINK_ALLOC_TRACE") != NULL;
+    int trace = env_flag(&bink_alloc_trace, "MM3_BINK_ALLOC_TRACE");
     sub_0008E420_original();
     if (trace) {
         static RECOMP_TLS unsigned reports;
@@ -77,7 +87,7 @@ void mm3_frontend_unresolved_stub(uint32_t va)
 {
     unsigned i;
     uint32_t count;
-    if (!getenv("MM3_UNRESOLVED_STUB_TRACE")) return;
+    if (!env_flag(&unresolved_trace, "MM3_UNRESOLVED_STUB_TRACE")) return;
     for (i = 0; i < unresolved_stub_count; ++i)
         if (unresolved_stubs[i].va == va) break;
     if (i == unresolved_stub_count) {
@@ -177,7 +187,7 @@ static void heap_link_transition(uint32_t heap, uint32_t caller, uint32_t argume
 void sub_000860AA(void)
 {
     uint32_t heap = MEM32(g_esp+4u), caller = MEM32(g_esp), pointer = MEM32(g_esp+12u);
-    int trace = getenv("MM3_HEAP_LINK_TRACE") != NULL;
+    int trace = env_flag(&heap_link_trace, "MM3_HEAP_LINK_TRACE");
     uint32_t before = trace ? heap_bad_free_link(heap) : 0;
     if (trace && pointer && pointer < 0x00500000u) {
         fprintf(stderr, "[HEAP_FREE_INVALID_ARGUMENT] heap=%08X caller=%08X pointer=%08X esp=%08X ebp=%08X stack=%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X\n",
@@ -194,8 +204,8 @@ void sub_000858F3(void)
 {
     uint32_t heap = MEM32(g_esp+4u), caller = MEM32(g_esp);
     uint32_t size = MEM32(g_esp+12u);
-    int trace = getenv("MM3_HEAP_FRONTIER") != NULL;
-    int link_trace = getenv("MM3_HEAP_LINK_TRACE") != NULL;
+    int trace = env_flag(&heap_frontier, "MM3_HEAP_FRONTIER");
+    int link_trace = env_flag(&heap_link_trace, "MM3_HEAP_LINK_TRACE");
     uint32_t bad_before = link_trace ? heap_bad_free_link(heap) : 0;
     if (trace && (heap < 0x10000u || (heap & 0xFFFu)))
         fprintf(stderr, "[HEAP_INVALID_ARGUMENT] heap=%08X caller=%08X esp=%08X ebp=%08X seh=%08X args=%08X,%08X,%08X,%08X\n",
