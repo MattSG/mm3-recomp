@@ -108,6 +108,7 @@ add_executable(${PROJECT_NAME}
  src/mm3_stream_compat.c
  src/recomp_manual.c
  src/mm3_widescreen.c
+ src/mm3_debug_teleport.c
  src/recomp_trace_probe.c
  ${RECOMP_GEN_SOURCES})
 
@@ -119,6 +120,22 @@ set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0000.c" APPEND PROPERTY
     COMPILE_DEFINITIONS "sub_000145DC=sub_000145DC_original")
 set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0018.c" APPEND PROPERTY
     COMPILE_DEFINITIONS "sub_001F02AD=sub_001F02AD_original")
+# Debug teleport: wrap the native primary-player update without editing generated C.
+set(mm3_player_update_sources "")
+foreach(recomp_source IN LISTS RECOMP_GEN_SOURCES)
+    file(STRINGS "${recomp_source}" player_update_definition
+         REGEX "^void sub_002203E5\\(void\\)" LIMIT_COUNT 1)
+    if(player_update_definition)
+        list(APPEND mm3_player_update_sources "${recomp_source}")
+    endif()
+endforeach()
+list(LENGTH mm3_player_update_sources mm3_player_update_count)
+if(NOT mm3_player_update_count EQUAL 1)
+    message(FATAL_ERROR "Expected one generated body for MM3 player update 0x2203E5")
+endif()
+set_property(SOURCE ${mm3_player_update_sources} APPEND PROPERTY COMPILE_DEFINITIONS
+    "sub_002203E5=sub_002203E5_original")
+
 # Widescreen: src/mm3_widescreen.c wraps the projection-matrix builder.
 set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0022.c" APPEND PROPERTY
     COMPILE_DEFINITIONS "sub_0025968E=sub_0025968E_original")
