@@ -1,0 +1,8 @@
+# Search-only exclusions; these do not change Git tracking.
+conformance_tmp/
+backups/
+game_files_dlc/
+.mm3-gen-venv/
+gen_trace/
+*.log
+*.cdb
