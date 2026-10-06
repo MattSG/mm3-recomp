@@ -9,6 +9,7 @@
 #include "recomp_types.h"
 #include "recomp_funcs.h"
 #include "host_graphics.h"
+#include "mm3_debug_teleport.h"
 #include <nv2a/nv2a_mmio_hook.h>
 #include <nv2a/nv2a_state.h>
 #include <ohci.h>
@@ -260,6 +261,7 @@ int main(void)
     }
 
     g_xbox_mem_offset = xbox_GetMemoryOffset();
+    mm3_debug_teleport_init();
     xbox_kernel_set_thunk_address(MM3_KERNEL_THUNK_ADDRESS,
                                    MM3_KERNEL_THUNK_COUNT);
     xbox_kernel_init();
