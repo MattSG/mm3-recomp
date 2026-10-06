@@ -32,6 +32,14 @@
   "note": "Indirect-call target observed at runtime; original BINKYUY2 MMX converter matches xemu output and stack contract."
  },
  {
+  "start": "0x002B9468",
+  "note": "Callback entry observed at runtime from caller 0x002B212A; currently falls at the end of sub_002B93E3."
+ },
+ {
+  "start": "0x002F8E90",
+  "note": "Indirect BINK decoder callback selected at 0x002F9E9A and invoked at 0x002FA4D4; needs a dispatch entry."
+ },
+ {
   "start": "0x0022FA0A",
   "note": "Post-intro frontend callback repeatedly invoked from 0x0022DE38; original entry allocates a large stack frame through the stack probe at 0x000957D0."
  },
