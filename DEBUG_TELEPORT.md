@@ -1,67 +1,70 @@
-# MM3 debug coordinates and teleport
+# MM3 ground teleport debugger
 
-Worktree: `I:\repos\midtown-madness-3-recomp-overlay`, branch
-`feature/imgui-teleport`. This work does not modify the separate live worktree.
+Opt in with `MM3_DEBUG_TELEPORT=1`. The native panel shows live X/Y/Z and
+accepts only destination X/Z. MM3 is Y-up; its native ground-placement reset
+calculates Y, applies car clearance, aligns to the slope while retaining
+heading, clears motion and updates the cached transform and reset flags.
+No usable ground leaves the car unchanged. Guest changes run in the primary
+player update, with GPR/x87/XMM state restored afterward. Disabled is default.
 
-Set `MM3_DEBUG_TELEPORT=1` before starting the isolated executable. A small
-Win32 panel appears over its framebuffer window. It shows the primary car's
-native X/Y/Z, accepts three numeric coordinates, and has a Teleport button.
-The panel avoids a new ImGui/C++ dependency and renderer modifications.
-Without the environment variable, no panel or command server is created and
-the player update goes directly to the original game routine.
-
-The same queued operation is available through a local, per-process named
-pipe, `\\.\pipe\MM3Teleport-<PID>`. Each connection accepts one ASCII message,
-`position` or `teleport X Y Z`, and returns one JSON message. The reply reports
-whether a car is available or whether a teleport was applied. A request that
-cannot reach a player update in two seconds is cancelled.
-
-PowerShell examples (substitute the isolated process ID and an observed destination):
+The same operation uses the local pipe `\\.\pipe\MM3Teleport-<PID>`:
+`position` or `teleport X Z`, returning JSON with the actual resulting Y.
+Requests that cannot reach the player update within two seconds are cancelled.
+The panel distinguishes ground misses, stalled updates and unavailable cars.
 
 ```powershell
 tools/powershell/Send-MM3Teleport.ps1 -ProcessId 12345
-tools/powershell/Send-MM3Teleport.ps1 -ProcessId 12345 -X -512.25 -Y 6.5 -Z 1001.125
+tools/powershell/Send-MM3Teleport.ps1 -ProcessId 12345 -X -512.25 -Z 1001.125
 ```
 
-Those example coordinates are arbitrary contract-test values, **not** a
-verified waterfront location. No coordinate scaling or axis swapping occurs.
-Orientation is preserved; the game's native reset clears motion before the
-native transform setter updates the rigid body and its quaternion. The cached
-player transform and the same flag used by the game's reset path are updated.
-All guest mutations execute in the primary player's update, not on a host
-panel or pipe thread. Guest GPR/x87 state is restored afterward.
+These example coordinates are fixture values, not a verified destination.
+For standalone live runs enable `RECOMP_FB_WINDOW=1`, `RECOMP_PB_EXEC=1`,
+`RECOMP_USB=1`, optionally `RECOMP_KEYBOARD=1`, and use separate game/save data.
+This runtime's stubbed audio DSP also needs its existing passthrough mailbox
+acknowledgement `RECOMP_APU_DSP_ACK=0x80458810` to pass MM3's loading wait.
+That option does not emulate the DSP program.
 
-## PAL binary evidence
+## PAL evidence
 
 XBE SHA-256: `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`.
 
-- Player update: `0x002203E5`, incoming `ECX` is the player object.
-- Primary player: `[[0x003C5CDC]+0x54]+0xD8`; the update compares this pointer
-  with its player object at `0x00220725` through `0x0022073F`.
-- Player `+0x19C`: vehicle interface with vtable `0x00383768`; vehicle `+8`
-  is the car. Car `+0x3C` points at simulation state; its `+4` is the rigid body.
-- Native position getter `0x001D5730` reads body `+0xC8`, `+0xCC`, `+0xD0`.
-- Native reset `0x0021F6DE` calls vehicle vtable `+0xAC` and `+0x28`, then
-  copies the transform to player `+0x48C`, zeros `+0x1B0`, and sets `+0x218`.
-- These vtable methods are `0x001D5F90` (tail jump to `0x001CDDA3`) and
-  `0x001D65BC`. The latter copies the 3x4 transform to body `+0xA4` and writes
-  its derived quaternion at `+0x134` through `+0x140`.
-- The native reset's helper `0x001CD866` clears velocity/integration state.
+- Primary player update: `0x002203E5`, ECX=player. Primary player: `[[0x003C5CDC]+0x54]+0xD8`.
+- Player +0x19C = vehicle interface, vtable `0x00383768`; vehicle +8 = car.
+  Car +0x3C = simulation; simulation +4 = body. Translation: body +0xC8/+0xCC/+0xD0.
+- Ground reset `0x0021ADF3` takes player, position, search mode and heading.
+  Mode zero uses `0x0021848C` to raycast through the world's full Y bounds,
+  ignoring supplied Y. The heading matches the native heading getter's matrix convention.
+- It calls virtual +0xAC to clear motion, +0x34 for car clearance and +0x28
+  to set transform/quaternion; caches at player +0x48C, clears +0x1B0, sets +0x218.
 
-## Validation status
+## Validation
 
-The full isolated `RelWithDebInfo` executable builds successfully. The new
-module compiles with MSVC `/W4`; the PowerShell script parses, and
-`git diff --check` passes in the isolated worktree. A synthetic contract test
-in `tests/mm3_teleport_contract.c` checks the disabled path, queue completion,
-timeout cancellation, invalid vehicle rejection, native XYZ/orientation,
-cached transform, reset flag, and guest register preservation. **Its native
-game calls are stubbed**, so it does not prove live physics or rendering.
-The PowerShell client also passes an end-to-end named-pipe position/teleport/
-position check against the synthetic car server.
+RelWithDebInfo builds. Original-PAL and stub offline fixtures pass automatic
+height/car clearance, ignored supplied Y, heading/quaternion, cleared motion,
+cache/register preservation, ground misses, cancellation, inactive/disabled
+paths and the actual hidden X/Z edit controls/button handler. The original-PAL
+fixture uses synthetic collision geometry and registry services; it is not a
+live terrain test. Its PowerShell pipe sequence returns X=-512.25, Y=6.5,
+Z=1001.125 without a Y argument.
 
-The executable build and live acceptance are separate gates. Completion
-requires reading live coordinates, manually teleporting near water, invoking
-the same destination programmatically, and verifying stable rendering and
-continued driving. No game instance was launched or controlled during the
-initial implementation.
+Generate and compile from the repository, using the toolkit's Python environment
+and the same generated headers as the game build:
+
+```powershell
+python tests/generate_native_teleport_test.py --xbe game_files/default.xbe --functions tools/xboxrecomp/tools/disasm/output/functions.json
+cl.exe /nologo /W4 /DMM3_TELEPORT_NATIVE_TEST /I conformance_tmp/overlay-gen /Fe:conformance_tmp/teleport_native_test.exe /Fo:conformance_tmp/ tests/mm3_teleport_contract.c conformance_tmp/native_teleport_functions.c user32.lib
+conformance_tmp/teleport_native_test.exe
+```
+
+Generated outputs, data, logs and executables remain outside git. Generated
+bodies retain ordinary unused-label/local warnings. `--serve` runs the native
+fixture pipe for ten seconds.
+
+Authorized isolated live testing exposed a CPU-scanout startup bug: renderer
+initialization waited for a GPU flip, while movies preceded one. The toolkit
+tick now initializes it. Captures show the loading screen and intact intro,
+then the live car/city/HUD at approximately 60 FPS. USB input transfers and
+live coordinates are verified. The user confirmed the debugger working after
+trying the live panel. Testing never controlled the separate clean-worktree
+instance. Initial implementation/testing stayed in `feature/imgui-teleport`;
+source integration on `main` is a separate commit.

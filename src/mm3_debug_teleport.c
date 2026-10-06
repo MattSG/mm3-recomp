@@ -10,12 +10,11 @@
  * Player+19C is the vehicle interface (vtable 383768), whose +8 is the car.
  * Car+3C points at simulation state; its +4 points at the rigid body.
  * Body+A4 is the native 3x4 transform; translation is Body+C8 (X/Y/Z).
- * Native reset 21F6DE uses vehicle vtable+AC (1D5F90 -> 1CDDA3), then
- * vtable+28 (1D65BC), copies the transform to Player+48C, and sets +218.
+ * Ground reset 21ADF3 queries collision through 21848C, then uses vehicle
+ * vtable+AC (1D5F90 -> 1CDDA3) and +28 (1D65BC), caches transform, sets +218.
  * These calls belong on the game thread, never on the pipe/UI thread. */
 extern void sub_002203E5_original(void);
-extern void sub_001CDDA3(void);
-extern void sub_001D65BC(void);
+extern void sub_0021ADF3(void);
 
 static int enabled;
 static SRWLOCK lock = SRWLOCK_INIT;
@@ -64,40 +63,40 @@ static uint32_t body_for(uint32_t player, uint32_t *car_out, uint32_t *vehicle_o
     return body;
 }
 
-static void teleport(uint32_t player, uint32_t vehicle, uint32_t car,
-                     uint32_t body, const float xyz[3])
+static int teleport(uint32_t player, uint32_t vehicle, uint32_t car,
+                    uint32_t body, const float xyz[3])
 {
-    /* Inject below the incoming stack without changing its return/argument
-     * slots. Restore architectural registers before entering the real update.
-     * The two native paths use GPRs/x87 only (verified from the PAL XBE). */
-    uint32_t regs[] = {g_eax, g_ecx, g_edx, g_esp, g_ebx, g_esi, g_edi,
-                       g_seh_ebp, g_ebp};
+    uint32_t wheels = MEM32(car + 0x40);
+    if (!mapped(MEM32(player + 0x1AC), 0x1504C) || !mapped(wheels, 4) ||
+        !mapped(MEM32(wheels), 0x100)) return 0;
+    uint32_t regs[] = {g_eax, g_ecx, g_edx, g_esp, g_ebx, g_esi, g_edi, g_seh_ebp, g_ebp};
     double fp[8];
     int top = g_fp_top, cmp = g_fp_cmp, df = g_df;
     uint16_t cc = g_fp_cc, control = g_fp_control_word;
-    uint32_t matrix = g_esp - 0x100u;
+    RecompXmm xmm[] = {g_xmm0, g_xmm1, g_xmm2, g_xmm3, g_xmm4, g_xmm5, g_xmm6, g_xmm7};
+    uint32_t point = g_esp - 0x100u;
+    float heading = atan2f(MEMF(body + 0xBC), MEMF(body + 0xC4));
+    int applied;
+    (void)vehicle; (void)car;
     memcpy(fp, g_fp_stack, sizeof(fp));
-    memcpy((void *)XBOX_PTR(matrix), (const void *)XBOX_PTR(body + 0xA4), 48);
-    for (unsigned i = 0; i < 3; ++i) MEMF(matrix + 0x24 + i * 4) = xyz[i];
-
-    g_esp = matrix - 16;
-    g_eax = car;
-    PUSH32(g_esp, 0); /* synthetic return; the native routine discards it */
-    sub_001CDDA3();
-    g_ecx = vehicle;
-    PUSH32(g_esp, matrix);
+    /* Native 21ADF3 finds ground, clears motion, aligns to the slope, applies
+     * car clearance, and updates the cached transform and reset flags. */
+    for (unsigned i = 0; i < 3; ++i) MEMF(point + i * 4) = xyz[i];
+    g_esp = point - 16;
+    g_esp -= 4; MEMF(g_esp) = heading;
+    PUSH32(g_esp, 0); /* full-world vertical ray; supplied Y is ignored */
+    PUSH32(g_esp, point);
+    PUSH32(g_esp, player);
     PUSH32(g_esp, 0);
-    sub_001D65BC();
-    memcpy((void *)XBOX_PTR(player + 0x48C), (const void *)XBOX_PTR(matrix), 48);
-    MEMF(player + 0x1B0) = 0;
-    MEM8(player + 0x218) = 1;
-
+    sub_0021ADF3();
+    applied = (g_eax & 0xFF) != 0;
     g_eax = regs[0]; g_ecx = regs[1]; g_edx = regs[2]; g_esp = regs[3];
-    g_ebx = regs[4]; g_esi = regs[5]; g_edi = regs[6]; g_seh_ebp = regs[7];
-    g_ebp = regs[8];
+    g_ebx = regs[4]; g_esi = regs[5]; g_edi = regs[6]; g_seh_ebp = regs[7]; g_ebp = regs[8];
     memcpy(g_fp_stack, fp, sizeof(fp));
-    g_fp_top = top; g_fp_cmp = cmp; g_fp_cc = cc;
-    g_fp_control_word = control; g_df = df;
+    g_fp_top = top; g_fp_cmp = cmp; g_fp_cc = cc; g_fp_control_word = control; g_df = df;
+    g_xmm0 = xmm[0]; g_xmm1 = xmm[1]; g_xmm2 = xmm[2]; g_xmm3 = xmm[3];
+    g_xmm4 = xmm[4]; g_xmm5 = xmm[5]; g_xmm6 = xmm[6]; g_xmm7 = xmm[7];
+    return applied;
 }
 
 void sub_002203E5(void)
@@ -116,9 +115,10 @@ void sub_002203E5(void)
         sampled = GetTickCount();
         if (pending) {
             if (available && mapped(g_esp - 0x400, 0x400)) {
-                teleport(player, vehicle, car, body, destination);
-                for (unsigned i = 0; i < 3; ++i) position[i] = MEMF(body + 0xC8 + i * 4);
-                strcpy_s(result, sizeof(result), "applied");
+                if (teleport(player, vehicle, car, body, destination)) {
+                    for (unsigned i = 0; i < 3; ++i) position[i] = MEMF(body + 0xC8 + i * 4);
+                    strcpy_s(result, sizeof(result), "applied");
+                } else strcpy_s(result, sizeof(result), "no usable ground at destination");
             } else strcpy_s(result, sizeof(result), "no active car");
             completed = pending;
             pending = 0;
@@ -129,8 +129,9 @@ void sub_002203E5(void)
     sub_002203E5_original();
 }
 
-static void request_teleport(const float xyz[3], char *reply, size_t size)
+static int request_teleport(const float xyz[3], char *reply, size_t size)
 {
+    int applied;
     AcquireSRWLockExclusive(&request_lock);
     AcquireSRWLockExclusive(&lock);
     if (available && GetTickCount() - sampled < 500) {
@@ -145,11 +146,13 @@ static void request_teleport(const float xyz[3], char *reply, size_t size)
             pending = 0; /* cancel; a timed-out request cannot run later */
             strcpy_s(result, sizeof(result), "game update timeout");
         }
-    } else strcpy_s(result, sizeof(result), "no active car");
+    } else strcpy_s(result, sizeof(result), available ? "player update is paused or stalled" : "no active car");
     snprintf(reply, size, "{\"result\":\"%s\",\"x\":%.9g,\"y\":%.9g,\"z\":%.9g}",
              result, position[0], position[1], position[2]);
+    applied = strcmp(result, "applied") == 0;
     ReleaseSRWLockExclusive(&lock);
     ReleaseSRWLockExclusive(&request_lock);
+    return applied;
 }
 
 static DWORD WINAPI pipe_thread(void *unused)
@@ -168,8 +171,9 @@ static DWORD WINAPI pipe_thread(void *unused)
             float xyz[3];
             if (ReadFile(pipe, command, sizeof(command) - 1, &bytes, NULL)) {
                 command[bytes] = 0;
-                if (sscanf(command, "teleport %f %f %f %c", &xyz[0], &xyz[1], &xyz[2], &extra) == 3 &&
-                    isfinite(xyz[0]) && isfinite(xyz[1]) && isfinite(xyz[2])) {
+                xyz[1] = 0;
+                if (sscanf(command, "teleport %f %f %c", &xyz[0], &xyz[2], &extra) == 2 &&
+                    isfinite(xyz[0]) && isfinite(xyz[2])) {
                     request_teleport(xyz, reply, sizeof(reply));
                 } else if (strcmp(command, "position") == 0) {
                     AcquireSRWLockShared(&lock);
@@ -177,7 +181,7 @@ static DWORD WINAPI pipe_thread(void *unused)
                         available && GetTickCount() - sampled < 500 ? "true" : "false",
                         position[0], position[1], position[2]);
                     ReleaseSRWLockShared(&lock);
-                } else strcpy_s(reply, sizeof(reply), "{\"error\":\"use position or teleport X Y Z; coordinates must be finite\"}");
+                } else strcpy_s(reply, sizeof(reply), "{\"error\":\"use position or teleport X Z; height is automatic; coordinates must be finite\"}");
                 if (WriteFile(pipe, reply, (DWORD)strlen(reply), &bytes, NULL))
                     FlushFileBuffers(pipe); /* do not discard an unread reply on disconnect */
             }
@@ -187,15 +191,15 @@ static DWORD WINAPI pipe_thread(void *unused)
     }
 }
 
-static HWND edits[3], coordinates, feedback;
+static HWND edits[2], coordinates, feedback;
 
 static LRESULT CALLBACK panel_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
 {
     if (message == WM_CREATE) {
-        const char *axes[] = {"X", "Y", "Z"};
+        const char *axes[] = {"X", "Z"};
         coordinates = CreateWindowA("STATIC", "Waiting for active car", WS_CHILD | WS_VISIBLE,
             10, 10, 325, 35, window, NULL, NULL, NULL);
-        for (unsigned i = 0; i < 3; ++i) {
+        for (unsigned i = 0; i < 2; ++i) {
             CreateWindowA("STATIC", axes[i], WS_CHILD | WS_VISIBLE,
                 10 + i * 108, 48, 20, 20, window, NULL, NULL, NULL);
             edits[i] = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", "0",
@@ -204,7 +208,7 @@ static LRESULT CALLBACK panel_proc(HWND window, UINT message, WPARAM wparam, LPA
         }
         CreateWindowA("BUTTON", "Teleport", WS_CHILD | WS_VISIBLE | WS_TABSTOP,
             10, 100, 100, 26, window, (HMENU)1, NULL, NULL);
-        feedback = CreateWindowA("STATIC", "Native X/Y/Z; orientation retained, motion reset.",
+        feedback = CreateWindowA("STATIC", "Native X/Z; Y and car placement use ground reset.",
             WS_CHILD | WS_VISIBLE, 10, 135, 325, 35, window, NULL, NULL, NULL);
         SetTimer(window, 1, 200, NULL);
         return 0;
@@ -221,16 +225,24 @@ static LRESULT CALLBACK panel_proc(HWND window, UINT message, WPARAM wparam, LPA
         return 0;
     }
     if (message == WM_COMMAND && LOWORD(wparam) == 1 && HIWORD(wparam) == BN_CLICKED) {
-        float xyz[3];
+        float xyz[3] = {0};
         char text[96], reply[256], extra;
-        for (unsigned i = 0; i < 3; ++i) {
+        for (unsigned i = 0; i < 2; ++i) {
             GetWindowTextA(edits[i], text, sizeof(text));
-            if (sscanf(text, "%f %c", &xyz[i], &extra) != 1 || !isfinite(xyz[i])) {
-                SetWindowTextA(feedback, "Enter three finite numeric coordinates.");
+            unsigned axis = i ? 2 : 0;
+            if (sscanf(text, "%f %c", &xyz[axis], &extra) != 1 || !isfinite(xyz[axis])) {
+                SetWindowTextA(feedback, "Enter finite X and Z coordinates; Y is automatic.");
                 return 0;
             }
         }
-        request_teleport(xyz, reply, sizeof(reply));
+        if (request_teleport(xyz, reply, sizeof(reply)))
+            snprintf(reply, sizeof(reply), "Teleported to X %.3f, Y %.3f, Z %.3f.",
+                     position[0], position[1], position[2]);
+        else if (strstr(reply, "no usable ground"))
+            strcpy_s(reply, sizeof(reply), "No usable ground found. Car unchanged.");
+        else if (strstr(reply, "timeout") || strstr(reply, "paused or stalled"))
+            strcpy_s(reply, sizeof(reply), "Player update paused or stalled. Teleport cancelled.");
+        else strcpy_s(reply, sizeof(reply), "Teleport wasn't applied. Enter gameplay and try again.");
         SetWindowTextA(feedback, reply);
         return 0;
     }

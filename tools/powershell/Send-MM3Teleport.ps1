@@ -2,19 +2,18 @@
 param(
     [Parameter(Mandatory)][int]$ProcessId,
     [Parameter(Mandatory, ParameterSetName = 'Teleport')][float]$X,
-    [Parameter(Mandatory, ParameterSetName = 'Teleport')][float]$Y,
     [Parameter(Mandatory, ParameterSetName = 'Teleport')][float]$Z
 )
 
 $ErrorActionPreference = 'Stop'
 $command = 'position'
 if ($PSCmdlet.ParameterSetName -eq 'Teleport') {
-    foreach ($coordinate in @($X, $Y, $Z)) {
+    foreach ($coordinate in @($X, $Z)) {
         if ([float]::IsNaN($coordinate) -or [float]::IsInfinity($coordinate)) {
             throw 'Coordinates must be finite.'
         }
     }
-    $command = [string]::Format([cultureinfo]::InvariantCulture, 'teleport {0:R} {1:R} {2:R}', $X, $Y, $Z)
+    $command = [string]::Format([cultureinfo]::InvariantCulture, 'teleport {0:R} {1:R}', $X, $Z)
 }
 $pipe = [IO.Pipes.NamedPipeClientStream]::new('.', "MM3Teleport-$ProcessId", [IO.Pipes.PipeDirection]::InOut)
 try {
