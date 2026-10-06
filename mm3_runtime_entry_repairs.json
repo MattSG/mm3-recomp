@@ -161,5 +161,10 @@
     "start": "0x000E5318",
     "end": "0x000E53E6",
     "note": "Virtual method in vtables 0x378A80/0x378AA0 slot +0x1C, called from 0x000E59C9 while driving. Reached only through the vtable, so analysis missed it; the failed indirect call recursed until a native stack overflow 10-20 s into a race. Ends at ret 10h (0x000E53E3)."
+  },
+  {
+    "start": "0x0013E48F",
+    "end": "0x0013E715",
+    "note": "Virtual method in vtable 0x37F128 slot +0x20 (this adjusted by -0x264), called from 0x0014CC8E with two output pointers. Reached only through the vtable, so analysis missed it: every call failed to resolve (thousands of [ICALL] errors a minute in gameplay) and the caller went on with its outputs unwritten. Ends at ret 8 (0x0013E712)."
   }
 ]
