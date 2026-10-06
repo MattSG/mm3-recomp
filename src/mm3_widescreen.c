@@ -13,6 +13,8 @@
  * (0x220B1E), which is why the argument is patched rather than the data. */
 extern void sub_0025968E_original(void);
 extern float nv2a_d3d_display_aspect(void);
+extern void nv2a_d3d_note_race_camera(void);
+extern void nv2a_d3d_note_frontend_camera(void);
 
 void sub_0025968E(void)
 {
@@ -32,7 +34,14 @@ void sub_0025968E(void)
      * derives fovy from a horizontal field of view and that stored aspect:
      * fovy = 2 atan(tan(hfov / 2) / aspect). With the stored aspect widened
      * that narrows fovy (Vert-, a zoom). Undo it so the vertical view stays
-     * the 4:3 one, for the matrix and for the copy stored for culling. */
+     * the 4:3 one, for the matrix and for the copy stored for culling.
+     * It is also how the renderer knows a race has started, so its HUD can
+     * move out to the screen edges (nv2a_d3d11.c); the race camera builds its
+     * projection once per race, car select's (0xE51EE) every frame. */
+    if (MEM32(g_esp) == 0x000F4AF5u && MEM32(g_ebp + 4) == 0x00210E1Eu)
+        nv2a_d3d_note_race_camera();
+    else if (MEM32(g_esp) == 0x000F4AF5u && MEM32(g_ebp + 4) == 0x000E51EEu)
+        nv2a_d3d_note_frontend_camera();       /* car select's turntable */
     if (MEM32(g_esp) == 0x000F4AF5u && MEM32(g_ebp + 4) == 0x00210E1Eu &&
         fabsf(aspect - wide) < 1e-4f && fabsf(wide - 4.0f / 3.0f) > 1e-4f) {
         float fovy = 2.0f * atanf(tanf(MEMF(g_esp + 8) * 0.5f) * wide * 0.75f);
