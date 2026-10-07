@@ -347,98 +347,6 @@ void sub_000943ED(void)
     g_esp = esp + 4;
 }
 
-/* Project-side fallbacks for the two string thunks used by title-data lookup.
- * The linked kernel archive currently exposes these as zero-return stubs. */
-extern uint32_t xbox_HeapAlloc(uint32_t size, uint32_t alignment);
-
-static void bridge_ob_reference_object_by_handle(void)
-{
-    static uint32_t thread_object;
-    uint32_t handle = MEM32(g_esp + 4u);
-    uint32_t object_type = MEM32(g_esp + 8u);
-    uint32_t object_out = MEM32(g_esp + 12u);
-
-    if (!object_out) {
-        g_eax = 0xC000000Du; /* STATUS_INVALID_PARAMETER */
-    } else if (!handle || handle == UINT32_MAX) {
-        MEM32(object_out) = 0;
-        g_eax = 0xC0000008u; /* STATUS_INVALID_HANDLE */
-    } else if (object_type == 0x00740040u) {
-        /* MM3 polls Thread+0x120 until it leaves STATUS_PENDING (0x103).
-         * The host handle token is not a guest object address, so represent
-         * this startup worker with a guest object and mark it signaled. */
-        if (!thread_object) {
-            uint32_t i;
-            thread_object = xbox_HeapAlloc(0x124u, 16u);
-            if (!thread_object) {
-                MEM32(object_out) = 0;
-                g_eax = 0xC0000017u; /* STATUS_NO_MEMORY */
-                g_esp += 16u;
-                return;
-            }
-            for (i = 0; i < 0x124u; ++i)
-                MEM8(thread_object + i) = 0;
-            MEM32(thread_object + 4u) = 1;
-            MEM32(thread_object + 0x120u) = 0;
-        }
-        MEM32(object_out) = thread_object;
-        g_eax = 0;
-    } else {
-        /* MM3 uses its guest object token in the same places the kernel bridge
-         * uses a host handle. Return that token so guest object-field reads
-         * keep addressing guest RAM instead of turning success into NULL. */
-        MEM32(object_out) = handle;
-        g_eax = 0;
-    }
-    g_esp += 16u;
-}
-
-static void bridge_rtl_init_ansi_string(void)
-{
-    uint32_t dest = MEM32(g_esp + 4u);
-    uint32_t src = MEM32(g_esp + 8u);
-    uint32_t len = 0;
-
-    if (dest) {
-        if (src) {
-            while (len < 0xFFFEu && MEM8(src + len) != 0)
-                ++len;
-            MEM16(dest) = (uint16_t)len;
-            MEM16(dest + 2u) = (uint16_t)(len + 1u);
-            MEM32(dest + 4u) = src;
-        } else {
-            MEM16(dest) = 0;
-            MEM16(dest + 2u) = 0;
-            MEM32(dest + 4u) = 0;
-        }
-    }
-    g_eax = 0;
-    g_esp += 12u;
-}
-
-static void bridge_rtl_equal_string(void)
-{
-    uint32_t s1 = MEM32(g_esp + 4u);
-    uint32_t s2 = MEM32(g_esp + 8u);
-    uint32_t nocase = MEM32(g_esp + 12u);
-    uint32_t len1 = s1 ? MEM16(s1) : 0;
-    uint32_t len2 = s2 ? MEM16(s2) : 0;
-    uint32_t i;
-
-    g_eax = (s1 && s2 && len1 == len2) ? 1u : 0u;
-    for (i = 0; g_eax && i < len1; ++i) {
-        uint8_t a = MEM8(MEM32(s1 + 4u) + i);
-        uint8_t b = MEM8(MEM32(s2 + 4u) + i);
-        if (nocase) {
-            if (a >= 'a' && a <= 'z') a = (uint8_t)(a - 'a' + 'A');
-            if (b >= 'a' && b <= 'z') b = (uint8_t)(b - 'a' + 'A');
-        }
-        if (a != b)
-            g_eax = 0;
-    }
-    g_esp += 16u;
-}
-
 void sub_00093B04(void)
 {
     sub_00093B04_gen();
@@ -495,12 +403,6 @@ recomp_func_t recomp_lookup_manual(uint32_t xbox_va)
         return sub_00093B70_gen;
     if (xbox_va == 0x00093B84u)
         return sub_00093B84_gen;
-    if (xbox_va == 0xFE000120u)
-        return bridge_ob_reference_object_by_handle;
-    if (xbox_va == 0xFE000068u)
-        return bridge_rtl_init_ansi_string;
-    if (xbox_va == 0xFE00017Cu)
-        return bridge_rtl_equal_string;
     return (recomp_func_t)0;
 }
 

@@ -19,19 +19,13 @@ translator = BatchTranslator(
     identified_json_path=str(tool / 'func_id/output/identified_functions.json'),
     abi_json_path=str(tool / 'abi_analysis/output/abi_functions.json'),
     seh_prolog=0x00097AA4)
-code = ['#define RECOMP_GENERATED_CODE', '#include "recomp_funcs.h"', '#include <math.h>',
-        '#include "../../src/mm3_x87_compat.h"']
+code = ['#define RECOMP_GENERATED_CODE', '#include "recomp_funcs.h"', '#include <math.h>']
 for entry in entries:
     code.append(f'void sub_{int(entry["start"], 16):08X}(void);')
 for entry in entries:
     body = translator.translate_single(int(entry['start'], 16))
     if not body:
         raise RuntimeError(f'Generation failed: {entry["start"]}')
-    for address in entry.get('x87_extended_constants', []):
-        operand = f'MEMF(0x{int(address, 16):X})'
-        if operand not in body:
-            raise RuntimeError(f'Missing extended operand: {entry["start"]} {address}')
-        body = body.replace(operand, f'mm3_read_fp80({address}u)')
     if entry.get('x87_helper_unwinds_caller'):
         # 9BC04 discards 9BC52's return address and returns from this dispatch
         # entry directly. A C call otherwise resumes here and pops once again.

@@ -135,7 +135,6 @@ endforeach()
 
 add_executable(${PROJECT_NAME}
     src/main.c
- src/host_graphics.c
  src/mm3_memory_compat.c
  src/mm3_memory_tails.c
  src/mm3_runtime_entries.c

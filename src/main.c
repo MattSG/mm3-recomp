@@ -8,28 +8,14 @@
 
 #include "recomp_types.h"
 #include "recomp_funcs.h"
-#include "host_graphics.h"
 #include "mm3_debug_teleport.h"
-#include <nv2a/nv2a_mmio_hook.h>
-#include <nv2a/nv2a_state.h>
-#include <ohci.h>
+#include <xbox_host.h>
 
 #define MM3_XBE_PATH "game_files/default.xbe"
 #define MM3_GAME_DIR "game_files"
 #define MM3_KERNEL_THUNK_ADDRESS 0x00361F00u
 #define MM3_KERNEL_THUNK_COUNT 151u
 #define MM3_MEMORY_MAP_SIZE (128u * 1024u * 1024u)
-#define MM3_APU_BASE 0xFE800000u
-#define MM3_APU_END  0xFE880000u
-
-typedef struct MCPXAPUState MCPXAPUState;
-extern MCPXAPUState *g_apu_state;
-extern MCPXAPUState *mcpx_apu_init_standalone(uint8_t *ram_ptr);
-extern void mcpx_apu_shutdown(MCPXAPUState *apu);
-extern bool apu_hook_handle_mmio(PCONTEXT context, uintptr_t fault_address,
-                                 uint32_t guest_address, int is_write);
-
-static PVOID g_mm3_apu_veh;
 
 static HANDLE g_mm3_main_worker;
 static HANDLE g_mm3_main_worker_ready;
@@ -119,77 +105,6 @@ static LONG WINAPI mm3_crash_report(EXCEPTION_POINTERS *info)
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
-static LONG CALLBACK mm3_apu_mmio_handler(PEXCEPTION_POINTERS info)
-{
-    uintptr_t fault_address;
-    uint32_t guest_address;
-
-    if (!info ||
-        info->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION)
-        return EXCEPTION_CONTINUE_SEARCH;
-
-    fault_address = info->ExceptionRecord->ExceptionInformation[1];
-    guest_address = (uint32_t)(fault_address - (uintptr_t)g_xbox_mem_offset);
-    if (xbox_OhciOwnsAddress(guest_address))
-        return xbox_OhciHandleMmio(info->ContextRecord, guest_address)
-            ? EXCEPTION_CONTINUE_EXECUTION : EXCEPTION_CONTINUE_SEARCH;
-    if (guest_address == 0xFD008700u &&
-        !info->ExceptionRecord->ExceptionInformation[0] &&
-        !getenv("RECOMP_FB_WINDOW")) {
-        NV2AState *gpu = nv2a_get_state();
-        if (gpu) {
-            /* ponytail: without a scanout window, consume rather than stall. */
-            uint64_t buffer = nv2a_mmio_read(gpu, 0x8700, 4);
-            nv2a_mmio_write(gpu, 0x8700, buffer & ~0x11u, 4);
-        }
-    }
-    if (guest_address >= 0xFD008000u && guest_address < 0xFD009000u)
-        return nv2a_hook_handle_mmio(
-            info->ContextRecord, fault_address, guest_address,
-            info->ExceptionRecord->ExceptionInformation[0] ? 1 : 0)
-            ? EXCEPTION_CONTINUE_EXECUTION : EXCEPTION_CONTINUE_SEARCH;
-    if (!g_apu_state) return EXCEPTION_CONTINUE_SEARCH;
-    if (guest_address < MM3_APU_BASE || guest_address >= MM3_APU_END)
-        return EXCEPTION_CONTINUE_SEARCH;
-
-    return apu_hook_handle_mmio(
-        info->ContextRecord, fault_address, guest_address,
-        info->ExceptionRecord->ExceptionInformation[0] ? 1 : 0)
-        ? EXCEPTION_CONTINUE_EXECUTION : EXCEPTION_CONTINUE_SEARCH;
-}
-
-static int mm3_apu_init(void)
-{
-    g_apu_state = mcpx_apu_init_standalone((uint8_t *)xbox_GetMemoryBase());
-    if (!g_apu_state) {
-        fprintf(stderr, "[APU] initialization failed\n");
-        return 0;
-    }
-
-    g_mm3_apu_veh = AddVectoredExceptionHandler(1, mm3_apu_mmio_handler);
-    if (!g_mm3_apu_veh) {
-        fprintf(stderr, "[APU] could not install MMIO exception handler\n");
-        mcpx_apu_shutdown(g_apu_state);
-        g_apu_state = NULL;
-        return 0;
-    }
-
-    fprintf(stderr, "[APU] emulated APU up; MMIO handler installed\n");
-    return 1;
-}
-
-static void mm3_apu_shutdown(void)
-{
-    if (g_mm3_apu_veh) {
-        RemoveVectoredExceptionHandler(g_mm3_apu_veh);
-        g_mm3_apu_veh = NULL;
-    }
-    if (g_apu_state) {
-        mcpx_apu_shutdown(g_apu_state);
-        g_apu_state = NULL;
-    }
-}
-
 static int load_file(const char *path, void **data, size_t *size)
 {
     FILE *file = fopen(path, "rb");
@@ -272,31 +187,18 @@ int main(void)
     /* D3D's GPU-notify KEVENT (device+0x196C, waited on in 0x344640),
      * raised by the NOP(5) it patches into the push buffer */
     xbox_Nv2aNotifyEvent(0x00351F48u, 0x196Cu, 5u);
-    if (!mm3_apu_init()) {
+    if (!xbox_HostHardwareInit()) {
         xbox_kernel_shutdown();
         xbox_MemoryLayoutShutdown();
         free(xbe_data);
         return 1;
     }
-    /* The standalone host must initialize and route the optional USB model;
-     * otherwise XAPI reads zeroed MCPX RAM and never enumerates a pad. */
-    xbox_OhciInit();
-    if (!mm3_graphics_init()) {
-        mm3_apu_shutdown();
+    if (!xbox_HostGraphicsInit("MM3 Recomp")) {
+        xbox_HostHardwareShutdown();
         xbox_kernel_shutdown();
         xbox_MemoryLayoutShutdown();
         free(xbe_data);
         return 1;
-    }
-    nv2a_hook_init(g_xbox_mem_offset);
-    /* PVIDEO accesses must execute register semantics, including STOP. */
-    {
-        DWORD old_protect;
-        if (!VirtualProtect((void *)((uintptr_t)g_xbox_mem_offset + 0xFD008000u),
-                            0x1000, PAGE_NOACCESS, &old_protect)) {
-            fprintf(stderr, "[NV2A] could not trap PVIDEO page\n");
-            return 1;
-        }
     }
     /* Retail behavior is SPAWN. INLINE is a bounded single-thread diagnostic
      * that removes cross-thread trace interleaving while locating startup. */
@@ -310,7 +212,7 @@ int main(void)
     g_mm3_main_worker_ready = CreateEventA(NULL, TRUE, FALSE, NULL);
     if (!g_mm3_main_worker_ready) {
         fprintf(stderr, "cannot create MM3 worker monitor\n");
-        mm3_apu_shutdown();
+        xbox_HostHardwareShutdown();
         xbox_kernel_shutdown();
         xbox_MemoryLayoutShutdown();
         free(xbe_data);
@@ -343,7 +245,7 @@ int main(void)
     }
     CloseHandle(g_mm3_main_worker_ready);
 
-    mm3_apu_shutdown();
+    xbox_HostHardwareShutdown();
     xbox_kernel_shutdown();
     xbox_MemoryLayoutShutdown();
     free(xbe_data);

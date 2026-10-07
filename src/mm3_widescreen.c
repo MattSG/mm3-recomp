@@ -13,8 +13,7 @@
  * (0x220B1E), which is why the argument is patched rather than the data. */
 extern void sub_0025968E_original(void);
 extern float nv2a_d3d_display_aspect(void);
-extern void nv2a_d3d_note_race_camera(void);
-extern void nv2a_d3d_note_frontend_camera(void);
+extern void nv2a_d3d_set_edge_hud(int on);
 extern void nv2a_d3d_set_hud_start(float x0, float y0, float x1, float y1);
 
 void sub_0025968E(void)
@@ -43,10 +42,10 @@ void sub_0025968E(void)
         /* The race HUD starts with the minimap's base quad; 2D drawn ahead of
          * it is the name tags over cars, positioned through this camera. */
         nv2a_d3d_set_hud_start(50.0f, 320.0f, 178.0f, 448.0f);
-        nv2a_d3d_note_race_camera();
+        nv2a_d3d_set_edge_hud(1);
     }
     else if (MEM32(g_esp) == 0x000F4AF5u && MEM32(g_ebp + 4) == 0x000E51EEu)
-        nv2a_d3d_note_frontend_camera();       /* car select's turntable */
+        nv2a_d3d_set_edge_hud(0);              /* car select's turntable */
     if (MEM32(g_esp) == 0x000F4AF5u && MEM32(g_ebp + 4) == 0x00210E1Eu &&
         fabsf(aspect - wide) < 1e-4f && fabsf(wide - 4.0f / 3.0f) > 1e-4f) {
         float fovy = 2.0f * atanf(tanf(MEMF(g_esp + 8) * 0.5f) * wide * 0.75f);

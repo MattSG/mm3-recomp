@@ -406,6 +406,26 @@ void recomp_trace_esp(const char *name, const char *tag);
 #define MEMF(addr)   (*(volatile float    *)XBOX_PTR(addr))
 #define MEMD(addr)   (*(volatile double   *)XBOX_PTR(addr))
 
+/* fld tbyte: a whole little-endian x87 80-bit extended operand. The x87
+ * stack is held as double, so this keeps a double's precision; reading it as
+ * MEMF took the low four bytes of the significand as a float. */
+static inline double recomp_read_fp80(uint32_t addr) {
+    const volatile uint8_t *p = (const volatile uint8_t *)XBOX_PTR(addr);
+    uint64_t significand = 0;
+    uint16_t sign_exponent = (uint16_t)(p[8] | (p[9] << 8));
+    unsigned exponent = sign_exponent & 0x7FFFu;
+    double value;
+    int i;
+    for (i = 7; i >= 0; --i)
+        significand = (significand << 8) | p[i];
+    if (exponent == 0x7FFFu)
+        value = significand << 1 ? NAN : INFINITY;
+    else
+        value = ldexp((double)significand, (exponent ? (int)exponent : 1) - 16383 - 63);
+    return sign_exponent & 0x8000u ? -value : value;
+}
+#define MEMFP80(addr) recomp_read_fp80(addr)
+
 /* ================================================================
  * SSE / XMM register state
  *
