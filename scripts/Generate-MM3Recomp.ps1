@@ -73,9 +73,9 @@ Set-Content -LiteralPath (Join-Path $GeneratorDir ("recomp_{0}_tail.c" -f $addre
 }
 
 # Keep runtime semantics project-owned while leaving tools/xboxrecomp untouched.
-$runtimeHeader = Join-Path $repo 'src\recomp\gen_trace\recomp_types.h'
+$runtimeHeader = Join-Path $repo 'src\mm3_recomp_types.h'
 Copy-Item -LiteralPath $runtimeHeader -Destination (Join-Path $GeneratorDir 'recomp_types.h') -Force
-$cpuHeader = Join-Path $repo 'src\recomp\gen_trace\recomp_cpu.h'
+$cpuHeader = Join-Path $repo 'tools\xboxrecomp\include\recomp_cpu.h'
 Copy-Item -LiteralPath $cpuHeader -Destination (Join-Path $GeneratorDir 'recomp_cpu.h') -Force
 
 # Generate alternate-SEH bodies through the official generator as overlays.

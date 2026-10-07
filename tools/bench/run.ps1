@@ -78,5 +78,5 @@ window 'race' $Secs
 Start-Sleep 2
 Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
 foreach ($w in $windows) {
-    "{0,-5}: {1} | {2}" -f $w[0], (python (Join-Path $PSScriptRoot 'frames.py') $csv $w[1] $w[2]), $w[3]
+    "{0,-5}: {1} | {2}" -f $w[0], (python (Join-Path $repo 'tools/xboxrecomp/tools/bench/frames.py') $csv $w[1] $w[2]), $w[3]
 }
