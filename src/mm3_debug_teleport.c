@@ -27,15 +27,23 @@ static unsigned serial, pending, completed;
 static int available;
 static char result[128] = "not ready";
 
+/* Called several times a frame per player; nearly every query lands in the
+ * same committed region, so the last good one is remembered (the hook runs on
+ * the game thread only). */
 static int mapped(uint32_t va, size_t size)
 {
+    static uintptr_t good_lo, good_hi;
     MEMORY_BASIC_INFORMATION info;
     uintptr_t p = XBOX_PTR(va);
     if (va < 0x10000u || va > 0x07FFFFFFu || size > 0x08000000u - va)
         return 0;
+    if (p >= good_lo && p + size <= good_hi)
+        return 1;
     if (!VirtualQuery((void *)p, &info, sizeof(info)) || info.State != MEM_COMMIT ||
         (info.Protect & (PAGE_NOACCESS | PAGE_GUARD))) return 0;
-    return p + size <= (uintptr_t)info.BaseAddress + info.RegionSize;
+    good_lo = (uintptr_t)info.BaseAddress;
+    good_hi = good_lo + info.RegionSize;
+    return p + size <= good_hi;
 }
 
 static uint32_t primary_player(void)
