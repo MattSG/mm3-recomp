@@ -1,7 +1,7 @@
 # Repository ownership and regression check
 
 2026-10-07. Root baseline: `e93442c`. Toolkit baseline: `e3674f3`.
-Toolkit ownership commit: `cc9388f`.
+Toolkit ownership commit: `cc9388f`. Regression fixes: `6d55457`.
 
 ## Ownership
 
@@ -31,12 +31,14 @@ Toolkit ownership commit: `cc9388f`.
 | Check | Result |
 | --- | --- |
 | MM3 `RelWithDebInfo` build, existing Visual Studio tree | Passed |
-| xboxrecomp Python tools, MSVC x64 environment | 597 passed, 33 skipped; 57 subtests passed |
-| 22 native CMake regression projects | 24 tests passed, 4 failed |
+| xboxrecomp Python tools, MSVC x64 environment | 599 passed, 31 skipped; 57 subtests passed |
+| 23 Windows native CMake regression projects | 32 tests passed, including four D3D8 smoke checks |
+| Linux memory regressions and two POSIX projects | 6 tests passed |
 | Shared CPU helpers | Passed, included in native total |
 | Texture upscaler and frame-time analyzer self-checks | Both passed |
 | MM3 worker bootstrap and generated memmove tails | Both passed |
-| PVIDEO register check | Compiled; assertion failed |
+| PVIDEO register check | Passed: both banks stop, command reads zero, restart works |
+| MM3 runtime | Profile, menu, mission loading and controller-driven Washington gameplay verified |
 
 Native projects: `kernel_regressions` (including the slow wrap check),
 `memory_regressions`, `kernel_directory`, `kernel_events`, `nv2a_combiner`,
@@ -45,31 +47,63 @@ Native projects: `kernel_regressions` (including the slow wrap check),
 `kernel_bridge`, `kernel_dispatch`, `kernel_irql_abi`, `kernel_object_paths`,
 `kernel_physical_address`, `wma_decoder`, `xaudio2`.
 
-This is not a clean regression pass or gameplay validation. Python skips
-include unavailable platform/compiler paths. POSIX-only native projects and
-the separate D3D8 smoke executables were not run. No game process or saves
-were touched.
+All executed regressions pass. Python skips cover other unavailable optional
+toolchains and platform paths; this is not coverage of every supported host.
+Native differential conformance now runs with the installed Visual Studio 18
+toolchain. Linux checks used Ubuntu 22.04 in WSL, with the runtime's existing
+OpenSSL, SDL2 and epoxy development dependencies installed.
 
-### Failures retained
+### Failures resolved
 
-1. `memory_regressions_default`: expects contiguous blocks never to be reused;
-   this fork reuses them by default.
-2. `memory_regressions_heap_reclaim`: expects the upstream opt-in heap splitting,
-   coalescing and decommit behavior. This fork's `xbox_HeapReclaimEnabled()`
-   returns zero; six checks fail. Whole-block heap reuse and disabled release
-   handling account for these failures.
-3. `memory_regressions_ext_vma`: cannot reserve its upper guest range, falls
-   back to a different address and then crashes when the harness touches its
-   requested address. The new Windows placeholder span includes the gap above
-   the RAM mirrors, while `guest_vmem_init()` requires that gap to be free.
-4. `xaudio2_test`: `XAudio2Create` returns `0x80004005`; the test then crashes.
-   Audio availability in this execution environment was not established.
-5. PVIDEO: STOP clears bit 0 of `BUFFER`, leaving bit 4 set for input `0x11`;
-   the check expects the entire value to become zero. Hardware semantics need
-   verification before changing runtime behavior or the assertion.
+1. Default contiguous allocation intentionally reuses freed blocks. Corrected
+   the stale assertion; kept that behavior.
+2. Restored opt-in `RECOMP_HEAP_RECLAIM`, split reused heap blocks, and compacted
+   coalesced entries so later frees still find their neighbors.
+3. Extended Windows VMA now replaces the layout's owned placeholder without
+   releasing it. Shutdown returns the VMA to placeholder ownership, coalesces,
+   then releases the entire reservation. All four memory modes check teardown.
+4. XAudio2's failure was in a stale mock: the newer callback registration had
+   no mock, and the test assumed three buffers instead of 64. Updated failure
+   injection and outstanding-buffer/wrap checks. No physical audio device is
+   involved in this mocked test.
+5. PVIDEO STOP now clears both banks, matching
+   [xemu's implementation](https://raw.githubusercontent.com/xemu-project/xemu/master/hw/xbox/nv2a/pvideo.c).
+6. Linux builds exposed unguarded Windows intrinsics/placeholder variables,
+   missing framebuffer type visibility and missing D3D11 fallback symbols.
+   Restored platform guards and POSIX atomics. Reserved enough host span for
+   contiguous memory and extended VMA, and prevented 128 MB mirrors from
+   replacing contiguous storage. The memory regression checks distinct RAM
+   versus contiguous storage and its tiled alias in all four modes.
 
-The cleanup did not change these runtime functions. Their failures must not
-be represented as successful regressions.
+Windows placeholder ownership follows the documented
+[VirtualAlloc2](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc2)
+and [VirtualFree](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualfree)
+replacement/preservation rules.
+
+## Game evidence
+
+Own processes only; isolated saves under
+`conformance_tmp/movie_skip_20261007_180122_093/save`. Original Profile 1 and
+game assets were not changed. Runtime used D3D11, USB input, render scale 2,
+1280x720 window and a 60 FPS limit, with the existing offline-XNet build option
+and DSP mailbox acknowledgement (`RECOMP_APU_DSP_ACK=0x80458810`). Networking
+and DSP effects remain incomplete; DLC playability was not established here.
+
+`conformance_tmp/regression_game_20261007/` contains input commands, stderr,
+frame CSV and captures. The initial `capture-006.bmp` and `capture-007.bmp`
+show profile selection/main menu. `final-002.bmp` shows Standard Delivery
+loading; `final-004.bmp` shows the player stationary in Washington;
+`final-005.bmp` shows movement and second gear after right-trigger input;
+`final-007.bmp` shows the changed heading/location after steering. These are
+live rendered gameplay, not attract movies. No crash occurred in this run.
+The final 20-second gameplay sample had 1,201 frames, 60.0 FPS, p95/p99
+16.67 ms, maximum 16.71 ms, and zero intervals above twice the median. This
+short capped sample does not establish performance across every scene.
+
+After the final platform changes, rebuilt and relaunched the executable with
+SHA-256 `1B110F37250E114DB995858C1E4ADFD50513716536146641A9562AC421EF3158`.
+The `verified-*` evidence records that final binary loading Standard Delivery,
+responding to pause/resume, and accelerating under right-trigger input.
 
 ## Reproduce
 
@@ -94,6 +128,7 @@ tools/xboxrecomp/tools/powershell/check_pvideo_registers.ps1
 cmake --build build-msvc-tailfix --config RelWithDebInfo --target mm3_recomp --parallel 4
 ```
 
-Evidence: `tools/xboxrecomp/build/ownership-regression-msvc-python.xml`,
+Evidence: `tools/xboxrecomp/build/regression-msvc-python.xml`,
 `build/ownership-regression/<project>/Testing/Temporary/LastTest.log` and
-`build/ownership-mm3-build.log`. These are local ignored outputs.
+`build/regression-mm3-build.log`, and Linux `build/ownership-linux-*` test logs.
+These are local ignored outputs.
