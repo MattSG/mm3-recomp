@@ -269,6 +269,8 @@ int main(void)
     xbox_kernel_bridge_init();
     if (xbox_Nv2aMirrorFence(0x00351F48u, 0x2Cu, 0x30u) != 0)
         fprintf(stderr, "NV2A fence mirror registration failed\n");
+    /* D3D's GPU-notify KEVENT (device+0x196C, waited on in 0x344640) */
+    xbox_Nv2aNotifyEvent(0x00351F48u, 0x196Cu);
     if (!mm3_apu_init()) {
         xbox_kernel_shutdown();
         xbox_MemoryLayoutShutdown();

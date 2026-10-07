@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <xmmintrin.h>
 
 #include "recomp_types.h"
 
@@ -1198,3 +1199,19 @@ void sub_00316465(void) {}
 void sub_00317F5B(void) {}
 void sub_00319630(void) {}
 void sub_00358FAC(void) {}
+
+/* XDK write-back-cache flush (D3D's push-buffer kick): set NV_PFB_WBC_FLUSH
+ * and spin until the GPU clears it. On hardware that only drains the CPU's
+ * write-combined stores and waits for no GPU work; the host equivalent is a
+ * store fence. Here the ack thread cleared the bit only between push-buffer
+ * segments, so every kick-off waited for the executor to finish the previous
+ * one (~25% of a race frame). That spin was also the only thing keeping D3D
+ * off its GPU-notify wait, which xbox_Nv2aNotifyEvent (main.c) now answers.
+ * Registers are left as the guest routine leaves them. */
+void sub_00344AB0(void)
+{
+    g_eax = MEM32(MEM32(0x351F48u) + 0x17C8u);
+    g_ecx = MEM32(g_eax + 0x100410u) | 0x10000u;
+    _mm_sfence();
+    g_esp += 4;
+}

@@ -100,7 +100,8 @@ endif()
 
 # Rename definitions only: renaming every reference with a compile definition
 # would bypass the distance hooks for callers in the same generated chunk.
-foreach(distance_chunk 0010 0011 0014 0019 0020)
+# 0025's 00344AB0 is src/recomp_manual.c's native WBC flush.
+foreach(distance_chunk 0010 0011 0014 0019 0020 0025)
     set(distance_input "${RECOMP_GEN_DIR}/recomp_${distance_chunk}.c")
     set(distance_output "${CMAKE_CURRENT_BINARY_DIR}/render_distance/recomp_${distance_chunk}.c")
     file(READ "${distance_input}" distance_content)
@@ -112,6 +113,8 @@ foreach(distance_chunk 0010 0011 0014 0019 0020)
         set(distance_functions 001661D0)
     elseif(distance_chunk STREQUAL "0019")
         set(distance_functions 002256C7 002203E5)
+    elseif(distance_chunk STREQUAL "0025")
+        set(distance_functions 00344AB0)
     else()
         set(distance_functions 0022F298)
     endif()
