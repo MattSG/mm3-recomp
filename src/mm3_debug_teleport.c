@@ -26,6 +26,8 @@ static DWORD sampled;
 static unsigned serial, pending, completed;
 static int available;
 static char result[128] = "not ready";
+/* Every car the player update touches (AI included), for the AI-start check. */
+static struct { uint32_t player, vtable; float x, z, fx, fz; DWORD tick; } cars[16];
 
 /* Called several times a frame per player; nearly every query lands in the
  * same committed region, so the last good one is remembered (the hook runs on
@@ -109,8 +111,38 @@ static int teleport(uint32_t player, uint32_t vehicle, uint32_t car,
     return applied;
 }
 
+static void sample_car(uint32_t player)
+{
+    /* body_for without its player-vehicle vtable check: AI opponents may
+     * drive through another vehicle interface with the same car layout. */
+    uint32_t vehicle, car, simulation, body;
+    unsigned i, slot = 16;
+    if (!mapped(player, 0x7A0)) return;
+    vehicle = MEM32(player + 0x19C);
+    if (!mapped(vehicle, 0x2C)) return;
+    car = MEM32(vehicle + 8);
+    if (!mapped(car, 0x48)) return;
+    simulation = MEM32(car + 0x3C);
+    if (!mapped(simulation, 8)) return;
+    body = MEM32(simulation + 4);
+    if (!mapped(body, 0x1C4)) return;
+    AcquireSRWLockExclusive(&lock);
+    for (i = 0; i < 16; ++i) {
+        if (cars[i].player == player || GetTickCount() - cars[i].tick > 2000) { slot = i; break; }
+    }
+    if (slot < 16) {
+        cars[slot].player = player;
+        cars[slot].vtable = MEM32(vehicle);
+        cars[slot].x = MEMF(body + 0xC8); cars[slot].z = MEMF(body + 0xD0);
+        cars[slot].fx = MEMF(body + 0xBC); cars[slot].fz = MEMF(body + 0xC4);
+        cars[slot].tick = GetTickCount();
+    }
+    ReleaseSRWLockExclusive(&lock);
+}
+
 void sub_002203E5(void)
 {
+    if (enabled) sample_car(g_ecx);
     if (enabled && g_ecx == primary_player()) {
         uint32_t car, vehicle, player = g_ecx;
         uint32_t body = body_for(player, &car, &vehicle);
@@ -174,10 +206,10 @@ static DWORD WINAPI pipe_thread(void *unused)
     for (;;) {
         HANDLE pipe = CreateNamedPipeA(name, PIPE_ACCESS_DUPLEX,
             PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
-            1, 512, 512, 0, NULL);
+            1, 2048, 2048, 0, NULL);
         if (pipe == INVALID_HANDLE_VALUE) return 1;
         if (ConnectNamedPipe(pipe, NULL) || GetLastError() == ERROR_PIPE_CONNECTED) {
-            char command[128] = {0}, reply[256], extra;
+            char command[128] = {0}, reply[2048], extra;
             DWORD bytes;
             float xyz[3];
             if (ReadFile(pipe, command, sizeof(command) - 1, &bytes, NULL)) {
@@ -188,6 +220,20 @@ static DWORD WINAPI pipe_thread(void *unused)
                 if ((fields == 2 || (fields == 3 && isfinite(heading))) &&
                     isfinite(xyz[0]) && isfinite(xyz[2])) {
                     request_teleport(xyz, fields == 3 ? heading : NAN, reply, sizeof(reply));
+                } else if (strcmp(command, "cars") == 0) {
+                    uint32_t primary = primary_player();
+                    size_t n = (size_t)snprintf(reply, sizeof(reply), "{\"cars\":[");
+                    AcquireSRWLockShared(&lock);
+                    for (unsigned i = 0; i < 16 && n < sizeof(reply) - 160; ++i) {
+                        if (!cars[i].player || GetTickCount() - cars[i].tick > 500) continue;
+                        n += (size_t)snprintf(reply + n, sizeof(reply) - n,
+                            "%s{\"id\":%u,\"vt\":%u,\"player\":%s,\"x\":%.6g,\"z\":%.6g,\"fx\":%.6g,\"fz\":%.6g}",
+                            reply[n - 1] == '[' ? "" : ",", cars[i].player, cars[i].vtable,
+                            cars[i].player == primary ? "true" : "false",
+                            cars[i].x, cars[i].z, cars[i].fx, cars[i].fz);
+                    }
+                    ReleaseSRWLockShared(&lock);
+                    snprintf(reply + n, sizeof(reply) - n, "]}");
                 } else if (strcmp(command, "position") == 0) {
                     AcquireSRWLockShared(&lock);
                     snprintf(reply, sizeof(reply), "{\"available\":%s,\"x\":%.9g,\"y\":%.9g,\"z\":%.9g}",

@@ -17,7 +17,8 @@ time). Menu input is time-based: if the race is not reached, "a" is pressed
 again until a car is live.
 #>
 param([Parameter(Mandatory)][string]$Exe, [Parameter(Mandatory)][string]$Save,
-      [string]$Tag = 'bench', [int]$FpsLimit = 0, [int]$Secs = 20)
+      [string]$Tag = 'bench', [int]$FpsLimit = 0, [int]$Secs = 20,
+      [double]$X = 97.66, [double]$Z = -1028.3)   # Washington; the save's city decides
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $dir = Join-Path $repo "conformance_tmp\bench\$Tag"
@@ -72,11 +73,14 @@ for ($t = 0; $t -lt 5; $t++) {
     if ($r -and $r.available) { break }
     press 'a' 9
 }
-& $tp -ProcessId $p.Id -X 97.66 -Z -1028.3 -Heading 0 | Out-Null
+try { & $tp -ProcessId $p.Id -X $X -Z $Z -Heading 0 | Out-Null }
+catch { Write-Warning "teleport failed ($_): race measured at the spawn point $(& $tp -ProcessId $p.Id | ConvertTo-Json -Compress), not comparable across runs" }
 Start-Sleep 4
 window 'race' $Secs
 Start-Sleep 2
 Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+$p.WaitForExit(15000) | Out-Null
+Remove-Item -Recurse -Force (Join-Path $dir 'save') -ErrorAction SilentlyContinue   # 5 GB per run
 foreach ($w in $windows) {
     "{0,-5}: {1} | {2}" -f $w[0], (python (Join-Path $repo 'tools/xboxrecomp/tools/bench/frames.py') $csv $w[1] $w[2]), $w[3]
 }
