@@ -30,105 +30,108 @@ endif()
 
 file(GLOB RECOMP_GEN_SOURCES CONFIGURE_DEPENDS
     "${RECOMP_GEN_DIR}/*.c")
+
+# Generated functions move between split chunks whenever the generator's
+# function list changes, so find each project hook's owner instead of naming
+# a chunk. Hooks rename the generated definition to <name>_original and the
+# project supplies <name>.
+set(MM3_RENAMED_FUNCTIONS
+    sub_0009BC04 sub_0009BC52    # recovered x87 helpers keep their unusual stack return
+    sub_00170E5D sub_000145DC sub_001F02AD
+    sub_0025968E)                # widescreen: wraps the projection-matrix builder
+if(MM3_MOVIE_INPUT_TRACE)
+    list(APPEND MM3_RENAMED_FUNCTIONS sub_001DB6E8 sub_001F2A71 sub_001F443D sub_0035BDC0)
+endif()
+if(MM3_OFFLINE_XNET)
+    list(APPEND MM3_RENAMED_FUNCTIONS sub_0019531D)
+endif()
 if(MM3_FRONTEND_WATCH)
+    list(APPEND MM3_RENAMED_FUNCTIONS sub_000FA37E sub_0011935B sub_001253F4 sub_0008E420 sub_0008E3C0)
     set_property(SOURCE "src/recomp_manual.c" APPEND PROPERTY
         COMPILE_DEFINITIONS "MM3_HEAP_WATCH_WRAPPER=1")
-    # Seeded functions can move between split files after regeneration.
-    # Bind diagnostic aliases to their actual definition instead of an index.
-  foreach(wrapped_function sub_000FA37E sub_0011935B sub_001253F4 sub_0008E420 sub_0008E3C0)
-        set(wrapper_owners "")
-        foreach(generated_source IN LISTS RECOMP_GEN_SOURCES)
-            file(STRINGS "${generated_source}" wrapper_signature
-                REGEX "^void ${wrapped_function}\\(void\\)$" LIMIT_COUNT 1)
-            if(wrapper_signature)
-                list(APPEND wrapper_owners "${generated_source}")
-            endif()
-        endforeach()
-        list(LENGTH wrapper_owners wrapper_owner_count)
-        if(NOT wrapper_owner_count EQUAL 1)
-            message(FATAL_ERROR "Expected one generated definition for ${wrapped_function}; found ${wrapper_owner_count}")
-        endif()
-        set_property(SOURCE ${wrapper_owners} APPEND PROPERTY
-            COMPILE_DEFINITIONS "${wrapped_function}=${wrapped_function}_original")
-    endforeach()
-    if(MSVC)
-        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0000.c" "${RECOMP_GEN_DIR}/recomp_0011.c" "${RECOMP_GEN_DIR}/recomp_0012.c" "${RECOMP_GEN_DIR}/recomp_0017.c" "${RECOMP_GEN_DIR}/recomp_0020.c" "${RECOMP_GEN_DIR}/recomp_stubs_unresolved.c" APPEND PROPERTY
-            COMPILE_OPTIONS "/FI${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
-    else()
-        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0000.c" "${RECOMP_GEN_DIR}/recomp_0011.c" "${RECOMP_GEN_DIR}/recomp_0012.c" "${RECOMP_GEN_DIR}/recomp_0017.c" "${RECOMP_GEN_DIR}/recomp_0020.c" "${RECOMP_GEN_DIR}/recomp_stubs_unresolved.c" APPEND PROPERTY
-            COMPILE_OPTIONS "-include" "${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
-    endif()
 endif()
+# Render distance renames definitions only: renaming every reference with a
+# compile definition would bypass the hooks for callers in the same chunk.
+set(MM3_DISTANCE_FUNCTIONS sub_000D9E2E sub_000E2D5B sub_000F4AC3 sub_000FE71E
+    sub_001661D0 sub_002256C7 sub_002203E5 sub_0022F298)
+
+list(JOIN MM3_RENAMED_FUNCTIONS "|" hook_names)
+list(JOIN MM3_DISTANCE_FUNCTIONS "|" distance_names)
+# recomp_runtime_entries.c holds the project's replacement x87 helper bodies.
+set(hook_scan_sources ${RECOMP_GEN_SOURCES})
+list(FILTER hook_scan_sources EXCLUDE REGEX "/recomp_runtime_entries[.]c$")
+foreach(generated_source IN LISTS hook_scan_sources)
+    file(STRINGS "${generated_source}" hooked_definitions
+        REGEX "^void (${hook_names}|${distance_names})[(]void[)]$")
+    foreach(definition IN LISTS hooked_definitions)
+        string(REGEX REPLACE "^void (sub_[0-9A-F]+)[(]void[)]$" "\\1" hooked "${definition}")
+        if(DEFINED owner_${hooked})
+            message(FATAL_ERROR "${hooked} is defined in ${owner_${hooked}} and ${generated_source}")
+        endif()
+        set(owner_${hooked} "${generated_source}")
+    endforeach()
+endforeach()
+foreach(hooked IN LISTS MM3_RENAMED_FUNCTIONS MM3_DISTANCE_FUNCTIONS)
+    if(NOT DEFINED owner_${hooked})
+        message(FATAL_ERROR "No generated definition of ${hooked} in ${RECOMP_GEN_DIR}")
+    endif()
+endforeach()
+foreach(hooked IN LISTS MM3_RENAMED_FUNCTIONS)
+    set_property(SOURCE "${owner_${hooked}}" APPEND PROPERTY
+        COMPILE_DEFINITIONS "${hooked}=${hooked}_original")
+endforeach()
 
 if(MM3_FRONTEND_WATCH)
     if(MSVC)
-        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_000860aa_seh.c" "${RECOMP_GEN_DIR}/recomp_0008.c" "${RECOMP_GEN_DIR}/recomp_runtime_entries.c" APPEND PROPERTY
-            COMPILE_OPTIONS "/FI${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
+        set(watch_include "/FI${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
     else()
-        set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_000860aa_seh.c" "${RECOMP_GEN_DIR}/recomp_0008.c" "${RECOMP_GEN_DIR}/recomp_runtime_entries.c" APPEND PROPERTY
-            COMPILE_OPTIONS "-include" "${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
+        set(watch_include "-include" "${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
     endif()
+    set_property(SOURCE ${RECOMP_GEN_SOURCES} APPEND PROPERTY COMPILE_OPTIONS ${watch_include})
 endif()
 
-# Recovered x87 helpers preserve extended operands and their original unusual
-# stack return. Keep the base lift available without duplicate public bodies.
-set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0008.c" APPEND PROPERTY
-    COMPILE_DEFINITIONS "sub_0009BC04=sub_0009BC04_original" "sub_0009BC52=sub_0009BC52_original")
-
-# 0x252AF is supplied by recomp_manual.c.  The generator also lists it in the
-# aggregate unresolved-stub TU; rename that one fallback so the real override
-# owns the dispatch symbol without editing generated output.
+# 0x252AF and the runtime-proven entries are supplied by the project. The
+# generator also lists them in the aggregate unresolved-stub TU; rename those
+# fallbacks so the real definitions own the dispatch symbols.
 set(RECOMP_UNRESOLVED_STUB "${RECOMP_GEN_DIR}/recomp_stubs_unresolved.c")
-if(EXISTS "${RECOMP_UNRESOLVED_STUB}")
-    set_source_files_properties("${RECOMP_UNRESOLVED_STUB}"
-        PROPERTIES COMPILE_DEFINITIONS "sub_000252AF=sub_000252AF_unresolved")
-endif()
+set_property(SOURCE "${RECOMP_UNRESOLVED_STUB}" APPEND PROPERTY
+    COMPILE_DEFINITIONS "sub_000252AF=sub_000252AF_unresolved")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/mm3_runtime_entry_repairs.json")
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/mm3_runtime_entry_repairs.json" runtime_entries_json)
+string(JSON runtime_entry_count LENGTH "${runtime_entries_json}")
+math(EXPR runtime_entry_last "${runtime_entry_count} - 1")
+foreach(runtime_entry_index RANGE 0 ${runtime_entry_last})
+    string(JSON runtime_entry_start GET "${runtime_entries_json}" ${runtime_entry_index} start)
+    string(SUBSTRING "${runtime_entry_start}" 2 8 runtime_entry_suffix)
+    set_property(SOURCE "${RECOMP_UNRESOLVED_STUB}" APPEND PROPERTY
+        COMPILE_DEFINITIONS "sub_${runtime_entry_suffix}=sub_${runtime_entry_suffix}_unresolved")
+endforeach()
 
-if(MM3_MOVIE_INPUT_TRACE)
-    set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0017.c" APPEND PROPERTY
-        COMPILE_DEFINITIONS "sub_001DB6E8=sub_001DB6E8_original")
-    set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0018.c" APPEND PROPERTY
-        COMPILE_DEFINITIONS "sub_001F2A71=sub_001F2A71_original;sub_001F443D=sub_001F443D_original")
-    set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0026.c" APPEND PROPERTY
-        COMPILE_DEFINITIONS "sub_0035BDC0=sub_0035BDC0_original")
-endif()
-
-if(MM3_OFFLINE_XNET)
-    set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0016.c" APPEND PROPERTY
-        COMPILE_DEFINITIONS "sub_0019531D=sub_0019531D_original")
-endif()
-
-# Rename definitions only: renaming every reference with a compile definition
-# would bypass the distance hooks for callers in the same generated chunk.
-# 0025's 00344AB0 is src/recomp_manual.c's native WBC flush.
-foreach(distance_chunk 0010 0011 0014 0019 0020 0025)
-    set(distance_input "${RECOMP_GEN_DIR}/recomp_${distance_chunk}.c")
-    set(distance_output "${CMAKE_CURRENT_BINARY_DIR}/render_distance/recomp_${distance_chunk}.c")
+# Distance hooks: compile a copy of each owning chunk with the definition
+# renamed, carrying over the chunk's other compile properties.
+set(distance_owners "")
+foreach(hooked IN LISTS MM3_DISTANCE_FUNCTIONS)
+    list(APPEND distance_owners "${owner_${hooked}}")
+endforeach()
+list(REMOVE_DUPLICATES distance_owners)
+foreach(distance_input IN LISTS distance_owners)
+    get_filename_component(distance_name "${distance_input}" NAME)
+    set(distance_output "${CMAKE_CURRENT_BINARY_DIR}/render_distance/${distance_name}")
     file(READ "${distance_input}" distance_content)
-    if(distance_chunk STREQUAL "0010")
-        set(distance_functions 000D9E2E 000E2D5B 000F4AC3)
-    elseif(distance_chunk STREQUAL "0011")
-        set(distance_functions 000FE71E)
-    elseif(distance_chunk STREQUAL "0014")
-        set(distance_functions 001661D0)
-    elseif(distance_chunk STREQUAL "0019")
-        set(distance_functions 002256C7 002203E5)
-    elseif(distance_chunk STREQUAL "0025")
-        set(distance_functions 00344AB0)
-    else()
-        set(distance_functions 0022F298)
-    endif()
-    foreach(distance_function IN LISTS distance_functions)
-        string(REGEX MATCHALL "void sub_${distance_function}\\(void\\)" distance_definitions "${distance_content}")
-        list(LENGTH distance_definitions distance_definition_count)
-        if(NOT distance_definition_count EQUAL 1)
-            message(FATAL_ERROR "Expected one definition of sub_${distance_function} in ${distance_input}")
+    foreach(hooked IN LISTS MM3_DISTANCE_FUNCTIONS)
+        if(owner_${hooked} STREQUAL distance_input)
+            string(REPLACE "void ${hooked}(void)" "void ${hooked}_original(void)"
+                distance_content "${distance_content}")
         endif()
-        string(REPLACE "void sub_${distance_function}(void)"
-            "void sub_${distance_function}_original(void)" distance_content "${distance_content}")
     endforeach()
     file(CONFIGURE OUTPUT "${distance_output}" CONTENT "${distance_content}" @ONLY)
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${distance_input}")
+    foreach(distance_property COMPILE_DEFINITIONS COMPILE_OPTIONS)
+        get_source_file_property(distance_value "${distance_input}" ${distance_property})
+        if(distance_value)
+            set_property(SOURCE "${distance_output}" PROPERTY ${distance_property} "${distance_value}")
+        endif()
+    endforeach()
     list(REMOVE_ITEM RECOMP_GEN_SOURCES "${distance_input}")
     list(APPEND RECOMP_GEN_SOURCES "${distance_output}")
 endforeach()
@@ -149,27 +152,6 @@ add_executable(${PROJECT_NAME}
 
 set_property(SOURCE src/recomp_manual.c APPEND PROPERTY COMPILE_DEFINITIONS
     "recomp_lookup_manual=recomp_lookup_manual_base" "sub_00083A6C=sub_00083A6C_original")
-set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0014.c" APPEND PROPERTY
-    COMPILE_DEFINITIONS "sub_00170E5D=sub_00170E5D_original")
-set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0000.c" APPEND PROPERTY
-    COMPILE_DEFINITIONS "sub_000145DC=sub_000145DC_original")
-set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0018.c" APPEND PROPERTY
-    COMPILE_DEFINITIONS "sub_001F02AD=sub_001F02AD_original")
-# Widescreen: src/mm3_widescreen.c wraps the projection-matrix builder.
-set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_0022.c" APPEND PROPERTY
-    COMPILE_DEFINITIONS "sub_0025968E=sub_0025968E_original")
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/mm3_runtime_entry_repairs.json")
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/mm3_runtime_entry_repairs.json" runtime_entries_json)
-string(JSON runtime_entry_count LENGTH "${runtime_entries_json}")
-math(EXPR runtime_entry_last "${runtime_entry_count} - 1")
-foreach(runtime_entry_index RANGE 0 ${runtime_entry_last})
-    string(JSON runtime_entry_start GET "${runtime_entries_json}" ${runtime_entry_index} start)
-    string(SUBSTRING "${runtime_entry_start}" 2 8 runtime_entry_suffix)
-    set_property(SOURCE "${RECOMP_GEN_DIR}/recomp_stubs_unresolved.c" APPEND PROPERTY
-        COMPILE_DEFINITIONS "sub_${runtime_entry_suffix}=sub_${runtime_entry_suffix}_unresolved")
-endforeach()
-
 if(MM3_MOVIE_INPUT_TRACE)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3_movie_input_trace.c)
 endif()
@@ -206,13 +188,3 @@ if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /bigobj)
 endif()
 
-foreach(distance_chunk 0010 0011 0014 0019 0020)
-    foreach(distance_property COMPILE_DEFINITIONS COMPILE_OPTIONS COMPILE_FLAGS)
-        get_source_file_property(distance_property_value
-            "${RECOMP_GEN_DIR}/recomp_${distance_chunk}.c" ${distance_property})
-        if(distance_property_value)
-            set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/render_distance/recomp_${distance_chunk}.c"
-                PROPERTY ${distance_property} "${distance_property_value}")
-        endif()
-    endforeach()
-endforeach()

@@ -1,16 +1,18 @@
 """Lift runtime-proven MM3 entries through the repository's translator."""
 import json
+import os
 import pathlib
 import sys
 
 repo = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(repo / 'tools/xboxrecomp'))
+toolkit = pathlib.Path(os.environ.get('MM3_GENERATOR_DIR', repo / 'tools/xboxrecomp'))
+sys.path.insert(0, str(toolkit))
 from tools.recomp import config
 from tools.recomp.translator import BatchTranslator
 
 out = pathlib.Path(sys.argv[1])
 entries = json.loads((repo / 'mm3_runtime_entry_repairs.json').read_text())
-tool = repo / 'tools/xboxrecomp/tools'
+tool = toolkit / 'tools'
 xbe = repo / 'game_files/default.xbe'
 config.configure_from_xbe(str(xbe))
 translator = BatchTranslator(

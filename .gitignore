@@ -15,6 +15,7 @@ tools/cache/
 tools/packages/
 tools/source/
 tools/venv/
+tools/.generator/
 
 # Build and runtime evidence
 build*/

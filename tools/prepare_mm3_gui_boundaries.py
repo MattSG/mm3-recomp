@@ -1,13 +1,15 @@
 """Seed native menu tail entries and repair proven GUI entry boundaries."""
 import argparse
 import json
+import os
 from pathlib import Path
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output', required=True)
 args = parser.parse_args()
 repo = Path(__file__).resolve().parents[1]
-functions = json.loads((repo / 'tools/xboxrecomp/tools/disasm/output/functions.json').read_text())
+toolkit = Path(os.environ.get('MM3_GENERATOR_DIR', repo / 'tools/xboxrecomp'))
+functions = json.loads((toolkit / 'tools/disasm/output/functions.json').read_text())
 by_start = {int(item['start'], 16): item for item in functions}
 for entry in json.loads((repo / 'mm3_tail_constructor_functions.json').read_text()):
     address = int(entry['start'], 16)

@@ -1001,6 +1001,13 @@ void recomp_abi_violation_log(uint32_t va, uint32_t ebx0, uint32_t esi0,
     RECOMP_ICALL_SAFE((xbox_va), (saved_esp)); \
 } while (0)
 
+/* Caller cleanup (cdecl call sites): a failed call pops only its return
+ * address, the caller's own add esp drops the arguments. */
+#define RECOMP_ICALL_SAFE_CC(xbox_va, saved_esp) \
+    RECOMP_ICALL_SAFE((xbox_va), g_esp + 4u)
+#define RECOMP_ICALL_SAFE_AT_CC(xbox_va, saved_esp, site) \
+    RECOMP_ICALL_SAFE_AT((xbox_va), g_esp + 4u, (site))
+
 /**
  * RECOMP_ITAIL - Indirect tail call (jmp through function pointer).
  *
