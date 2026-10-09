@@ -85,10 +85,13 @@ F11 or Alt+Enter toggles fullscreen. The window size sets the internal resolutio
 | `RECOMP_MSAA` | `4` | MSAA sample count (1/2/4/8). |
 | `RECOMP_ANISO` | `16` | Anisotropic filtering (1–16). |
 | `RECOMP_DRAW_DISTANCE` | `2` | View/LOD distance multiplier (1 = Xbox, up to 4). |
-| `RECOMP_SHARP_POINT` | `1` | `0`: plain point filtering for fonts and menu art instead of sharp outlines. |
 | `RECOMP_PS_SPEC` | `1` | `0`: skip specialised pixel shaders (slow; for debugging). |
 | `MM3_SAVE_DIR` | built-in | Folder holding the HDD/save partition images. |
-| `MM3_DEBUG_TELEPORT` | off | Enable the teleport pipe (`tools\powershell\Send-MM3Teleport.ps1`). |
+| `MM3_DEBUG_TELEPORT` | off | Teleport debugger: a panel with live X/Y/Z that places the car on the ground at a typed X/Z, and the pipe `tools\powershell\Send-MM3Teleport.ps1` drives. See `DEBUG_TELEPORT.md`. |
+| `MM3_DEV_HUD` | off | `1`: the retail build's own developer HUD (position, damage, speed/RPM/gear). Needs `tools\debug-features\prepare.py` first. |
+| `MM3_DEBUG_MENU` | off | `1`: the retail developer menu (D-pad to select and change). Same prerequisite. |
+| `MM3_EXTENDED_CAMERAS` | off | `1`: the developer camera modes. Same prerequisite. |
+| `MM3_E3_PRESET` | off | `1`: run the shipped `E3settings.lua`. Same prerequisite. |
 
 ### Automation and measurement
 
@@ -110,6 +113,11 @@ benchmark (frame-time percentiles, lows, jitter, executor time, GPU use).
 same path into the first race and checks every AI car leaves the line forwards (exit 0 = pass).
 It also prints the player car's top speed under a held throttle: about 50 units/s in 30 s on
 the bench save (19 with the throttle/gear bug).
+
+The developer tools are experimental (see `tools\debug-features\README.md`): `prepare.py` adds
+their Lua scripts to `Data_hd.zip` without moving the original entries, and `run.ps1` launches
+an isolated instance with `-DevHud`, `-DebugMenu`, `-ExtendedCameras`, `-E3Preset` and
+`-GraphicsPreset Retail|Default|Max`.
 
 ### Diagnostics
 
