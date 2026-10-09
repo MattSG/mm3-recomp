@@ -44,3 +44,17 @@ Run: out/debug-features/run-20261009-134553, PID 31300.
 HUD visible in capture-003.bmp; debug menu visible in capture-004.bmp; reset removes both in capture-005.bmp. Probes 3/4/5/7/9 returned loaded=1; probe 6 returned loaded=0. Probe 4 changed floors to 3, probe 7 restored 2. Final reset returned loaded=1. Camera and profiler loader success remains weaker than functional proof.
 
 The isolated instance is left running with the debug menu and HUD enabled for review. D-pad up/down selects and left/right changes entries. To close it, write 8 to this run's request.txt. The mission timer continues while the menu is open.
+
+## Launch flags and graphics regression
+
+`run.ps1 -DevHud -DebugMenu -ExtendedCameras` enables the corresponding tools on the first player update. `-E3Preset` runs the E3 settings too. Environment equivalents are MM3_DEV_HUD, MM3_DEBUG_MENU, MM3_EXTENDED_CAMERAS and MM3_E3_PRESET (1 enables, 0 disables). Scripts must first be installed with prepare.py. Startup flags were exercised in run-20261009-135727 (probes 1, 2 and 3 all loaded=1).
+
+`-GraphicsPreset Retail|Default|Max` selects baseline/enhanced/max quality. Max uses draw distance 4, 8x MSAA, 16x AF, 1920 internal lines. `-Graphics @{ RECOMP_MSAA='1' }` overrides a supported graphics option. `-CaptureDisplay` captures the final window composite; otherwise captures are at internal resolution. The D3D debug layer is optional via `-Graphics @{ RECOMP_D3D_DEBUG='1' }`; it is not a quality feature.
+
+For blank-frame or texture-dropout regression testing omit all developer overlay switches. Capture a sequence by writing N to capture.flag. Run `python tools/debug-features/analyze_frames.py <run-directory> --start <first-gameplay-frame>` to produce frame-analysis.json. It reports sampled black frames and adjacent image changes; visual inspection must distinguish scene motion from defects. `--self-test` checks the metrics.
+
+The current branch integrates committed vertex-fetch and sky/depth/fog fixes through toolkit merge 46b (see git history for full hash). The original font/menu placement reverts remain.
+
+First max-quality run: 120 gameplay captures (005..124), no fully blank internal images in that interval, but severe scene geometry/texture dropout is visible between captures 091 and 092. Debug menu/HUD had been reset off before capture. This is a confirmed regression, not a passing graphics test. A later crash logged exception 0x87D; cause is not established. Final-window captures and normal runs without D3D validation are still required.
+
+Existing D3D8 gamma, formats, states and A8 tests passed (4/4). These tests do not validate the active NV2A push-buffer renderer end to end.

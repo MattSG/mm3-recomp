@@ -6,6 +6,12 @@
 
 extern void sub_0020F7EB(void);
 
+static int flag(const char *name)
+{
+    const char *value = getenv(name);
+    return value && *value && strcmp(value, "0");
+}
+
 /* Opt-in PAL experiment. Run the title's own Lua loader on the game thread,
  * after a player update, never from a host input/pipe thread. A numbered
  * request selects a prepared script; no arbitrary guest address is accepted. */
@@ -13,20 +19,31 @@ void mm3_debug_features_tick(void)
 {
     static const char *request;
     static int initialized, running;
+    static unsigned startup;
     static DWORD last;
     FILE *file;
     unsigned probe;
     char extra, name[40];
-    if (!initialized) { request = getenv("MM3_DEBUG_FEATURE_REQUEST"); initialized = 1; }
-    if (!request || running || GetTickCount() - last < 200) return;
+    if (!initialized) {
+        request = getenv("MM3_DEBUG_FEATURE_REQUEST");
+        startup = (flag("MM3_DEV_HUD") << 1) | (flag("MM3_DEBUG_MENU") << 2)
+                | (flag("MM3_EXTENDED_CAMERAS") << 3) | (flag("MM3_E3_PRESET") << 7);
+        initialized = 1;
+    }
+    if ((!request && !startup) || running || GetTickCount() - last < 200) return;
     last = GetTickCount();
     if (!MEM32(0x003C5D1Cu) || g_esp < 0x10400u || g_esp >= 0x08000000u) return;
-    file = fopen(request, "rb");
-    if (!file) return;
-    int valid = fscanf(file, "%u %c", &probe, &extra) == 1 && probe <= 9;
-    fclose(file);
-    if (remove(request)) return;
-    if (!valid) { fprintf(stderr, "[FEATURE_PROBE] rejected request\n"); return; }
+    if (startup) {
+        for (probe = 0; !(startup & (1u << probe)); ++probe) {}
+        startup &= ~(1u << probe);
+    } else {
+        file = fopen(request, "rb");
+        if (!file) return;
+        int valid = fscanf(file, "%u %c", &probe, &extra) == 1 && probe <= 9;
+        fclose(file);
+        if (remove(request)) return;
+        if (!valid) { fprintf(stderr, "[FEATURE_PROBE] rejected request\n"); return; }
+    }
     uint32_t regs[] = {g_eax, g_ecx, g_edx, g_esp, g_ebx, g_esi, g_edi, g_ebp, g_seh_ebp};
     double fp[8];
     int top = g_fp_top, cmp = g_fp_cmp, df = g_df;
