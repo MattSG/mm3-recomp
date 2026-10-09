@@ -138,6 +138,7 @@ endforeach()
 
 add_executable(${PROJECT_NAME}
     src/main.c
+    src/mm3_debug_features.c
  src/mm3_memory_compat.c
  src/mm3_memory_tails.c
  src/mm3_runtime_entries.c
@@ -187,4 +188,3 @@ endif()
 if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /bigobj)
 endif()
-

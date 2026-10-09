@@ -15,6 +15,7 @@
  * These calls belong on the game thread, never on the pipe/UI thread. */
 extern void sub_002203E5_original(void);
 extern void sub_0021ADF3(void);
+extern void mm3_debug_features_tick(void);
 
 static int enabled;
 static SRWLOCK lock = SRWLOCK_INIT;
@@ -169,6 +170,7 @@ void sub_002203E5(void)
         ReleaseSRWLockExclusive(&lock);
     }
     sub_002203E5_original();
+    mm3_debug_features_tick();
 }
 
 static int request_teleport(const float xyz[3], float heading, char *reply, size_t size)
