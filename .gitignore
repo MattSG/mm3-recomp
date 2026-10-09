@@ -18,6 +18,7 @@ tools/venv/
 tools/.generator/
 
 # Build and runtime evidence
+conformance_tmp/
 build*/
 out/
 logs/
