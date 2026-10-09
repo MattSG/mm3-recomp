@@ -104,6 +104,7 @@ F11 or Alt+Enter toggles fullscreen. The window size sets the internal resolutio
 | `RECOMP_D3D_PROFILE` | Print per-second fps, worst frame and renderer stage costs to stderr. |
 | `RECOMP_PRESENT_CAPTURE=<prefix>` | With `<prefix>.flag` containing N, save the next N frames as `<prefix>-*.bmp`. |
 | `RECOMP_CAPTURE_SURFACE` | Capture at internal resolution instead of the window. |
+| `RECOMP_SPIKE_CAPTURE=<prefix>[,ms]` | Log every flip slower than `ms` (default 50) as `[SPIKE]` and save the next two frames as `<prefix>-<spike>-<n>.bmp` (at most one capture per 2 s). |
 | `RECOMP_XA2_PCM_DUMP=<file>` | Dump the mixed audio (s16 stereo 48 kHz). |
 | `RECOMP_WATCHDOG_SECS=<n>` | After n seconds of running, report where the game thread is (for hangs). |
 
