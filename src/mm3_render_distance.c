@@ -1,8 +1,19 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "recomp_types.h"
 
+extern void nv2a_d3d_set_depth_view_remap(float scale, float knee);
+
+/* The sky fog ramps (Skies/<sky>_fog.cdds) are indexed by w-buffer depth as a
+ * fraction of the far plane, authored for the 700 m city cap: Paris morning
+ * haze starts near 0.47 and the sky mask at 0.78 (546 m). Scaling the far
+ * plane would push that band past where the city's geometry ends (~900 m at
+ * 2x), leaving crisp blocks against the sky. Keep the haze where the Xbox
+ * had it and stretch the band from 0.78 out to the new far plane.
+ * ponytail: one knee for every sky; read it per ramp if a sky's band differs. */
+#define FOG_KNEE 0.78f
 /* PAL MM3: increase the title's own visibility/LOD distances before its
  * native D3D11 translation sees geometry. Keep the original fade fractions,
  * frustum construction, streaming and temporary render-pass save/restore.
@@ -19,6 +30,9 @@ static float distance_scale(void)
             value = 2.0f;
         }
         scale = value;
+        /* MM3_FOG_REMAP=0 keeps the scaled band, for A/B comparisons. */
+        if (!getenv("MM3_FOG_REMAP") || strcmp(getenv("MM3_FOG_REMAP"), "0"))
+            nv2a_d3d_set_depth_view_remap(scale, FOG_KNEE);
         fprintf(stderr, "[MM3_DISTANCE] draw/LOD distance multiplier %.3g\n", scale);
     }
     return scale;
