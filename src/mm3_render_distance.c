@@ -27,10 +27,10 @@ static float distance_scale(void)
     if (!scale) {
         const char *env = getenv("RECOMP_DRAW_DISTANCE");
         char *end;
-        float value = env ? strtof(env, &end) : 2.0f;
+        float value = env ? strtof(env, &end) : 1.0f;
         if (env && (end == env || *end || !isfinite(value) || value < 1.0f || value > 4.0f)) {
-            fprintf(stderr, "[MM3_DISTANCE] invalid RECOMP_DRAW_DISTANCE; expected 1..4, using 2\n");
-            value = 2.0f;
+            fprintf(stderr, "[MM3_DISTANCE] invalid RECOMP_DRAW_DISTANCE; expected 1..4, using 1\n");
+            value = 1.0f;
         }
         scale = value;
         /* MM3_FOG_REMAP=0 keeps the scaled band, for A/B comparisons. */
