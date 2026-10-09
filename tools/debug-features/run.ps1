@@ -29,7 +29,7 @@ try {
         $previous[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
         [Environment]::SetEnvironmentVariable($key, $settings[$key], 'Process')
     }
-    $process = Start-Process -FilePath $exe -WorkingDirectory $repo -WindowStyle Hidden -PassThru `
+    $process = Start-Process -FilePath $exe -WorkingDirectory $repo -WindowStyle Normal -PassThru `
         -RedirectStandardOutput (Join-Path $run 'stdout.log') `
         -RedirectStandardError (Join-Path $run 'stderr.log')
 } finally {
