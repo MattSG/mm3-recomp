@@ -18,7 +18,7 @@ again until a car is live.
 #>
 param([Parameter(Mandatory)][string]$Exe, [Parameter(Mandatory)][string]$Save,
       [string]$Tag = 'bench', [int]$FpsLimit = 0, [int]$Secs = 20,
-      [double]$X = 97.66, [double]$Z = -1028.3)   # Washington; the save's city decides
+      [double]$X = 698.76, [double]$Z = 1346.97)   # Paris (the template's city); Washington: 97.66 -1028.3
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $dir = Join-Path $repo "conformance_tmp\bench\$Tag"
