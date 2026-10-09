@@ -3,17 +3,65 @@
 Static recompilation of the Xbox title Midtown Madness 3 to native x86-64 Windows, on the
 [xboxrecomp](tools/xboxrecomp) runtime, rendering through Direct3D 11.
 
+## Building from a fresh clone
+
+You need Windows 10/11 x64, Visual Studio 2022 or newer with **Desktop development with C++**
+(it includes CMake), Python 3.11+ (the `py` launcher), git, and your own Midtown Madness 3 disc.
+
+```powershell
+git clone --recurse-submodules https://github.com/MattSG/mm3-recomp.git
+cd mm3-recomp
+pwsh scripts\setup.ps1 -Iso "D:\Games\Midtown Madness 3 (USA).iso"
+pwsh scripts\play.ps1            # -Keyboard to drive with the keyboard
+```
+
+`setup.ps1` checks the toolchain, makes `tools\venv` (pinned capstone), verifies the disc and
+extracts it to `game_files\`, generates the translated C into `src\recomp\gen\` (about six
+minutes, deterministic) and builds `build\RelWithDebInfo\mm3_recomp.exe`. Re-running skips
+finished steps; `-Force` redoes them. Nothing from the disc is committed.
+
+### Which disc
+
+Any dump whose `default.xbe` carries the retail code: a redump `.iso` (video + game partitions)
+or a bare XISO. `scripts\extract_disc.py` gates on a SHA-256 of the XBE's section data
+(`9c437324…6bbf8ba4`) with the one byte XISO tools patch to skip the DVD media check
+(VA `0x87226`, `jge` → `jmp`) normalised, so region/certificate differences and that patch do
+not matter. USA and Europe/Australia share the same code. Extraction applies that same media
+patch to `game_files\default.xbe` (the emulated drive can't authenticate a pressed disc), so every
+supported disc translates identically. Images tested end to end:
+
+| SHA-1 | Image |
+|---|---|
+| `52cd998731eb67477b44c49c4152f56c0fc58a56` | Midtown Madness 3 (USA) — redump `.iso`, 7.8 GB |
+| `8ed003adaf504883afc980d2888df6125496d044` | Midtown Madness 3 (Europe, Australia) (En,Fr,De,Es,It) — XISO, 3.6 GB |
+
+An untested image with matching code is accepted with a note; anything else is refused with
+this list.
+
+### Regenerating
+
+`scripts\generate_mm3.py` is the only generation entry point. It runs the recompiler pinned to
+toolkit commit `967ec30` (extracted to `tools\.generator\`): its output is the translation the
+game was proven on, and regenerating reproduces it function for function. The submodule's
+newer recompiler (upstream v0.13.x) translates ~3.6k functions differently and has not been
+through a play session yet; try it with `MM3_GENERATOR_DIR=tools\xboxrecomp`. The hooks in
+`CMakeLists.txt` find each wrapped function's chunk themselves, so any regeneration builds
+without edits.
+
 ## Running
 
-`mm3_recomp.exe` takes no command-line arguments; it is configured through environment
-variables and run from the repository root (it reads `game_files\`). A normal session:
+`scripts\play.ps1` sets the defaults below and runs the build from the repository root (the
+game reads `game_files\`). By hand:
 
 ```powershell
 $env:RECOMP_PB_EXEC='1'; $env:RECOMP_FB_WINDOW='1'; $env:RECOMP_USB='1'
 $env:RECOMP_APU_DSP_ACK='0x80458810'
-$env:RECOMP_FPS_LIMIT='0'          # or your refresh rate; the default is 60
-conformance_tmp\render-milestones\perf\RelWithDebInfo\mm3_recomp.exe
+build\RelWithDebInfo\mm3_recomp.exe
 ```
+
+**Keep `RECOMP_FPS_LIMIT` at 120 or below for races.** Above that the race AI reverses and
+wanders off the start line: `tools\powershell\Test-MM3AiStart.ps1` passes every run at 60
+(the default), 90 and 120, is flaky at 144 and fails at 165 and uncapped (`0`).
 
 F11 or Alt+Enter toggles fullscreen. The window size sets the internal resolution unless pinned.
 
@@ -26,7 +74,7 @@ F11 or Alt+Enter toggles fullscreen. The window size sets the internal resolutio
 | `RECOMP_USB` | off | Emulate the USB controller ports so pads (XInput) reach the game. **Required** for input. |
 | `RECOMP_APU_DSP_ACK` | unset | DSP acknowledgement address(es) the audio needs; use `0x80458810`. |
 | `RECOMP_KEYBOARD` | off | `1`: keyboard as a pad (arrows, Z X A S = A B X Y, Enter = Start, Backspace = Back). |
-| `RECOMP_FPS_LIMIT` | `60` | Frame-rate cap (the emulated vblank). `0` = uncapped. |
+| `RECOMP_FPS_LIMIT` | `60` | Frame-rate cap (the emulated vblank). `0` = uncapped. Over 120 the race AI misdrives; use for benchmarks only. |
 | `RECOMP_VSYNC` | `0` | Present sync interval passed to DXGI. |
 | `RECOMP_FULLSCREEN` | off | Start fullscreen. |
 | `RECOMP_WINDOW_SIZE` | auto | Initial window client size, `WxH`. |
@@ -57,6 +105,8 @@ F11 or Alt+Enter toggles fullscreen. The window size sets the internal resolutio
 
 `tools\bench\run.ps1 -Exe <exe> -Save <save template>` runs the repeatable menu + race
 benchmark (frame-time percentiles, lows, jitter, executor time, GPU use).
+`tools\powershell\Test-MM3AiStart.ps1 -Exe <exe> -Save <save template> [-FpsLimit 60]` takes the
+same path into the first race and checks every AI car leaves the line forwards (exit 0 = pass).
 
 ### Diagnostics
 
