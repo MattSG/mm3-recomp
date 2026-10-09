@@ -84,7 +84,7 @@ F11 or Alt+Enter toggles fullscreen. The window size sets the internal resolutio
 | `RECOMP_RENDER_SCALE` | auto | Pin internal resolution as a multiple of 480 lines (0.5–8); overrides the above. |
 | `RECOMP_MSAA` | `4` | MSAA sample count (1/2/4/8). |
 | `RECOMP_ANISO` | `16` | Anisotropic filtering (1–16). |
-| `RECOMP_DRAW_DISTANCE` | `2` | View/LOD distance multiplier (1 = Xbox, up to 4). |
+| `RECOMP_DRAW_DISTANCE` | `2` | View/LOD distance multiplier (1 = Xbox, up to 4). Building facade detail zones stay at the Xbox distances. |
 | `RECOMP_PS_SPEC` | `1` | `0`: skip specialised pixel shaders (slow; for debugging). |
 | `MM3_SAVE_DIR` | built-in | Folder holding the HDD/save partition images. |
 | `MM3_DEBUG_TELEPORT` | off | Teleport debugger: a panel with live X/Y/Z and heading that places the car on the ground at a typed X/Z and heading (degrees), and the pipe `tools\powershell\Send-MM3Teleport.ps1` drives. See `DEBUG_TELEPORT.md`. |

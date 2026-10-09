@@ -14,6 +14,9 @@ extern void nv2a_d3d_set_depth_view_remap(float scale, float knee);
  * had it and stretch the band from 0.78 out to the new far plane.
  * ponytail: one knee for every sky; read it per ramp if a sky's band differs. */
 #define FOG_KNEE 0.78f
+/* Facade zones ({80,280}, sub_001661D0) stay at the Xbox values: scaled,
+ * buildings near the camera lost their facades and showed as dark slabs
+ * with stepped edges (Montmartre, X 1298.7 Z 1167.7 facing 225 degrees). */
 /* PAL MM3: increase the title's own visibility/LOD distances before its
  * native D3D11 translation sees geometry. Keep the original fade fractions,
  * frustum construction, streaming and temporary render-pass save/restore.
@@ -96,7 +99,6 @@ void sub_000FE71E(void)
     sub_000FE71E_original();
 }
 
-extern void sub_001661D0_original(void);
 extern void sub_0022F298_original(void);
 void sub_0022F298(void)
 {
@@ -107,20 +109,6 @@ void sub_0022F298(void)
     if (caller == 0x0022F9D7u || caller == 0x0022F338u)
         MEMF(g_esp + 4) *= distance_scale();
     sub_0022F298_original();
-}
-
-void sub_001661D0(void)
-{
-    uint32_t caller = MEM32(g_esp);
-    /* Facade construction uses {80,280}; renderFacadeSetZones supplies
-     * explicit Lua overrides. Let the original setter recompute its fade
-     * coefficients from the larger distances. The supersampled-pass
-     * save/restore calls at 0x211220/0x21153D already use effective values. */
-    if (caller == 0x0015FA1Du || caller == 0x0020FABAu) {
-        MEMF(g_esp + 4) *= distance_scale();
-        MEMF(g_esp + 8) *= distance_scale();
-    }
-    sub_001661D0_original();
 }
 
 extern void sub_000F4AC3_original(void);
