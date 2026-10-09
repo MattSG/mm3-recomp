@@ -33,12 +33,25 @@ GENERATOR_COMMIT = '967ec30f362dee229183b4e112e928cd41830484'
 def generator_dir():
     if os.environ.get('MM3_GENERATOR_DIR'):
         return Path(os.environ['MM3_GENERATOR_DIR']).resolve()
-    out = REPO / 'tools/.generator' / GENERATOR_COMMIT[:12]
+    out = REPO / 'tools/.generator' / (GENERATOR_COMMIT[:12] + '-fp80')
     if not (out / 'tools/recomp/__main__.py').exists():
         tar = subprocess.run(['git', '-C', str(REPO / 'tools/xboxrecomp'), 'archive', '--format=tar',
                               GENERATOR_COMMIT, 'tools'], check=True, capture_output=True).stdout
         with tarfile.open(fileobj=io.BytesIO(tar)) as t:
             t.extractall(out, filter='data')
+        # Toolkit cd491b1 (after the pin): fld tbyte fell through to MEMF, a
+        # float read of the significand's low bytes. The CRT pow() range check
+        # (32767.5 at 0x393816) then read 0.0 and every pow() overflowed,
+        # which capped car throttle and gears.
+        lifter = out / 'tools/recomp/lifter.py'
+        old = '''                    return [f"fp_push(MEMF({_fmt_mem(ops[0])})); /* fld */"]'''
+        new = ('''                    elif ops[0].mem_size == 10:
+                        return [f"fp_push(MEMFP80({_fmt_mem(ops[0])})); /* fld tbyte */"]
+''' + old)
+        text = lifter.read_text()
+        if text.count(old) != 1:
+            sys.exit('pinned lifter changed: fld tbyte patch does not apply')
+        lifter.write_text(text.replace(old, new))
     return out
 
 

@@ -68,14 +68,12 @@ try {
     # Hold throttle (right trigger) through the window; sample everyone.
     $samples = @{}
     $end = [Diagnostics.Stopwatch]::StartNew()
-    $nextPress = 0
+    # One unbroken hold: repeated presses leave 200 ms releases between them.
+    [IO.File]::AppendAllText($pad, "rt:$($Secs * 1000 + 1000)`n")
     while ($end.Elapsed.TotalSeconds -lt $Secs) {
-        if ($end.Elapsed.TotalSeconds -ge $nextPress) {
-            [IO.File]::AppendAllText($pad, "rt:2100`n"); $nextPress += 2
-        }
         foreach ($c in cars) {
             if (-not $samples.ContainsKey($c.id)) { $samples[$c.id] = [Collections.ArrayList]::new() }
-            [void]$samples[$c.id].Add($c)
+            [void]$samples[$c.id].Add(($c | Add-Member -PassThru t $end.Elapsed.TotalSeconds))
         }
         Start-Sleep -Milliseconds 250
     }
@@ -101,6 +99,17 @@ $rows = foreach ($id in $samples.Keys) {
 }
 $rows | Sort-Object car | Format-Table -AutoSize | Out-String | Write-Host
 $playerRow = $rows | Where-Object car -eq 'player'
+# Throttle/gear check: top speed over any 1 s of the player's samples (units/s).
+$ps = foreach ($id in $samples.Keys) { if ($samples[$id][0].player) { $samples[$id] } }
+$top = 0.0
+for ($i = 0; $i -lt $ps.Count; $i++) {
+    for ($j = $i + 1; $j -lt $ps.Count -and $ps[$j].t - $ps[$i].t -lt 1; $j++) {}
+    if ($j -lt $ps.Count) {
+        $v = [math]::Sqrt([math]::Pow($ps[$j].x - $ps[$i].x, 2) + [math]::Pow($ps[$j].z - $ps[$i].z, 2)) / ($ps[$j].t - $ps[$i].t)
+        if ($v -gt $top) { $top = $v }
+    }
+}
+Write-Host ("player top speed: {0:N1} units/s" -f $top)
 if (-not $playerRow -or $playerRow.forward -le $playerRow.backward) {
     Write-Host 'WARNING: player car did not come out forwards under throttle; forward vector sign is suspect'
 }

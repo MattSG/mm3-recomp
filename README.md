@@ -41,8 +41,9 @@ this list.
 ### Regenerating
 
 `scripts\generate_mm3.py` is the only generation entry point. It runs the recompiler pinned to
-toolkit commit `967ec30` (extracted to `tools\.generator\`): its output is the translation the
-game was proven on, and regenerating reproduces it function for function. The submodule's
+toolkit commit `967ec30` (extracted to `tools\.generator\`) plus one later lifter fix,
+`fld tbyte` as an 80-bit load (toolkit `cd491b1`). Without it the CRT `pow()` range check
+read 0.0, every `pow()` overflowed, and cars never got past the low gears. The submodule's
 newer recompiler (upstream v0.13.x) translates ~3.6k functions differently and has not been
 through a play session yet; try it with `MM3_GENERATOR_DIR=tools\xboxrecomp`. The hooks in
 `CMakeLists.txt` find each wrapped function's chunk themselves, so any regeneration builds
@@ -107,6 +108,8 @@ F11 or Alt+Enter toggles fullscreen. The window size sets the internal resolutio
 benchmark (frame-time percentiles, lows, jitter, executor time, GPU use).
 `tools\powershell\Test-MM3AiStart.ps1 -Exe <exe> -Save <save template> [-FpsLimit 60]` takes the
 same path into the first race and checks every AI car leaves the line forwards (exit 0 = pass).
+It also prints the player car's top speed under a held throttle: about 50 units/s in 30 s on
+the bench save (19 with the throttle/gear bug).
 
 ### Diagnostics
 
