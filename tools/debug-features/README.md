@@ -53,8 +53,10 @@ The isolated instance is left running with the debug menu and HUD enabled for re
 
 For blank-frame or texture-dropout regression testing omit all developer overlay switches. Capture a sequence by writing N to capture.flag. Run `python tools/debug-features/analyze_frames.py <run-directory> --start <first-gameplay-frame>` to produce frame-analysis.json. It reports sampled black frames and adjacent image changes; visual inspection must distinguish scene motion from defects. `--self-test` checks the metrics.
 
-The current branch integrates committed vertex-fetch and sky/depth/fog fixes through toolkit merge 46b (see git history for full hash). The original font/menu placement reverts remain.
+The current branch integrates committed vertex-fetch and sky/depth/fog fixes through toolkit merge 40598f1 (see git history for full hash). The original font/menu placement reverts remain.
 
 First max-quality run: 120 gameplay captures (005..124), no fully blank internal images in that interval, but severe scene geometry/texture dropout is visible between captures 091 and 092. Debug menu/HUD had been reset off before capture. This is a confirmed regression, not a passing graphics test. A later crash logged exception 0x87D; cause is not established. Final-window captures and normal runs without D3D validation are still required.
 
 Existing D3D8 gamma, formats, states and A8 tests passed (4/4). These tests do not validate the active NV2A push-buffer renderer end to end.
+
+Toolkit dc70b03 fixes a separately reproduced draw-state defect: a sampled surface's CPU upload calls blit_span, which unbinds render/depth targets and changes the viewport after setup_pipeline has bound the draw's targets. The new nv2a_targets test failed on the missing render target before the fix. Restoring targets after texture preparation passes at 1x/2x/4x/8x MSAA, checking both color/depth bindings and the viewport (4/4, 23.90s). Release rebuilt successfully. This proves that state repair, not resolution of the captured gameplay dropout or freeze; max-quality final-window testing continues in run-20261009-141245 with all developer overlays off.
