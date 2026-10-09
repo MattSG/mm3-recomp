@@ -87,7 +87,7 @@ F11 or Alt+Enter toggles fullscreen. The window size sets the internal resolutio
 | `RECOMP_DRAW_DISTANCE` | `2` | View/LOD distance multiplier (1 = Xbox, up to 4). |
 | `RECOMP_PS_SPEC` | `1` | `0`: skip specialised pixel shaders (slow; for debugging). |
 | `MM3_SAVE_DIR` | built-in | Folder holding the HDD/save partition images. |
-| `MM3_DEBUG_TELEPORT` | off | Teleport debugger: a panel with live X/Y/Z that places the car on the ground at a typed X/Z, and the pipe `tools\powershell\Send-MM3Teleport.ps1` drives. See `DEBUG_TELEPORT.md`. |
+| `MM3_DEBUG_TELEPORT` | off | Teleport debugger: a panel with live X/Y/Z and heading that places the car on the ground at a typed X/Z and heading (degrees), and the pipe `tools\powershell\Send-MM3Teleport.ps1` drives. See `DEBUG_TELEPORT.md`. |
 | `MM3_DEV_HUD` | off | `1`: the retail build's own developer HUD (position, damage, speed/RPM/gear). Needs `tools\debug-features\prepare.py` first. |
 | `MM3_DEBUG_MENU` | off | `1`: the retail developer menu (D-pad to select and change). Same prerequisite. |
 | `MM3_EXTENDED_CAMERAS` | off | `1`: the developer camera modes. Same prerequisite. |

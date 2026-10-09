@@ -1,7 +1,8 @@
 # MM3 ground teleport debugger
 
 Opt in with `MM3_DEBUG_TELEPORT=1`. The native panel shows live X/Y/Z and
-accepts only destination X/Z. MM3 is Y-up; its native ground-placement reset
+the heading in degrees, and accepts destination X/Z plus an optional heading
+in degrees on the same bearing (blank keeps the car's; the pipe takes radians). MM3 is Y-up; its native ground-placement reset
 calculates Y, applies car clearance, aligns to the slope while retaining
 heading, clears motion and updates the cached transform and reset flags.
 No usable ground leaves the car unchanged. Guest changes run in the primary
