@@ -105,6 +105,8 @@ def main():
     out.mkdir(parents=True)
 
     if not args.skip_analysis:
+        # disasm reads the parsed header beside the XBE as <stem>_analysis.json.
+        py('-m', 'tools.xbe_parser', XBE, '--json', XBE.with_name('default_analysis.json'))
         py('-m', 'tools.disasm', XBE, '--force', '--seed-functions', REPO / 'mm3_runtime_function_seeds.json')
         py('-m', 'tools.func_id', XBE)
         py('-m', 'tools.abi_analysis', XBE)
