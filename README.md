@@ -104,7 +104,7 @@ F11 or Alt+Enter toggles fullscreen. The window size sets the internal resolutio
 | `RECOMP_D3D_PROFILE` | Print per-second fps, worst frame and renderer stage costs to stderr. |
 | `RECOMP_PRESENT_CAPTURE=<prefix>` | With `<prefix>.flag` containing N, save the next N frames as `<prefix>-*.bmp`. |
 | `RECOMP_CAPTURE_SURFACE` | Capture at internal resolution instead of the window. |
-| `RECOMP_SPIKE_CAPTURE=<prefix>[,ms]` | Log every flip slower than `ms` (default 50) as `[SPIKE]` and save the next two frames as `<prefix>-<spike>-<n>.bmp` (at most one capture per 2 s). |
+| `RECOMP_SPIKE_CAPTURE=<prefix>[,ms]` | Log every flip slower than `ms` (default 50) as `[SPIKE]` and save the next two frames as `<prefix>-<spike>-<n>.bmp` (at most one capture per 2 s). Each spike is followed by a `[SPIKE]   ms:` line splitting that frame's time by renderer stage (`exec(all)` = push-buffer executor, `present` = swap-chain present). |
 | `RECOMP_XA2_PCM_DUMP=<file>` | Dump the mixed audio (s16 stereo 48 kHz). |
 | `RECOMP_WATCHDOG_SECS=<n>` | After n seconds of running, report where the game thread is (for hangs). |
 
@@ -140,7 +140,7 @@ Off unless set; for debugging the runtime, not for play. See the source named fo
   Always on: `[XA2] underrun after N buffers` in stderr marks each audible gap (output queue ran dry).
 - **USB/input** (`ohci.c`, `usb_gamepad.c`): `RECOMP_USB_HC`, `RECOMP_USB_NDP`, `RECOMP_USB_PADS`,
   `RECOMP_USB_PORT`, `RECOMP_USB_STATS`, `RECOMP_USB_TRACE`, `RECOMP_INPUT_DIAG`
-- **Kernel/memory/threads** (`kernel_*.c`, `xbox_memory_layout.c`): `XBOX_LOG_LEVEL`,
+- **Kernel/memory/threads** (`kernel_*.c`, `xbox_memory_layout.c`): `RECOMP_IO_TRACE` (per-operation `[PATH]`/`[FILE]`/`[READ]` lines; off by default because a console write per disc read stalled the game), `RECOMP_KERNEL_SUMMARY` (kernel call counts every 2 s), `XBOX_LOG_LEVEL`,
   `RECOMP_KERNEL_WATCH`, `RECOMP_KERNEL_WATCH_ALL`, `RECOMP_KERNEL_LOG_BUDGET`, `RECOMP_IRQL_TRACE`,
   `RECOMP_CS_MODE`, `RECOMP_CS_WATCH`, `RECOMP_CS_TRACE_CRT`, `RECOMP_WORKERS`, `RECOMP_ASYNC_IO`,
   `RECOMP_CMDLINE`, `RECOMP_CONTIG_TRACE`, `RECOMP_HEAP_WATCH`, `RECOMP_HEAP_LARGE_BREAK`,
