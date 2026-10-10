@@ -27,7 +27,8 @@ $pad = Join-Path $dir 'pad.txt'; [IO.File]::WriteAllText($pad, '')
 $log = Join-Path $dir 'stderr.log'
 $envs = @{ RECOMP_PB_EXEC='1'; RECOMP_FB_WINDOW='1'; RECOMP_USB='1'; RECOMP_PAD_LIVE=$pad
            RECOMP_APU_DSP_ACK='0x80458810'; MM3_SAVE_DIR=(Join-Path $dir 'save')
-           RECOMP_FPS_LIMIT="$FpsLimit"; MM3_DEBUG_TELEPORT='1' }
+           RECOMP_FPS_LIMIT="$FpsLimit"; MM3_DEBUG_TELEPORT='1'
+           RECOMP_FRAME_CSV=(Join-Path $dir 'frames.csv') }
 foreach ($k in $envs.Keys) { Set-Item "Env:$k" $envs[$k] }
 $p = Start-Process -FilePath $Exe -WorkingDirectory $repo -PassThru `
      -RedirectStandardOutput (Join-Path $dir 'stdout.log') -RedirectStandardError $log
@@ -112,6 +113,14 @@ for ($i = 0; $i -lt $ps.Count; $i++) {
 Write-Host ("player top speed: {0:N1} units/s" -f $top)
 if (-not $playerRow -or $playerRow.forward -le $playerRow.backward) {
     Write-Host 'WARNING: player car did not come out forwards under throttle; forward vector sign is suspect'
+}
+# The frame rate the race actually ran at: median of the last $Secs seconds of flips.
+$ft = @(Get-Content (Join-Path $dir 'frames.csv') -ErrorAction SilentlyContinue | Select-Object -Skip 1 |
+        ForEach-Object { [double]($_ -split ',')[1] })
+$n = [math]::Min($ft.Count, [int]($Secs * 60))
+if ($n -gt 0) {
+    $med = ($ft[($ft.Count - $n)..($ft.Count - 1)] | Sort-Object)[[int]($n / 2)]
+    if ($med -gt 0) { Write-Host ("race frame rate: {0:N0} fps (median)" -f (1000.0 / $med)) }
 }
 Write-Host ("fps limit {0}: {1}" -f $FpsLimit, $(if ($fail) { 'FAIL' } else { 'PASS' }))
 exit $(if ($fail) { 1 } else { 0 })
