@@ -1108,21 +1108,31 @@ void sub_00358FAC(void) {}
  * in progress.
  *
  * 7fa6fcc made this a bare store fence so the title could run ahead of the
- * executor (race +40% uncapped). That broke a result MM3 reads mid-frame: a
- * frame now and then came out lit as if in a tunnel -- dark, headlights on,
- * night speedometer (5-22 per 1200-frame drive, cruise and missions alike).
- * Truthful fences, segment-end write-back of its 40x30 brightness targets and
- * serialising only BlockOnFence each fixed cruise but not the missions; only
- * the full spin fixes both (0-1 per drive). Cost: race 373 -> 296 fps
- * uncapped, 1% low 236 -> 218, jitter halved; far above the 120 fps cap.
- * ponytail: which read races is still unknown; finding it buys the 21% back.
+ * executor without limit. That broke a result MM3 reads mid-frame: a frame
+ * now and then came out lit as if in a tunnel -- dark, headlights on, night
+ * speedometer (5-22 per 1200-frame drive, cruise and missions alike). Truthful
+ * fences, segment-end write-back of its 40x30 brightness targets and
+ * serialising only BlockOnFence each fixed cruise but not the missions.
+ * Bounding the run-ahead fixes both: the spin runs only once the executor is
+ * more than MM3_KICK_LAG bytes of push buffer behind (or across a wrap).
+ * 0 dark frames over 4 mission drives at 256 KB, 64 KB and 1 MB alike.
+ * Race uncapped: spin every kick 296 fps, 64 KB 327, 256 KB 352, 1 MB 356,
+ * unbounded 373.
+ * ponytail: the racing read is still unidentified; bounded, not removed.
  * Registers are left as the guest routine leaves them. */
+#define MM3_KICK_LAG 0x40000u   /* 256 KB */
 void sub_00344AB0(void)
 {
     g_eax = MEM32(MEM32(0x351F48u) + 0x17C8u);
     g_ecx = MEM32(g_eax + 0x100410u) | 0x10000u;
     _mm_sfence();
-    MEM32(g_eax + 0x100410u) = g_ecx;
-    while (MEM32(g_eax + 0x100410u) & 0x10000u) {}
+    {   /* the executor's lag behind the push pointer about to be kicked */
+        uint32_t dev = MEM32(0x351F48u), regs = MEM32(dev + 0x17C0u);
+        uint32_t cur = MEM32(dev) & 0x0FFFFFFFu, get = MEM32(regs + 0x44u);
+        if (cur < get || cur - get > MM3_KICK_LAG) {
+            MEM32(g_eax + 0x100410u) = g_ecx;
+            while (MEM32(g_eax + 0x100410u) & 0x10000u) {}
+        }
+    }
     g_esp += 4;
 }
