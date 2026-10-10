@@ -53,7 +53,7 @@ endif()
 # Render distance renames definitions only: renaming every reference with a
 # compile definition would bypass the hooks for callers in the same chunk.
 set(MM3_DISTANCE_FUNCTIONS sub_000D9E2E sub_000E2D5B sub_000F4AC3 sub_000FE71E
-    sub_002256C7 sub_002203E5 sub_0022F298)
+    sub_002256C7 sub_002203E5 sub_0022F298 sub_0015A929)
 
 list(JOIN MM3_RENAMED_FUNCTIONS "|" hook_names)
 list(JOIN MM3_DISTANCE_FUNCTIONS "|" distance_names)
@@ -139,6 +139,7 @@ endforeach()
 add_executable(${PROJECT_NAME}
     src/main.c
     src/mm3_debug_features.c
+    src/mm3_collision_cells.c
  src/mm3_memory_compat.c
  src/mm3_memory_tails.c
  src/mm3_runtime_entries.c
