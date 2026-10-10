@@ -1123,6 +1123,12 @@ void sub_00358FAC(void) {}
 #define MM3_KICK_LAG 0x40000u   /* 256 KB */
 void sub_00344AB0(void)
 {
+    {   /* D3D's kick runs on the game's render thread: the one spike
+         * reports sample (RECOMP_SPIKE_CAPTURE). */
+        extern void recomp_sampler_watch_current_thread(void);
+        static int watched;
+        if (!watched) { watched = 1; recomp_sampler_watch_current_thread(); }
+    }
     g_eax = MEM32(MEM32(0x351F48u) + 0x17C8u);
     g_ecx = MEM32(g_eax + 0x100410u) | 0x10000u;
     _mm_sfence();
