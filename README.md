@@ -60,9 +60,10 @@ $env:RECOMP_APU_DSP_ACK='0x80458810'
 build\RelWithDebInfo\mm3_recomp.exe
 ```
 
-**Keep `RECOMP_FPS_LIMIT` at 120 or below for races.** Above that the race AI reverses and
-wanders off the start line: `tools\powershell\Test-MM3AiStart.ps1` passes every run at 60
-(the default), 90 and 120, is flaky at 144 and fails at 165 and uncapped (`0`).
+**Frame rates above 60:** the race AI leaves the line correctly at every rate tested
+(`tools\powershell\Test-MM3AiStart.ps1` passes at 60, 120, 240 and ~350 fps, and reports the
+rate the race ran at). The car's physics is not fully rate-independent: from a standstill on
+a straight road it covers ~5% less ground in 6 s at 240 fps than at 60 fps. 60 stays the default.
 
 F11 or Alt+Enter toggles fullscreen. The window size sets the internal resolution unless pinned.
 
@@ -75,7 +76,7 @@ F11 or Alt+Enter toggles fullscreen. The window size sets the internal resolutio
 | `RECOMP_USB` | off | Emulate the USB controller ports so pads (XInput) reach the game. **Required** for input. |
 | `RECOMP_APU_DSP_ACK` | unset | DSP acknowledgement address(es) the audio needs; use `0x80458810`. |
 | `RECOMP_KEYBOARD` | off | `1`: keyboard as a pad (arrows, Z X A S = A B X Y, Enter = Start, Backspace = Back). |
-| `RECOMP_FPS_LIMIT` | `60` | Frame-rate cap (the emulated vblank). `0` = uncapped. Over 120 the race AI misdrives; use for benchmarks only. |
+| `RECOMP_FPS_LIMIT` | `60` | Frame-rate cap (the emulated vblank). `0` = uncapped. Above 60 the car accelerates slightly slower (~5% at 240 fps); see above. |
 | `RECOMP_VSYNC` | `0` | Present sync interval passed to DXGI. |
 | `RECOMP_FULLSCREEN` | off | Start fullscreen. |
 | `RECOMP_WINDOW_SIZE` | auto | Initial window client size, `WxH`. |

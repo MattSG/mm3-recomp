@@ -3,7 +3,7 @@
 Run the recompiled Midtown Madness 3 built by scripts\setup.ps1.
 
 .DESCRIPTION
-  pwsh scripts\play.ps1 [-Keyboard] [-Fullscreen] [-FpsLimit 120] [-Exe <path>]
+  pwsh scripts\play.ps1 [-Keyboard] [-Fullscreen] [-FpsLimit 240] [-Exe <path>]
 
 Any RECOMP_*/MM3_* variable already set in your shell overrides these
 defaults (see README "Options"). F11 or Alt+Enter toggles fullscreen.
@@ -11,7 +11,7 @@ defaults (see README "Options"). F11 or Alt+Enter toggles fullscreen.
 param(
     [switch]$Keyboard,
     [switch]$Fullscreen,
-    [ValidateRange(1, 120)][int]$FpsLimit = 60,   # over 120 the race AI misdrives (README)
+    [ValidateRange(1, 240)][int]$FpsLimit = 60,   # above 60 the car accelerates ~5% slower at 240 (README)
     [string]$Exe
 )
 $ErrorActionPreference = 'Stop'
