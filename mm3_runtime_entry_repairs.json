@@ -151,5 +151,15 @@
     "start": "0x0013E48F",
     "end": "0x0013E715",
     "note": "Virtual method in vtable 0x37F128 slot +0x20 (this adjusted by -0x264), called from 0x0014CC8E with two output pointers. Reached only through the vtable, so analysis missed it: every call failed to resolve (thousands of [ICALL] errors a minute in gameplay) and the caller went on with its outputs unwritten. Ends at ret 8 (0x0013E712)."
+  },
+  {
+    "start": "0x002534FF",
+    "end": "0x00253512",
+    "note": "Camera field-of-view setter (fld [esp+4]; ... call 0x2513B6; ret 4), reached only as the tail jump of the this-adjusting thunk 0x6EC40 (vtable 0x378D44 slot +0x38, called from 0x000FA704). As an unresolved stub it skipped the FOV update and left esp 4 bytes low: 0xFA6DC's pop esi took the float argument, its caller 0xFF714 returned with ebx/esi garbage, and the race path code went on with a code address as its object (null virtual calls at 0x13FF8C and the crash in 0x2D7C9)."
+  },
+  {
+    "start": "0x00144ED9",
+    "end": "0x00144EDE",
+    "note": "Shared epilogue (pop edi; pop esi; ret 4) of 0x144EAE, which jumps back to it from 0x144EE2 after the vtable +0x68 call. The function's boundary ends before it, so the jump became a tail call to an unresolved stub that returned without the two pops (edi/esi corrupted, esp 8 low)."
   }
 ]

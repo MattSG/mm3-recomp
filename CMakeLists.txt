@@ -96,6 +96,9 @@ endif()
 set(RECOMP_UNRESOLVED_STUB "${RECOMP_GEN_DIR}/recomp_stubs_unresolved.c")
 set_property(SOURCE "${RECOMP_UNRESOLVED_STUB}" APPEND PROPERTY
     COMPILE_DEFINITIONS "sub_000252AF=sub_000252AF_unresolved")
+# Log each stub that runs (src/mm3_unresolved_stubs.c).
+set_property(SOURCE "${RECOMP_UNRESOLVED_STUB}" APPEND PROPERTY
+    COMPILE_DEFINITIONS "RECOMP_UNRESOLVED_STUB_OBSERVE=mm3_stub_hit")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/mm3_runtime_entry_repairs.json")
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/mm3_runtime_entry_repairs.json" runtime_entries_json)
@@ -140,6 +143,7 @@ add_executable(${PROJECT_NAME}
     src/main.c
     src/mm3_debug_features.c
     src/mm3_collision_cells.c
+    src/mm3_unresolved_stubs.c
  src/mm3_memory_compat.c
  src/mm3_memory_tails.c
  src/mm3_runtime_entries.c
