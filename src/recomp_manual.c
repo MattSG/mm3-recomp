@@ -1103,17 +1103,26 @@ void sub_00319630(void) {}
 void sub_00358FAC(void) {}
 
 /* XDK write-back-cache flush (D3D's push-buffer kick): set NV_PFB_WBC_FLUSH
- * and spin until the GPU clears it. On hardware that only drains the CPU's
- * write-combined stores and waits for no GPU work; the host equivalent is a
- * store fence. Here the ack thread cleared the bit only between push-buffer
- * segments, so every kick-off waited for the executor to finish the previous
- * one (~25% of a race frame). That spin was also the only thing keeping D3D
- * off its GPU-notify wait, which xbox_Nv2aNotifyEvent (main.c) now answers.
+ * and spin until the ack thread clears it, which it does between push-buffer
+ * segments -- so each kick-off waits for the executor to finish the segment
+ * in progress.
+ *
+ * 7fa6fcc made this a bare store fence so the title could run ahead of the
+ * executor (race +40% uncapped). That broke a result MM3 reads mid-frame: a
+ * frame now and then came out lit as if in a tunnel -- dark, headlights on,
+ * night speedometer (5-22 per 1200-frame drive, cruise and missions alike).
+ * Truthful fences, segment-end write-back of its 40x30 brightness targets and
+ * serialising only BlockOnFence each fixed cruise but not the missions; only
+ * the full spin fixes both (0-1 per drive). Cost: race 373 -> 296 fps
+ * uncapped, 1% low 236 -> 218, jitter halved; far above the 120 fps cap.
+ * ponytail: which read races is still unknown; finding it buys the 21% back.
  * Registers are left as the guest routine leaves them. */
 void sub_00344AB0(void)
 {
     g_eax = MEM32(MEM32(0x351F48u) + 0x17C8u);
     g_ecx = MEM32(g_eax + 0x100410u) | 0x10000u;
     _mm_sfence();
+    MEM32(g_eax + 0x100410u) = g_ecx;
+    while (MEM32(g_eax + 0x100410u) & 0x10000u) {}
     g_esp += 4;
 }
