@@ -172,9 +172,14 @@ lookup. Audio DMA also reuses successful address lookups per thread, avoiding
 allocator locks while preserving gaps and newly allocated ranges. Optimized
 MSVC builds allow automatic inlining in the DSP interpreter; positional-audio
 filtering reuses ring indices while retaining the same floating-point operations.
+Audio processing skips idle interrupt handling and selects the fractional-delay
+tap loop once per channel, preserving exact filter state and output samples.
 `MM3_DSP_AUTO_INLINE=OFF` restores the compiler's default inlining setting for
 build comparisons. Normal play skips shared diagnostic counters and redundant
 GPU flushes.
+Draws retain fixed vertex resources and update vertex shader bindings only when
+the pass changes. Repeated texture stages reuse validated sampler-table entries
+and use the mip count already computed during texture lookup.
 Pixel shader constants reuse their last successful upload only when all bytes,
 including dynamic lighting, fog, alpha and texture scales, are identical.
 GPU readbacks use one completion query per copy batch before mapping the pixels;

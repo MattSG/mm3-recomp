@@ -1,25 +1,63 @@
 diff --git a/src/apu/apu_state.h b/src/apu/apu_state.h
-index 3493ba5..09e7a60 100644
+index 3493ba5..ad4ac94 100644
 --- a/src/apu/apu_state.h
 +++ b/src/apu/apu_state.h
-@@ -159,14 +159,15 @@ static inline void hrtf_filter_process(HrtfFilter *f,
+@@ -159,14 +159,21 @@ static inline void hrtf_filter_process(HrtfFilter *f,
              int di = (int)d;
              float dfrac = d - di;
              float acc = 0.0f;
-+            int idx1 = (f->buf_pos - di + HRTF_BUFLEN) % HRTF_BUFLEN;
-             for (int k = 0; k < HRTF_NUM_TAPS; k++) {
+-            for (int k = 0; k < HRTF_NUM_TAPS; k++) {
 -                int idx1 = (f->buf_pos - di - k + HRTF_BUFLEN) % HRTF_BUFLEN;
-                 float s = buf[idx1];
-                 if (dfrac > 0.0f) {
+-                float s = buf[idx1];
+-                if (dfrac > 0.0f) {
 -                    int idx2 = (idx1 - 1 + HRTF_BUFLEN) % HRTF_BUFLEN;
++            int idx1 = (f->buf_pos - di + HRTF_BUFLEN) % HRTF_BUFLEN;
++            if (dfrac > 0.0f) {
++                for (int k = 0; k < HRTF_NUM_TAPS; k++) {
++                    float s = buf[idx1];
 +                    int idx2 = idx1 == 0 ? HRTF_BUFLEN - 1 : idx1 - 1;
                      s = s * (1 - dfrac) + buf[idx2] * dfrac;
++                    acc += coeff[k] * s;
++                    idx1 = idx1 == 0 ? HRTF_BUFLEN - 1 : idx1 - 1;
++                }
++            } else {
++                for (int k = 0; k < HRTF_NUM_TAPS; k++) {
++                    float s = buf[idx1];
++                    acc += coeff[k] * s;
++                    idx1 = idx1 == 0 ? HRTF_BUFLEN - 1 : idx1 - 1;
                  }
-                 acc += coeff[k] * s;
-+                idx1 = idx1 == 0 ? HRTF_BUFLEN - 1 : idx1 - 1;
+-                acc += coeff[k] * s;
              }
              out[n][ch] = acc;
          }
+diff --git a/src/apu/dsp/interp/dsp_cpu.c b/src/apu/dsp/interp/dsp_cpu.c
+index 012a67b..3e44130 100644
+--- a/src/apu/dsp/interp/dsp_cpu.c
++++ b/src/apu/dsp/interp/dsp_cpu.c
+@@ -52,6 +52,14 @@
+ static void dsp_postexecute_update_pc(dsp_core_t* dsp);
+ static void dsp_postexecute_interrupts(dsp_core_t* dsp);
+ 
++static inline void dsp_postexecute_interrupts_if_needed(dsp_core_t* dsp)
++{
++    /* With no pending interrupt or active pipeline, the full handler only
++     * returns. Keep pipeline progression even after its pending count clears. */
++    if (dsp->interrupt_counter || dsp->interrupt_state == DSP_INTERRUPT_DISABLED)
++        dsp_postexecute_interrupts(dsp);
++}
++
+ static uint32_t read_memory_p(dsp_core_t* dsp, uint32_t address);
+ static uint32_t read_memory_disasm(dsp_core_t* dsp, int space, uint32_t address);
+ 
+@@ -705,7 +713,7 @@ void dsp56k_execute_instruction(dsp_core_t* dsp)
+     dsp_postexecute_update_pc(dsp);
+ 
+     /* Process Interrupts */
+-    dsp_postexecute_interrupts(dsp);
++    dsp_postexecute_interrupts_if_needed(dsp);
+ 
+ 
+     dsp->num_inst += dsp->instr_cycle;
 diff --git a/src/input/xinput_device.c b/src/input/xinput_device.c
 index a91edbe..59c5815 100644
 --- a/src/input/xinput_device.c
@@ -2371,7 +2409,7 @@ index bd00f3f..575b5f3 100644
              }
          }
 diff --git a/src/video/nv2a_d3d11.c b/src/video/nv2a_d3d11.c
-index b9f3fa2..7b9ed3c 100644
+index b9f3fa2..593199b 100644
 --- a/src/video/nv2a_d3d11.c
 +++ b/src/video/nv2a_d3d11.c
 @@ -29,6 +29,7 @@
@@ -2465,7 +2503,53 @@ index b9f3fa2..7b9ed3c 100644
      frames = 0;
      worst = 0;
      last = now;
-@@ -868,12 +924,13 @@ typedef struct {
+@@ -319,6 +375,45 @@ static ID3D11BlendState *s_blend_opaque;
+ static ID3D11RasterizerState *s_rs_plain;
+ static ID3D11DepthStencilState *s_ds_off;
+ 
++/* This context has one owner. Every VS shader/b0 writer goes through these
++ * helpers, including auxiliary blits and clears. Their objects live for the
++ * renderer's lifetime; repeated draws need no driver call for the same bind. */
++static ID3D11VertexShader *s_bound_vs;
++static ID3D11Buffer *s_bound_vs_b0;
++static int s_bound_vs_valid, s_bound_vs_b0_valid;
++
++static void bind_vertex_shader(ID3D11VertexShader *shader)
++{
++    if (!s_bound_vs_valid || s_bound_vs != shader) {
++        ID3D11DeviceContext_VSSetShader(s_ctx, shader, NULL, 0);
++        s_bound_vs = shader;
++        s_bound_vs_valid = 1;
++    }
++}
++
++static void bind_vertex_constants(ID3D11Buffer *buffer)
++{
++    if (!s_bound_vs_b0_valid || s_bound_vs_b0 != buffer) {
++        ID3D11DeviceContext_VSSetConstantBuffers(s_ctx, 0, 1, &buffer);
++        s_bound_vs_b0 = buffer;
++        s_bound_vs_b0_valid = 1;
++    }
++}
++
++/* No other pass writes VS t0/b1-b3 or PS b1. The raw buffer is input-only
++ * and cannot overlap any texture output, so D3D11's output hazard handling
++ * cannot unbind it. DISCARD changes its storage, not its resource binding.
++ * Keep these slots bound after successful initialization. */
++static void bind_fixed_resources(void)
++{
++    ID3D11Buffer *buffers[3] = { NULL, s_cb_prog, s_cb_vconst };
++    ID3D11DeviceContext_IASetInputLayout(s_ctx, NULL);
++    ID3D11DeviceContext_VSSetConstantBuffers(s_ctx, 1, 3, buffers);
++    ID3D11DeviceContext_VSSetShaderResources(s_ctx, 0, 1, &s_raw_srv);
++    ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 1, 1, &s_cb_ps);
++    s_bound_vs_valid = s_bound_vs_b0_valid = 0;
++}
++
+ static void fail(const char *what, HRESULT hr)
+ {
+     fprintf(stderr, "[D3D11] %s failed: 0x%08lX\n", what, (unsigned long)hr);
+@@ -868,12 +963,13 @@ typedef struct {
  
  static void display_config(int now);
  
@@ -2482,7 +2566,7 @@ index b9f3fa2..7b9ed3c 100644
      if (FAILED(hr)) {
          fprintf(stderr, "[D3D11] shader %s: %s\n", entry,
                  err ? (const char *)ID3D10Blob_GetBufferPointer(err) : "?");
-@@ -883,6 +940,11 @@ static ID3DBlob *compile_def(const char *entry, const char *target, const D3D_SH
+@@ -883,6 +979,11 @@ static ID3DBlob *compile_def(const char *entry, const char *target, const D3D_SH
      return SUCCEEDED(hr) ? code : NULL;
  }
  
@@ -2494,7 +2578,7 @@ index b9f3fa2..7b9ed3c 100644
  static ID3DBlob *compile(const char *entry, const char *target)
  {
      return compile_def(entry, target, NULL);
-@@ -903,10 +965,14 @@ typedef struct {
+@@ -903,10 +1004,14 @@ typedef struct {
      uint32_t tex_info[4][3];
  } PsKey;
  
@@ -2510,7 +2594,7 @@ index b9f3fa2..7b9ed3c 100644
  } PsSpec;
  
  #define PS_SPEC_SLOTS 4096          /* power of two */
-@@ -914,9 +980,151 @@ typedef struct {
+@@ -914,9 +1019,151 @@ typedef struct {
  static PsSpec *s_spec;
  static PsSpec *s_spec_q[PS_SPEC_QUEUE];
  static unsigned s_spec_head, s_spec_tail;  /* guarded by s_spec_cs */
@@ -2662,7 +2746,7 @@ index b9f3fa2..7b9ed3c 100644
  
  static DWORD WINAPI spec_worker(LPVOID arg)
  {
-@@ -926,12 +1134,19 @@ static DWORD WINAPI spec_worker(LPVOID arg)
+@@ -926,12 +1173,19 @@ static DWORD WINAPI spec_worker(LPVOID arg)
          const PsKey *k;
          char decl[2048];
          ID3DBlob *b;
@@ -2686,7 +2770,7 @@ index b9f3fa2..7b9ed3c 100644
          LeaveCriticalSection(&s_spec_cs);
          k = &e->key;
          snprintf(decl, sizeof decl,
-@@ -965,45 +1180,87 @@ static DWORD WINAPI spec_worker(LPVOID arg)
+@@ -965,45 +1219,87 @@ static DWORD WINAPI spec_worker(LPVOID arg)
          m[1].Name = "SPEC_DECL"; m[1].Definition = decl;
          m[2].Name = flat ? "FLATQ" : NULL; m[2].Definition = flat ? "nointerpolation" : NULL;
          m[3].Name = NULL; m[3].Definition = NULL;
@@ -2765,9 +2849,8 @@ index b9f3fa2..7b9ed3c 100644
 +                spec_remember(&k);
              }
 +            s_spec_saved = s_spec_dirty; /* Imported keys are already persistent. */
-         }
-     }
--    if (!enabled) return NULL;
++        }
++    }
 +    /* Imports finish before threads or draw lookups can see the table. */
 +    for (i = 0; i < 2; i++) {
 +        HANDLE t = CreateThread(NULL, 0, spec_worker, NULL, CREATE_SUSPENDED, NULL);
@@ -2776,8 +2859,9 @@ index b9f3fa2..7b9ed3c 100644
 +            if (ResumeThread(t) != (DWORD)-1) workers++;
 +            else TerminateThread(t, 0); /* It has never executed user code. */
 +            CloseHandle(t);
-+        }
-+    }
+         }
+     }
+-    if (!enabled) return NULL;
 +    if (!workers) {
 +        s_spec_enabled = 0;
 +        free(s_spec); s_spec = NULL;
@@ -2797,7 +2881,7 @@ index b9f3fa2..7b9ed3c 100644
      memset(&k, 0, sizeof k);
      memcpy(k.c_icw, pc->c_icw, sizeof k.c_icw);
      memcpy(k.a_icw, pc->a_icw, sizeof k.a_icw);
-@@ -1017,23 +1274,7 @@ static ID3D11PixelShader *spec_ps(const PSConsts *pc, uint32_t variant)
+@@ -1017,23 +1313,7 @@ static ID3D11PixelShader *spec_ps(const PSConsts *pc, uint32_t variant)
          k.tex_info[i][0] = pc->tex_info[i][0]; k.tex_info[i][1] = pc->tex_info[i][1];
          k.tex_info[i][2] = pc->tex_info[i][2];
      }
@@ -2822,7 +2906,7 @@ index b9f3fa2..7b9ed3c 100644
  }
  
  static ID3D11Buffer *make_buffer(UINT bytes, UINT bind)
-@@ -1050,13 +1291,34 @@ static ID3D11Buffer *make_buffer(UINT bytes, UINT bind)
+@@ -1050,13 +1330,34 @@ static ID3D11Buffer *make_buffer(UINT bytes, UINT bind)
      return b;
  }
  
@@ -2858,15 +2942,28 @@ index b9f3fa2..7b9ed3c 100644
      }
  }
  
-@@ -1217,6 +1479,7 @@ int nv2a_d3d_init(void)
+@@ -1217,6 +1518,8 @@ int nv2a_d3d_init(void)
          if (qc && qd) break;
      }
      if (s_msaa < 1) s_msaa = 1;
 +    spec_init();
++    bind_fixed_resources();
      s_init_state = 1;
      fprintf(stderr, "[D3D11] renderer ready: %ux%u internal, display aspect %.3f, %ux MSAA, %ux AF\n",
              (uint32_t)(GUEST_W * s_scale * widen() + 0.5f), (uint32_t)(GUEST_H * s_scale + 0.5f),
-@@ -1413,13 +1676,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
+@@ -1379,9 +1682,8 @@ static void blit_span(ID3D11ShaderResourceView *srv, ID3D11ShaderResourceView *m
+     ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
+     ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
+     ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+-    ID3D11DeviceContext_IASetInputLayout(s_ctx, NULL);
+-    ID3D11DeviceContext_VSSetShader(s_ctx, s_present_vs, NULL, 0);
+-    ID3D11DeviceContext_VSSetConstantBuffers(s_ctx, 0, 1, &s_cb_present);
++    bind_vertex_shader(s_present_vs);
++    bind_vertex_constants(s_cb_present);
+     ID3D11DeviceContext_PSSetShader(s_ctx, s_present_ps, NULL, 0);
+     ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 0, 1, &s_cb_present);
+     {
+@@ -1413,13 +1715,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
  }
  
  /* Guest rows of a surface as BGRA, with the format's fixed alpha. */
@@ -2883,7 +2980,7 @@ index b9f3fa2..7b9ed3c 100644
          uint32_t *dst = out + (size_t)y * s->w;
          if (s->bpp == 4) {
              memcpy(dst, row, (size_t)s->w * 4);
-@@ -1454,6 +1717,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
+@@ -1454,6 +1756,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
  static UINT s_up_w[2], s_up_h[2];
  static uint32_t *s_up_pixels, *s_mask_pixels;
  static size_t s_up_cap, s_mask_cap;
@@ -2892,7 +2989,7 @@ index b9f3fa2..7b9ed3c 100644
  
  /* slot 0: image, slot 1: change mask */
  static ID3D11ShaderResourceView *upload_slot(int k, const uint32_t *pixels, UINT w, UINT h)
-@@ -1489,6 +1754,25 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1489,6 +1793,25 @@ static uint32_t *scratch_pixels(size_t count)
      return s_up_pixels;
  }
  
@@ -2918,7 +3015,7 @@ index b9f3fa2..7b9ed3c 100644
  /* Guest memory is the authority for what the CPU writes. A shadow copy of
   * each surface's guest bytes says which pixels the CPU changed since the last
   * look; only those replace what the GPU drew. A loading screen drawn by the
-@@ -1496,22 +1780,24 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1496,22 +1819,24 @@ static uint32_t *scratch_pixels(size_t count)
  static void surface_sync_impl(Surface *s, int force)
  {
      uint32_t rowb = s->w * s->bpp, y, x, x0 = 0xFFFFFFFFu, x1 = 0, y0 = 0xFFFFFFFFu, y1 = 0;
@@ -2947,7 +3044,7 @@ index b9f3fa2..7b9ed3c 100644
          {
              ID3D11ShaderResourceView *srv = upload_image(px, s->w, s->h);
              float x0, x1;
-@@ -1522,7 +1808,7 @@ static void surface_sync_impl(Surface *s, int force)
+@@ -1522,7 +1847,7 @@ static void surface_sync_impl(Surface *s, int force)
          return;
      }
      for (y = 0; y < s->h; y++) {
@@ -2956,7 +3053,7 @@ index b9f3fa2..7b9ed3c 100644
          uint8_t *sh = s->shadow + (size_t)y * rowb;
          if (!memcmp(row, sh, rowb)) continue;
          if (y0 == 0xFFFFFFFFu) {
-@@ -1552,7 +1838,7 @@ static void surface_sync_impl(Surface *s, int force)
+@@ -1552,7 +1877,7 @@ static void surface_sync_impl(Surface *s, int force)
                  s->phys, s_frame, x0, y0, x1, y1);
      px = scratch_pixels((size_t)s->w * s->h);
      if (!px) return;
@@ -2965,7 +3062,7 @@ index b9f3fa2..7b9ed3c 100644
      {
          ID3D11ShaderResourceView *srv = upload_slot(0, px, s->w, s->h);
          ID3D11ShaderResourceView *msk = upload_slot(1, s_mask_pixels, s->w, s->h);
-@@ -1572,8 +1858,11 @@ static void surface_sync(Surface *s, int force)
+@@ -1572,8 +1897,11 @@ static void surface_sync(Surface *s, int force)
      if (s_prof_on > 0) s_prof[PROF_SYNC] += qpc() - t0;
  }
  
@@ -2977,7 +3074,7 @@ index b9f3fa2..7b9ed3c 100644
      if (s_cur_rt == s) unbind_targets();
      if (s->srv) ID3D11ShaderResourceView_Release(s->srv);
      if (s->rtv) ID3D11RenderTargetView_Release(s->rtv);
-@@ -1635,9 +1924,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
+@@ -1635,9 +1963,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
      } else {
          for (i = 0; i < MAX_SURFACES && !victim; i++)
              if (!s_surf[i].tex) victim = &s_surf[i];
@@ -2991,7 +3088,7 @@ index b9f3fa2..7b9ed3c 100644
          if (!victim) victim = &s_surf[0];
      }
      surface_release(victim);
-@@ -1901,9 +2191,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
+@@ -1901,9 +2230,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
  }
  
  typedef struct TexEntry {
@@ -3003,7 +3100,7 @@ index b9f3fa2..7b9ed3c 100644
      size_t bytes;
      ID3D11Texture2D *tex;
      ID3D11ShaderResourceView *srv;
-@@ -1954,12 +2244,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
+@@ -1954,12 +2283,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
      return 1;
  }
  
@@ -3059,7 +3156,7 @@ index b9f3fa2..7b9ed3c 100644
          for (by = 0; by < bh; by++)
              for (bx = 0; bx < bw; bx++) {
                  d3d8_dxt_decode_block(src + ((size_t)by * bw + bx) * L->bpp, t->color, px);
-@@ -1969,6 +2302,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
+@@ -1969,6 +2341,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
              }
          return;
      }
@@ -3071,10 +3168,11 @@ index b9f3fa2..7b9ed3c 100644
      if (L->kind == K_LIN) {
          for (y = 0; y < h; y++) {
              const uint8_t *row = src + (size_t)y * t->pitch;
-@@ -2057,6 +2395,31 @@ static int host_levels(const TexLayout *L, const NvD3DTexture *t)
+@@ -2057,22 +2434,55 @@ static int host_levels(const TexLayout *L, const NvD3DTexture *t)
      return n > L->levels ? n : L->levels;
  }
  
+-static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
 +/* Guest DXT blocks already have the BC1/2/3 layout. Keep short chains in BGRA
 + * so their generated mips retain the same filtering; BC base dimensions must
 + * be multiples of four, while the smaller mips still occupy complete blocks. */
@@ -3100,20 +3198,25 @@ index b9f3fa2..7b9ed3c 100644
 +    return (support[index] & required) == required ? formats[index] : DXGI_FORMAT_B8G8R8A8_UNORM;
 +}
 +
- static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
++static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t, int *guest_levels)
  {
      TexLayout L;
-@@ -2064,15 +2427,21 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+     uint32_t p = phys(t->addr), pal_p = t->palette;
      uint32_t key = (p >> 7) ^ (t->format * 2654435761u) ^ (t->pitch << 3) ^ t->width;
      TexEntry *e, **head = &s_tex_bucket[key & (TEX_BUCKETS - 1)];
      uint64_t h, ph = 0;
 -    uint32_t *pal = NULL;
+-
+-    if (!tex_layout(t, &L) || !guest_ok(t->addr, L.total))
+-        return NULL;
 +    uint32_t *pal = NULL, *px = NULL, *a = NULL, *b = NULL;
 +    DXGI_FORMAT host_format;
 +    int hl, is_new, native;
- 
-     if (!tex_layout(t, &L) || !guest_ok(t->addr, L.total))
-         return NULL;
++
++    if (guest_levels) *guest_levels = 1;
++    if (!tex_layout(t, &L)) return NULL;
++    if (guest_levels) *guest_levels = L.levels;
++    if (!guest_ok(t->addr, L.total)) return NULL;
      for (e = *head; e; e = e->next)
          if (e->phys == p && e->format == t->format && e->pitch == t->pitch &&
 -            e->w == t->width && e->h == t->height && e->palette == pal_p)
@@ -3128,7 +3231,7 @@ index b9f3fa2..7b9ed3c 100644
          e->used = s_frame;
          return e->srv;
      }
-@@ -2082,21 +2451,47 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2082,21 +2492,47 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
          ph = hash_mem((const uint8_t *)pal, t->palette_len * 4);
      }
      if (e && e->hash == h && e->pal_hash == ph) {
@@ -3182,7 +3285,7 @@ index b9f3fa2..7b9ed3c 100644
          if (L.faces == 6) {
              sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
              sd.TextureCube.MipLevels = (UINT)hl;
-@@ -2104,36 +2499,45 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2104,36 +2540,45 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
              sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
              sd.Texture2D.MipLevels = (UINT)hl;
          }
@@ -3250,7 +3353,7 @@ index b9f3fa2..7b9ed3c 100644
              w = L.level_w[L.levels - 1]; h = L.level_h[L.levels - 1];
              memcpy(a, px, (size_t)w * h * 4);
              for (; lv < hl; lv++) {
-@@ -2152,10 +2556,26 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2152,23 +2597,44 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
      }
      e->hash = h;
      e->pal_hash = ph;
@@ -3277,8 +3380,106 @@ index b9f3fa2..7b9ed3c 100644
 +    return NULL;
  }
  
- static ID3D11ShaderResourceView *texture_get(const NvD3DTexture *t)
-@@ -2707,7 +3127,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+-static ID3D11ShaderResourceView *texture_get(const NvD3DTexture *t)
++static ID3D11ShaderResourceView *texture_get_with_levels(const NvD3DTexture *t, int *guest_levels)
+ {
+     int64_t t0 = s_prof_on > 0 ? qpc() : 0;
+     ID3D11ShaderResourceView *v;
+     RECOMP_PROFILE_BEGIN("D3D11 texture");
+-    v = texture_get_impl(t);
++    v = texture_get_impl(t, guest_levels);
+     RECOMP_PROFILE_END();
+     if (s_prof_on > 0) s_prof[PROF_TEXTURE] += qpc() - t0;
+     return v;
+ }
+ 
++static ID3D11ShaderResourceView *texture_get(const NvD3DTexture *t)
++{
++    return texture_get_with_levels(t, NULL);
++}
++
+ /* -------------------------------------------------------- state objects */
+ 
+ typedef struct { uint64_t key; void *obj; } StateSlot;
+@@ -2346,12 +2812,29 @@ static D3D11_TEXTURE_ADDRESS_MODE addr_mode(uint32_t m)
+     }
+ }
+ 
+-static ID3D11SamplerState *sampler(const NvD3DTexture *t, int levels, int reduce)
++typedef struct SamplerRequest {
++    uint32_t filter, address, control0, border;
++    int levels, reduce;
++    uint64_t key;
++    StateSlot *slot;
++} SamplerRequest;
++static SamplerRequest s_sampler_request[4];
++
++static ID3D11SamplerState *sampler_request(const NvD3DTexture *t, int levels, int reduce,
++                                         SamplerRequest *request)
+ {
+     uint32_t minf = (t->filter >> 16) & 0xFF, magf = (t->filter >> 24) & 0xF;
+     int bias13 = (int)(t->filter & 0x1FFF);
+     uint64_t key;
+     void **slot;
++    /* Retain the table slot, rather than its COM pointer: a full state cache
++     * can evict that object between two uses of this stage. Compare integer
++     * inputs before constructing the key; descriptor floats stay unchanged. */
++    if (request && request->slot && request->slot->obj &&
++        request->slot->key == request->key && request->filter == t->filter &&
++        request->address == t->address && request->control0 == t->control0 &&
++        request->border == t->border && request->levels == levels && request->reduce == reduce)
++        return (ID3D11SamplerState *)request->slot->obj;
+     if (bias13 & 0x1000) bias13 -= 0x2000;
+     key = (uint64_t)minf | ((uint64_t)magf << 8) | ((uint64_t)(bias13 & 0x1FFF) << 12) |
+           ((uint64_t)(levels & 15) << 25) | ((uint64_t)(reduce != 0) << 29) |
+@@ -2393,9 +2876,26 @@ static ID3D11SamplerState *sampler(const NvD3DTexture *t, int levels, int reduce
+         }
+         ID3D11Device_CreateSamplerState(s_dev, &d, (ID3D11SamplerState **)slot);
+     }
++    if (request) {
++        request->filter = t->filter; request->address = t->address;
++        request->control0 = t->control0; request->border = t->border;
++        request->levels = levels; request->reduce = reduce;
++        request->key = key;
++        request->slot = (StateSlot *)((char *)slot - offsetof(StateSlot, obj));
++    }
+     return (ID3D11SamplerState *)*slot;
+ }
+ 
++static ID3D11SamplerState *sampler(const NvD3DTexture *t, int levels, int reduce)
++{
++    return sampler_request(t, levels, reduce, NULL);
++}
++
++static ID3D11SamplerState *sampler_stage(unsigned stage, const NvD3DTexture *t, int levels, int reduce)
++{
++    return sampler_request(t, levels, reduce, stage < 4 ? &s_sampler_request[stage] : NULL);
++}
++
+ /* ------------------------------------------------------------------- draw */
+ 
+ static uint32_t mode_needs_texture(uint32_t mode)
+@@ -2585,8 +3085,7 @@ static ID3D11ShaderResourceView *surface_y16(Surface *s)
+         ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
+         ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
+         ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+-        ID3D11DeviceContext_IASetInputLayout(s_ctx, NULL);
+-        ID3D11DeviceContext_VSSetShader(s_ctx, s_y16_vs, NULL, 0);
++        bind_vertex_shader(s_y16_vs);
+         ID3D11DeviceContext_PSSetShader(s_ctx, s_y16_ps[s->ms ? 1 : 0], NULL, 0);
+         ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 1, &src);
+         ID3D11DeviceContext_Draw(s_ctx, 3, 0);
+@@ -2622,8 +3121,7 @@ static ID3D11ShaderResourceView *depth_y16(Depth *d)
+         ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
+         ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
+         ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+-        ID3D11DeviceContext_IASetInputLayout(s_ctx, NULL);
+-        ID3D11DeviceContext_VSSetShader(s_ctx, s_y16_vs, NULL, 0);
++        bind_vertex_shader(s_y16_vs);
+         ID3D11DeviceContext_PSSetShader(s_ctx, s_y16d_ps[d->samples > 1 ? 1 : 0], NULL, 0);
+         ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 1, src);
+         {
+@@ -2707,7 +3205,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          if (!mode_needs_texture(mode) || !t->addr || !t->width || !t->height)
              continue;
          tex_format(t->color, &kind);
@@ -3291,7 +3492,27 @@ index b9f3fa2..7b9ed3c 100644
          s_draw_textured = 1;
          if (!s_draw_tex_addr) s_draw_tex_addr = t->addr;
          if (rt && rt->sx > rt->sy * 1.001f) s_draw_reads_wide = 1;
-@@ -2816,7 +3240,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2742,9 +3244,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+                 }
+             }
+         } else {
+-            TexLayout L;
+-            view = texture_get(t);
+-            if (tex_layout(t, &L)) levels = L.levels;
++            view = texture_get_with_levels(t, &levels);
+             if (kind == K_LIN) {
+                 pc.tex_scale[n][0] = 1.0f / (float)t->width;
+                 pc.tex_scale[n][1] = 1.0f / (float)t->height;
+@@ -2758,7 +3258,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+         }
+         if (!view) continue;
+         if (t->cube && !rt) srv[4 + n] = view; else srv[n] = view;
+-        smp[n] = sampler(t, levels, reduce);
++        smp[n] = sampler_stage(n, t, levels, reduce);
+         pc.tex_info[n][0] = (t->control0 >> 2) & 1;
+         pc.tex_info[n][1] = t->filter >> 28;
+         /* Point taps of an upscaled linear target average the guest pixel's
+@@ -2816,7 +3316,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          pc.zp1[0] = 1.0f / ((float)zm + 1.0f);
          pc.zp1[1] = (float)zm;
      }
@@ -3300,7 +3521,15 @@ index b9f3fa2..7b9ed3c 100644
  
      if (st->poly_offset_fill && !(st->z_perspective && d)) {
          /* The slope term multiplies the depth change per pixel. At an
-@@ -3073,9 +3497,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -2834,7 +3334,6 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+         ID3D11PixelShader *ps = spec_ps(&pc, v);
+         ID3D11DeviceContext_PSSetShader(s_ctx, ps ? ps : s_psv[v], NULL, 0);
+     }
+-    ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 1, 1, &s_cb_ps);
+     ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 8, srv);
+     ID3D11DeviceContext_PSSetSamplers(s_ctx, 0, 4, smp);
+     ID3D11DeviceContext_RSSetState(s_ctx, rs_state(cull == 3 ? 0 : cull,
+@@ -3073,9 +3572,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
      RECOMP_PROFILE_BEGIN("D3D11 draw");
      t_draw = s_prof_on > 0 ? qpc() : 0;
      s_prof_draws++;
@@ -3318,7 +3547,22 @@ index b9f3fa2..7b9ed3c 100644
      }
      if (pos && s && s->sx > s->sy * 1.001f) {
          /* Menu artwork and controls span the display together. Only the
-@@ -3204,11 +3633,18 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3179,12 +3683,9 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+     uc.place[1] = yscale;
+     upload_cb(s_cb_ub, &uc, sizeof uc);
+     {
+-        ID3D11Buffer *vcb[4] = { s_cb_ub, NULL, s_cb_prog, s_cb_vconst };
+-        ID3D11DeviceContext_IASetInputLayout(s_ctx, NULL);
+         ID3D11DeviceContext_IASetIndexBuffer(s_ctx, s_ib, DXGI_FORMAT_R32_UINT, s_ib_pos);
+-        ID3D11DeviceContext_VSSetShader(s_ctx, s_ub_vs, NULL, 0);
+-        ID3D11DeviceContext_VSSetConstantBuffers(s_ctx, 0, 4, vcb);
+-        ID3D11DeviceContext_VSSetShaderResources(s_ctx, 0, 1, &s_raw_srv);
++        bind_vertex_shader(s_ub_vs);
++        bind_vertex_constants(s_cb_ub);
+         ID3D11DeviceContext_DrawIndexed(s_ctx, ni, 0, 0);
+     }
+     s_raw_pos += (at + 255) & ~255u;
+@@ -3204,11 +3705,18 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
      float cc[8];
      D3D11_RECT r;
      int zclear = (flags & 1) != 0, sclear = (flags & 2) != 0;
@@ -3339,7 +3583,7 @@ index b9f3fa2..7b9ed3c 100644
      if (s) {
          if (flags & 0x10) mask |= D3D11_COLOR_WRITE_ENABLE_RED;
          if (flags & 0x20) mask |= D3D11_COLOR_WRITE_ENABLE_GREEN;
-@@ -3217,8 +3653,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3217,8 +3725,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
              mask |= D3D11_COLOR_WRITE_ENABLE_ALPHA;
      }
      if (!d) { zclear = sclear = 0; }
@@ -3351,7 +3595,7 @@ index b9f3fa2..7b9ed3c 100644
      if (s && mask) s->gpu_dirty = 1;
      zf = (st->surface_format >> 4) & 0xF;
      unpack4(color, cc);
-@@ -3234,8 +3672,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3234,8 +3744,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
      upload_cb(s_cb_clear, cc, sizeof cc);
      if (x1 >= gw) x1 = gw - 1;
      if (y1 >= gh) y1 = gh - 1;
@@ -3363,7 +3607,15 @@ index b9f3fa2..7b9ed3c 100644
      r.left = (LONG)(x0 * s_aa_x * s_cur_sx + 0.5f);
      r.top = (LONG)(y0 * s_aa_y * s_cur_sy + 0.5f);
      r.right = (LONG)((x1 + 1) * s_aa_x * s_cur_sx + 0.5f);
-@@ -3253,6 +3693,7 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3247,12 +3759,12 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+         ds_state(zclear, 7, zclear, sclear, 7, 0xFF, 0xFF, 0x1E01, 0x1E01, 0x1E01),
+         zf == 1 ? 0 : (zstencil & 0xFF));
+     ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+-    ID3D11DeviceContext_IASetInputLayout(s_ctx, NULL);
+-    ID3D11DeviceContext_VSSetShader(s_ctx, s_clear_vs, NULL, 0);
+-    ID3D11DeviceContext_VSSetConstantBuffers(s_ctx, 0, 1, &s_cb_clear);
++    bind_vertex_shader(s_clear_vs);
++    bind_vertex_constants(s_cb_clear);
      ID3D11DeviceContext_PSSetShader(s_ctx, s_clear_ps, NULL, 0);
      ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 0, 1, &s_cb_clear);
      ID3D11DeviceContext_Draw(s_ctx, 4, 0);
@@ -3371,7 +3623,7 @@ index b9f3fa2..7b9ed3c 100644
  }
  
  /* -------------------------------------------------------------- write-back */
-@@ -3270,6 +3711,27 @@ typedef struct {
+@@ -3270,6 +3782,27 @@ typedef struct {
      ID3D11RenderTargetView *down_rtv;
  } WbSlot;
  static WbSlot s_wb[MAX_SURFACES];
@@ -3399,7 +3651,7 @@ index b9f3fa2..7b9ed3c 100644
  
  static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
  {
-@@ -3289,12 +3751,14 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
+@@ -3289,12 +3822,14 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
              return 0;
          k->w = w; k->h = h;
      }
@@ -3420,7 +3672,7 @@ index b9f3fa2..7b9ed3c 100644
      }
      return 1;
  }
-@@ -3305,21 +3769,63 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
+@@ -3305,21 +3840,63 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
   * (nv2a_d3d_writeback_busy), holding back DMA_GET and fence releases until
   * then -- the title cannot learn the frame is finished before its pixels are
   * in guest memory. */
@@ -3486,7 +3738,7 @@ index b9f3fa2..7b9ed3c 100644
      for (i = 0; i < MAX_SURFACES; i++) {
          Surface *s = &s_surf[i];
          WbSlot *k = &s_wb[i];
-@@ -3328,16 +3834,18 @@ static int writeback_finish(int wait)
+@@ -3328,16 +3905,18 @@ static int writeback_finish(int wait)
          uint32_t x, y, rowb;
          int amode, r565;
          HRESULT hr;
@@ -3506,7 +3758,7 @@ index b9f3fa2..7b9ed3c 100644
          if (FAILED(hr))
              continue;
          dst = (uint8_t *)guest(s->va);
-@@ -3374,6 +3882,8 @@ static int writeback_finish(int wait)
+@@ -3374,6 +3953,8 @@ static int writeback_finish(int wait)
      }
      RECOMP_PROFILE_END();
      s_wb_pending = left;
@@ -3515,7 +3767,7 @@ index b9f3fa2..7b9ed3c 100644
      return !left;
  }
  
-@@ -3381,10 +3891,8 @@ int nv2a_d3d_writeback_busy(void)
+@@ -3381,10 +3962,8 @@ int nv2a_d3d_writeback_busy(void)
  {
      if (!s_wb_pending || writeback_finish(0))
          return 0;
@@ -3528,7 +3780,7 @@ index b9f3fa2..7b9ed3c 100644
      return 1;
  }
  
-@@ -3420,10 +3928,20 @@ static void writeback_surfaces(void)
+@@ -3420,10 +3999,20 @@ static void writeback_surfaces(void)
          }
          s->gpu_dirty = 0;                        /* later draws dirty it again */
          k->pending = 1;
@@ -3550,7 +3802,7 @@ index b9f3fa2..7b9ed3c 100644
      RECOMP_PROFILE_END();
  }
  
-@@ -3439,13 +3957,16 @@ static uint64_t s_zpass;
+@@ -3439,13 +4028,16 @@ static uint64_t s_zpass;
  static void zpass_collect(void)
  {
      UINT64 n = 0;
@@ -3567,11 +3819,34 @@ index b9f3fa2..7b9ed3c 100644
  }
  
  void nv2a_d3d_zpass_enable(int on)
+@@ -3657,9 +4249,8 @@ static void composite(ID3D11RenderTargetView *rtv, UINT w, UINT h, Surface *s,
+     ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
+     ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
+     ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+-    ID3D11DeviceContext_IASetInputLayout(s_ctx, NULL);
+-    ID3D11DeviceContext_VSSetShader(s_ctx, s_present_vs, NULL, 0);
+-    ID3D11DeviceContext_VSSetConstantBuffers(s_ctx, 0, 1, &s_cb_present);
++    bind_vertex_shader(s_present_vs);
++    bind_vertex_constants(s_cb_present);
+     ID3D11DeviceContext_PSSetShader(s_ctx, s_present_ps, NULL, 0);
+     ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 0, 1, &s_cb_present);
+     surface_resolve(s);
 diff --git a/tests/dsp/CMakeLists.txt b/tests/dsp/CMakeLists.txt
-index 1e4ebc0..e9e9ec8 100644
+index 1e4ebc0..d3e1010 100644
 --- a/tests/dsp/CMakeLists.txt
 +++ b/tests/dsp/CMakeLists.txt
-@@ -54,6 +54,10 @@ if(DSP_XEMU_REFERENCE_DIR)
+@@ -19,6 +19,10 @@ add_executable(dsp_disasm_test dsp_disasm_test.c)
+ target_include_directories(dsp_disasm_test PRIVATE ../../src/apu/dsp)
+ target_compile_definitions(dsp_disasm_test PRIVATE _CRT_SECURE_NO_WARNINGS)
+ add_test(NAME dsp_disasm COMMAND dsp_disasm_test)
++add_executable(dsp_interrupt_fastpath_test dsp_interrupt_fastpath_test.c)
++target_include_directories(dsp_interrupt_fastpath_test PRIVATE ../../src/apu/dsp)
++target_compile_definitions(dsp_interrupt_fastpath_test PRIVATE _CRT_SECURE_NO_WARNINGS)
++add_test(NAME dsp_interrupt_fastpath COMMAND dsp_interrupt_fastpath_test)
+ add_executable(dsp_frame_replay dsp_frame_replay.c)
+ target_link_libraries(dsp_frame_replay PRIVATE dsp_runtime)
+ target_compile_definitions(dsp_frame_replay PRIVATE _CRT_SECURE_NO_WARNINGS)
+@@ -54,6 +58,10 @@ if(DSP_XEMU_REFERENCE_DIR)
      "-Doutput=${CMAKE_CURRENT_BINARY_DIR}/dma-results" -P "${CMAKE_CURRENT_SOURCE_DIR}/compare_dma.cmake")
  endif()
  if(WIN32)
@@ -4701,6 +4976,71 @@ index 0000000..f833590
 +}
 +
 +#endif
+diff --git a/tests/dsp/dsp_interrupt_fastpath_test.c b/tests/dsp/dsp_interrupt_fastpath_test.c
+new file mode 100644
+index 0000000..f0adcc2
+--- /dev/null
++++ b/tests/dsp/dsp_interrupt_fastpath_test.c
+@@ -0,0 +1,59 @@
++/* Compare the instruction-boundary fast path with the unchanged full handler.
++ * Include the production source to exercise its private interrupt pipeline
++ * without exposing an extra runtime API or substituting an interrupt model. */
++#include "../../src/apu/dsp/interp/dsp_cpu.c"
++
++#define CHECK(condition) do { if (!(condition)) { \
++    fprintf(stderr, "Interrupt fast-path check line %d: %s\n", __LINE__, #condition); \
++    exit(1); } } while (0)
++
++int main(void)
++{
++    dsp_core_t *initial = calloc(1, sizeof *initial);
++    dsp_core_t *reference = malloc(sizeof *reference);
++    dsp_core_t *actual = malloc(sizeof *actual);
++    CHECK(initial && reference && actual);
++    dsp56k_reset_cpu(initial);
++    initial->pc = 0x100;
++    initial->interrupt_save_pc = 0x101;
++    initial->interrupt_instr_fetch = 8;
++    initial->interrupt_ipl_to_raise = 2;
++    initial->registers[DSP_REG_LC] = 3;
++    initial->registers[DSP_REG_LA] = 0x110;
++    /* Long-vector entry exercises stack and SR changes during the pipeline. */
++    initial->pram[8] = 0x0d0200;
++    initial->pram[9] = 0;
++
++    const unsigned pending_masks[] = {0, 1, 8, 15};
++    unsigned cases = 0;
++    for (unsigned state = DSP_INTERRUPT_NONE; state <= DSP_INTERRUPT_LONG; ++state)
++    for (unsigned pipeline = 0; pipeline <= 6; ++pipeline)
++    for (unsigned rep = 0; rep <= 2; ++rep)
++    for (unsigned flags = 0; flags < 8; ++flags)
++    for (unsigned compatibility = 0; compatibility < 2; ++compatibility)
++    for (unsigned mask = 0; mask < ARRAY_SIZE(pending_masks); ++mask) {
++        *reference = *initial;
++        reference->interrupt_state = (uint16_t)state;
++        reference->interrupt_pipeline_count = (uint16_t)pipeline;
++        reference->loop_rep = rep;
++        reference->is_stopped = (flags & 1) != 0;
++        reference->is_debugging = (flags & 2) != 0;
++        reference->is_waiting = (flags & 4) != 0;
++        reference->registers[DSP_REG_SR] =
++            (compatibility << DSP_SR_SC) | ((pipeline & 3) << DSP_SR_I0);
++        reference->interrupt_counter = 0;
++        for (unsigned i = 0; i < 4; ++i) {
++            reference->interrupt_is_pending[i] = (pending_masks[mask] >> i) & 1;
++            reference->interrupt_counter += reference->interrupt_is_pending[i];
++            reference->interrupt_ipl[i] = (int16_t)i;
++        }
++        *actual = *reference;
++        dsp_postexecute_interrupts(reference);
++        dsp_postexecute_interrupts_if_needed(actual);
++        CHECK(!memcmp(reference, actual, sizeof *actual));
++        ++cases;
++    }
++    printf("Interrupt fast path exact full-state equivalence passed: %u cases\n", cases);
++    free(initial); free(reference); free(actual);
++    return 0;
++}
 diff --git a/tests/dsp/hrtf_filter_test.c b/tests/dsp/hrtf_filter_test.c
 new file mode 100644
 index 0000000..192774a
@@ -6784,6 +7124,366 @@ index 0000000..406c366
 +    puts("PASS: tracing, PUT/cap continuations, exact decoding and ring/bus wraps preserve command order");
 +    return 0;
 +}
+diff --git a/tests/nv2a_bindings/CMakeLists.txt b/tests/nv2a_bindings/CMakeLists.txt
+new file mode 100644
+index 0000000..63755a7
+--- /dev/null
++++ b/tests/nv2a_bindings/CMakeLists.txt
+@@ -0,0 +1,9 @@
++cmake_minimum_required(VERSION 3.20)
++project(nv2a_bindings C)
++enable_testing()
++add_executable(nv2a_bindings test_bindings.c)
++target_include_directories(nv2a_bindings PRIVATE ../../src ../../src/video)
++target_link_libraries(nv2a_bindings PRIVATE d3d11 dxgi dxguid d3dcompiler)
++foreach(case pixels fixed_updates failures resize init_failure)
++    add_test(NAME nv2a_bindings_${case} COMMAND nv2a_bindings ${case})
++endforeach()
+diff --git a/tests/nv2a_bindings/test_bindings.c b/tests/nv2a_bindings/test_bindings.c
+new file mode 100644
+index 0000000..b1640a7
+--- /dev/null
++++ b/tests/nv2a_bindings/test_bindings.c
+@@ -0,0 +1,339 @@
++/* Inspect the real D3D11 slots and pixels produced by the actual renderer.
++ * The reference restores all original per-draw binds immediately before the
++ * real DrawIndexed, independently of the optimized helpers' bookkeeping. */
++#define COBJMACROS
++#define WIN32_LEAN_AND_MEAN
++#include <windows.h>
++#include <d3d11_1.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++static unsigned shader_calls, vs_cb_calls, srv_calls, ps_cb1_calls, layout_calls;
++static int reference, fail_map, fail_buffers;
++static void set_vs(ID3D11DeviceContext *, ID3D11VertexShader *, ID3D11ClassInstance *const *, UINT);
++static void set_vs_cb(ID3D11DeviceContext *, UINT, UINT, ID3D11Buffer *const *);
++static void set_vs_srv(ID3D11DeviceContext *, UINT, UINT, ID3D11ShaderResourceView *const *);
++static void set_ps_cb(ID3D11DeviceContext *, UINT, UINT, ID3D11Buffer *const *);
++static void set_layout(ID3D11DeviceContext *, ID3D11InputLayout *);
++static void draw_indexed(ID3D11DeviceContext *, UINT, UINT, INT);
++static HRESULT map_resource(ID3D11DeviceContext *, ID3D11Resource *, UINT, D3D11_MAP, UINT, D3D11_MAPPED_SUBRESOURCE *);
++static HRESULT create_buffer(ID3D11Device *, const D3D11_BUFFER_DESC *, const D3D11_SUBRESOURCE_DATA *, ID3D11Buffer **);
++#undef ID3D11DeviceContext_VSSetShader
++#undef ID3D11DeviceContext_VSSetConstantBuffers
++#undef ID3D11DeviceContext_VSSetShaderResources
++#undef ID3D11DeviceContext_PSSetConstantBuffers
++#undef ID3D11DeviceContext_IASetInputLayout
++#undef ID3D11DeviceContext_DrawIndexed
++#undef ID3D11DeviceContext_Map
++#undef ID3D11Device_CreateBuffer
++#define ID3D11DeviceContext_VSSetShader set_vs
++#define ID3D11DeviceContext_VSSetConstantBuffers set_vs_cb
++#define ID3D11DeviceContext_VSSetShaderResources set_vs_srv
++#define ID3D11DeviceContext_PSSetConstantBuffers set_ps_cb
++#define ID3D11DeviceContext_IASetInputLayout set_layout
++#define ID3D11DeviceContext_DrawIndexed draw_indexed
++#define ID3D11DeviceContext_Map map_resource
++#define ID3D11Device_CreateBuffer create_buffer
++#include "../../src/video/nv2a_d3d11.c"
++
++static uint8_t ram[0x100000];
++static HWND test_window;
++ptrdiff_t xbox_GetMemoryOffset(void) { return (ptrdiff_t)ram; }
++HWND xbox_FramebufferWindowHandle(void) { return test_window; }
++int xbox_FramebufferScanSource(uint32_t *va, uint32_t *pitch) { return 0; }
++int xbox_FramebufferOverlay(XboxOverlay *ovl) { return 0; }
++void xbox_FramebufferNoteFlip(uint32_t draws) {}
++const uint32_t (*nv2a_vsh_program(uint32_t *start, uint32_t *version))[4] { return NULL; }
++const float (*nv2a_vsh_constants(uint32_t *version))[4] { return NULL; }
++#define CHECK(x) do { if (!(x)) { fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#x); exit(1); } } while(0)
++
++static void set_vs(ID3D11DeviceContext *c, ID3D11VertexShader *s, ID3D11ClassInstance *const *i, UINT n)
++{ shader_calls++; c->lpVtbl->VSSetShader(c,s,i,n); }
++static void set_vs_cb(ID3D11DeviceContext *c, UINT slot, UINT n, ID3D11Buffer *const *b)
++{ vs_cb_calls++; c->lpVtbl->VSSetConstantBuffers(c,slot,n,b); }
++static void set_vs_srv(ID3D11DeviceContext *c, UINT slot, UINT n, ID3D11ShaderResourceView *const *v)
++{ srv_calls++; c->lpVtbl->VSSetShaderResources(c,slot,n,v); }
++static void set_ps_cb(ID3D11DeviceContext *c, UINT slot, UINT n, ID3D11Buffer *const *b)
++{ if(slot==1) ps_cb1_calls++; c->lpVtbl->PSSetConstantBuffers(c,slot,n,b); }
++static void set_layout(ID3D11DeviceContext *c, ID3D11InputLayout *l)
++{ layout_calls++; c->lpVtbl->IASetInputLayout(c,l); }
++
++static __declspec(noinline) void legacy_bind(void)
++{
++    ID3D11Buffer *b[4]={s_cb_ub,NULL,s_cb_prog,s_cb_vconst};
++    s_ctx->lpVtbl->IASetInputLayout(s_ctx,NULL);
++    s_ctx->lpVtbl->VSSetShader(s_ctx,s_ub_vs,NULL,0);
++    s_ctx->lpVtbl->VSSetConstantBuffers(s_ctx,0,4,b);
++    s_ctx->lpVtbl->VSSetShaderResources(s_ctx,0,1,&s_raw_srv);
++    s_ctx->lpVtbl->PSSetConstantBuffers(s_ctx,1,1,&s_cb_ps);
++}
++static __declspec(noinline) void cached_bind(void)
++{
++    bind_vertex_shader(s_ub_vs);
++    bind_vertex_constants(s_cb_ub);
++}
++static void draw_indexed(ID3D11DeviceContext *c, UINT n, UINT start, INT base)
++{ if(reference) legacy_bind(); c->lpVtbl->DrawIndexed(c,n,start,base); }
++static HRESULT map_resource(ID3D11DeviceContext *c, ID3D11Resource *r, UINT sub,
++                            D3D11_MAP kind, UINT flags, D3D11_MAPPED_SUBRESOURCE *m)
++{
++    if(fail_map && r==(ID3D11Resource *)s_raw) { fail_map=0; return E_FAIL; }
++    return c->lpVtbl->Map(c,r,sub,kind,flags,m);
++}
++static HRESULT create_buffer(ID3D11Device *d, const D3D11_BUFFER_DESC *desc,
++                             const D3D11_SUBRESOURCE_DATA *data, ID3D11Buffer **b)
++{
++    if(fail_buffers) { *b=NULL; return E_OUTOFMEMORY; }
++    return d->lpVtbl->CreateBuffer(d,desc,data,b);
++}
++
++static void check_slots(ID3D11VertexShader *expected, ID3D11Buffer *b0)
++{
++    ID3D11VertexShader *vs=NULL;
++    ID3D11Buffer *buffers[4]={0}, *ps=NULL;
++    ID3D11ShaderResourceView *srv=NULL;
++    ID3D11InputLayout *layout=NULL;
++    ID3D11DeviceContext_VSGetShader(s_ctx,&vs,NULL,NULL);
++    ID3D11DeviceContext_VSGetConstantBuffers(s_ctx,0,4,buffers);
++    ID3D11DeviceContext_PSGetConstantBuffers(s_ctx,1,1,&ps);
++    ID3D11DeviceContext_VSGetShaderResources(s_ctx,0,1,&srv);
++    ID3D11DeviceContext_IAGetInputLayout(s_ctx,&layout);
++    if(vs!=expected || buffers[0]!=b0 || buffers[1])
++        fprintf(stderr,"slots VS actual=%p expected=%p b0 actual=%p expected=%p b1=%p\n",
++                vs,expected,buffers[0],b0,buffers[1]);
++    CHECK(vs==expected && buffers[0]==b0 && !buffers[1]);
++    CHECK(buffers[2]==s_cb_prog && buffers[3]==s_cb_vconst);
++    CHECK(ps==s_cb_ps && srv==s_raw_srv && !layout);
++    if(vs) ID3D11VertexShader_Release(vs);
++    if(buffers[0]) ID3D11Buffer_Release(buffers[0]);
++    ID3D11Buffer_Release(buffers[2]); ID3D11Buffer_Release(buffers[3]);
++    ID3D11Buffer_Release(ps); ID3D11ShaderResourceView_Release(srv);
++}
++
++static NvD3DState draw_state(void)
++{
++    NvD3DState st={0};
++    st.color_addr=0x20000; st.color_pitch=64*4;
++    st.zeta_addr=0x40000; st.zeta_pitch=64*4;
++    st.surface_format=0x25; st.clip_w=st.clip_h=64;
++    st.color_mask=0x01010101; st.blend_sfactor=1; st.blend_equation=0x8006;
++    st.front_face=0x901; st.depth_test=1; st.depth_func=0x207;
++    return st;
++}
++static void triangle(const NvD3DState *st, unsigned color, unsigned moved)
++{
++    float positions[3][4]={{8,8,0,1},{56,8,0,1},{8,56,0,1}};
++    NvD3DAttrib attr[16]={0}; float def[16][4]={{0}};
++    uint32_t idx[3]={0,1,2}; unsigned i;
++    for(i=0;i<3;i++) positions[i][0]+=(float)moved;
++    def[3][color%3]=1; def[3][3]=1;
++    attr[0].enabled=1; attr[0].type=2; attr[0].size=4;
++    attr[0].stride=16; attr[0].data=(const uint8_t *)positions;
++    nv2a_d3d_draw_ub(st,NV_D3D_TRIANGLES,attr,def,0,idx,3,0,2,NULL);
++}
++static void read_pixels(uint32_t pixels[64*64])
++{
++    Surface *s=surface_find(0x20000);
++    ID3D11Texture2D *stage;
++    D3D11_TEXTURE2D_DESC desc; D3D11_MAPPED_SUBRESOURCE map;
++    unsigned y;
++    CHECK(s && s->iw==64 && s->ih==64);
++    surface_resolve(s);
++    ID3D11Texture2D_GetDesc(s->tex,&desc);
++    desc.Usage=D3D11_USAGE_STAGING; desc.BindFlags=desc.MiscFlags=0;
++    desc.CPUAccessFlags=D3D11_CPU_ACCESS_READ;
++    CHECK(SUCCEEDED(ID3D11Device_CreateTexture2D(s_dev,&desc,NULL,&stage)));
++    ID3D11DeviceContext_CopyResource(s_ctx,(ID3D11Resource *)stage,(ID3D11Resource *)s->tex);
++    CHECK(SUCCEEDED(ID3D11DeviceContext_Map(s_ctx,(ID3D11Resource *)stage,0,D3D11_MAP_READ,0,&map)));
++    for(y=0;y<64;y++) memcpy(pixels+y*64,(uint8_t *)map.pData+y*map.RowPitch,64*4);
++    ID3D11DeviceContext_Unmap(s_ctx,(ID3D11Resource *)stage,0);
++    ID3D11Texture2D_Release(stage);
++}
++static void auxiliary(unsigned which, const NvD3DState *st)
++{
++    Surface *s=surface_find(0x20000); Depth *d;
++    ID3D11Texture2D *out=NULL; ID3D11RenderTargetView *rtv=NULL;
++    PresentConsts pc={0};
++    if(which==0) return;
++    if(which==1) {
++        nv2a_d3d_clear(st,0xF0,0xFF000000,0,0,0,63,63);
++        check_slots(s_clear_vs,s_cb_clear); return;
++    }
++    if(which==2) { CHECK(surface_y16(s)); check_slots(s_y16_vs,s_cb_ub); return; }
++    if(which==3) {
++        d=depth_get(st->zeta_addr,64,64,1); CHECK(d);
++        CHECK(depth_y16(d)); check_slots(s_y16_vs,s_cb_ub); return;
++    }
++    out=make_texture(64,64,1,1,DXGI_FORMAT_B8G8R8A8_UNORM,D3D11_BIND_RENDER_TARGET,0);
++    CHECK(out && SUCCEEDED(ID3D11Device_CreateRenderTargetView(s_dev,(ID3D11Resource *)out,NULL,&rtv)));
++    if(which==4) blit(s->srv,rtv,64,64,1);
++    else composite(rtv,64,64,s,&pc,0);
++    check_slots(s_present_vs,s_cb_present);
++    ID3D11RenderTargetView_Release(rtv); ID3D11Texture2D_Release(out);
++}
++
++static void test_pixels(void)
++{
++    uint32_t expected[64*64], actual[64*64];
++    NvD3DState st=draw_state(); unsigned pass, mode, rawmode;
++    int supported=s_raw_nooverwrite;
++    for(rawmode=0;rawmode<2;rawmode++) {
++        if(rawmode && !supported) continue;
++        s_raw_nooverwrite=(int)rawmode;
++        for(pass=0;pass<6;pass++) {
++            for(mode=0;mode<2;mode++) {
++                unsigned before_shader, before_cb;
++                reference=!mode;
++                nv2a_d3d_clear(&st,0xF0,0xFF000000,0,0,0,63,63);
++                triangle(&st,0,0); check_slots(s_ub_vs,s_cb_ub);
++                auxiliary(pass,&st);
++                /* Force both dynamic rings to wrap. Update raw vertices and
++                 * constants after the auxiliary shader changed the context. */
++                s_raw_pos=VB_BYTES-16; s_ib_pos=IB_BYTES-4;
++                triangle(&st,1,2); check_slots(s_ub_vs,s_cb_ub);
++                CHECK(s_raw_pos<1024 && s_ib_pos<1024);
++                before_shader=shader_calls; before_cb=vs_cb_calls;
++                triangle(&st,2,4); check_slots(s_ub_vs,s_cb_ub);
++                CHECK(shader_calls==before_shader && vs_cb_calls==before_cb);
++                read_pixels(mode?actual:expected);
++            }
++            CHECK(!memcmp(expected,actual,sizeof actual));
++            CHECK((actual[16*64+20]&0xFFFFFF)!=0); /* A real visible triangle. */
++        }
++    }
++    CHECK(layout_calls==1 && srv_calls==1 && ps_cb1_calls==1);
++    puts("PASS: exact reference GPU pixels, actual fixed/changed slots, six auxiliary paths, updated raw data/constants, DISCARD/NO_OVERWRITE and both ring wraps");
++}
++static void test_failures(void)
++{
++    NvD3DState st=draw_state(); uint32_t expected[64*64], actual[64*64];
++    reference=1; nv2a_d3d_clear(&st,0xF0,0xFF000000,0,0,0,63,63);
++    triangle(&st,1,0); read_pixels(expected);
++    reference=0; nv2a_d3d_clear(&st,0xF0,0xFF000000,0,0,0,63,63);
++    fail_map=1; triangle(&st,2,0); CHECK(!fail_map);
++    check_slots(s_clear_vs,s_cb_clear);
++    triangle(&st,1,0); check_slots(s_ub_vs,s_cb_ub); read_pixels(actual);
++    CHECK(!memcmp(expected,actual,sizeof actual));
++    bind_vertex_shader(NULL); bind_vertex_constants(NULL); check_slots(NULL,NULL);
++    triangle(&st,1,0); check_slots(s_ub_vs,s_cb_ub);
++    CHECK(layout_calls==1 && srv_calls==1 && ps_cb1_calls==1);
++    puts("PASS: failed raw Map leaves truthful binding state; retry restores exact pixels; NULL shader/constants bind and recover");
++}
++static void test_fixed_updates(void)
++{
++    const char *hlsl=
++        "cbuffer P:register(b2){float4 a;} cbuffer K:register(b3){float4 b;}"
++        "ByteAddressBuffer V:register(t0);"
++        "struct O{float4 p:SV_Position;float4 c:COLOR0;};"
++        "O vertex(uint id:SV_VertexID){O o;o.p=asfloat(V.Load4(id*16));o.c=a*b;return o;}"
++        "float4 pixel(O o):SV_Target{return o.c;}";
++    NvD3DState st=draw_state(); ID3DBlob *blob=NULL,*error=NULL;
++    ID3D11VertexShader *vs=NULL; ID3D11PixelShader *ps=NULL;
++    uint32_t expected[64*64],actual[64*64],previous[64*64];
++    unsigned step,mode;
++    CHECK(SUCCEEDED(D3DCompile(hlsl,strlen(hlsl),NULL,NULL,NULL,"vertex","vs_5_0",0,0,&blob,&error)));
++    CHECK(SUCCEEDED(ID3D11Device_CreateVertexShader(s_dev,ID3D10Blob_GetBufferPointer(blob),ID3D10Blob_GetBufferSize(blob),NULL,&vs)));
++    ID3D10Blob_Release(blob); if(error) ID3D10Blob_Release(error); error=NULL;
++    CHECK(SUCCEEDED(D3DCompile(hlsl,strlen(hlsl),NULL,NULL,NULL,"pixel","ps_5_0",0,0,&blob,&error)));
++    CHECK(SUCCEEDED(ID3D11Device_CreatePixelShader(s_dev,ID3D10Blob_GetBufferPointer(blob),ID3D10Blob_GetBufferSize(blob),NULL,&ps)));
++    ID3D10Blob_Release(blob); if(error) ID3D10Blob_Release(error);
++    for(step=0;step<3;step++) for(mode=0;mode<2;mode++) {
++        float positions[3][4]={{-.75f,.75f,0,1},{.75f,.75f,0,1},{-.75f,-.75f,0,1}};
++        float a[4]={0,0,0,1},b[4]={.5f,.5f,.5f,1};
++        Surface *s; uint32_t gw,gh,zmax; D3D11_MAPPED_SUBRESOURCE map;
++        a[step]=1; b[step]=.25f*(step+1);
++        nv2a_d3d_clear(&st,0xF0,0xFF000000,0,0,0,63,63);
++        CHECK(setup_pipeline(&st,NV_D3D_TRIANGLES,&s,&gw,&gh,&zmax));
++        CHECK(SUCCEEDED(ID3D11DeviceContext_Map(s_ctx,(ID3D11Resource *)s_raw,0,D3D11_MAP_WRITE_DISCARD,0,&map)));
++        memcpy(map.pData,positions,sizeof positions);
++        ID3D11DeviceContext_Unmap(s_ctx,(ID3D11Resource *)s_raw,0);
++        CHECK(upload_cb(s_cb_prog,a,sizeof a) && upload_cb(s_cb_vconst,b,sizeof b));
++        if(!mode) {
++            /* Independent reference: restore original immutable slots after
++             * the buffer DISCARDs; optimized mode keeps the initial binds. */
++            ID3D11Buffer *buffers[3]={NULL,s_cb_prog,s_cb_vconst};
++            s_ctx->lpVtbl->VSSetConstantBuffers(s_ctx,1,3,buffers);
++            s_ctx->lpVtbl->VSSetShaderResources(s_ctx,0,1,&s_raw_srv);
++            s_ctx->lpVtbl->PSSetConstantBuffers(s_ctx,1,1,&s_cb_ps);
++        }
++        bind_vertex_shader(vs); bind_vertex_constants(s_cb_ub);
++        ID3D11DeviceContext_PSSetShader(s_ctx,ps,NULL,0);
++        ID3D11DeviceContext_Draw(s_ctx,3,0);
++        check_slots(vs,s_cb_ub); read_pixels(mode?actual:expected);
++        if(mode) {
++            CHECK(!memcmp(expected,actual,sizeof actual));
++            CHECK((actual[16*64+16]&0xFFFFFF)!=0);
++            if(step) CHECK(memcmp(previous,actual,sizeof actual)!=0);
++            memcpy(previous,actual,sizeof actual);
++        }
++    }
++    CHECK(layout_calls==1 && srv_calls==1 && ps_cb1_calls==1);
++    bind_vertex_shader(s_ub_vs); /* Lifetime cache never points to released VS. */
++    ID3D11VertexShader_Release(vs); ID3D11PixelShader_Release(ps);
++    puts("PASS: GPU reads freshly DISCARDed VS b2/b3 and raw t0 through retained initial binds; exact reference pixels and changing colors");
++}
++static void test_resize(void)
++{
++    NvD3DState st=draw_state(); uint32_t expected[64*64],actual[64*64];
++    reference=1; nv2a_d3d_clear(&st,0xF0,0xFF000000,0,0,0,63,63);
++    triangle(&st,1,0); read_pixels(expected); reference=0;
++    test_window=CreateWindowExW(0,L"STATIC",L"binding regression",WS_POPUP,0,0,256,128,NULL,NULL,NULL,NULL);
++    CHECK(test_window); _putenv_s("RECOMP_ASPECT","");
++    display_config(0); Sleep(350); display_config(0);
++    CHECK(!surface_find(0x20000) && !s_cur_rt && !s_cur_ds);
++    check_slots(s_ub_vs,s_cb_ub);
++    nv2a_d3d_clear(&st,0xF0,0xFF000000,0,0,0,63,63);
++    triangle(&st,1,0); check_slots(s_ub_vs,s_cb_ub); read_pixels(actual);
++    CHECK(!memcmp(expected,actual,sizeof actual));
++    CHECK(layout_calls==1 && srv_calls==1 && ps_cb1_calls==1);
++    DestroyWindow(test_window); test_window=NULL;
++    puts("PASS: real settled resize releases surfaces, retains immutable slots and restores exact draw pixels");
++}
++static void benchmark(void)
++{
++    const unsigned iterations=200000;
++    double old[7],cached[7]; LARGE_INTEGER f; unsigned sample,i,j;
++    QueryPerformanceFrequency(&f);
++    bind_vertex_shader(s_ub_vs); bind_vertex_constants(s_cb_ub);
++    for(sample=0;sample<7;sample++) {
++        unsigned order;
++        for(order=0;order<2;order++) {
++            int legacy=(sample+order)%2; int64_t begin=qpc(),end;
++            for(i=0;i<iterations;i++) {
++                if(legacy) legacy_bind();
++                else cached_bind();
++            }
++            end=qpc(); (legacy?old:cached)[sample]=(end-begin)*1e9/f.QuadPart/iterations;
++        }
++    }
++    for(i=0;i<7;i++) for(j=i+1;j<7;j++) {
++        double t;
++        if(old[j]<old[i]) {t=old[i];old[i]=old[j];old[j]=t;}
++        if(cached[j]<cached[i]) {t=cached[i];cached[i]=cached[j];cached[j]=t;}
++    }
++    printf("BIND %u repetitions x 5 actual legacy COM calls, 7 interleaved samples; median total %.3f ms legacy / %.3f ms retained\n",
++           iterations,old[3]*iterations/1e6,cached[3]*iterations/1e6);
++    printf("BIND actual driver median: five legacy binds %.2f ns/draw, retained binding checks %.2f ns/draw; %.3f ms saved per 800 draws\n",old[3],cached[3],(old[3]-cached[3])*800/1e6);
++}
++int main(int argc,char **argv)
++{
++    CHECK(argc==2);
++    _putenv_s("RECOMP_MSAA","1"); _putenv_s("RECOMP_RENDER_SCALE","1");
++    _putenv_s("RECOMP_ASPECT","4:3"); _putenv_s("RECOMP_PS_SPEC","0");
++    _putenv_s("RECOMP_FPS_LIMIT","0");
++    if(!strcmp(argv[1],"init_failure")) {
++        fail_buffers=1; CHECK(!nv2a_d3d_init()); CHECK(!nv2a_d3d_init());
++        CHECK(!s_bound_vs_valid && !s_bound_vs_b0_valid);
++        CHECK(!layout_calls && !srv_calls && !ps_cb1_calls && !vs_cb_calls);
++        puts("PASS: failed initialization publishes no fixed bindings and cannot use cached state"); return 0;
++    }
++    CHECK(nv2a_d3d_init()); check_slots(NULL,NULL);
++    if(!strcmp(argv[1],"pixels")) test_pixels();
++    else if(!strcmp(argv[1],"fixed_updates")) test_fixed_updates();
++    else if(!strcmp(argv[1],"failures")) test_failures();
++    else if(!strcmp(argv[1],"resize")) test_resize();
++    else if(!strcmp(argv[1],"benchmark")) benchmark();
++    else CHECK(0);
++    return 0;
++}
 diff --git a/tests/nv2a_ps_prewarm/CMakeLists.txt b/tests/nv2a_ps_prewarm/CMakeLists.txt
 new file mode 100644
 index 0000000..835e79e
@@ -7810,6 +8510,391 @@ index 0000000..de5c51f
 +    if (!strcmp(argv[1], "down_rtv_retry")) return test_down_rtv_retry();
 +    if (!strcmp(argv[1], "trace_off") || !strcmp(argv[1], "trace_on")) return test_trace(!strcmp(argv[1], "trace_on"));
 +    CHECK(0);
++}
+diff --git a/tests/nv2a_samplers/CMakeLists.txt b/tests/nv2a_samplers/CMakeLists.txt
+new file mode 100644
+index 0000000..25c669f
+--- /dev/null
++++ b/tests/nv2a_samplers/CMakeLists.txt
+@@ -0,0 +1,9 @@
++cmake_minimum_required(VERSION 3.20)
++project(nv2a_samplers C)
++enable_testing()
++add_executable(nv2a_samplers test_samplers.c)
++target_include_directories(nv2a_samplers PRIVATE ../../src ../../src/video)
++target_link_libraries(nv2a_samplers PRIVATE d3d11 dxgi dxguid d3dcompiler)
++foreach(case pixels eviction failure levels)
++    add_test(NAME nv2a_samplers_${case} COMMAND nv2a_samplers ${case})
++endforeach()
+diff --git a/tests/nv2a_samplers/README.md b/tests/nv2a_samplers/README.md
+new file mode 100644
+index 0000000..561f5a6
+--- /dev/null
++++ b/tests/nv2a_samplers/README.md
+@@ -0,0 +1,47 @@
++# Sampler requests and supplied mip levels
++
++This suite includes the actual renderer and selects its usual high-performance
++D3D11 adapter. It does not replace the GPU or decode sampled pixels on the CPU.
++
++The four CTests cover:
++
++- 224 exact descriptor comparisons and 28,672 pairs of native GPU samples,
++  including four stage requests, point/linear/anisotropic filtering, wrap,
++  mirror, clamp, border, signed bias, LOD limits and render-target reductions.
++  Changes to unused input bits conservatively refresh a request. A point-sample
++  check also asserts a known green pixel independently of the reference path.
++- Actual eviction from the full 512-entry sampler table. The old sampler is
++  retained only by the test reference; the request must validate its table slot,
++  recover the original descriptor and produce the same GPU samples.
++- A failed sampler creation followed by a successful retry of the exact same
++  request, with matching native GPU samples.
++- Supplied mip counts against the old independent `tex_layout` calculation,
++  including default/clamped/cube/linear layouts, same-kick cache reuse, invalid
++  layouts and guest ranges, failed SRV creation, new and existing mip-allocation
++  failures, disabled/missing stages, `control0=0`, and actual render-target,
++  complete render-target mip-chain and reduction aliases. Pipeline checks read
++  back the sampler and shader-resource slots from the real D3D11 context.
++
++Build and run from the game repository after loading `scripts/enter-env.ps1`:
++
++```powershell
++cmake -S tools/xboxrecomp/tests/nv2a_samplers -B conformance_tmp/stutter-samplers-test -G Ninja -DCMAKE_BUILD_TYPE=Release
++cmake --build conformance_tmp/stutter-samplers-test
++ctest --test-dir conformance_tmp/stutter-samplers-test --output-on-failure
++./conformance_tmp/stutter-samplers-test/nv2a_samplers.exe benchmark
++```
++
++The optional benchmark has no pass/fail timing threshold. It warms actual
++samplers on the selected adapter, alternates reference/candidate order, uses
++opaque noinline entry points and consumes every result. It reports the median
++of nine two-million-call samples for one through four alternating stages.
++It measures CPU request lookup, rather than D3D sampler creation or a draw.
++
++On the Ryzen 9 PRO 7940HS with NVIDIA RTX 2000 Ada, the first isolated run
++measured 6.49–7.36 ns per original warm request versus 3.80–4.51 ns with stage
++request reuse. This is a small saving: about 0.009–0.010 ms per 3,200 lookups.
++No whole-game frame-rate or hitch improvement follows from this microbenchmark.
++The renderer also removes the second layout calculation for non-render-target
++textures: `texture_get_with_levels` returns the count from its existing layout
++calculation before cache hits or upload failures; other alias paths stay intact.
++Full content hashing and per-kick validation are preserved.
+diff --git a/tests/nv2a_samplers/test_samplers.c b/tests/nv2a_samplers/test_samplers.c
+new file mode 100644
+index 0000000..afbc509
+--- /dev/null
++++ b/tests/nv2a_samplers/test_samplers.c
+@@ -0,0 +1,311 @@
++/* Exercise the real sampler table/fast requests, including native GPU taps. */
++#define COBJMACROS
++#define WIN32_LEAN_AND_MEAN
++#include <windows.h>
++#include <d3d11_1.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++static unsigned create_calls;
++static int fail_sampler, fail_srv, fail_alloc;
++static size_t fail_alloc_size;
++static HRESULT create_sampler(ID3D11Device *dev, const D3D11_SAMPLER_DESC *desc,
++                              ID3D11SamplerState **out)
++{
++    create_calls++;
++    if (fail_sampler) { fail_sampler--; *out = NULL; return E_OUTOFMEMORY; }
++    return dev->lpVtbl->CreateSamplerState(dev, desc, out);
++}
++static HRESULT create_srv(ID3D11Device *dev, ID3D11Resource *res,
++                          const D3D11_SHADER_RESOURCE_VIEW_DESC *desc,
++                          ID3D11ShaderResourceView **out)
++{
++    if (fail_srv) { fail_srv--; *out = NULL; return E_OUTOFMEMORY; }
++    return dev->lpVtbl->CreateShaderResourceView(dev, res, desc, out);
++}
++static void *allocate(size_t bytes)
++{
++    if (fail_alloc && bytes == fail_alloc_size) { fail_alloc--; return NULL; }
++    return malloc(bytes);
++}
++#undef ID3D11Device_CreateSamplerState
++#undef ID3D11Device_CreateShaderResourceView
++#define ID3D11Device_CreateSamplerState create_sampler
++#define ID3D11Device_CreateShaderResourceView create_srv
++#define malloc allocate
++#include "../../src/video/nv2a_d3d11.c"
++#undef malloc
++
++static uint8_t ram[0x100000];
++ptrdiff_t xbox_GetMemoryOffset(void) { return (ptrdiff_t)ram; }
++HWND xbox_FramebufferWindowHandle(void) { return NULL; }
++int xbox_FramebufferScanSource(uint32_t *va, uint32_t *pitch) { return 0; }
++int xbox_FramebufferOverlay(XboxOverlay *ovl) { return 0; }
++void xbox_FramebufferNoteFlip(uint32_t draws) {}
++const uint32_t (*nv2a_vsh_program(uint32_t *start, uint32_t *version))[4] { return NULL; }
++const float (*nv2a_vsh_constants(uint32_t *version))[4] { return NULL; }
++#define CHECK(x) do { if (!(x)) { fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#x); exit(1); } } while (0)
++
++#define TAPS 128
++static ID3D11ComputeShader *compute;
++static ID3D11Buffer *output, *staging;
++static ID3D11UnorderedAccessView *uav;
++static ID3D11ShaderResourceView *sample_view;
++
++static void make_sampling_fixture(void)
++{
++    static const char shader[] =
++        "Texture2D<float4> source:register(t0); SamplerState state:register(s0);"
++        "RWBuffer<uint> output:register(u0);"
++        "[numthreads(128,1,1)] void main(uint3 id:SV_DispatchThreadID) {"
++        " uint i=id.x; float2 uv=i==0?float2(.0625,.0625):"
++        " float2(-.375+(i%8)*.25,-.25+((i/8)%4)*.5);"
++        " float lod=i==0?0:(i/32)*1.25;"
++        " uint4 c=(uint4)round(saturate(source.SampleLevel(state,uv,lod))*255);"
++        " output[i]=c.b|(c.g<<8)|(c.r<<16)|(c.a<<24); }";
++    ID3DBlob *code=NULL, *errors=NULL;
++    ID3D11Texture2D *texture;
++    D3D11_SUBRESOURCE_DATA data[4]={0};
++    D3D11_BUFFER_DESC bd={0};
++    D3D11_UNORDERED_ACCESS_VIEW_DESC ud={0};
++    uint32_t pixels[4][64];
++    unsigned lv,x,y;
++    CHECK(SUCCEEDED(D3DCompile(shader,sizeof shader-1,"sampler_taps",NULL,NULL,"main","cs_5_0",
++                              D3DCOMPILE_OPTIMIZATION_LEVEL3,0,&code,&errors)));
++    CHECK(SUCCEEDED(ID3D11Device_CreateComputeShader(s_dev,ID3D10Blob_GetBufferPointer(code),
++                    ID3D10Blob_GetBufferSize(code),NULL,&compute)));
++    ID3D10Blob_Release(code); if(errors) ID3D10Blob_Release(errors);
++    for(lv=0;lv<4;lv++) {
++        unsigned w=8>>lv;
++        for(y=0;y<w;y++) for(x=0;x<w;x++)
++            pixels[lv][y*w+x]=0xFF000000u | (((x+y+lv)&1)?0xFF0000u:0x00FF00u) |
++                                   ((lv*47+x*11+y*3)&255);
++        data[lv].pSysMem=pixels[lv]; data[lv].SysMemPitch=w*4;
++    }
++    {
++        D3D11_TEXTURE2D_DESC td={0};
++        td.Width=td.Height=8;td.MipLevels=4;td.ArraySize=1;td.SampleDesc.Count=1;
++        td.Format=DXGI_FORMAT_B8G8R8A8_UNORM;td.Usage=D3D11_USAGE_IMMUTABLE;
++        td.BindFlags=D3D11_BIND_SHADER_RESOURCE;
++        CHECK(SUCCEEDED(ID3D11Device_CreateTexture2D(s_dev,&td,data,&texture)));
++        CHECK(SUCCEEDED(ID3D11Device_CreateShaderResourceView(s_dev,(ID3D11Resource *)texture,NULL,&sample_view)));
++        ID3D11Texture2D_Release(texture);
++    }
++    bd.ByteWidth=TAPS*4;bd.Usage=D3D11_USAGE_DEFAULT;bd.BindFlags=D3D11_BIND_UNORDERED_ACCESS;
++    CHECK(SUCCEEDED(ID3D11Device_CreateBuffer(s_dev,&bd,NULL,&output)));
++    ud.Format=DXGI_FORMAT_R32_UINT;ud.ViewDimension=D3D11_UAV_DIMENSION_BUFFER;ud.Buffer.NumElements=TAPS;
++    CHECK(SUCCEEDED(ID3D11Device_CreateUnorderedAccessView(s_dev,(ID3D11Resource *)output,&ud,&uav)));
++    bd.Usage=D3D11_USAGE_STAGING;bd.BindFlags=0;bd.CPUAccessFlags=D3D11_CPU_ACCESS_READ;
++    CHECK(SUCCEEDED(ID3D11Device_CreateBuffer(s_dev,&bd,NULL,&staging)));
++}
++
++static void sample(ID3D11SamplerState *state, uint32_t values[TAPS])
++{
++    D3D11_MAPPED_SUBRESOURCE m;
++    ID3D11UnorderedAccessView *none_uav=NULL;
++    ID3D11ShaderResourceView *none_srv=NULL;
++    ID3D11SamplerState *none_sampler=NULL;
++    CHECK(state);
++    ID3D11DeviceContext_CSSetShader(s_ctx,compute,NULL,0);
++    ID3D11DeviceContext_CSSetShaderResources(s_ctx,0,1,&sample_view);
++    ID3D11DeviceContext_CSSetSamplers(s_ctx,0,1,&state);
++    ID3D11DeviceContext_CSSetUnorderedAccessViews(s_ctx,0,1,&uav,NULL);
++    ID3D11DeviceContext_Dispatch(s_ctx,1,1,1);
++    ID3D11DeviceContext_CSSetUnorderedAccessViews(s_ctx,0,1,&none_uav,NULL);
++    ID3D11DeviceContext_CSSetShaderResources(s_ctx,0,1,&none_srv);
++    ID3D11DeviceContext_CSSetSamplers(s_ctx,0,1,&none_sampler);
++    ID3D11DeviceContext_CSSetShader(s_ctx,NULL,NULL,0);
++    ID3D11DeviceContext_CopyResource(s_ctx,(ID3D11Resource *)staging,(ID3D11Resource *)output);
++    CHECK(SUCCEEDED(ID3D11DeviceContext_Map(s_ctx,(ID3D11Resource *)staging,0,D3D11_MAP_READ,0,&m)));
++    memcpy(values,m.pData,TAPS*4);
++    ID3D11DeviceContext_Unmap(s_ctx,(ID3D11Resource *)staging,0);
++}
++
++static void compare(ID3D11SamplerState *expected, ID3D11SamplerState *actual)
++{
++    D3D11_SAMPLER_DESC a={0},b={0};uint32_t old[TAPS],now[TAPS];
++    CHECK(expected && actual);
++    ID3D11SamplerState_GetDesc(expected,&a);ID3D11SamplerState_GetDesc(actual,&b);
++    CHECK(!memcmp(&a,&b,sizeof a));sample(expected,old);sample(actual,now);
++    CHECK(!memcmp(old,now,sizeof old));
++}
++
++static NvD3DTexture request(unsigned i)
++{
++    NvD3DTexture t={0};
++    static const unsigned modes[]={1,2,3,4};
++    t.filter=((1+i%7)<<16)|((1+(i/7)%2)<<24)|((i&1)?0x1F80:0x80);
++    t.address=modes[i%4]|(modes[(i/4)%4]<<8)|(modes[(i/16)%4]<<16);
++    t.control0=(((i%4)*256)<<18)|((((i/4)%4)*256)<<6);
++    t.border=0x80336699u+i*0x01010203u;
++    return t;
++}
++
++static void test_pixels(void)
++{
++    unsigned i,repeat,calls;
++    for(i=0;i<112;i++) {
++        NvD3DTexture t=request(i);int levels=(i%5)+1,reduce=(i/7)%2;
++        ID3D11SamplerState *old=sampler(&t,levels,reduce);
++        ID3D11SamplerState *now=sampler_stage(i%4,&t,levels,reduce);
++        compare(old,now);calls=create_calls;
++        for(repeat=0;repeat<8;repeat++) CHECK(sampler_stage(i%4,&t,levels,reduce)==now);
++        CHECK(create_calls==calls);
++        /* Changes to ignored raw bits must conservatively refresh the request,
++         * while retaining the existing key/descriptor semantics. */
++        t.filter^=0x8000;now=sampler_stage(i%4,&t,levels,reduce);
++        CHECK(s_sampler_request[i%4].filter==t.filter);compare(sampler(&t,levels,reduce),now);
++    }
++    {
++        NvD3DTexture t={0};uint32_t values[TAPS];
++        t.filter=(1u<<16)|(1u<<24);t.address=0x030303;
++        sample(sampler_stage(0,&t,1,0),values);CHECK(values[0]==0xFF00FF00u);
++    }
++    puts("PASS: 224 exact sampler descriptors and 28672 paired native GPU taps; four stages, addressing/filter/bias/LOD/border/reduction, conservative raw-input changes");
++}
++
++static void test_eviction(void)
++{
++    NvD3DTexture t=request(2),other=request(4);
++    ID3D11SamplerState *old=sampler_stage(0,&t,4,0),*now;
++    StateSlot *slot=s_sampler_request[0].slot;
++    uint64_t key=s_sampler_request[0].key;unsigned i;
++    CHECK(old);ID3D11SamplerState_AddRef(old);
++    for(i=0;i<32768 && slot->key==key;i++) {
++        other.border=0xFF000000u+i;CHECK(sampler(&other,4,0));
++    }
++    CHECK(i>STATE_SLOTS && slot->key!=key);
++    now=sampler_stage(0,&t,4,0);CHECK(now);compare(old,now);
++    CHECK(s_sampler_request[0].slot->key==key);
++    ID3D11SamplerState_Release(old);
++    printf("PASS: actual full-table eviction after %u requests, slot validation/recovery and exact GPU pixels\n",i);
++}
++
++static void test_failure(void)
++{
++    NvD3DTexture t=request(81);ID3D11SamplerState *now;unsigned calls=create_calls;
++    fail_sampler=1;CHECK(!sampler_stage(3,&t,4,1));CHECK(create_calls==calls+1);
++    CHECK(s_sampler_request[3].slot && !s_sampler_request[3].slot->obj);
++    now=sampler_stage(3,&t,4,1);CHECK(now && create_calls==calls+2);
++    compare(sampler(&t,4,1),now);CHECK(sampler_stage(3,&t,4,1)==now);
++    puts("PASS: failed creation publishes no fast hit; same-request retry and native GPU pixels match");
++}
++
++static int old_levels(const NvD3DTexture *t)
++{
++    TexLayout l;return tex_layout(t,&l)?l.levels:1;
++}
++static ID3D11ShaderResourceView *check_levels(const NvD3DTexture *t)
++{
++    int levels=-7;ID3D11ShaderResourceView *v=texture_get_with_levels(t,&levels);
++    CHECK(levels==old_levels(t));return v;
++}
++static NvD3DState pipeline_state(const NvD3DTexture *t)
++{
++    NvD3DState st={0};st.color_addr=0x10000;st.color_pitch=64*4;
++    st.surface_format=0x28;st.clip_w=st.clip_h=64;st.color_mask=0x01010101;
++    st.tex_used=1;st.tex[0]=*t;return st;
++}
++static void check_pipeline(NvD3DState *st, int levels, int reduce, int has_view)
++{
++    Surface *target;uint32_t w,h,z;ID3D11SamplerState *bound=NULL;
++    ID3D11ShaderResourceView *view=NULL;
++    D3D11_SAMPLER_DESC actual={0},expected={0};
++    CHECK(setup_pipeline(st,NV_D3D_TRIANGLES,&target,&w,&h,&z));
++    ID3D11DeviceContext_PSGetSamplers(s_ctx,0,1,&bound);
++    ID3D11DeviceContext_PSGetShaderResources(s_ctx,0,1,&view);
++    CHECK((view!=NULL)==has_view);
++    ID3D11SamplerState_GetDesc(bound,&actual);
++    ID3D11SamplerState_GetDesc(has_view?sampler(&st->tex[0],levels,reduce):s_linear_clamp,&expected);
++    CHECK(!memcmp(&actual,&expected,sizeof actual));
++    if(view) ID3D11ShaderResourceView_Release(view);ID3D11SamplerState_Release(bound);
++}
++static void test_levels(void)
++{
++    NvD3DTexture t={0};NvD3DState st;ID3D11ShaderResourceView *v;
++    unsigned i;Surface *rt;
++    for(i=0;i<0x70000/4;i++) ((uint32_t *)(ram+0x20000))[i]=0xFF00FF00u;
++    t.addr=0x20000;t.color=0x06;t.width=t.height=8;t.levels=4;t.format=0x00040600;
++    t.filter=(6u<<16)|(1u<<24);t.control0=3*256<<6;t.address=0x030303;
++    CHECK(check_levels(&t));CHECK(check_levels(&t)); /* same-kick cached view */
++    st=pipeline_state(&t);check_pipeline(&st,old_levels(&t),0,1);
++    t.levels=0;t.format++;CHECK(check_levels(&t));
++    t.levels=15;t.format++;CHECK(check_levels(&t));
++    t.addr=0x24000;t.cube=1;t.format++;CHECK(check_levels(&t));t.cube=0;t.format++;
++    t.width=0;CHECK(!check_levels(&t));t.width=8;
++    t.color=0xFF;CHECK(!check_levels(&t));t.color=0x06;
++    t.addr=0x07FFFFF0;CHECK(!check_levels(&t));t.addr=0x28000;
++    t.levels=2;t.format++;fail_srv=1;CHECK(!check_levels(&t));CHECK(!fail_srv);
++    CHECK(check_levels(&t));
++    /* Existing upload retained on a failed generated-mip allocation. */
++    t.addr=0x30000;t.format++;v=check_levels(&t);CHECK(v);
++    ram[t.addr]^=0x10;s_epoch++;fail_alloc_size=4*4*4;fail_alloc=1;
++    CHECK(check_levels(&t)==v);CHECK(!fail_alloc);CHECK(check_levels(&t)==v);
++    t.addr=0x38000;t.format++;fail_alloc=1;CHECK(!check_levels(&t));CHECK(!fail_alloc);
++    CHECK(check_levels(&t));
++    t.color=0x12;t.pitch=8*4;t.levels=15;t.addr=0x40000;t.format++;
++    CHECK(check_levels(&t));CHECK(old_levels(&t)==1);
++    st=pipeline_state(&t);check_pipeline(&st,1,0,1);
++    st.tex_used=0;check_pipeline(&st,1,0,0);
++    st.tex_used=1;st.tex[0].control0=0;check_pipeline(&st,1,0,1);
++    st.tex[0].addr=0;check_pipeline(&st,1,0,0);
++    st.tex[0].addr=t.addr;st.tex[0].width=0;check_pipeline(&st,1,0,0);
++    st.tex[0].width=8;st.tex[0].color=0xFF;check_pipeline(&st,1,0,0);
++    /* Render-target aliases retain their separate, existing level policy. */
++    t.addr=0x50000;t.color=0x06;t.pitch=32;t.width=t.height=8;t.levels=4;t.format++;
++    rt=surface_get(t.addr,32,8,8,8,1);CHECK(rt);
++    CHECK(surface_get(t.addr+8*8*4,16,8,4,4,1));
++    CHECK(surface_get(t.addr+(8*8+4*4)*4,8,8,2,2,1));
++    CHECK(surface_get(t.addr+(8*8+4*4+2*2)*4,4,8,1,1,1));
++    st=pipeline_state(&t);check_pipeline(&st,4,0,1);CHECK(rt->chain_levels==4);
++    t.addr=0x60000;t.color=0x12;t.pitch=128;t.width=t.height=32;t.levels=4;
++    rt=surface_get(t.addr,128,8,32,32,0);CHECK(rt);
++    st=pipeline_state(&t);check_pipeline(&st,1,0,1);
++    st.clip_w=st.clip_h=16;st.color_pitch=64;st.color_addr=0x18000;
++    check_pipeline(&st,1,1,1);CHECK(rt->mip_srv);
++    puts("PASS: supplied levels match old layout on defaults/clamps/cache hits/bounds/SRV/mip failures, disabled stages/control0 and actual RT/chain/reduction aliases");
++}
++
++static volatile uintptr_t sink;
++static __declspec(noinline) ID3D11SamplerState *old_request(unsigned stage,const NvD3DTexture *t,int levels,int reduce)
++{ return sampler(t,levels,reduce); }
++static __declspec(noinline) ID3D11SamplerState *new_request(unsigned stage,const NvD3DTexture *t,int levels,int reduce)
++{ return sampler_stage(stage,t,levels,reduce); }
++typedef ID3D11SamplerState *(*Lookup)(unsigned,const NvD3DTexture *,int,int);
++static __declspec(noinline) double time_lookup(Lookup lookup,NvD3DTexture *t,unsigned stages,unsigned iterations)
++{
++    LARGE_INTEGER f;int64_t begin;unsigned i;QueryPerformanceFrequency(&f);begin=qpc();
++    for(i=0;i<iterations;i++) { unsigned stage=i%stages;sink^=(uintptr_t)lookup(stage,&t[stage],4,0); }
++    return (qpc()-begin)*1e9/f.QuadPart/iterations;
++}
++static void benchmark(void)
++{
++    NvD3DTexture t[4];double old[9],now[9];unsigned stages,sample,i,j;
++    for(i=0;i<4;i++) {t[i]=request(i*19);CHECK(sampler_stage(i,&t[i],4,0));}
++    for(stages=1;stages<=4;stages++) {
++        for(sample=0;sample<9;sample++) {
++            if(sample&1) {now[sample]=time_lookup(new_request,t,stages,2000000);old[sample]=time_lookup(old_request,t,stages,2000000);}
++            else {old[sample]=time_lookup(old_request,t,stages,2000000);now[sample]=time_lookup(new_request,t,stages,2000000);}
++        }
++        for(i=0;i<9;i++) for(j=i+1;j<9;j++) {double v;
++            if(old[j]<old[i]){v=old[i];old[i]=old[j];old[j]=v;}
++            if(now[j]<now[i]){v=now[i];now[i]=now[j];now[j]=v;}}
++        printf("SAMPLER %u alternating stages, median of 9 x 2000000 calls: uncached request %.2f ns (%.3f ms total), retained request %.2f ns (%.3f ms total); %.3f ms saved/3200 calls\n",
++               stages,old[4],old[4]*2,now[4],now[4]*2,(old[4]-now[4])*3200/1e6);
++    }
++}
++int main(int argc,char **argv)
++{
++    CHECK(argc==2);_putenv_s("RECOMP_MSAA","1");_putenv_s("RECOMP_RENDER_SCALE","1");
++    _putenv_s("RECOMP_PS_SPEC","0");_putenv_s("RECOMP_FPS_LIMIT","0");
++    CHECK(nv2a_d3d_init());
++    if(!strcmp(argv[1],"benchmark")) {benchmark();return 0;}
++    make_sampling_fixture();
++    if(!strcmp(argv[1],"pixels")) test_pixels();
++    else if(!strcmp(argv[1],"eviction")) test_eviction();
++    else if(!strcmp(argv[1],"failure")) test_failure();
++    else if(!strcmp(argv[1],"levels")) test_levels();
++    else CHECK(0);
++    return 0;
 +}
 diff --git a/tests/nv2a_shader_cache/CMakeLists.txt b/tests/nv2a_shader_cache/CMakeLists.txt
 new file mode 100644
