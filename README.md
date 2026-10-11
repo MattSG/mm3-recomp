@@ -143,6 +143,7 @@ the availability change does not write unlock keys to your save.
 | `RECOMP_D3D_PROFILE` | Print per-second fps, worst frame and renderer stage costs to stderr. |
 | `RECOMP_KERNEL_SUMMARY` | `1`: collect and print periodic kernel-call totals (off during normal play). |
 | `RECOMP_CS_COUNTERS` | `1`: count critical-section entries/exits for contention diagnostics (off during normal play). |
+| `RECOMP_HITCH_TRACE` | `1`: report slow command submissions, shader compilation, GPU waits, and file reads with QPC timestamps (off during normal play). |
 | `RECOMP_PRESENT_CAPTURE=<prefix>` | With `<prefix>.flag` containing N, save the next N frames as `<prefix>-*.bmp`. |
 | `RECOMP_CAPTURE_SURFACE` | Capture at internal resolution instead of the window. |
 | `RECOMP_XA2_PCM_DUMP=<file>` | Dump the mixed audio (s16 stereo 48 kHz). |
@@ -162,6 +163,10 @@ dedicated graphics. Guest workers and shader compilation run on separate host
 threads; rendering keeps the ordering that the game expects. Texture conversion
 uses contiguous tile/block copies, and repeated guest locks reuse a thread-local
 lookup. Normal play skips shared diagnostic counters and redundant GPU flushes.
+Supported DXT textures upload their original compressed blocks for GPU decoding,
+reducing upload traffic and texture memory. Short mip chains retain CPU conversion
+and generated mip levels. Native BC decoding follows Direct3D's precision rules
+and can differ slightly from the integer CPU decoder.
 GPU completion wakes waiting guest threads instead of keeping a CPU core busy;
 the same command, notification, and fence completion checks still apply.
 These reduce CPU work without lowering resolution, filtering, or draw distance.

@@ -557,10 +557,75 @@ index ed7682a..4b24da5 100644
      fprintf(stderr, "  Kernel thunk bridge: resolving %d entries at 0x%08X\n",
              g_thunk_table_count, g_thunk_table_base);
 diff --git a/src/kernel/kernel_file.c b/src/kernel/kernel_file.c
-index 1133eb5..0037cf8 100644
+index 1133eb5..5cf0465 100644
 --- a/src/kernel/kernel_file.c
 +++ b/src/kernel/kernel_file.c
-@@ -196,8 +196,11 @@ NTSTATUS __stdcall xbox_NtCreateFile(
+@@ -18,6 +18,7 @@
+ #include "kernel.h"
+ #include <string.h>
+ #include <stdio.h>
++#include <stdlib.h>
+ 
+ #if !defined(_WIN32)
+ #include <fcntl.h>
+@@ -71,6 +72,56 @@ uint32_t xbox_LastFileError(void)
+ /* ====================  Win32 backend  =================================== */
+ /* ======================================================================== */
+ 
++static INIT_ONCE s_file_hitch_once = INIT_ONCE_STATIC_INIT;
++static volatile LONG s_file_hitch_ready;
++static int s_file_hitch_enabled;
++static LARGE_INTEGER s_file_hitch_frequency;
++
++static BOOL CALLBACK file_hitch_init(PINIT_ONCE once, PVOID parameter,
++                                     PVOID *context)
++{
++    const char *setting = getenv("RECOMP_HITCH_TRACE");
++    (void)once; (void)parameter; (void)context;
++    s_file_hitch_enabled = setting && *setting && strcmp(setting, "0") != 0;
++    if (s_file_hitch_enabled)
++        QueryPerformanceFrequency(&s_file_hitch_frequency);
++    InterlockedExchange(&s_file_hitch_ready, 1);
++    return TRUE;
++}
++
++static int64_t file_hitch_begin(void)
++{
++    LARGE_INTEGER now;
++    if (!s_file_hitch_ready)
++        InitOnceExecuteOnce(&s_file_hitch_once, file_hitch_init, NULL, NULL);
++    if (!s_file_hitch_enabled) return 0;
++    QueryPerformanceCounter(&now);
++    return now.QuadPart;
++}
++
++static void file_hitch_end(int64_t started, HANDLE handle, ULONG length,
++                           PLARGE_INTEGER offset, DWORD bytes, BOOL result,
++                           DWORD error)
++{
++    LARGE_INTEGER ended;
++    double ms, duration;
++    if (!started) return;
++    QueryPerformanceCounter(&ended);
++    ms = 1000.0 / (double)s_file_hitch_frequency.QuadPart;
++    duration = (ended.QuadPart - started) * ms;
++    if (duration >= 8.0)
++        fprintf(stderr,
++            "[HITCH] phase=file_read qpc_ms=%.3f start_qpc_ms=%.3f "
++            "duration_ms=%.3f thread=%lu handle=%p length=%u offset=%lld "
++            "bytes=%lu error=%lu\n",
++            ended.QuadPart * ms, started * ms, duration,
++            (unsigned long)GetCurrentThreadId(), handle, (unsigned)length,
++            offset ? (long long)offset->QuadPart : -1LL,
++            (unsigned long)bytes, (unsigned long)(result ? ERROR_SUCCESS : error));
++    /* Timing and diagnostics must not replace the read's last-error value. */
++    SetLastError(error);
++}
++
+ /* Convert Xbox create disposition to Win32 */
+ static DWORD xbox_disposition_to_win32(ULONG Disposition)
+ {
+@@ -196,8 +247,11 @@ NTSTATUS __stdcall xbox_NtCreateFile(
  
      if (h == INVALID_HANDLE_VALUE) {
          DWORD err = GetLastError();
@@ -574,7 +639,7 @@ index 1133eb5..0037cf8 100644
          /* Kept for the caller's trace. An NTSTATUS says "it did not open";
           * only the Win32 error distinguishes a title probing for a file that
           * is genuinely absent from one it cannot open because this runtime
-@@ -209,17 +212,22 @@ NTSTATUS __stdcall xbox_NtCreateFile(
+@@ -209,17 +263,22 @@ NTSTATUS __stdcall xbox_NtCreateFile(
           * build that decision was invisible. */
          xbox_log(XBOX_LOG_WARN, XBOX_LOG_FILE,
                   "NtCreateFile FAILED: %S (err=%u)", win_path, err);
@@ -605,7 +670,44 @@ index 1133eb5..0037cf8 100644
      }
  
      *FileHandle = h;
-@@ -842,12 +850,13 @@ NTSTATUS __stdcall xbox_NtCreateFile(
+@@ -239,11 +298,15 @@ NTSTATUS __stdcall xbox_NtReadFile(
+     DWORD bytes_read = 0;
+     BOOL result;
+     OVERLAPPED ov;
++    DWORD error;
++    int64_t hitch_started;
+     (void)ApcRoutine; (void)ApcContext;
+ 
+     if (!IoStatusBlock)
+         return STATUS_INVALID_PARAMETER;
+ 
++    hitch_started = file_hitch_begin();
++
+     if (ByteOffset && ByteOffset->QuadPart >= 0) {
+         memset(&ov, 0, sizeof(ov));
+         ov.Offset = ByteOffset->LowPart;
+@@ -252,8 +315,11 @@ NTSTATUS __stdcall xbox_NtReadFile(
+     } else {
+         result = ReadFile(FileHandle, Buffer, Length, &bytes_read, NULL);
+     }
++    error = GetLastError();
++    file_hitch_end(hitch_started, FileHandle, Length, ByteOffset, bytes_read,
++                   result, error);
+ 
+-    if (result || GetLastError() == ERROR_HANDLE_EOF) {
++    if (result || error == ERROR_HANDLE_EOF) {
+         IoStatusBlock->Information = bytes_read;
+         if (bytes_read == 0 && Length > 0) {
+             IoStatusBlock->Status = STATUS_END_OF_FILE;
+@@ -265,7 +331,6 @@ NTSTATUS __stdcall xbox_NtReadFile(
+     }
+ 
+     {
+-        DWORD error = GetLastError();
+         fprintf(stderr, "[NtReadFile] FAILED handle=%p len=%u err=%lu\n",
+                 FileHandle, Length, (unsigned long)error);
+         XBOX_TRACE(XBOX_LOG_FILE, "NtReadFile(handle=%p, len=%u) failed err=%u",
+@@ -842,12 +907,13 @@ NTSTATUS __stdcall xbox_NtCreateFile(
  
      if (fd < 0) {
          int e = errno;
@@ -806,8 +908,309 @@ index 9760735..f9ec82c 100644
          case STATUS_NO_SUCH_FILE:               return ERROR_FILE_NOT_FOUND;
          case STATUS_END_OF_FILE:                return ERROR_HANDLE_EOF;
          case STATUS_INVALID_HANDLE:             return ERROR_INVALID_HANDLE;
+diff --git a/src/kernel/nv2a_pb_scan.c b/src/kernel/nv2a_pb_scan.c
+index b9de8d0..e85f5d1 100644
+--- a/src/kernel/nv2a_pb_scan.c
++++ b/src/kernel/nv2a_pb_scan.c
+@@ -48,6 +48,86 @@ extern void nv2a_pb_exec_method(uint32_t subch, uint32_t method, uint32_t param)
+ extern void nv2a_pb_exec_report(void);
+ static int s_exec_enabled = -1;
+ 
++/* Diagnostic timing stays outside the executor: a packet still reaches the
++ * same decoder and methods, in the same order. Time a header's whole payload
++ * rather than every vertex parameter, so tracing does not add two clocks per
++ * attribute. Only a slow submission (or gap between submissions) is printed. */
++typedef struct {
++    int64_t started, cpu_started, packet_ticks;
++    int64_t max_ticks, max_started, flip_ticks;
++    uint32_t packets, max_va, max_method, max_subch, max_count, max_param;
++} PB_HITCH;
++static int64_t s_hitch_frequency, s_hitch_previous_end;
++
++static int pb_hitch_enabled(void)
++{
++#ifdef _WIN32
++    static int enabled = -1;
++    if (enabled < 0) {
++        const char *setting = getenv("RECOMP_HITCH_TRACE");
++        enabled = setting && *setting && strcmp(setting, "0") != 0;
++        if (enabled) {
++            LARGE_INTEGER frequency;
++            QueryPerformanceFrequency(&frequency);
++            s_hitch_frequency = frequency.QuadPart;
++        }
++    }
++    return enabled;
++#else
++    return 0;
++#endif
++}
++
++static int64_t pb_hitch_clock(void)
++{
++#ifdef _WIN32
++    LARGE_INTEGER now;
++    QueryPerformanceCounter(&now);
++    return now.QuadPart;
++#else
++    return 0;
++#endif
++}
++
++static int64_t pb_hitch_cpu(void)
++{
++#ifdef _WIN32
++    FILETIME created, exited, kernel, user;
++    if (GetThreadTimes(GetCurrentThread(), &created, &exited, &kernel, &user))
++        return (((int64_t)kernel.dwHighDateTime << 32) | kernel.dwLowDateTime)
++             + (((int64_t)user.dwHighDateTime << 32) | user.dwLowDateTime);
++#endif
++    return 0;
++}
++
++static void pb_hitch_report(PB_HITCH *hitch, uint32_t start, uint32_t end,
++                            uint32_t words)
++{
++    int64_t finished = pb_hitch_clock();
++    int64_t cpu = pb_hitch_cpu() - hitch->cpu_started;
++    double ms = 1000.0 / (double)s_hitch_frequency;
++    double wall = (finished - hitch->started) * ms;
++    double gap = s_hitch_previous_end
++        ? (hitch->started - s_hitch_previous_end) * ms : 0;
++    unsigned long thread = 0;
++#ifdef _WIN32
++    thread = (unsigned long)GetCurrentThreadId();
++#endif
++    s_hitch_previous_end = finished;
++    if (wall < 33.0 && gap < 33.0) return;
++    fprintf(stderr,
++        "[HITCH] phase=pb_submission qpc_ms=%.3f start_qpc_ms=%.3f "
++        "duration_ms=%.3f thread=%lu span=%08X-%08X cpu_ms=%.3f "
++        "gap_ms=%.3f words=%u packets=%u packet_ms=%.3f flip_ms=%.3f "
++        "max_ms=%.3f max_qpc_ms=%.3f va=%08X method=%04X subch=%u "
++        "count=%u param=%08X\n",
++        finished * ms, hitch->started * ms, wall, thread, start, end,
++        cpu / 10000.0, gap, words,
++        hitch->packets, hitch->packet_ticks * ms, hitch->flip_ticks * ms,
++        hitch->max_ticks * ms, hitch->max_started * ms, hitch->max_va,
++        hitch->max_method, hitch->max_subch, hitch->max_count, hitch->max_param);
++}
++
+ static void note(uint32_t subch, uint32_t method)
+ {
+     for (int i = 0; i < s_seen_count; i++) {
+@@ -177,60 +257,136 @@ void nv2a_pb_scan_report(void)
+  * same way: through the contiguous window. */
+ static int s_scan = -1;
+ 
++/* DMA_PUT may expose only part of a method packet. PFIFO resumes the
++ * remaining parameters rather than interpreting them as new headers. */
++typedef struct {
++    uint32_t next_va, packet_va, subch, method, remaining;
++    int active, noninc;
++} PB_PACKET_CONTINUATION;
++static PB_PACKET_CONTINUATION s_packet;
++static unsigned s_parse_split_reports, s_parse_limit_reports;
++
++static uint32_t pb_advance(uint32_t va, int in_call)
++{
++    /* Called lists retain their bounded logical span; root FIFO comparisons
++     * use the same 26-bit canonical address as DMA_PUT and memory reads. */
++    return in_call ? va + 4 : pb_contiguous_va(va + 4);
++}
++
+ static uint32_t pb_walk(uint32_t va, uint32_t end_va, int in_call,
+-                        uint32_t *jumps, uint32_t *unknown)
++                        uint32_t *jumps, uint32_t *unknown, PB_HITCH *hitch)
+ {
+     const uint8_t *mem = (const uint8_t *)xbox_GetMemoryOffset();
+     uint32_t words = 0;
++    uint32_t last_control = 0, last_target = 0;
++    int returned = 0;
+ 
+     while ((in_call ? va < end_va : va != end_va) && words < 0x100000u) {
+-        uint32_t w = *(const uint32_t *)pb_word_ptr(mem, va);
+-        va += 4;
+-        words++;
++        uint32_t count, subch, method, packet_va;
++        int noninc;
++        if (!in_call && s_packet.active) {
++            count = s_packet.remaining; subch = s_packet.subch;
++            method = s_packet.method; noninc = s_packet.noninc;
++            packet_va = s_packet.packet_va;
++            s_packet.active = 0;
++        } else {
++            uint32_t w = *(const uint32_t *)pb_word_ptr(mem, va);
++            packet_va = pb_contiguous_va(va);
++            va = pb_advance(va, in_call);
++            words++;
+ 
+-        if ((w & 3u) == 1u || (w & 0xE0000003u) == 0x20000000u) {
+-            uint32_t target = (w & 3u) == 1u ? (w & 0xFFFFFFFCu)
+-                                             : (w & 0x1FFFFFFCu);
+-            (*jumps)++;
+-            va = pb_contiguous_va(target);
+-            if (in_call) end_va = va + 0x400000u;
+-            continue;
+-        }
+-        if ((w & 0xFFFF0003u) == 0x00020000u) {  /* RETURN */
+-            if (in_call)
+-                break;
+-            continue;
+-        }
+-        if ((w & 3u) == 2u) {                    /* CALL */
+-            if (!in_call) {
+-                uint32_t sub = pb_contiguous_va(w & 0xFFFFFFFCu);
+-                s_tot_calls++;
+-                words += pb_walk(sub, sub + 0x400000u, 1, jumps, unknown);
++            if ((w & 3u) == 1u || (w & 0xE0000003u) == 0x20000000u) {
++                uint32_t target = (w & 3u) == 1u ? (w & 0xFFFFFFFCu)
++                                                 : (w & 0x1FFFFFFCu);
++                last_control = w; last_target = pb_contiguous_va(target);
++                (*jumps)++;
++                va = last_target;
++                if (in_call) end_va = va + 0x400000u;
++                continue;
++            }
++            if ((w & 0xFFFF0003u) == 0x00020000u) {  /* RETURN */
++                if (in_call) { returned = 1; break; }
++                continue;
++            }
++            if ((w & 3u) == 2u) {                    /* CALL */
++                last_control = w; last_target = pb_contiguous_va(w & 0xFFFFFFFCu);
++                if (!in_call) {
++                    uint32_t sub = last_target;
++                    s_tot_calls++;
++                    words += pb_walk(sub, sub + 0x400000u, 1, jumps, unknown, hitch);
++                }
++                continue;
++            }
++            if ((w & 0x00030003u) != 0u) {
++                (*unknown)++;
++                continue;
+             }
+-            continue;
++            count = (w >> 18) & 0x7FFu;
++            subch = (w >> 13) & 7u;
++            method = w & 0x1FFCu;
++            noninc = (w & 0xE0000000u) == 0x40000000u;
+         }
+-        if ((w & 0x00030003u) == 0u) {
+-            uint32_t count  = (w >> 18) & 0x7FFu;
+-            uint32_t subch  = (w >> 13) & 7u;
+-            uint32_t method =  w & 0x1FFCu;
+-            int noninc = (w & 0xE0000000u) == 0x40000000u;
++        {
++            uint32_t first_param = 0, i;
++            int64_t packet_start = hitch && count ? pb_hitch_clock() : 0;
++            int contains_flip = 0;
+ 
+-            for (uint32_t i = 0; i < count && (in_call ? va < end_va : va != end_va); i++) {
++            for (i = 0; i < count && (in_call ? va < end_va : va != end_va); i++) {
+                 uint32_t m = noninc ? method : method + i * 4;
++                if (hitch && m == 0x0130) contains_flip = 1;
+                 if (s_scan)  /* the inventory is a linear search: survey runs only */
+                     note(subch, m);
+                 /* Same walk, two consumers: the survey counts, the executor
+                  * acts. Keeping them on one decode means they can never
+                  * disagree about what the stream said. */
+-                if (s_exec_enabled)
+-                    nv2a_pb_exec_method(subch, m,
+-                                        *(const uint32_t *)pb_word_ptr(mem, va));
+-                va += 4;
++                if (s_exec_enabled) {
++                    uint32_t param = *(const uint32_t *)pb_word_ptr(mem, va);
++                    if (hitch && !i) first_param = param;
++                    nv2a_pb_exec_method(subch, m, param);
++                }
++                va = pb_advance(va, in_call);
+                 words++;
+             }
+-            continue;
++            if (i < count && !in_call) {
++                s_packet.active = 1; s_packet.next_va = va;
++                s_packet.packet_va = packet_va; s_packet.subch = subch;
++                s_packet.method = noninc ? method : method + i * 4;
++                s_packet.remaining = count - i; s_packet.noninc = noninc;
++                if (hitch && s_parse_split_reports++ < 64) {
++                    int64_t now = pb_hitch_clock();
++                    fprintf(stderr, "[PB_PARSE] phase=packet_split qpc_ms=%.3f "
++                        "packet_va=%08X next_va=%08X method=%04X subch=%u remaining=%u\n",
++                        now * 1000.0 / s_hitch_frequency, packet_va, va,
++                        s_packet.method, subch, s_packet.remaining);
++                }
++            }
++            if (hitch) {
++                int64_t ticks = count ? pb_hitch_clock() - packet_start : 0;
++                hitch->packets++;
++                hitch->packet_ticks += ticks;
++                /* FLIP_STALL includes normal vblank pacing. Keep it separate
++                 * so a paced flip cannot hide a slow draw/visibility packet. */
++                if (contains_flip) {
++                    hitch->flip_ticks += ticks;
++                } else if (ticks > hitch->max_ticks) {
++                    hitch->max_ticks = ticks;
++                    hitch->max_started = packet_start;
++                    hitch->max_va = packet_va;
++                    hitch->max_method = method;
++                    hitch->max_subch = subch;
++                    hitch->max_count = count;
++                    hitch->max_param = first_param;
++                }
++            }
+         }
+-        (*unknown)++;
++    }
++    if (hitch && (words >= 0x100000u || (in_call && !returned)) &&
++        s_parse_limit_reports++ < 16) {
++        int64_t now = pb_hitch_clock();
++        fprintf(stderr, "[PB_PARSE] phase=parse_limit qpc_ms=%.3f pc=%08X "
++            "end_va=%08X in_call=%d words=%u last_control=%08X target=%08X\n",
++            now * 1000.0 / s_hitch_frequency, va, end_va, in_call, words,
++            last_control, last_target);
+     }
+     return words;
+ }
+@@ -238,6 +394,10 @@ static uint32_t pb_walk(uint32_t va, uint32_t end_va, int in_call,
+ void nv2a_pb_scan(uint32_t start_va, uint32_t end_va)
+ {
+     uint32_t words, jumps = 0, unknown = 0;
++    PB_HITCH trace, *hitch = NULL;
++
++    start_va = pb_contiguous_va(start_va);
++    end_va = pb_contiguous_va(end_va);
+ 
+     if (s_exec_enabled < 0)
+         s_exec_enabled = getenv("RECOMP_PB_EXEC") != NULL;
+@@ -248,13 +408,25 @@ void nv2a_pb_scan(uint32_t start_va, uint32_t end_va)
+     if (end_va > start_va && end_va - start_va > 0x400000u) /* forward span only */
+         end_va = start_va + 0x400000u;
+ 
++    /* A fresh/discontinuous scan does not inherit another FIFO's fragment. */
++    if (s_packet.active && s_packet.next_va != start_va)
++        s_packet.active = 0;
++
++    if (pb_hitch_enabled()) {
++        hitch = &trace;
++        memset(&trace, 0, sizeof trace);
++        trace.cpu_started = pb_hitch_cpu();
++        trace.started = pb_hitch_clock();
++    }
++
+     {
+         extern void nv2a_d3d_kick(void);
+         nv2a_d3d_kick();
+     }
+     RECOMP_PROFILE_BEGIN("GPU submission");
+-    words = pb_walk(start_va, end_va, 0, &jumps, &unknown);
++    words = pb_walk(start_va, end_va, 0, &jumps, &unknown, hitch);
+     RECOMP_PROFILE_END();
++    if (hitch) pb_hitch_report(hitch, start_va, end_va, words);
+ 
+     s_tot_words += words;
+     s_tot_unknown += unknown;
 diff --git a/src/kernel/xbox_memory_layout.c b/src/kernel/xbox_memory_layout.c
-index a2e99fb..4b4526b 100644
+index a2e99fb..6a3e5b4 100644
 --- a/src/kernel/xbox_memory_layout.c
 +++ b/src/kernel/xbox_memory_layout.c
 @@ -15,6 +15,7 @@
@@ -840,7 +1243,27 @@ index a2e99fb..4b4526b 100644
      if (g_frame_counter_last_ms
              && (now - g_frame_counter_last_ms) < XBOX_FRAME_PERIOD_MS)
          return;
-@@ -861,17 +864,16 @@ int xbox_Nv2aNotifyEvent(uint32_t device_ptr_va, uint32_t event_off, uint32_t no
+@@ -806,6 +809,7 @@ static int s_fence_snap_ok[XBOX_MAX_FENCE_MIRRORS];
+ 
+ static void fence_mirrors_tick(int publish)
+ {
++    int changed = 0;
+     for (int i = 0; i < g_fence_mirror_count; i++) {
+         uint32_t dev, get_ptr;
+ 
+@@ -831,9 +835,11 @@ static void fence_mirrors_tick(int publish)
+                 s_fence_snap_ok[i] = 1;
+             } else if (s_fence_snap_ok[i] && *fence != s_fence_snap[i]) {
+                 *fence = s_fence_snap[i];
++                changed = 1;
+             }
+         }
+     }
++    if (changed) xbox_nv2a_wake_publish(&g_nv2a_wake);
+ }
+ 
+ /*
+@@ -861,17 +867,16 @@ int xbox_Nv2aNotifyEvent(uint32_t device_ptr_va, uint32_t event_off, uint32_t no
  /* The executor ran NO_OPERATION(param): the notify interrupt, on hardware. */
  void xbox_Nv2aNop(uint32_t param)
  {
@@ -861,7 +1284,7 @@ index a2e99fb..4b4526b 100644
      LONG notified = g_notify_count;
      /* the pointer is in the title image, mapped for as long as it runs */
      if (!g_notify_device_ptr || !g_nv2a_memory || !g_memory_base)
-@@ -883,15 +885,8 @@ int xbox_Nv2aNotifyWait(uint32_t object_va)
+@@ -883,18 +888,24 @@ int xbox_Nv2aNotifyWait(uint32_t object_va)
      get = (volatile uint32_t *)((char *)g_nv2a_memory + NV2A_USER_DMA_GET);
      /* The patched NOP running is the interrupt itself; GET reaching PUT
       * covers an executor that passed the slot before it was patched. */
@@ -879,7 +1302,23 @@ index a2e99fb..4b4526b 100644
      return 1;
  }
  
-@@ -932,12 +927,13 @@ static void framebuffer_probe_tick(void)
++void xbox_Nv2aFenceWait(uint32_t fence_va, uint32_t submitted,
++                         uint32_t allowed_distance)
++{
++    volatile uint32_t *completed;
++    /* Invalid/unmapped addresses retain the original guest read's behavior.
++     * This helper changes host waiting only; the generated loop always makes
++     * its original final read and branch after this returns. */
++    if (!g_nv2a_ack_thread || !fence_readable(fence_va, 4)) return;
++    completed = (volatile uint32_t *)((uintptr_t)fence_va + g_memory_offset);
++    xbox_nv2a_fence_wait(&g_nv2a_wake, completed, submitted, allowed_distance,
++                         &g_nv2a_ack_stop);
++}
++
+ static int s_nv2a_trace = 0;
+ static int s_nv2a_report = 0;  /* periodic survey/executor report */
+ 
+@@ -932,12 +943,13 @@ static void framebuffer_probe_tick(void)
  {
      static DWORD last_ms;
      static uint32_t last_sum;
@@ -894,7 +1333,7 @@ index a2e99fb..4b4526b 100644
      if (last_ms && (now - last_ms) < 1000)
          return;
      last_ms = now;
-@@ -1004,6 +1000,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
+@@ -1004,6 +1016,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
              *(volatile uint32_t *)((char *)regs + NV2A_USER_DMA_GET) = s_get_held_value;
              fence_mirrors_tick(1);
              s_get_held = 0;
@@ -902,7 +1341,7 @@ index a2e99fb..4b4526b 100644
          }
  
          poke_tick();
-@@ -1107,6 +1104,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
+@@ -1107,6 +1120,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
                      *get = put;
                      fence_mirrors_tick(1);
                      s_get_held = 0;        /* a held, older GET must not follow */
@@ -910,7 +1349,7 @@ index a2e99fb..4b4526b 100644
                  }
                  last_put = put; last_put_ms = now_ms;
                  /* GET as well as PUT. A title that stops submitting has either
-@@ -1169,6 +1167,7 @@ static void xbox_Nv2aAckStart(void)
+@@ -1169,6 +1183,7 @@ static void xbox_Nv2aAckStart(void)
  {
  
      poke_init();
@@ -918,7 +1357,7 @@ index a2e99fb..4b4526b 100644
      g_nv2a_ack_stop = 0;
      g_nv2a_ack_thread = CreateThread(NULL, 0, nv2a_ack_thread,
                                       g_nv2a_memory, 0, NULL);
-@@ -2494,13 +2493,22 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
+@@ -2494,13 +2509,22 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
              MEM_RESERVE | MEM_COMMIT,
              PAGE_READWRITE
          );
@@ -946,7 +1385,7 @@ index a2e99fb..4b4526b 100644
          if (g_nv2a_memory) {
              DWORD old_protect;
              if (VirtualProtect((char *)g_nv2a_memory + 0x8000, 0x1000,
-@@ -2935,6 +2943,7 @@ void xbox_MemoryLayoutShutdown(void)
+@@ -2935,6 +2959,7 @@ void xbox_MemoryLayoutShutdown(void)
      g_kernel_memory_owned = 0;
      if (g_nv2a_ack_thread) {
          InterlockedExchange(&g_nv2a_ack_stop, 1);
@@ -954,6 +1393,21 @@ index a2e99fb..4b4526b 100644
          WaitForSingleObject(g_nv2a_ack_thread, 1000);
          CloseHandle(g_nv2a_ack_thread);
          g_nv2a_ack_thread = NULL;
+diff --git a/src/kernel/xbox_memory_layout.h b/src/kernel/xbox_memory_layout.h
+index 69f1bf6..eedba25 100644
+--- a/src/kernel/xbox_memory_layout.h
++++ b/src/kernel/xbox_memory_layout.h
+@@ -205,6 +205,10 @@ int xbox_Nv2aNotifyEvent(uint32_t device_ptr_va, uint32_t event_off, uint32_t no
+  * above is the notify D3D waits for, and ends that wait. */
+ void xbox_Nv2aNop(uint32_t param);
+ int xbox_Nv2aNotifyWait(uint32_t object_va);
++/* Host wait for a direct guest fence poll. The caller retains its original
++ * final read/unsigned branch; this helper never writes guest state. */
++void xbox_Nv2aFenceWait(uint32_t fence_va, uint32_t submitted,
++                         uint32_t allowed_distance);
+ 
+ void xbox_MemoryLayoutShutdown(void);
+ 
 diff --git a/src/usb/usb_gamepad.c b/src/usb/usb_gamepad.c
 index bd00f3f..575b5f3 100644
 --- a/src/usb/usb_gamepad.c
@@ -992,7 +1446,7 @@ index bd00f3f..575b5f3 100644
              }
          }
 diff --git a/src/video/nv2a_d3d11.c b/src/video/nv2a_d3d11.c
-index b9f3fa2..755de5b 100644
+index b9f3fa2..7472a9a 100644
 --- a/src/video/nv2a_d3d11.c
 +++ b/src/video/nv2a_d3d11.c
 @@ -29,6 +29,7 @@
@@ -1003,19 +1457,147 @@ index b9f3fa2..755de5b 100644
  #include "fb_present.h"
  #include "platform/recomp_profile.h"
  #include "../d3d/d3d8_swizzle.h"
-@@ -871,9 +872,9 @@ static void display_config(int now);
- static ID3DBlob *compile_def(const char *entry, const char *target, const D3D_SHADER_MACRO *def)
+@@ -92,6 +93,58 @@ static int64_t qpc(void)
+     return t.QuadPart;
+ }
+ 
++/* Opt-in timing only. Keep the default path free of clocks, environment
++ * lookups and output; the shader workers share this published configuration. */
++static INIT_ONCE s_hitch_once = INIT_ONCE_STATIC_INIT;
++static volatile LONG s_hitch_ready;
++static int s_hitch_trace;
++static LARGE_INTEGER s_hitch_freq;
++
++static BOOL CALLBACK hitch_trace_initialize(PINIT_ONCE once, PVOID param, PVOID *ctx)
++{
++    const char *e = getenv("RECOMP_HITCH_TRACE");
++    (void)once; (void)param; (void)ctx;
++    s_hitch_trace = e && *e && *e != '0';
++    if (s_hitch_trace && (!QueryPerformanceFrequency(&s_hitch_freq) ||
++                         s_hitch_freq.QuadPart <= 0))
++        s_hitch_trace = 0;
++    InterlockedExchange(&s_hitch_ready, 1);
++    return TRUE;
++}
++
++static void hitch_trace_init(void)
++{
++    if (!s_hitch_ready)
++        InitOnceExecuteOnce(&s_hitch_once, hitch_trace_initialize, NULL, NULL);
++}
++
++static int64_t hitch_trace_begin(void)
++{
++    hitch_trace_init();
++    return s_hitch_trace ? qpc() : 0;
++}
++
++/* Return the ending timestamp only for a phase that exceeded eight ms. */
++static int64_t hitch_trace_elapsed(int64_t begin)
++{
++    int64_t now;
++    if (!begin) return 0;
++    now = qpc();
++    return now - begin > s_hitch_freq.QuadPart / 125 ? now : 0;
++}
++
++static void hitch_trace_report(const char *phase, int64_t begin)
++{
++    int64_t end = hitch_trace_elapsed(begin);
++    if (!end) return;
++    fprintf(stderr, "[HITCH] phase=%s qpc_ms=%.3f start_qpc_ms=%.3f "
++                    "duration_ms=%.3f thread=%lu\n", phase,
++            end * 1000.0 / s_hitch_freq.QuadPart,
++            begin * 1000.0 / s_hitch_freq.QuadPart,
++            (end - begin) * 1000.0 / s_hitch_freq.QuadPart,
++            GetCurrentThreadId());
++}
++
+ void nv2a_d3d_prof_add(int slot, int64_t ticks, uint32_t verts)
+ {
+     s_prof[slot] += ticks;
+@@ -868,12 +921,13 @@ typedef struct {
+ 
+ static void display_config(int now);
+ 
+-static ID3DBlob *compile_def(const char *entry, const char *target, const D3D_SHADER_MACRO *def)
++static ID3DBlob *compile_def_status(const char *entry, const char *target,
++                                   const D3D_SHADER_MACRO *def, int *cache_hit)
  {
      ID3DBlob *code = NULL, *err = NULL;
 -    HRESULT hr = D3DCompile(s_hlsl, sizeof s_hlsl - 1, "nv2a_d3d11", def, NULL,
 +    HRESULT hr = nv_shader_cache_compile(s_hlsl, sizeof s_hlsl - 1, "nv2a_d3d11", def,
                              entry, target, D3DCOMPILE_OPTIMIZATION_LEVEL3, 0,
 -                            &code, &err);
-+                            &code, &err, NULL);
++                            &code, &err, cache_hit);
      if (FAILED(hr)) {
          fprintf(stderr, "[D3D11] shader %s: %s\n", entry,
                  err ? (const char *)ID3D10Blob_GetBufferPointer(err) : "?");
-@@ -1413,13 +1414,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
+@@ -883,6 +937,11 @@ static ID3DBlob *compile_def(const char *entry, const char *target, const D3D_SH
+     return SUCCEEDED(hr) ? code : NULL;
+ }
+ 
++static ID3DBlob *compile_def(const char *entry, const char *target, const D3D_SHADER_MACRO *def)
++{
++    return compile_def_status(entry, target, def, NULL);
++}
++
+ static ID3DBlob *compile(const char *entry, const char *target)
+ {
+     return compile_def(entry, target, NULL);
+@@ -918,6 +977,19 @@ static CRITICAL_SECTION s_spec_cs;
+ static CONDITION_VARIABLE s_spec_cv;
+ static volatile LONG s_spec_ready;
+ 
++static void spec_hitch_report(const char *phase, int64_t start, uint32_t variant,
++                              int cache_hit, HRESULT hr)
++{
++    int64_t end = hitch_trace_elapsed(start);
++    double ms;
++    if (!end) return;
++    ms = (end - start) * 1000.0 / (double)s_hitch_freq.QuadPart;
++    fprintf(stderr, "[HITCH] phase=%s qpc_ms=%.3f start_qpc_ms=%.3f duration_ms=%.3f thread=%lu variant=%u cache_hit=%d hr=0x%08lx\n",
++            phase, end * 1000.0 / (double)s_hitch_freq.QuadPart,
++            start * 1000.0 / (double)s_hitch_freq.QuadPart,
++            ms, (unsigned long)GetCurrentThreadId(), variant, cache_hit, (unsigned long)hr);
++}
++
+ static DWORD WINAPI spec_worker(LPVOID arg)
+ {
+     (void)arg;
+@@ -926,7 +998,9 @@ static DWORD WINAPI spec_worker(LPVOID arg)
+         const PsKey *k;
+         char decl[2048];
+         ID3DBlob *b;
+-        int flat;
++        int flat, cache_hit;
++        int64_t start;
++        HRESULT hr;
+         D3D_SHADER_MACRO m[4];
+         EnterCriticalSection(&s_spec_cs);
+         while (s_spec_head == s_spec_tail)
+@@ -965,9 +1039,17 @@ static DWORD WINAPI spec_worker(LPVOID arg)
+         m[1].Name = "SPEC_DECL"; m[1].Definition = decl;
+         m[2].Name = flat ? "FLATQ" : NULL; m[2].Definition = flat ? "nointerpolation" : NULL;
+         m[3].Name = NULL; m[3].Definition = NULL;
+-        b = compile_def(k->variant & 2 ? "ps_wdepth" : "ps_main", "ps_5_0", m);
+-        if (b && SUCCEEDED(ID3D11Device_CreatePixelShader(s_dev, ID3D10Blob_GetBufferPointer(b),
+-                                                          ID3D10Blob_GetBufferSize(b), NULL, &e->ps))) {
++        start = hitch_trace_begin();
++        b = compile_def_status(k->variant & 2 ? "ps_wdepth" : "ps_main", "ps_5_0", m, &cache_hit);
++        spec_hitch_report("shader_compile_def", start, k->variant, cache_hit, b ? S_OK : E_FAIL);
++        hr = E_FAIL;
++        if (b) {
++            start = hitch_trace_begin();
++            hr = ID3D11Device_CreatePixelShader(s_dev, ID3D10Blob_GetBufferPointer(b),
++                                              ID3D10Blob_GetBufferSize(b), NULL, &e->ps);
++            spec_hitch_report("shader_create_pixel", start, k->variant, cache_hit, hr);
++        }
++        if (b && SUCCEEDED(hr)) {
+             LONG n;
+             InterlockedExchange(&e->state, 2);
+             n = InterlockedIncrement(&s_spec_ready);
+@@ -1413,13 +1495,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
  }
  
  /* Guest rows of a surface as BGRA, with the format's fixed alpha. */
@@ -1032,7 +1614,7 @@ index b9f3fa2..755de5b 100644
          uint32_t *dst = out + (size_t)y * s->w;
          if (s->bpp == 4) {
              memcpy(dst, row, (size_t)s->w * 4);
-@@ -1454,6 +1455,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
+@@ -1454,6 +1536,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
  static UINT s_up_w[2], s_up_h[2];
  static uint32_t *s_up_pixels, *s_mask_pixels;
  static size_t s_up_cap, s_mask_cap;
@@ -1041,7 +1623,7 @@ index b9f3fa2..755de5b 100644
  
  /* slot 0: image, slot 1: change mask */
  static ID3D11ShaderResourceView *upload_slot(int k, const uint32_t *pixels, UINT w, UINT h)
-@@ -1489,6 +1492,25 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1489,6 +1573,25 @@ static uint32_t *scratch_pixels(size_t count)
      return s_up_pixels;
  }
  
@@ -1067,7 +1649,7 @@ index b9f3fa2..755de5b 100644
  /* Guest memory is the authority for what the CPU writes. A shadow copy of
   * each surface's guest bytes says which pixels the CPU changed since the last
   * look; only those replace what the GPU drew. A loading screen drawn by the
-@@ -1496,22 +1518,24 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1496,22 +1599,24 @@ static uint32_t *scratch_pixels(size_t count)
  static void surface_sync_impl(Surface *s, int force)
  {
      uint32_t rowb = s->w * s->bpp, y, x, x0 = 0xFFFFFFFFu, x1 = 0, y0 = 0xFFFFFFFFu, y1 = 0;
@@ -1096,7 +1678,7 @@ index b9f3fa2..755de5b 100644
          {
              ID3D11ShaderResourceView *srv = upload_image(px, s->w, s->h);
              float x0, x1;
-@@ -1522,7 +1546,7 @@ static void surface_sync_impl(Surface *s, int force)
+@@ -1522,7 +1627,7 @@ static void surface_sync_impl(Surface *s, int force)
          return;
      }
      for (y = 0; y < s->h; y++) {
@@ -1105,7 +1687,7 @@ index b9f3fa2..755de5b 100644
          uint8_t *sh = s->shadow + (size_t)y * rowb;
          if (!memcmp(row, sh, rowb)) continue;
          if (y0 == 0xFFFFFFFFu) {
-@@ -1552,7 +1576,7 @@ static void surface_sync_impl(Surface *s, int force)
+@@ -1552,7 +1657,7 @@ static void surface_sync_impl(Surface *s, int force)
                  s->phys, s_frame, x0, y0, x1, y1);
      px = scratch_pixels((size_t)s->w * s->h);
      if (!px) return;
@@ -1114,7 +1696,7 @@ index b9f3fa2..755de5b 100644
      {
          ID3D11ShaderResourceView *srv = upload_slot(0, px, s->w, s->h);
          ID3D11ShaderResourceView *msk = upload_slot(1, s_mask_pixels, s->w, s->h);
-@@ -1572,8 +1596,11 @@ static void surface_sync(Surface *s, int force)
+@@ -1572,8 +1677,11 @@ static void surface_sync(Surface *s, int force)
      if (s_prof_on > 0) s_prof[PROF_SYNC] += qpc() - t0;
  }
  
@@ -1126,7 +1708,7 @@ index b9f3fa2..755de5b 100644
      if (s_cur_rt == s) unbind_targets();
      if (s->srv) ID3D11ShaderResourceView_Release(s->srv);
      if (s->rtv) ID3D11RenderTargetView_Release(s->rtv);
-@@ -1635,9 +1662,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
+@@ -1635,9 +1743,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
      } else {
          for (i = 0; i < MAX_SURFACES && !victim; i++)
              if (!s_surf[i].tex) victim = &s_surf[i];
@@ -1140,7 +1722,7 @@ index b9f3fa2..755de5b 100644
          if (!victim) victim = &s_surf[0];
      }
      surface_release(victim);
-@@ -1901,9 +1929,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
+@@ -1901,9 +2010,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
  }
  
  typedef struct TexEntry {
@@ -1152,7 +1734,7 @@ index b9f3fa2..755de5b 100644
      size_t bytes;
      ID3D11Texture2D *tex;
      ID3D11ShaderResourceView *srv;
-@@ -1954,12 +1982,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
+@@ -1954,12 +2063,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
      return 1;
  }
  
@@ -1208,7 +1790,7 @@ index b9f3fa2..755de5b 100644
          for (by = 0; by < bh; by++)
              for (bx = 0; bx < bw; bx++) {
                  d3d8_dxt_decode_block(src + ((size_t)by * bw + bx) * L->bpp, t->color, px);
-@@ -1969,6 +2040,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
+@@ -1969,6 +2121,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
              }
          return;
      }
@@ -1220,13 +1802,46 @@ index b9f3fa2..755de5b 100644
      if (L->kind == K_LIN) {
          for (y = 0; y < h; y++) {
              const uint8_t *row = src + (size_t)y * t->pitch;
-@@ -2064,15 +2140,20 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2057,6 +2214,31 @@ static int host_levels(const TexLayout *L, const NvD3DTexture *t)
+     return n > L->levels ? n : L->levels;
+ }
+ 
++/* Guest DXT blocks already have the BC1/2/3 layout. Keep short chains in BGRA
++ * so their generated mips retain the same filtering; BC base dimensions must
++ * be multiples of four, while the smaller mips still occupy complete blocks. */
++static DXGI_FORMAT texture_host_format(const NvD3DTexture *t, const TexLayout *L, int hl)
++{
++    static const DXGI_FORMAT formats[3] = {
++        DXGI_FORMAT_BC1_UNORM, DXGI_FORMAT_BC2_UNORM, DXGI_FORMAT_BC3_UNORM
++    };
++    static UINT support[3];
++    static int checked[3];
++    UINT required = D3D11_FORMAT_SUPPORT_TEXTURE2D | D3D11_FORMAT_SUPPORT_SHADER_SAMPLE;
++    int index;
++    if (L->kind != K_DXT || hl != L->levels ||
++        (t->width & 3) || (t->height & 3))
++        return DXGI_FORMAT_B8G8R8A8_UNORM;
++    index = t->color == 0x0C ? 0 : t->color == 0x0E ? 1 : 2;
++    if (!checked[index]) {
++        if (FAILED(ID3D11Device_CheckFormatSupport(s_dev, formats[index], &support[index])))
++            support[index] = 0;
++        checked[index] = 1;
++    }
++    if (t->cube) required |= D3D11_FORMAT_SUPPORT_TEXTURECUBE;
++    return (support[index] & required) == required ? formats[index] : DXGI_FORMAT_B8G8R8A8_UNORM;
++}
++
+ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+ {
+     TexLayout L;
+@@ -2064,15 +2246,21 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
      uint32_t key = (p >> 7) ^ (t->format * 2654435761u) ^ (t->pitch << 3) ^ t->width;
      TexEntry *e, **head = &s_tex_bucket[key & (TEX_BUCKETS - 1)];
      uint64_t h, ph = 0;
 -    uint32_t *pal = NULL;
-+    uint32_t *pal = NULL, *px, *a = NULL, *b = NULL;
-+    int hl, is_new;
++    uint32_t *pal = NULL, *px = NULL, *a = NULL, *b = NULL;
++    DXGI_FORMAT host_format;
++    int hl, is_new, native;
  
      if (!tex_layout(t, &L) || !guest_ok(t->addr, L.total))
          return NULL;
@@ -1244,7 +1859,7 @@ index b9f3fa2..755de5b 100644
          e->used = s_frame;
          return e->srv;
      }
-@@ -2082,19 +2163,41 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2082,21 +2270,47 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
          ph = hash_mem((const uint8_t *)pal, t->palette_len * 4);
      }
      if (e && e->hash == h && e->pal_hash == ph) {
@@ -1257,10 +1872,14 @@ index b9f3fa2..755de5b 100644
 +     * changing an existing resource. Missing generated mips otherwise stay
 +     * uninitialized while the successful content hash suppresses retries. */
 +    hl = host_levels(&L, t);
-+    px = scratch_pixels((size_t)t->width * t->height);
-+    if (!px) {
-+        if (e) e->used = s_frame;
-+        return e ? e->srv : NULL;
++    host_format = texture_host_format(t, &L, hl);
++    native = host_format != DXGI_FORMAT_B8G8R8A8_UNORM;
++    if (!native) {
++        px = scratch_pixels((size_t)t->width * t->height);
++        if (!px) {
++            if (e) e->used = s_frame;
++            return e ? e->srv : NULL;
++        }
 +    }
 +    if (hl > L.levels) {
 +        size_t n = (size_t)L.level_w[L.levels - 1] * L.level_h[L.levels - 1];
@@ -1283,14 +1902,18 @@ index b9f3fa2..755de5b 100644
 -        if (!e) return NULL;
 +        if (!e) goto upload_failed;
          e->tex = make_texture(t->width, t->height, (UINT)hl, (UINT)L.faces,
-                               DXGI_FORMAT_B8G8R8A8_UNORM, D3D11_BIND_SHADER_RESOURCE,
+-                              DXGI_FORMAT_B8G8R8A8_UNORM, D3D11_BIND_SHADER_RESOURCE,
++                              host_format, D3D11_BIND_SHADER_RESOURCE,
                                L.faces == 6 ? D3D11_RESOURCE_MISC_TEXTURECUBE : 0);
 -        if (!e->tex) { free(e); return NULL; }
 +        if (!e->tex) goto upload_failed;
          memset(&sd, 0, sizeof sd);
-         sd.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+-        sd.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
++        sd.Format = host_format;
          if (L.faces == 6) {
-@@ -2104,25 +2207,26 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+             sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
+             sd.TextureCube.MipLevels = (UINT)hl;
+@@ -2104,36 +2318,45 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
              sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
              sd.Texture2D.MipLevels = (UINT)hl;
          }
@@ -1312,7 +1935,8 @@ index b9f3fa2..755de5b 100644
 +            uint32_t w = t->width, ht = t->height;
 +            int lv;
 +            for (lv = 0; lv < hl; lv++) {
-+                e->bytes += (size_t)w * ht * 4 * L.faces;
++                e->bytes += native ? (size_t)((w + 3) / 4) * ((ht + 3) / 4) * L.bpp * L.faces
++                                   : (size_t)w * ht * 4 * L.faces;
 +                if (w > 1) w /= 2;
 +                if (ht > 1) ht /= 2;
 +            }
@@ -1332,16 +1956,32 @@ index b9f3fa2..755de5b 100644
          for (f = 0; f < L.faces; f++) {
              uint32_t w, h;
              for (lv = 0; lv < L.levels; lv++) {
-@@ -2133,7 +2237,7 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
-                     (UINT)lv + (UINT)f * (UINT)hl, NULL,
-                     px, L.level_w[lv] * 4, 0);
+-                decode_level(t, &L, guest(t->addr) + f * L.face_stride + L.level_off[lv],
+-                             lv, pal, px);
+-                ID3D11DeviceContext_UpdateSubresource(
+-                    s_ctx, (ID3D11Resource *)e->tex,
+-                    (UINT)lv + (UINT)f * (UINT)hl, NULL,
+-                    px, L.level_w[lv] * 4, 0);
++                const uint8_t *src = guest(t->addr) + f * L.face_stride + L.level_off[lv];
++                if (native) {
++                    ID3D11DeviceContext_UpdateSubresource(
++                        s_ctx, (ID3D11Resource *)e->tex,
++                        (UINT)lv + (UINT)f * (UINT)hl, NULL,
++                        src, ((L.level_w[lv] + 3) / 4) * L.bpp, 0);
++                } else {
++                    decode_level(t, &L, src, lv, pal, px);
++                    ID3D11DeviceContext_UpdateSubresource(
++                        s_ctx, (ID3D11Resource *)e->tex,
++                        (UINT)lv + (UINT)f * (UINT)hl, NULL,
++                        px, L.level_w[lv] * 4, 0);
++                }
              }
 -            if (hl <= L.levels || !a) continue;
 +            if (hl <= L.levels) continue;
              w = L.level_w[L.levels - 1]; h = L.level_h[L.levels - 1];
              memcpy(a, px, (size_t)w * h * 4);
              for (; lv < hl; lv++) {
-@@ -2152,10 +2256,26 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2152,10 +2375,26 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
      }
      e->hash = h;
      e->pal_hash = ph;
@@ -1369,7 +2009,7 @@ index b9f3fa2..755de5b 100644
  }
  
  static ID3D11ShaderResourceView *texture_get(const NvD3DTexture *t)
-@@ -2707,7 +2827,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2707,7 +2946,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          if (!mode_needs_texture(mode) || !t->addr || !t->width || !t->height)
              continue;
          tex_format(t->color, &kind);
@@ -1382,7 +2022,78 @@ index b9f3fa2..755de5b 100644
          s_draw_textured = 1;
          if (!s_draw_tex_addr) s_draw_tex_addr = t->addr;
          if (rt && rt->sx > rt->sy * 1.001f) s_draw_reads_wide = 1;
-@@ -3271,6 +3395,13 @@ typedef struct {
+@@ -3073,9 +3316,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+     RECOMP_PROFILE_BEGIN("D3D11 draw");
+     t_draw = s_prof_on > 0 ? qpc() : 0;
+     s_prof_draws++;
+-    if (!setup_pipeline(st, topology, &s, &gw, &gh, &zmax)) {
+-        RECOMP_PROFILE_END();
+-        return;
++    {
++        int64_t trace_begin = hitch_trace_begin();
++        int setup_ok = setup_pipeline(st, topology, &s, &gw, &gh, &zmax);
++        hitch_trace_report("draw_setup", trace_begin);
++        if (!setup_ok) {
++            RECOMP_PROFILE_END();
++            return;
++        }
+     }
+     if (pos && s && s->sx > s->sy * 1.001f) {
+         /* Menu artwork and controls span the display together. Only the
+@@ -3204,11 +3452,18 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+     float cc[8];
+     D3D11_RECT r;
+     int zclear = (flags & 1) != 0, sclear = (flags & 2) != 0;
++    int64_t trace_begin = hitch_trace_begin();
+ 
+-    if (!nv2a_d3d_init())
++    if (!nv2a_d3d_init()) {
++        hitch_trace_report("clear_setup", trace_begin);
+         return;
+-    if (!bind_targets(st, zclear || sclear, &s, &d, &gw, &gh))
++    }
++    if (!bind_targets(st, zclear || sclear, &s, &d, &gw, &gh)) {
++        hitch_trace_report("clear_setup", trace_begin);
+         return;
++    }
++    hitch_trace_report("clear_setup", trace_begin);
++    trace_begin = hitch_trace_begin();
+     if (s) {
+         if (flags & 0x10) mask |= D3D11_COLOR_WRITE_ENABLE_RED;
+         if (flags & 0x20) mask |= D3D11_COLOR_WRITE_ENABLE_GREEN;
+@@ -3217,8 +3472,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+             mask |= D3D11_COLOR_WRITE_ENABLE_ALPHA;
+     }
+     if (!d) { zclear = sclear = 0; }
+-    if (!mask && !zclear && !sclear)
++    if (!mask && !zclear && !sclear) {
++        hitch_trace_report("clear_submit", trace_begin);
+         return;
++    }
+     if (s && mask) s->gpu_dirty = 1;
+     zf = (st->surface_format >> 4) & 0xF;
+     unpack4(color, cc);
+@@ -3234,8 +3491,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+     upload_cb(s_cb_clear, cc, sizeof cc);
+     if (x1 >= gw) x1 = gw - 1;
+     if (y1 >= gh) y1 = gh - 1;
+-    if (x0 > x1 || y0 > y1)
++    if (x0 > x1 || y0 > y1) {
++        hitch_trace_report("clear_submit", trace_begin);
+         return;
++    }
+     r.left = (LONG)(x0 * s_aa_x * s_cur_sx + 0.5f);
+     r.top = (LONG)(y0 * s_aa_y * s_cur_sy + 0.5f);
+     r.right = (LONG)((x1 + 1) * s_aa_x * s_cur_sx + 0.5f);
+@@ -3253,6 +3512,7 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+     ID3D11DeviceContext_PSSetShader(s_ctx, s_clear_ps, NULL, 0);
+     ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 0, 1, &s_cb_clear);
+     ID3D11DeviceContext_Draw(s_ctx, 4, 0);
++    hitch_trace_report("clear_submit", trace_begin);
+ }
+ 
+ /* -------------------------------------------------------------- write-back */
+@@ -3271,6 +3531,13 @@ typedef struct {
  } WbSlot;
  static WbSlot s_wb[MAX_SURFACES];
  
@@ -1396,7 +2107,42 @@ index b9f3fa2..755de5b 100644
  static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
  {
      if (k->stage && (k->w != w || k->h != h)) {
-@@ -3381,10 +3512,8 @@ int nv2a_d3d_writeback_busy(void)
+@@ -3306,6 +3573,7 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
+  * then -- the title cannot learn the frame is finished before its pixels are
+  * in guest memory. */
+ static int s_wb_pending;
++static int64_t s_wb_hitch_pending;
+ 
+ static int wb_surface_ok(const Surface *s)
+ {
+@@ -3317,8 +3585,10 @@ static int wb_surface_ok(const Surface *s)
+ static int writeback_finish(int wait)
+ {
+     int i, left = 0;
++    int64_t trace_begin;
+     if (!s_wb_pending)
+         return 1;
++    trace_begin = hitch_trace_begin();
+     RECOMP_PROFILE_BEGIN("D3D11 write-back");
+     for (i = 0; i < MAX_SURFACES; i++) {
+         Surface *s = &s_surf[i];
+@@ -3374,6 +3644,15 @@ static int writeback_finish(int wait)
+     }
+     RECOMP_PROFILE_END();
+     s_wb_pending = left;
++    hitch_trace_report(wait ? "readback_blocking" : "readback_poll", trace_begin);
++    if (left) {
++        /* Exclude the intentional vblank wait: pending latency begins only
++         * when the first nonblocking Map actually finds unfinished copies. */
++        if (!s_wb_hitch_pending) s_wb_hitch_pending = trace_begin;
++    } else {
++        hitch_trace_report("readback_pending", s_wb_hitch_pending);
++        s_wb_hitch_pending = 0;
++    }
+     return !left;
+ }
+ 
+@@ -3381,10 +3660,8 @@ int nv2a_d3d_writeback_busy(void)
  {
      if (!s_wb_pending || writeback_finish(0))
          return 0;
@@ -1409,11 +2155,28 @@ index b9f3fa2..755de5b 100644
      return 1;
  }
  
+@@ -3439,13 +3716,16 @@ static uint64_t s_zpass;
+ static void zpass_collect(void)
+ {
+     UINT64 n = 0;
++    int64_t trace_begin;
+     if (!s_query_active) return;
++    trace_begin = hitch_trace_begin();
+     ID3D11DeviceContext_End(s_ctx, (ID3D11Asynchronous *)s_query);
+     while (ID3D11DeviceContext_GetData(s_ctx, (ID3D11Asynchronous *)s_query, &n,
+                                        sizeof n, 0) == S_FALSE)
+         SwitchToThread();
+     s_zpass += n;
+     s_query_active = 0;
++    hitch_trace_report("zpass_wait", trace_begin);
+ }
+ 
+ void nv2a_d3d_zpass_enable(int on)
 diff --git a/tests/kernel_dispatch/CMakeLists.txt b/tests/kernel_dispatch/CMakeLists.txt
-index a8e9688..cc9337d 100644
+index a8e9688..39f2d87 100644
 --- a/tests/kernel_dispatch/CMakeLists.txt
 +++ b/tests/kernel_dispatch/CMakeLists.txt
-@@ -7,5 +7,25 @@ add_subdirectory(../.. xboxrecomp)
+@@ -7,5 +7,34 @@ add_subdirectory(../.. xboxrecomp)
  add_executable(kernel-dispatch-thread-test kernel_dispatch_thread_test.c)
  target_include_directories(kernel-dispatch-thread-test PRIVATE ../../src/kernel)
  target_link_libraries(kernel-dispatch-thread-test PRIVATE xboxrecomp)
@@ -1428,6 +2191,10 @@ index a8e9688..cc9337d 100644
 +target_link_libraries(kernel-cs-test PRIVATE xboxrecomp)
 +add_executable(nv2a-notify-wait-test nv2a_notify_wait_test.c)
 +target_include_directories(nv2a-notify-wait-test PRIVATE ../../src)
++add_executable(nv2a-fence-wait-test nv2a_fence_wait_test.c)
++target_include_directories(nv2a-fence-wait-test PRIVATE ../../src)
++add_executable(nv2a-pb-hitch-test nv2a_pb_hitch_test.c)
++target_include_directories(nv2a-pb-hitch-test PRIVATE ../../src)
  enable_testing()
  add_test(NAME kernel-dispatch-thread COMMAND kernel-dispatch-thread-test)
 +add_test(NAME kernel-log-quiet COMMAND kernel-log-test)
@@ -1439,11 +2206,16 @@ index a8e9688..cc9337d 100644
 +add_test(NAME kernel-cs-counters COMMAND kernel-cs-test counters)
 +set_tests_properties(kernel-cs-counters PROPERTIES PASS_REGULAR_EXPRESSION "\\[CS\\] enters=")
 +add_test(NAME nv2a-notify-wait COMMAND nv2a-notify-wait-test)
++add_test(NAME nv2a-fence-wait COMMAND nv2a-fence-wait-test)
++add_test(NAME nv2a-pb-hitch-quiet COMMAND nv2a-pb-hitch-test)
++set_tests_properties(nv2a-pb-hitch-quiet PROPERTIES FAIL_REGULAR_EXPRESSION "\\[HITCH\\]")
++add_test(NAME nv2a-pb-hitch-trace COMMAND nv2a-pb-hitch-test trace)
++set_tests_properties(nv2a-pb-hitch-trace PROPERTIES PASS_REGULAR_EXPRESSION "cpu_ms=40[.]000.*max_ms=80[.]000.*method=17FC")
 diff --git a/tests/kernel_dispatch/README.md b/tests/kernel_dispatch/README.md
-index dd7efb0..b6574c1 100644
+index dd7efb0..9196f4d 100644
 --- a/tests/kernel_dispatch/README.md
 +++ b/tests/kernel_dispatch/README.md
-@@ -1,14 +1,42 @@
+@@ -1,14 +1,58 @@
 -# Kernel dispatch thread regression
 +# Kernel dispatch regressions
  
@@ -1480,16 +2252,32 @@ index dd7efb0..b6574c1 100644
 +changes without an executor notification. Host waits are bounded to 1 ms;
 +only the original guest completion conditions can end the wait.
 +
++The direct fence test preserves the title's unsigned subtraction/comparison,
++including wrap boundaries and a completed value ahead of the submitted value.
++It also checks completion before waiting, a publication in the check-to-wait
++interval, wakeups without completion, shutdown, and timeout/API fallback. The
++host helper never modifies the guest fence value.
++
++The pushbuffer hitch test feeds increasing/non-increasing packets, a CALL and
++RETURN, and a jump through the real decoder with tracing both off and on.
++Deterministic clocks verify a slow draw is identified separately from normal
++flip pacing, while quiet mode reads no diagnostic clocks. Commands and their
++parameters arrive unchanged and in their original order.
++It also splits increasing and non-increasing payloads across multiple PUT
++updates, including values that resemble CALL/JUMP/RETURN headers. Further
++cases cover real ring jumps, called lists and root payloads crossing the
++64 MiB physical boundary, discontinuous scans, and empty packets.
++
  On Windows with Visual Studio:
  
  ```
  cmake -S tests/kernel_dispatch -B build/kernel-dispatch -A x64
 -cmake --build build/kernel-dispatch --config Release --target kernel-dispatch-thread-test
-+cmake --build build/kernel-dispatch --config Release --target kernel-dispatch-thread-test kernel-log-test kernel-file-sharing-test kernel-cs-test nv2a-notify-wait-test
++cmake --build build/kernel-dispatch --config Release --target kernel-dispatch-thread-test kernel-log-test kernel-file-sharing-test kernel-cs-test nv2a-notify-wait-test nv2a-fence-wait-test nv2a-pb-hitch-test
  ctest --test-dir build/kernel-dispatch -C Release --output-on-failure
  ```
 diff --git a/tests/nv2a_targets/test_targets.c b/tests/nv2a_targets/test_targets.c
-index 9ba2f39..90bca19 100644
+index 9ba2f39..9c5a4d3 100644
 --- a/tests/nv2a_targets/test_targets.c
 +++ b/tests/nv2a_targets/test_targets.c
 @@ -1,4 +1,4 @@
@@ -1498,10 +2286,87 @@ index 9ba2f39..90bca19 100644
  #include "../../src/video/nv2a_d3d11.c"
  
  static uint8_t *ram;
-@@ -11,6 +11,48 @@ const uint32_t (*nv2a_vsh_program(uint32_t *start, uint32_t *version))[4] { retu
+@@ -11,6 +11,130 @@ const uint32_t (*nv2a_vsh_program(uint32_t *start, uint32_t *version))[4] { retu
  const float (*nv2a_vsh_constants(uint32_t *version))[4] { return NULL; }
  
  #define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #x); return 1; } } while (0)
++
++/* Compressed staging memory contains blocks, not BGRA pixels. Fetch through
++ * the real GPU decoder before checking a sampled compressed texture. */
++static uint32_t read_bc_pixel_at(ID3D11ShaderResourceView *view, unsigned x, unsigned y)
++{
++    static const char shader[] =
++        "Texture2D<float4> source : register(t0);"
++        "RWBuffer<uint> output : register(u0);"
++        "cbuffer Coordinates : register(b0) { uint2 coordinate; uint2 pad; };"
++        "[numthreads(1,1,1)] void main() {"
++        " uint4 c=(uint4)round(saturate(source.Load(int3(coordinate,0)))*255.0);"
++        " output[0]=c.b|(c.g<<8)|(c.r<<16)|(c.a<<24); }";
++    ID3DBlob *code = NULL, *errors = NULL;
++    ID3D11ComputeShader *compute = NULL;
++    ID3D11Buffer *coordinates = NULL, *output = NULL, *staging = NULL;
++    ID3D11UnorderedAccessView *uav = NULL;
++    D3D11_BUFFER_DESC buffer_desc;
++    D3D11_SUBRESOURCE_DATA data;
++    D3D11_UNORDERED_ACCESS_VIEW_DESC uav_desc;
++    D3D11_MAPPED_SUBRESOURCE mapped;
++    uint32_t position[4] = {x,y,0,0}, value = 0xDEADBEEFu;
++    if (FAILED(D3DCompile(shader, sizeof shader - 1, "read_bc_pixel", NULL, NULL,
++                          "main", "cs_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &code, &errors)))
++        goto done;
++    if (FAILED(ID3D11Device_CreateComputeShader(s_dev, ID3D10Blob_GetBufferPointer(code),
++                                                ID3D10Blob_GetBufferSize(code), NULL, &compute)))
++        goto done;
++    memset(&buffer_desc, 0, sizeof buffer_desc);
++    buffer_desc.ByteWidth = sizeof position;
++    buffer_desc.Usage = D3D11_USAGE_IMMUTABLE;
++    buffer_desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
++    memset(&data, 0, sizeof data);
++    data.pSysMem = position;
++    if (FAILED(ID3D11Device_CreateBuffer(s_dev, &buffer_desc, &data, &coordinates))) goto done;
++    buffer_desc.ByteWidth = sizeof value;
++    buffer_desc.Usage = D3D11_USAGE_DEFAULT;
++    buffer_desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
++    if (FAILED(ID3D11Device_CreateBuffer(s_dev, &buffer_desc, NULL, &output))) goto done;
++    memset(&uav_desc, 0, sizeof uav_desc);
++    uav_desc.Format = DXGI_FORMAT_R32_UINT;
++    uav_desc.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
++    uav_desc.Buffer.NumElements = 1;
++    if (FAILED(ID3D11Device_CreateUnorderedAccessView(s_dev, (ID3D11Resource *)output, &uav_desc, &uav)))
++        goto done;
++    buffer_desc.Usage = D3D11_USAGE_STAGING;
++    buffer_desc.BindFlags = 0;
++    buffer_desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
++    if (FAILED(ID3D11Device_CreateBuffer(s_dev, &buffer_desc, NULL, &staging))) goto done;
++    ID3D11DeviceContext_CSSetShader(s_ctx, compute, NULL, 0);
++    ID3D11DeviceContext_CSSetShaderResources(s_ctx, 0, 1, &view);
++    ID3D11DeviceContext_CSSetConstantBuffers(s_ctx, 0, 1, &coordinates);
++    ID3D11DeviceContext_CSSetUnorderedAccessViews(s_ctx, 0, 1, &uav, NULL);
++    ID3D11DeviceContext_Dispatch(s_ctx, 1, 1, 1);
++    {
++        ID3D11UnorderedAccessView *no_uav = NULL;
++        ID3D11ShaderResourceView *no_srv = NULL;
++        ID3D11Buffer *no_cb = NULL;
++        ID3D11DeviceContext_CSSetUnorderedAccessViews(s_ctx, 0, 1, &no_uav, NULL);
++        ID3D11DeviceContext_CSSetShaderResources(s_ctx, 0, 1, &no_srv);
++        ID3D11DeviceContext_CSSetConstantBuffers(s_ctx, 0, 1, &no_cb);
++        ID3D11DeviceContext_CSSetShader(s_ctx, NULL, NULL, 0);
++    }
++    ID3D11DeviceContext_CopyResource(s_ctx, (ID3D11Resource *)staging, (ID3D11Resource *)output);
++    if (SUCCEEDED(ID3D11DeviceContext_Map(s_ctx, (ID3D11Resource *)staging, 0, D3D11_MAP_READ, 0, &mapped))) {
++        memcpy(&value, mapped.pData, sizeof value);
++        ID3D11DeviceContext_Unmap(s_ctx, (ID3D11Resource *)staging, 0);
++    }
++done:
++    if (code) ID3D10Blob_Release(code);
++    if (errors) ID3D10Blob_Release(errors);
++    if (compute) ID3D11ComputeShader_Release(compute);
++    if (coordinates) ID3D11Buffer_Release(coordinates);
++    if (uav) ID3D11UnorderedAccessView_Release(uav);
++    if (output) ID3D11Buffer_Release(output);
++    if (staging) ID3D11Buffer_Release(staging);
++    return value;
++}
 +
 +static uint32_t read_pixel_at(ID3D11ShaderResourceView *view, unsigned x, unsigned y)
 +{
@@ -1517,6 +2382,11 @@ index 9ba2f39..90bca19 100644
 +    ID3D11Resource_Release(resource);
 +    if (FAILED(hr)) return value;
 +    ID3D11Texture2D_GetDesc(source, &desc);
++    if (desc.Format == DXGI_FORMAT_BC1_UNORM || desc.Format == DXGI_FORMAT_BC2_UNORM ||
++        desc.Format == DXGI_FORMAT_BC3_UNORM) {
++        ID3D11Texture2D_Release(source);
++        return x < desc.Width && y < desc.Height ? read_bc_pixel_at(view, x, y) : value;
++    }
 +    desc.Usage = D3D11_USAGE_STAGING;
 +    desc.BindFlags = desc.MiscFlags = 0;
 +    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
@@ -1547,7 +2417,7 @@ index 9ba2f39..90bca19 100644
  int main(int argc, char **argv)
  {
      NvD3DState st = {0};
-@@ -20,11 +62,13 @@ int main(int argc, char **argv)
+@@ -20,11 +144,13 @@ int main(int argc, char **argv)
      D3D11_VIEWPORT vp;
      UINT nvp = 1;
      uint32_t gw, gh, zmax;
@@ -1561,7 +2431,7 @@ index 9ba2f39..90bca19 100644
      CHECK(nv2a_d3d_init());
      sample = surface_get(0x20000, 32 * 4, 8, 32, 32, 0);
      CHECK(sample);
-@@ -55,5 +99,236 @@ int main(int argc, char **argv)
+@@ -55,5 +181,236 @@ int main(int argc, char **argv)
      ID3D11DeviceContext_RSGetViewports(s_ctx, &nvp, &vp);
      CHECK(nvp == 1 && vp.Width == 64 && vp.Height == 64);
      puts("PASS: sampled-surface upload preserves draw targets and viewport");
@@ -1731,7 +2601,7 @@ index 9ba2f39..90bca19 100644
 +        puts("PASS: swizzled16/32-bit CPU pixels synchronize while unchanged GPU pixels survive");
 +
 +        /* Reuse the last target's block as ordinary DXT1 and P8 data.
-+         * Draw setup must bind their decoded images rather than the old RT. */
++         * Draw setup must bind their uploaded images rather than the old RT. */
 +        for (j = 0; j < 4 * 8; j++) {
 +            uint8_t *block = ram + st.tex[0].addr + j * 8;
 +            block[0] = 0xE0; block[1] = 0x07;
@@ -1800,10 +2670,10 @@ index 9ba2f39..90bca19 100644
  }
 diff --git a/src/kernel/nv2a_notify_wait.h b/src/kernel/nv2a_notify_wait.h
 new file mode 100644
-index 0000000..f00a39b
+index 0000000..b853df4
 --- /dev/null
 +++ b/src/kernel/nv2a_notify_wait.h
-@@ -0,0 +1,94 @@
+@@ -0,0 +1,126 @@
 +/* Host waiting only: guest GET/NOP/stop values remain the completion rules. */
 +#ifndef XBOX_NV2A_NOTIFY_WAIT_H
 +#define XBOX_NV2A_NOTIFY_WAIT_H
@@ -1893,6 +2763,38 @@ index 0000000..f00a39b
 +            break;
 +        /* The one-millisecond fallback also notices guest-origin register
 +         * writes that do not pass through the executor's publishers. */
++        xbox_nv2a_wake_wait(wake, observed);
++    }
++}
++
++/* Exact unsigned distance test from the guest's direct fence polling loop.
++ * In particular, a completed value ahead of submitted wraps the distance;
++ * treating it as a signed number would change the guest's branch. */
++static int xbox_nv2a_fence_pending(volatile uint32_t *completed,
++    uint32_t submitted, uint32_t allowed_distance)
++{
++    return allowed_distance < (uint32_t)(submitted - *completed);
++}
++
++static void xbox_nv2a_fence_wait(XBOX_NV2A_WAKE *wake,
++    volatile uint32_t *completed, uint32_t submitted, uint32_t allowed_distance,
++    volatile LONG *stop)
++{
++    unsigned spins = 0;
++    while (xbox_nv2a_fence_pending(completed, submitted, allowed_distance) &&
++           !InterlockedCompareExchange(stop, 0, 0)) {
++#ifdef _WIN32
++        if (++spins & 63) {
++            YieldProcessor();
++            continue;
++        }
++#else
++        (void)spins;
++#endif
++        LONG observed = xbox_nv2a_wake_snapshot(wake);
++        if (!xbox_nv2a_fence_pending(completed, submitted, allowed_distance) ||
++            InterlockedCompareExchange(stop, 0, 0))
++            break;
 +        xbox_nv2a_wake_wait(wake, observed);
 +    }
 +}
@@ -2609,6 +3511,132 @@ index 0000000..60420ee
 +           argc > 1 ? argv[1] : "quiet");
 +    return 0;
 +}
+diff --git a/tests/kernel_dispatch/nv2a_fence_wait_test.c b/tests/kernel_dispatch/nv2a_fence_wait_test.c
+new file mode 100644
+index 0000000..0adeef9
+--- /dev/null
++++ b/tests/kernel_dispatch/nv2a_fence_wait_test.c
+@@ -0,0 +1,120 @@
++/* Direct fence waits keep the original unsigned distance predicate. */
++#include "kernel/nv2a_notify_wait.h"
++#include <stdio.h>
++#include <string.h>
++
++typedef struct {
++    XBOX_NV2A_WAKE wake;
++    volatile uint32_t completed;
++    volatile LONG stop, wait_calls;
++    HANDLE started, waiting;
++    int inject;
++} FIXTURE;
++static FIXTURE *active;
++static BOOL (WINAPI *native_wait)(volatile VOID *, PVOID, SIZE_T, DWORD);
++static volatile LONG bad_timeout, missed_wake;
++
++static BOOL WINAPI measured_wait(volatile VOID *address, PVOID compare,
++                                 SIZE_T size, DWORD timeout)
++{
++    FIXTURE *f = active;
++    if (size != sizeof(LONG) || timeout != 1) InterlockedExchange(&bad_timeout, 1);
++    InterlockedIncrement(&f->wait_calls);
++    SetEvent(f->waiting);
++    if (f->inject) {
++        f->inject = 0;
++        f->completed = 1;
++        xbox_nv2a_wake_publish(&f->wake);
++        if (!native_wait(address, compare, size, timeout))
++            InterlockedExchange(&missed_wake, 1);
++        return TRUE;
++    }
++    return native_wait(address, compare, size, timeout);
++}
++
++static int initialize(FIXTURE *f)
++{
++    memset(f, 0, sizeof *f);
++    f->completed = 0xFFFFFFFEu;
++    xbox_nv2a_wake_init(&f->wake);
++    if (!f->wake.wait_address || !f->wake.wake_all) return 0;
++    native_wait = f->wake.wait_address;
++    f->wake.wait_address = measured_wait;
++    f->started = CreateEventW(NULL, TRUE, FALSE, NULL);
++    f->waiting = CreateEventW(NULL, TRUE, FALSE, NULL);
++    active = f;
++    return f->started && f->waiting;
++}
++
++static void cleanup(FIXTURE *f)
++{
++    CloseHandle(f->started);
++    CloseHandle(f->waiting);
++}
++
++static DWORD WINAPI worker(LPVOID parameter)
++{
++    FIXTURE *f = parameter;
++    SetEvent(f->started);
++    xbox_nv2a_fence_wait(&f->wake, &f->completed, 3, 2, &f->stop);
++    return 0;
++}
++
++static int concurrent_completion(unsigned kind)
++{
++    FIXTURE f;
++    HANDLE thread;
++    if (!initialize(&f)) return 0;
++    if (kind == 3) {
++        f.wake.wait_address = NULL;
++        f.wake.wake_all = NULL;
++    }
++    thread = CreateThread(NULL, 0, worker, &f, 0, NULL);
++    if (!thread) ExitProcess(20);
++    if (WaitForSingleObject(kind == 3 ? f.started : f.waiting, 5000) != WAIT_OBJECT_0)
++        ExitProcess(21);
++    xbox_nv2a_wake_publish(&f.wake); /* Wake cannot change completion rules. */
++    if (WaitForSingleObject(thread, 0) != WAIT_TIMEOUT) ExitProcess(22);
++    if (kind == 1) InterlockedExchange(&f.stop, 1);
++    else f.completed = 1;
++    if (kind != 2) xbox_nv2a_wake_publish(&f.wake);
++    if (WaitForSingleObject(thread, 5000) != WAIT_OBJECT_0) ExitProcess(23);
++    CloseHandle(thread);
++    if (kind == 1 && f.completed != 0xFFFFFFFEu) ExitProcess(24);
++    cleanup(&f);
++    return !bad_timeout && !missed_wake;
++}
++
++int main(void)
++{
++    static const struct { uint32_t submitted, completed, limit; int pending; } cases[] = {
++        { 0x1234, 0x1200, 0x20, 1 }, { 0x1234, 0x1214, 0x20, 0 },
++        { 0x1234, 0x1215, 0x20, 0 }, { 3, 0xFFFFFFFEu, 2, 1 },
++        { 3, 1, 2, 0 }, { 3, 2, 2, 0 }, { 3, 3, 2, 0 },
++        { 0xFFFFFFFEu, 1, 2, 1 }, { 0xFFFFFFFEu, 0xFFFFFFFCu, 2, 0 },
++        { 3, 2, 0, 1 }, { 3, 3, 0, 0 }, { 3, 4, 0, 1 },
++        { 3, 4, 0xFFFFFFFFu, 0 }, { 3, 0xFFFFFFFEu, 0xFFFFFFFFu, 0 }
++    };
++    FIXTURE f;
++    for (unsigned i = 0; i < sizeof cases / sizeof cases[0]; i++) {
++        volatile uint32_t completed = cases[i].completed;
++        if (xbox_nv2a_fence_pending(&completed, cases[i].submitted, cases[i].limit)
++                != cases[i].pending || completed != cases[i].completed)
++            return 1;
++    }
++    if (!initialize(&f)) return 2;
++    f.completed = 1;
++    xbox_nv2a_fence_wait(&f.wake, &f.completed, 3, 2, &f.stop);
++    if (f.wait_calls || f.completed != 1) return 3;
++    cleanup(&f);
++    if (!initialize(&f)) return 4;
++    f.inject = 1;
++    xbox_nv2a_fence_wait(&f.wake, &f.completed, 3, 2, &f.stop);
++    if (f.wait_calls != 1 || f.completed != 1 || missed_wake || bad_timeout) return 5;
++    cleanup(&f);
++    for (unsigned kind = 0; kind < 4; kind++)
++        if (!concurrent_completion(kind)) return 6 + kind;
++    puts("PASS: exact unsigned fence distances, wrap boundaries, early completion, "
++         "check-to-wait race, spurious/stop wakes and bounded fallback");
++    return 0;
++}
 diff --git a/tests/kernel_dispatch/nv2a_notify_wait_test.c b/tests/kernel_dispatch/nv2a_notify_wait_test.c
 new file mode 100644
 index 0000000..2f5a9a8
@@ -2768,6 +3796,259 @@ index 0000000..2f5a9a8
 +    if (!multiple_waiters()) return 8;
 +    puts("PASS: early completion, check-to-wait race, GET/NOP/stop wakes, "
 +         "spurious wake, bounded fallback and multiple guest waiters");
++    return 0;
++}
+diff --git a/tests/kernel_dispatch/nv2a_pb_hitch_test.c b/tests/kernel_dispatch/nv2a_pb_hitch_test.c
+new file mode 100644
+index 0000000..a35c3fe
+--- /dev/null
++++ b/tests/kernel_dispatch/nv2a_pb_hitch_test.c
+@@ -0,0 +1,247 @@
++/* Use deterministic clocks and a synthetic command stream: tracing must not
++ * change decoding, callback order or guest command bytes. No GPU is started. */
++#include "kernel/kernel.h"
++#include <stdio.h>
++#include <string.h>
++#include <stdlib.h>
++
++static int64_t test_wall, test_cpu;
++static unsigned clock_calls, kick_calls;
++static uint8_t *memory;
++static struct { uint32_t subch, method, param; } commands[64];
++static unsigned command_count;
++
++static BOOL WINAPI test_qpc(LARGE_INTEGER *value)
++{
++    clock_calls++;
++    value->QuadPart = test_wall;
++    return TRUE;
++}
++
++static BOOL WINAPI test_frequency(LARGE_INTEGER *value)
++{
++    value->QuadPart = 1000000;
++    return TRUE;
++}
++
++static BOOL WINAPI test_thread_times(HANDLE thread, LPFILETIME created,
++    LPFILETIME exited, LPFILETIME kernel, LPFILETIME user)
++{
++    (void)thread;
++    memset(created, 0, sizeof *created);
++    memset(exited, 0, sizeof *exited);
++    memset(kernel, 0, sizeof *kernel);
++    user->dwLowDateTime = (DWORD)test_cpu;
++    user->dwHighDateTime = (DWORD)(test_cpu >> 32);
++    return TRUE;
++}
++
++#define QueryPerformanceCounter test_qpc
++#define QueryPerformanceFrequency test_frequency
++#define GetThreadTimes test_thread_times
++#include "../../src/kernel/nv2a_pb_scan.c"
++#undef QueryPerformanceCounter
++#undef QueryPerformanceFrequency
++#undef GetThreadTimes
++
++ptrdiff_t xbox_GetMemoryOffset(void)
++{
++    return (ptrdiff_t)memory - (ptrdiff_t)XBOX_CONTIG_BASE;
++}
++
++void nv2a_d3d_kick(void) { kick_calls++; }
++void nv2a_pb_exec_report(void) {}
++void nv2a_pb_exec_method(uint32_t subch, uint32_t method, uint32_t param)
++{
++    if (command_count >= 64) ExitProcess(30);
++    commands[command_count].subch = subch;
++    commands[command_count].method = method;
++    commands[command_count++].param = param;
++    if (method == 0x17FC && !param) {
++        test_wall += 80000; /* A slow draw, independent of host scheduling. */
++        test_cpu += 400000; /* 40 ms of CPU within 80 ms of elapsed time. */
++    }
++    if (method == 0x0130) test_wall += 16000; /* Normal flip pacing. */
++}
++
++#define CHECK(condition) do { if (!(condition)) { \
++    fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #condition); return 1; \
++} } while (0)
++
++int main(int argc, char **argv)
++{
++    uint32_t *root, *called, *jumped;
++    uint32_t original[12];
++    int trace = argc > 1 && strcmp(argv[1], "trace") == 0;
++    _putenv_s("RECOMP_PB_EXEC", "1");
++    _putenv_s("RECOMP_PB_SCAN", "");
++    _putenv_s("RECOMP_HITCH_TRACE", trace ? "1" : "0");
++    memory = calloc(1, XBOX_CONTIG_SIZE);
++    CHECK(memory);
++    root = (uint32_t *)(memory + 0x100);
++    called = (uint32_t *)(memory + 0x1000);
++    jumped = (uint32_t *)(memory + 0x2000);
++    root[0] = (4u << 18) | (2u << 13) | 0x1720;
++    for (unsigned i = 0; i < 4; i++) root[i + 1] = 10 + i;
++    root[5] = 0x40000000 | (4u << 18) | (3u << 13) | 0x1800;
++    for (unsigned i = 0; i < 4; i++) root[i + 6] = 20 + i;
++    root[10] = 0x1002; /* CALL */
++    root[11] = 0x2001; /* JUMP after RETURN */
++    called[0] = (1u << 18) | 0x17FC;
++    called[1] = 0;
++    called[2] = 0x00020000; /* RETURN */
++    /* FLIP_STALL at the end of an increasing packet must still count as
++     * pacing, rather than hide the slow draw in the non-flip maximum. */
++    jumped[0] = (5u << 18) | 0x0120;
++    for (unsigned i = 1; i <= 5; i++) jumped[i] = 0;
++    memcpy(original, root, sizeof original);
++    test_wall = 1000000;
++    nv2a_pb_scan(XBOX_CONTIG_BASE + 0x100, XBOX_CONTIG_BASE + 0x2018);
++    CHECK(kick_calls == 1 && command_count == 14);
++    CHECK(s_tot_calls == 1 && s_tot_jumps == 1 && !s_tot_unknown);
++    for (unsigned i = 0; i < 4; i++) {
++        CHECK(commands[i].subch == 2 && commands[i].method == 0x1720 + i * 4);
++        CHECK(commands[i].param == 10 + i);
++        CHECK(commands[i + 4].subch == 3 && commands[i + 4].method == 0x1800);
++        CHECK(commands[i + 4].param == 20 + i);
++    }
++    CHECK(commands[8].method == 0x17FC && !commands[8].param);
++    for (unsigned i = 0; i < 5; i++)
++        CHECK(commands[9 + i].method == 0x0120 + i * 4 && !commands[9 + i].param);
++    CHECK(memcmp(original, root, sizeof original) == 0);
++    CHECK(trace ? clock_calls != 0 : clock_calls == 0);
++
++    /* PUT can stop after a header or in its payload. RETURN/CALL/JUMP-looking
++     * parameter values must remain data when the next submission arrives. */
++    {
++        uint32_t *split = (uint32_t *)(memory + 0x400);
++        uint32_t saved[5];
++        command_count = 0;
++        split[0] = (4u << 18) | (2u << 13) | 0x1720;
++        split[1] = 0x00020000; split[2] = 0x1002;
++        split[3] = 0x2001; split[4] = 0x11223344;
++        memcpy(saved, split, sizeof saved);
++        nv2a_pb_scan(XBOX_CONTIG_BASE + 0x400, XBOX_CONTIG_BASE + 0x404);
++        CHECK(command_count == 0);
++        nv2a_pb_scan(XBOX_CONTIG_BASE + 0x404, XBOX_CONTIG_BASE + 0x408);
++        CHECK(command_count == 1 && commands[0].param == 0x00020000);
++        nv2a_pb_scan(XBOX_CONTIG_BASE + 0x408, XBOX_CONTIG_BASE + 0x410);
++        CHECK(command_count == 3);
++        nv2a_pb_scan(XBOX_CONTIG_BASE + 0x410, XBOX_CONTIG_BASE + 0x414);
++        CHECK(command_count == 4);
++        for (unsigned i = 0; i < 4; i++) {
++            CHECK(commands[i].subch == 2 && commands[i].method == 0x1720 + i * 4);
++            CHECK(commands[i].param == saved[i + 1]);
++        }
++        CHECK(memcmp(saved, split, sizeof saved) == 0);
++
++        command_count = 0;
++        split[0] = 0x40000000 | (3u << 18) | (3u << 13) | 0x1800;
++        split[1] = 0x2001; split[2] = 0x1002; split[3] = 0x00020000;
++        split[4] = (1u << 18) | 0x1D8C; split[5] = 32;
++        nv2a_pb_scan(XBOX_CONTIG_BASE + 0x400, XBOX_CONTIG_BASE + 0x408);
++        nv2a_pb_scan(XBOX_CONTIG_BASE + 0x408, XBOX_CONTIG_BASE + 0x418);
++        CHECK(command_count == 4);
++        for (unsigned i = 0; i < 3; i++) {
++            CHECK(commands[i].subch == 3 && commands[i].method == 0x1800);
++            CHECK(commands[i].param == split[i + 1]);
++        }
++        CHECK(commands[3].method == 0x1D8C && commands[3].param == 32);
++    }
++
++    /* Called lists reach RETURN even when their caller's PUT immediately
++     * follows CALL. The caller can then begin a split packet of its own. */
++    {
++        uint32_t *split = (uint32_t *)(memory + 0x600);
++        command_count = 0;
++        split[0] = 0x1002;
++        split[1] = (3u << 18) | 0x1D8C;
++        split[2] = 1; split[3] = 2; split[4] = 3;
++        nv2a_pb_scan(XBOX_CONTIG_BASE + 0x600, XBOX_CONTIG_BASE + 0x604);
++        CHECK(command_count == 1 && commands[0].method == 0x17FC);
++        nv2a_pb_scan(XBOX_CONTIG_BASE + 0x604, XBOX_CONTIG_BASE + 0x608);
++        CHECK(command_count == 1);
++        nv2a_pb_scan(XBOX_CONTIG_BASE + 0x608, XBOX_CONTIG_BASE + 0x614);
++        CHECK(command_count == 4);
++        for (unsigned i = 0; i < 3; i++)
++            CHECK(commands[i + 1].method == 0x1D8C + i * 4 && commands[i + 1].param == i + 1);
++    }
++
++    /* Complete a partial packet, follow an actual backwards ring JUMP,
++     * and suspend/resume the next packet in the low part of the ring. */
++    {
++        uint32_t *high = (uint32_t *)(memory + 0x2F00);
++        uint32_t *low = (uint32_t *)(memory + 0x800);
++        command_count = 0;
++        high[0] = (2u << 18) | 0x1720; high[1] = 0x11; high[2] = 0x22;
++        high[3] = 0x801;
++        low[0] = (2u << 18) | 0x1800; low[1] = 0x33; low[2] = 0x44;
++        nv2a_pb_scan(XBOX_CONTIG_BASE + 0x2F00, XBOX_CONTIG_BASE + 0x2F08);
++        nv2a_pb_scan(XBOX_CONTIG_BASE + 0x2F08, XBOX_CONTIG_BASE + 0x804);
++        nv2a_pb_scan(XBOX_CONTIG_BASE + 0x804, XBOX_CONTIG_BASE + 0x80C);
++        CHECK(command_count == 4);
++        CHECK(commands[0].method == 0x1720 && commands[0].param == 0x11);
++        CHECK(commands[1].method == 0x1724 && commands[1].param == 0x22);
++        CHECK(commands[2].method == 0x1800 && commands[2].param == 0x33);
++        CHECK(commands[3].method == 0x1804 && commands[3].param == 0x44);
++    }
++
++    /* Sequential PFIFO reads and continuation aliases wrap on the26-bit bus. */
++    {
++        uint32_t *last = (uint32_t *)(memory + XBOX_CONTIG_SIZE - 4);
++        uint32_t *first = (uint32_t *)memory;
++        command_count = 0;
++        *last = (2u << 18) | 0x1D8C; first[0] = 0x1002; first[1] = 0x2001;
++        nv2a_pb_scan(XBOX_CONTIG_BASE + XBOX_CONTIG_SIZE - 4, XBOX_CONTIG_BASE);
++        CHECK(command_count == 0);
++        nv2a_pb_scan(XBOX_CONTIG_BASE + XBOX_CONTIG_SIZE, XBOX_CONTIG_BASE + 8);
++        CHECK(command_count == 2);
++        CHECK(commands[0].method == 0x1D8C && commands[0].param == 0x1002);
++        CHECK(commands[1].method == 0x1D90 && commands[1].param == 0x2001);
++
++        /* A complete payload can cross the bus boundary within one scan. */
++        command_count = 0;
++        last[-1] = (3u << 18) | 0x1720; last[0] = 42;
++        first[0] = 0x1002; first[1] = 0x2001;
++        nv2a_pb_scan(XBOX_CONTIG_BASE + XBOX_CONTIG_SIZE - 8, XBOX_CONTIG_BASE + 8);
++        CHECK(command_count == 3 && commands[0].param == 42);
++        CHECK(commands[1].method == 0x1724 && commands[1].param == 0x1002);
++        CHECK(commands[2].method == 0x1728 && commands[2].param == 0x2001);
++
++        /* Called lists use their RETURN, not the caller's PUT, and may wrap
++         * physical RAM before that RETURN without losing caller position. */
++        command_count = 0;
++        last[-1] = (1u << 18) | 0x17FC; last[0] = 0;
++        first[0] = 0x00020000;
++        root = (uint32_t *)(memory + 0x900);
++        root[0] = (XBOX_CONTIG_SIZE - 8) | 2;
++        nv2a_pb_scan(XBOX_CONTIG_BASE + 0x900, XBOX_CONTIG_BASE + 0x904);
++        CHECK(command_count == 1 && commands[0].method == 0x17FC);
++    }
++
++    /* An explicitly discontinuous scan cannot inherit stale packet state. */
++    {
++        uint32_t *old = (uint32_t *)(memory + 0xC00);
++        uint32_t *fresh = (uint32_t *)(memory + 0xD00);
++        command_count = 0;
++        old[0] = (3u << 18) | 0x1800;
++        fresh[0] = (1u << 18) | 0x1720; fresh[1] = 42;
++        nv2a_pb_scan(XBOX_CONTIG_BASE + 0xC00, XBOX_CONTIG_BASE + 0xC04);
++        nv2a_pb_scan(XBOX_CONTIG_BASE + 0xD00, XBOX_CONTIG_BASE + 0xD08);
++        CHECK(command_count == 1 && commands[0].method == 0x1720 && commands[0].param == 42);
++    }
++
++    /* Empty packets execute nothing and need no per-packet diagnostic clock. */
++    {
++        unsigned before_clocks = clock_calls;
++        command_count = 0;
++        memset(memory + 0x1800, 0, 1000 * 4);
++        nv2a_pb_scan(XBOX_CONTIG_BASE + 0x1800, XBOX_CONTIG_BASE + 0x27A0);
++        CHECK(command_count == 0);
++        CHECK(clock_calls - before_clocks == (trace ? 2u : 0u));
++    }
++    CHECK(trace ? clock_calls != 0 : clock_calls == 0);
++    free(memory);
++    puts("PASS: tracing and split submissions preserve packets, calls, ring/bus wraps and command order");
 +    return 0;
 +}
 diff --git a/tests/nv2a_shader_cache/CMakeLists.txt b/tests/nv2a_shader_cache/CMakeLists.txt
@@ -2960,7 +4241,7 @@ index 0000000..2ca96d1
 +}
 diff --git a/tests/nv2a_textures/CMakeLists.txt b/tests/nv2a_textures/CMakeLists.txt
 new file mode 100644
-index 0000000..2ae9d7d
+index 0000000..3529a60
 --- /dev/null
 +++ b/tests/nv2a_textures/CMakeLists.txt
 @@ -0,0 +1,13 @@
@@ -2974,15 +4255,15 @@ index 0000000..2ae9d7d
 +        NV2A_TEXTURE_RENDERER="${NV2A_TEXTURE_RENDERER}")
 +endif()
 +target_link_libraries(nv2a_textures PRIVATE d3d11 dxgi dxguid d3dcompiler)
-+foreach(case srv_retry mip_retry palette_identity decode_equivalence)
++foreach(case srv_retry mip_retry palette_identity decode_equivalence native_bc)
 +    add_test(NAME nv2a_texture_${case} COMMAND nv2a_textures ${case})
 +endforeach()
 diff --git a/tests/nv2a_textures/README.md b/tests/nv2a_textures/README.md
 new file mode 100644
-index 0000000..2db3972
+index 0000000..168759e
 --- /dev/null
 +++ b/tests/nv2a_textures/README.md
-@@ -0,0 +1,35 @@
+@@ -0,0 +1,66 @@
 +# Texture cache and upload regression checks
 +
 +Run from the game checkout with its portable Windows toolchain:
@@ -2995,12 +4276,28 @@ index 0000000..2db3972
 +ctest --test-dir conformance_tmp/texture-tests --output-on-failure
 +```
 +
-+The three GPU cases exercise failed-resource retry, complete mip publication,
++The four GPU cases exercise failed-resource retry, complete mip publication,
 +retention of an existing upload during allocation failure, and independent
 +palette-length cache identity. The CPU case compares complete ARGB/XRGB and
 +DXT1/3/5 rectangles with independent per-texel addressing and decoding. It covers
 +unaligned source addresses, odd compressed sizes, short mip dimensions, and
 +destination boundary guards.
++
++The `native_bc` case samples BC1/2/3 resources on the GPU against an independently
++decoded BGRA reference. Its 120 combinations cover full and short mip chains,
++all cube faces, non-square and non-power-of-two dimensions, four source
++alignments, point and shifted linear filtering, actual resource/SRV formats and
++byte accounting, failed-view retry, and streamed updates across kick epochs.
++Base dimensions that are not multiples of four, unsupported formats, and chains
++that need generated mips retain the existing BGRA path.
++
++Native BC decoding preserves the guest blocks but is not bit-identical to the
++integer CPU decoder. The test derives each texel/channel's tolerance from the
++endpoint span under [Direct3D's BC precision rules, section 19.5.2](https://microsoft.github.io/DirectX-Specs/d3d/archive/D3D11_3_FunctionalSpec.htm#19.5.2),
++plus the exact difference from the CPU decoder's expansion/truncation. Filtered
++bounds use the contributing texels' weights. Transparent/opaque extrema and
++BC2's explicit alpha are checked exactly. The RTX 2000 Ada's largest differences
++in the randomized tests were 6/255 for RGB and 7/255 for intermediate alpha.
 +
 +The optional CPU microbenchmark compares the original row traversal with the
 +selected decoder, using medians of seven runs. It has no timing pass/fail limit:
@@ -3014,16 +4311,510 @@ index 0000000..2db3972
 +traversal. DXT1/3/5 improved by 1.27-1.37 times. These measurements cover CPU
 +decoding, not GPU upload or whole-frame time, and vary with load and clock speed.
 +
++The optional native-upload benchmark times CPU hashing, decoding and upload API
++calls for already-created 1024x1024 textures with all 11 mip levels:
++
++```powershell
++./conformance_tmp/texture-tests/nv2a_textures.exe benchmark_native_bc
++```
++
++It alternates measurement order, reports seven-sample medians of eight updates,
++and drains GPU completion between samples outside the measured interval. On
++this PC, BGRA/native CPU costs were 3.171/0.103 ms for DXT1, 3.822/0.170 ms for
++DXT3, and 3.078/0.183 ms for DXT5. Texture/upload data fell from 5,592,404 bytes
++to 699,064 bytes for BC1 and 1,398,128 bytes for BC2/3. This measures eligible
++upload bursts; it does not measure GPU throughput or predict gameplay FPS, and
++does not apply to short mip chains that retain generated BGRA mips.
++
 +For an actual renderer snapshot comparison, configure another build with
 +`-DNV2A_TEXTURE_RENDERER=C:/absolute/path/to/nv2a_d3d11.c`. The source's sibling
 +headers can be resolved through the renderer include directory supplied by this
 +test project.
+diff --git a/tests/nv2a_textures/native_bc_tests.h b/tests/nv2a_textures/native_bc_tests.h
+new file mode 100644
+index 0000000..4e2a775
+--- /dev/null
++++ b/tests/nv2a_textures/native_bc_tests.h
+@@ -0,0 +1,473 @@
++/* Sample actual BC resources and the established decoded BGRA reference on
++ * the GPU, including every mip/face and filtered taps between texel centers. */
++#include <math.h>
++
++static ID3D11ComputeShader *bc_compare_shader;
++static ID3D11SamplerState *bc_compare_sampler[2];
++static ID3D11Buffer *bc_compare_constants;
++static float bc_max_rgb_error, bc_max_alpha_error;
++
++static int bc_compare_init(void)
++{
++    static const char shader[] =
++        "Texture2DArray<float4> compressed : register(t0);"
++        "Texture2DArray<float4> decoded : register(t1);"
++        "SamplerState taps : register(s0);"
++        "struct Pair { float4 compressed; float4 decoded; };"
++        "RWStructuredBuffer<Pair> output : register(u0);"
++        "cbuffer Params : register(b0) { uint width,height,mip,face; float2 shift,pad; };"
++        "[numthreads(8,8,1)] void main(uint3 id : SV_DispatchThreadID) {"
++        " if(id.x>=width || id.y>=height) return;"
++        " float3 uv=float3((float2(id.xy)+0.5+shift)/float2(width,height),face);"
++        " Pair p; p.compressed=compressed.SampleLevel(taps,uv,mip);"
++        " p.decoded=decoded.SampleLevel(taps,uv,mip); output[id.y*width+id.x]=p; }";
++    ID3DBlob *code = NULL, *errors = NULL;
++    D3D11_SAMPLER_DESC sampler_desc;
++    unsigned i;
++    HRESULT hr = D3DCompile(shader, sizeof shader - 1, "bc_compare", NULL, NULL,
++                            "main", "cs_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &code, &errors);
++    if (FAILED(hr) && errors)
++        fprintf(stderr, "%s\n", (const char *)ID3D10Blob_GetBufferPointer(errors));
++    if (errors) ID3D10Blob_Release(errors);
++    CHECK(SUCCEEDED(hr) && code);
++    hr = ID3D11Device_CreateComputeShader(s_dev, ID3D10Blob_GetBufferPointer(code),
++                                         ID3D10Blob_GetBufferSize(code), NULL, &bc_compare_shader);
++    ID3D10Blob_Release(code);
++    CHECK(SUCCEEDED(hr));
++    memset(&sampler_desc, 0, sizeof sampler_desc);
++    sampler_desc.AddressU = sampler_desc.AddressV = sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
++    sampler_desc.MaxLOD = D3D11_FLOAT32_MAX;
++    for (i = 0; i < 2; i++) {
++        sampler_desc.Filter = i ? D3D11_FILTER_MIN_MAG_MIP_LINEAR : D3D11_FILTER_MIN_MAG_MIP_POINT;
++        CHECK(SUCCEEDED(ID3D11Device_CreateSamplerState(s_dev, &sampler_desc, &bc_compare_sampler[i])));
++    }
++    bc_compare_constants = make_buffer(32, D3D11_BIND_CONSTANT_BUFFER);
++    CHECK(bc_compare_constants);
++    return 0;
++}
++
++static ID3D11ShaderResourceView *bc_array_view(ID3D11ShaderResourceView *original,
++                                             D3D11_TEXTURE2D_DESC *texture_desc)
++{
++    ID3D11Resource *resource = NULL;
++    ID3D11Texture2D *texture = NULL;
++    ID3D11ShaderResourceView *array = NULL;
++    D3D11_SHADER_RESOURCE_VIEW_DESC view_desc;
++    ID3D11ShaderResourceView_GetResource(original, &resource);
++    if (FAILED(ID3D11Resource_QueryInterface(resource, &IID_ID3D11Texture2D, (void **)&texture)))
++        goto done;
++    ID3D11Texture2D_GetDesc(texture, texture_desc);
++    memset(&view_desc, 0, sizeof view_desc);
++    view_desc.Format = texture_desc->Format;
++    view_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
++    view_desc.Texture2DArray.MipLevels = texture_desc->MipLevels;
++    view_desc.Texture2DArray.ArraySize = texture_desc->ArraySize;
++    ID3D11Device_CreateShaderResourceView(s_dev, resource, &view_desc, &array);
++done:
++    if (texture) ID3D11Texture2D_Release(texture);
++    if (resource) ID3D11Resource_Release(resource);
++    return array;
++}
++
++static ID3D11ShaderResourceView *bc_reference(const NvD3DTexture *t, const TexLayout *layout)
++{
++    D3D11_SUBRESOURCE_DATA data[16 * 6];
++    uint32_t *pixels[16 * 6] = {0};
++    D3D11_TEXTURE2D_DESC desc;
++    ID3D11Texture2D *texture = NULL;
++    ID3D11ShaderResourceView *view = NULL;
++    int face, mip, count = 0, levels = host_levels(layout, t);
++    memset(data, 0, sizeof data);
++    for (face = 0; face < layout->faces; face++)
++        for (mip = 0; mip < levels; mip++) {
++            uint32_t width = t->width >> mip ? t->width >> mip : 1;
++            uint32_t height = t->height >> mip ? t->height >> mip : 1;
++            uint32_t x, y;
++            pixels[count] = malloc((size_t)width * height * 4);
++            if (!pixels[count]) goto done;
++            if (mip < layout->levels) {
++                const uint8_t *src = guest(t->addr) + face * layout->face_stride + layout->level_off[mip];
++                for (y = 0; y < height; y++)
++                    for (x = 0; x < width; x++)
++                        if (!d3d8_dxt_decode_texel(src, t->color, x, y, width, &pixels[count][y * width + x]))
++                            goto done;
++            } else {
++                uint32_t previous_width = t->width >> (mip - 1) ? t->width >> (mip - 1) : 1;
++                uint32_t previous_height = t->height >> (mip - 1) ? t->height >> (mip - 1) : 1;
++                halve_bgra(pixels[count - 1], previous_width, previous_height, pixels[count]);
++            }
++            data[count].pSysMem = pixels[count];
++            data[count].SysMemPitch = width * 4;
++            count++;
++        }
++    memset(&desc, 0, sizeof desc);
++    desc.Width = t->width; desc.Height = t->height;
++    desc.MipLevels = levels; desc.ArraySize = layout->faces;
++    desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
++    desc.SampleDesc.Count = 1;
++    desc.Usage = D3D11_USAGE_IMMUTABLE;
++    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
++    desc.MiscFlags = t->cube ? D3D11_RESOURCE_MISC_TEXTURECUBE : 0;
++    if (SUCCEEDED(ID3D11Device_CreateTexture2D(s_dev, &desc, data, &texture)))
++        ID3D11Device_CreateShaderResourceView(s_dev, (ID3D11Resource *)texture, NULL, &view);
++done:
++    if (texture) ID3D11Texture2D_Release(texture);
++    for (count = 0; count < 16 * 6; count++) free(pixels[count]);
++    return view;
++}
++
++/* D3D11 spec 19.5.2 permits 1/255 + 3% of the endpoint span for BC1/2/3.
++ * Add the exact difference between its promoted/interpolated reference and
++ * our existing integer decoder, rather than using a guessed global epsilon.
++ * https://microsoft.github.io/DirectX-Specs/d3d/archive/D3D11_3_FunctionalSpec.htm#19.5.2 */
++static float bc_texel_tolerance(const uint8_t *src, unsigned format, unsigned width,
++                                 unsigned x, unsigned y, unsigned channel)
++{
++    unsigned block_bytes = d3d8_format_dxt_block_bytes(format);
++    const uint8_t *block = src + ((size_t)(y / 4) * ((width + 3) / 4) + x / 4) * block_bytes;
++    unsigned selector, texel = (y & 3) * 4 + (x & 3), expected;
++    float ideal, span;
++    d3d8_dxt_decode_texel(src, format, x, y, width, &expected);
++    if (channel < 3) {
++        const uint8_t *color = block + (block_bytes == 16 ? 8 : 0);
++        unsigned c0 = color[0] | (color[1] << 8), c1 = color[2] | (color[3] << 8);
++        unsigned bits = channel == 1 ? 6 : 5, shift = channel == 0 ? 11 : channel == 1 ? 5 : 0;
++        unsigned a = (c0 >> shift) & ((1u << bits) - 1), b = (c1 >> shift) & ((1u << bits) - 1);
++        unsigned ap = (a << (8 - bits)) | (a >> (2 * bits - 8));
++        unsigned bp = (b << (8 - bits)) | (b >> (2 * bits - 8));
++        unsigned indices = color[4] | (color[5] << 8) | (color[6] << 16) | ((unsigned)color[7] << 24);
++        selector = (indices >> (2 * texel)) & 3;
++        span = fmaxf(fabsf((float)ap - bp), fabsf((float)a - b) * 255 / ((1u << bits) - 1));
++        ideal = selector == 0 ? (float)ap : selector == 1 ? (float)bp :
++                (c0 > c1 || block_bytes == 16) ?
++                    (selector == 2 ? (2.0f * ap + bp) / 3 : (ap + 2.0f * bp) / 3) :
++                    selector == 2 ? (ap + bp) / 2.0f : 0;
++        expected = (expected >> (16 - channel * 8)) & 255;
++    } else {
++        expected >>= 24;
++        if (format != 0x0F) return 0.001f; /* BC1 one-bit and BC2 explicit alpha. */
++        {
++            uint64_t indices = 0;
++            unsigned i, a = block[0], b = block[1];
++            for (i = 0; i < 6; i++) indices |= (uint64_t)block[2 + i] << (8 * i);
++            selector = (unsigned)((indices >> (3 * texel)) & 7);
++            span = fabsf((float)a - b);
++            ideal = selector == 0 ? (float)a : selector == 1 ? (float)b :
++                    a > b ? ((8 - selector) * (float)a + (selector - 1) * (float)b) / 7 :
++                    selector < 6 ? ((6 - selector) * (float)a + (selector - 1) * (float)b) / 5 :
++                    selector == 6 ? 0 : 255;
++        }
++    }
++    /* The specification requires exact extreme values, regardless of span. */
++    if (ideal == 0 || ideal == 255) return 0.001f;
++    return 1.0f + 0.03f * span + fabsf(ideal - expected) + 0.001f;
++}
++
++static float bc_sample_tolerance(const NvD3DTexture *t, const TexLayout *layout,
++                                  const uint8_t *snapshot, unsigned face, unsigned mip,
++                                  unsigned x, unsigned y, unsigned channel, unsigned filter)
++{
++    unsigned width = layout->level_w[mip], height = layout->level_h[mip];
++    const uint8_t *src = snapshot + face * layout->face_stride + layout->level_off[mip];
++    if (!filter) return bc_texel_tolerance(src, t->color, width, x, y, channel);
++    /* The linear test's shifts are (+1/4,-1/4) texel, with clamp addressing. */
++    {
++        unsigned x1 = x + 1 < width ? x + 1 : x, y0 = y ? y - 1 : 0;
++        return 0.1875f * bc_texel_tolerance(src, t->color, width, x, y0, channel) +
++               0.0625f * bc_texel_tolerance(src, t->color, width, x1, y0, channel) +
++               0.5625f * bc_texel_tolerance(src, t->color, width, x, y, channel) +
++               0.1875f * bc_texel_tolerance(src, t->color, width, x1, y, channel);
++    }
++}
++
++static int bc_compare(ID3D11ShaderResourceView *compressed, ID3D11ShaderResourceView *decoded,
++                       int native, const NvD3DTexture *t, const TexLayout *layout,
++                       const uint8_t *snapshot)
++{
++    D3D11_TEXTURE2D_DESC a_desc, b_desc;
++    ID3D11ShaderResourceView *views[2] = { bc_array_view(compressed, &a_desc), bc_array_view(decoded, &b_desc) };
++    D3D11_BUFFER_DESC buffer_desc;
++    D3D11_UNORDERED_ACCESS_VIEW_DESC uav_desc;
++    ID3D11Buffer *output = NULL, *staging = NULL;
++    ID3D11UnorderedAccessView *uav = NULL;
++    D3D11_MAPPED_SUBRESOURCE mapped;
++    unsigned face, mip, filter;
++    CHECK(views[0] && views[1]);
++    CHECK(a_desc.Width == b_desc.Width && a_desc.Height == b_desc.Height);
++    CHECK(a_desc.MipLevels == b_desc.MipLevels && a_desc.ArraySize == b_desc.ArraySize);
++    memset(&buffer_desc, 0, sizeof buffer_desc);
++    buffer_desc.ByteWidth = a_desc.Width * a_desc.Height * 8 * sizeof(float);
++    buffer_desc.Usage = D3D11_USAGE_DEFAULT;
++    buffer_desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
++    buffer_desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
++    buffer_desc.StructureByteStride = 8 * sizeof(float);
++    CHECK(SUCCEEDED(ID3D11Device_CreateBuffer(s_dev, &buffer_desc, NULL, &output)));
++    memset(&uav_desc, 0, sizeof uav_desc);
++    uav_desc.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
++    uav_desc.Buffer.NumElements = a_desc.Width * a_desc.Height;
++    CHECK(SUCCEEDED(ID3D11Device_CreateUnorderedAccessView(s_dev, (ID3D11Resource *)output, &uav_desc, &uav)));
++    buffer_desc.Usage = D3D11_USAGE_STAGING;
++    buffer_desc.BindFlags = buffer_desc.MiscFlags = buffer_desc.StructureByteStride = 0;
++    buffer_desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
++    CHECK(SUCCEEDED(ID3D11Device_CreateBuffer(s_dev, &buffer_desc, NULL, &staging)));
++    for (face = 0; face < a_desc.ArraySize; face++)
++        for (mip = 0; mip < a_desc.MipLevels; mip++)
++            for (filter = 0; filter < 2; filter++) {
++                struct { uint32_t width, height, mip, face; float shift[2], pad[2]; } params = {0};
++                ID3D11UnorderedAccessView *null_uav = NULL;
++                unsigned pixel, channel;
++                params.width = a_desc.Width >> mip ? a_desc.Width >> mip : 1;
++                params.height = a_desc.Height >> mip ? a_desc.Height >> mip : 1;
++                params.mip = mip; params.face = face;
++                params.shift[0] = filter ? 0.25f : 0;
++                params.shift[1] = filter ? -0.25f : 0;
++                upload_cb(bc_compare_constants, &params, sizeof params);
++                ID3D11DeviceContext_CSSetShader(s_ctx, bc_compare_shader, NULL, 0);
++                ID3D11DeviceContext_CSSetShaderResources(s_ctx, 0, 2, views);
++                ID3D11DeviceContext_CSSetSamplers(s_ctx, 0, 1, &bc_compare_sampler[filter]);
++                ID3D11DeviceContext_CSSetConstantBuffers(s_ctx, 0, 1, &bc_compare_constants);
++                ID3D11DeviceContext_CSSetUnorderedAccessViews(s_ctx, 0, 1, &uav, NULL);
++                ID3D11DeviceContext_Dispatch(s_ctx, (params.width + 7) / 8, (params.height + 7) / 8, 1);
++                ID3D11DeviceContext_CSSetUnorderedAccessViews(s_ctx, 0, 1, &null_uav, NULL);
++                ID3D11DeviceContext_CopyResource(s_ctx, (ID3D11Resource *)staging, (ID3D11Resource *)output);
++                CHECK(SUCCEEDED(ID3D11DeviceContext_Map(s_ctx, (ID3D11Resource *)staging, 0, D3D11_MAP_READ, 0, &mapped)));
++                for (pixel = 0; pixel < params.width * params.height; pixel++)
++                    for (channel = 0; channel < 4; channel++) {
++                        const float *pair = (const float *)mapped.pData + pixel * 8;
++                        float error = fabsf(pair[channel] - pair[4 + channel]) * 255.0f;
++                        float tolerance = native ? bc_sample_tolerance(t, layout, snapshot, face, mip,
++                                pixel % params.width, pixel / params.width, channel, filter) : 0.001f;
++                        if (channel == 3) {
++                            if (error > bc_max_alpha_error) bc_max_alpha_error = error;
++                        } else if (error > bc_max_rgb_error) bc_max_rgb_error = error;
++                        if (error > tolerance) {
++                            fprintf(stderr, "BC mismatch format=%u face=%u mip=%u filter=%u pixel=%u channel=%u compressed=%.5f decoded=%.5f error=%.5f tolerance=%.5f\n",
++                                    a_desc.Format, face, mip, filter, pixel, channel,
++                                    pair[channel] * 255, pair[4 + channel] * 255, error, tolerance);
++                            ID3D11DeviceContext_Unmap(s_ctx, (ID3D11Resource *)staging, 0);
++                            CHECK(0);
++                        }
++                    }
++                ID3D11DeviceContext_Unmap(s_ctx, (ID3D11Resource *)staging, 0);
++            }
++    {
++        ID3D11ShaderResourceView *none[2] = {NULL, NULL};
++        ID3D11DeviceContext_CSSetShaderResources(s_ctx, 0, 2, none);
++        ID3D11DeviceContext_CSSetShader(s_ctx, NULL, NULL, 0);
++    }
++    ID3D11ShaderResourceView_Release(views[0]); ID3D11ShaderResourceView_Release(views[1]);
++    ID3D11UnorderedAccessView_Release(uav);
++    ID3D11Buffer_Release(output); ID3D11Buffer_Release(staging);
++    return 0;
++}
++
++static int test_native_bc(void)
++{
++    static const unsigned formats[] = {0x0C, 0x0E, 0x0F};
++    static const DXGI_FORMAT host_formats[] = {DXGI_FORMAT_BC1_UNORM, DXGI_FORMAT_BC2_UNORM, DXGI_FORMAT_BC3_UNORM};
++    static const struct { unsigned width, height, levels, cube, native; } cases[] = {
++        {8,8,4,0,1}, {16,8,5,0,1}, {12,20,5,0,1}, {4,4,3,1,1}, {8,8,4,1,1},
++        {8,8,2,0,0}, {8,8,2,1,0}, {3,8,4,0,0}, {2,2,2,0,0}, {4,4,1,0,1}
++    };
++    static const unsigned alignments[] = {0,1,3,7};
++    uint32_t state = 0x9A6F031Bu;
++    unsigned format, item, alignment, sequence = 0;
++    CHECK(bc_compare_init() == 0);
++    for (format = 0; format < 3; format++)
++        for (item = 0; item < sizeof cases / sizeof cases[0]; item++)
++            for (alignment = 0; alignment < sizeof alignments / sizeof alignments[0]; alignment++) {
++                NvD3DTexture texture = {0};
++                TexLayout layout;
++                ID3D11ShaderResourceView *view, *reference;
++                uint8_t *snapshot;
++                D3D11_SHADER_RESOURCE_VIEW_DESC view_desc;
++                D3D11_TEXTURE2D_DESC texture_desc;
++                ID3D11ShaderResourceView *array;
++                size_t count = s_tex_count, bytes = s_tex_bytes, expected_bytes = 0;
++                unsigned i, mip, width, height, levels;
++                texture.addr = 0x50000 + sequence++ * 4096 + alignments[alignment];
++                texture.color = formats[format];
++                texture.width = cases[item].width; texture.height = cases[item].height;
++                texture.levels = cases[item].levels; texture.cube = cases[item].cube;
++                texture.format = (texture.color << 8) | (texture.levels << 16);
++                CHECK(tex_layout(&texture, &layout));
++                CHECK(guest_ok(texture.addr, layout.total));
++                for (i = 0; i < layout.total; i++) ram[texture.addr + i] = (uint8_t)random_word(&state);
++                /* Guarantee exact extrema and BC1 transparent selector 3 in
++                 * every face/mip, rather than relying on randomized endpoints. */
++                {
++                    unsigned face, level;
++                    for (face = 0; face < (unsigned)layout.faces; face++)
++                        for (level = 0; level < (unsigned)layout.levels; level++) {
++                            uint8_t *block = ram + texture.addr + face * layout.face_stride + layout.level_off[level];
++                            uint8_t *color = block + (layout.bpp == 16 ? 8 : 0);
++                            color[0] = color[1] = 0; color[2] = color[3] = 255;
++                            color[4] = 0xE7; color[5] = color[6] = color[7] = 0xE4;
++                            if (texture.color == 0x0E) memset(block, 0xF0, 8);
++                            if (texture.color == 0x0F) {
++                                static const unsigned selectors[] = {0,1,6,7};
++                                uint64_t indices = 0;
++                                unsigned pixel;
++                                block[0] = 0; block[1] = 255;
++                                for (pixel = 0; pixel < 16; pixel++) indices |= (uint64_t)selectors[pixel & 3] << (3 * pixel);
++                                for (pixel = 0; pixel < 6; pixel++) block[2 + pixel] = (uint8_t)(indices >> (8 * pixel));
++                            }
++                        }
++                }
++                snapshot = malloc(layout.total);
++                CHECK(snapshot);
++                memcpy(snapshot, ram + texture.addr, layout.total);
++                nv2a_d3d_kick();
++                /* A failed native view must retry within the same kick. */
++                if (cases[item].native) {
++                    fail_srv = 1;
++                    CHECK(texture_get(&texture) == NULL && fail_srv == 0);
++                    CHECK(s_tex_count == count && s_tex_bytes == bytes);
++                }
++                view = texture_get(&texture);
++                CHECK(view);
++                CHECK(texture_get(&texture) == view);
++                array = bc_array_view(view, &texture_desc);
++                CHECK(array);
++                ID3D11ShaderResourceView_Release(array);
++                ID3D11ShaderResourceView_GetDesc(view, &view_desc);
++                CHECK(texture_desc.Format == (cases[item].native ? host_formats[format] : DXGI_FORMAT_B8G8R8A8_UNORM));
++                CHECK(view_desc.Format == texture_desc.Format);
++                CHECK(view_desc.ViewDimension == (texture.cube ? D3D11_SRV_DIMENSION_TEXTURECUBE : D3D11_SRV_DIMENSION_TEXTURE2D));
++                levels = host_levels(&layout, &texture);
++                CHECK(texture_desc.MipLevels == levels && texture_desc.ArraySize == layout.faces);
++                width = texture.width; height = texture.height;
++                for (mip = 0; mip < levels; mip++) {
++                    expected_bytes += cases[item].native ? (size_t)((width + 3) / 4) * ((height + 3) / 4) * layout.bpp * layout.faces
++                                                       : (size_t)width * height * 4 * layout.faces;
++                    if (width > 1) width /= 2;
++                    if (height > 1) height /= 2;
++                }
++                CHECK(s_tex_count == count + 1 && s_tex_bytes == bytes + expected_bytes);
++                reference = bc_reference(&texture, &layout);
++                CHECK(reference && bc_compare(view, reference, cases[item].native, &texture, &layout, snapshot) == 0);
++                if (cases[item].native) {
++                    for (i = 0; i < layout.total; i++) ram[texture.addr + i] ^= (uint8_t)(0x5B + i * 17);
++                    /* Cached draws in this kick retain the old upload. A new
++                     * kick must hash all bytes and refresh this same resource. */
++                    CHECK(texture_get(&texture) == view);
++                    CHECK(bc_compare(view, reference, 1, &texture, &layout, snapshot) == 0);
++                    ID3D11ShaderResourceView_Release(reference);
++                    nv2a_d3d_kick();
++                    CHECK(texture_get(&texture) == view);
++                    CHECK(s_tex_count == count + 1 && s_tex_bytes == bytes + expected_bytes);
++                    reference = bc_reference(&texture, &layout);
++                    memcpy(snapshot, ram + texture.addr, layout.total);
++                    CHECK(reference && bc_compare(view, reference, 1, &texture, &layout, snapshot) == 0);
++                }
++                ID3D11ShaderResourceView_Release(reference);
++                free(snapshot);
++            }
++    printf("PASS: BC1/2/3 GPU sampling, all mips/faces, filtering, alignment, bytes, fallback and epoch/retry; max RGB %.4f/255, alpha %.4f/255\n",
++           bc_max_rgb_error, bc_max_alpha_error);
++    return 0;
++}
++
++static volatile uint64_t bc_benchmark_hash;
++
++static int bc_benchmark_drain(ID3D11Query *done)
++{
++    DWORD start = GetTickCount();
++    HRESULT hr;
++    ID3D11DeviceContext_End(s_ctx, (ID3D11Asynchronous *)done);
++    ID3D11DeviceContext_Flush(s_ctx);
++    do {
++        hr = ID3D11DeviceContext_GetData(s_ctx, (ID3D11Asynchronous *)done, NULL, 0, 0);
++        CHECK(hr != S_FALSE || GetTickCount() - start < 5000);
++        if (hr == S_FALSE) SwitchToThread();
++    } while (hr == S_FALSE);
++    CHECK(SUCCEEDED(hr));
++    return 0;
++}
++
++/* Compare CPU hashing + update calls on already-created resources. The BGRA
++ * reference retains the pre-BC decoder/upload loop. GPU completion is drained
++ * after each sample, outside its timing, so this does not claim GPU/frame time. */
++static double bc_benchmark_upload(const NvD3DTexture *t, const TexLayout *layout,
++                                   ID3D11Texture2D *bgra, uint32_t *scratch,
++                                   unsigned repetitions, int native)
++{
++    LARGE_INTEGER frequency;
++    int64_t start, end;
++    unsigned i, mip;
++    QueryPerformanceFrequency(&frequency);
++    start = qpc();
++    for (i = 0; i < repetitions; i++) {
++        ram[t->addr]++;
++        if (native) {
++            nv2a_d3d_kick();
++            if (!texture_get(t)) return -1;
++        } else {
++            bc_benchmark_hash ^= hash_mem(guest(t->addr), layout->total);
++            for (mip = 0; mip < (unsigned)layout->levels; mip++) {
++                decode_level(t, layout, guest(t->addr) + layout->level_off[mip], mip, NULL, scratch);
++                ID3D11DeviceContext_UpdateSubresource(s_ctx, (ID3D11Resource *)bgra, mip, NULL,
++                                                       scratch, layout->level_w[mip] * 4, 0);
++            }
++        }
++    }
++    end = qpc();
++    return (end - start) * 1000.0 / frequency.QuadPart / repetitions;
++}
++
++static int benchmark_native_bc(void)
++{
++    const unsigned formats[] = {0x0C,0x0E,0x0F};
++    D3D11_QUERY_DESC query_desc = {D3D11_QUERY_EVENT, 0};
++    ID3D11Query *done = NULL;
++    uint32_t state = 0xABF010CDu, *scratch = malloc(1024 * 1024 * 4);
++    unsigned item, sample, i, j;
++    CHECK(scratch);
++    CHECK(SUCCEEDED(ID3D11Device_CreateQuery(s_dev, &query_desc, &done)));
++    for (item = 0; item < 3; item++) {
++        NvD3DTexture texture = {0};
++        TexLayout layout;
++        ID3D11Texture2D *bgra;
++        double before[7], selected[7];
++        texture.addr = 0x20000 + item * 0x200000;
++        texture.color = formats[item];
++        texture.width = texture.height = 1024; texture.levels = 11;
++        texture.format = (texture.color << 8) | (texture.levels << 16);
++        CHECK(tex_layout(&texture, &layout));
++        for (i = 0; i < layout.total; i++) ram[texture.addr + i] = (uint8_t)random_word(&state);
++        CHECK(texture_get(&texture));
++        bgra = make_texture(1024, 1024, 11, 1, DXGI_FORMAT_B8G8R8A8_UNORM, D3D11_BIND_SHADER_RESOURCE, 0);
++        CHECK(bgra);
++        CHECK(bc_benchmark_upload(&texture, &layout, bgra, scratch, 1, 0) > 0);
++        CHECK(bc_benchmark_drain(done) == 0);
++        CHECK(bc_benchmark_upload(&texture, &layout, bgra, scratch, 1, 1) > 0);
++        CHECK(bc_benchmark_drain(done) == 0);
++        for (sample = 0; sample < 7; sample++) {
++            /* Alternate measurement order to reduce warm-up/clock bias. */
++            if (sample & 1) {
++                selected[sample] = bc_benchmark_upload(&texture, &layout, bgra, scratch, 8, 1);
++                CHECK(bc_benchmark_drain(done) == 0);
++                before[sample] = bc_benchmark_upload(&texture, &layout, bgra, scratch, 8, 0);
++            } else {
++                before[sample] = bc_benchmark_upload(&texture, &layout, bgra, scratch, 8, 0);
++                CHECK(bc_benchmark_drain(done) == 0);
++                selected[sample] = bc_benchmark_upload(&texture, &layout, bgra, scratch, 8, 1);
++            }
++            CHECK(bc_benchmark_drain(done) == 0);
++            CHECK(before[sample] > 0 && selected[sample] > 0);
++        }
++        for (i = 0; i < 7; i++)
++            for (j = i + 1; j < 7; j++) {
++                double value;
++                if (before[j] < before[i]) { value = before[i]; before[i] = before[j]; before[j] = value; }
++                if (selected[j] < selected[i]) { value = selected[i]; selected[i] = selected[j]; selected[j] = value; }
++            }
++        printf("UPLOAD DXT%u 1024x1024 full11-mip chain: BGRA %.3f ms, native %.3f ms CPU/update (%.2fx); bytes %llu -> %llu\n",
++               item == 0 ? 1 : item == 1 ? 3 : 5, before[3], selected[3], before[3] / selected[3],
++               (unsigned long long)5592404, (unsigned long long)layout.total);
++        ID3D11Texture2D_Release(bgra);
++    }
++    ID3D11Query_Release(done);
++    free(scratch);
++    return 0;
++}
 diff --git a/tests/nv2a_textures/test_textures.c b/tests/nv2a_textures/test_textures.c
 new file mode 100644
-index 0000000..50644d0
+index 0000000..6883393
 --- /dev/null
 +++ b/tests/nv2a_textures/test_textures.c
-@@ -0,0 +1,333 @@
+@@ -0,0 +1,337 @@
 +/* Drive the real cache and inspect its GPU pixels, including failed uploads. */
 +#define COBJMACROS
 +#define WIN32_LEAN_AND_MEAN
@@ -3206,6 +4997,8 @@ index 0000000..50644d0
 +    return *state;
 +}
 +
++#include "native_bc_tests.h"
++
 +static int test_decode_equivalence(void)
 +{
 +    uint32_t state = 0x12345678u;
@@ -3345,7 +5138,7 @@ index 0000000..50644d0
 +    CHECK(argc == 2);
 +    if (!strcmp(argv[1], "decode_equivalence")) return test_decode_equivalence();
 +    if (!strcmp(argv[1], "benchmark_decode")) return benchmark_decode();
-+    ram = calloc(1, 0x100000);
++    ram = calloc(1, !strcmp(argv[1], "benchmark_native_bc") ? 0x1000000 : 0x100000);
 +    CHECK(ram);
 +    _putenv_s("RECOMP_MSAA", "1");
 +    _putenv_s("RECOMP_RENDER_SCALE", "1");
@@ -3355,5 +5148,7 @@ index 0000000..50644d0
 +    if (!strcmp(argv[1], "srv_retry")) return test_srv_retry();
 +    if (!strcmp(argv[1], "mip_retry")) return test_mip_retry();
 +    if (!strcmp(argv[1], "palette_identity")) return test_palette_identity();
++    if (!strcmp(argv[1], "native_bc")) return test_native_bc();
++    if (!strcmp(argv[1], "benchmark_native_bc")) return benchmark_native_bc();
 +    CHECK(0);
 +}
