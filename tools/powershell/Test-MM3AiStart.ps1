@@ -12,10 +12,12 @@ distance travelled along its own forward vector and against it. The player's
 car is the sign check: under throttle it must come out forwards.
 
 Verdict FAIL when any AI car covers more than 10 units backwards or an AI car
-ends up behind where it started. Exit code 0 = PASS, 1 = FAIL, 2 = no race.
+ends up behind where it started. The player must have at least three samples
+and travel at least one unit more forwards than backwards under throttle.
+Exit code 0 = PASS, 1 = FAIL, 2 = no race.
 #>
 param([Parameter(Mandatory)][string]$Exe, [Parameter(Mandatory)][string]$Save,
-      [string]$Tag = 'ai-start', [int]$FpsLimit = 60, [int]$Secs = 20)
+      [string]$Tag = 'ai-start', [ValidateRange(1, 60)][int]$FpsLimit = 60, [int]$Secs = 20)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $dir = Join-Path $repo "conformance_tmp\ai_start\$Tag"
@@ -85,6 +87,8 @@ try {
 }
 
 $fail = $false
+$playerSeen = $false
+$playerFailures = [Collections.Generic.List[string]]::new()
 $rows = foreach ($id in $samples.Keys) {
     $s = $samples[$id]; $fwd = 0.0; $back = 0.0
     for ($i = 1; $i -lt $s.Count; $i++) {
@@ -94,15 +98,29 @@ $rows = foreach ($id in $samples.Keys) {
     $net = ($s[-1].x - $s[0].x) * $s[0].fx + ($s[-1].z - $s[0].z) * $s[0].fz
     $player = [bool]$s[0].player
     $bad = -not $player -and ($back -gt 10 -or $net -lt 0)
+    $verdict = if ($bad) { 'REVERSING' } else { 'ok' }
+    if ($player) {
+        $playerSeen = $true
+        if ($s.Count -lt 3) {
+            $bad = $true
+            $verdict = 'INSUFFICIENT SAMPLES'
+            $playerFailures.Add("Player telemetry has only $($s.Count) samples; need at least 3.")
+        } elseif ($fwd -le $back -or $fwd - $back -lt 1.0) {
+            $bad = $true
+            $verdict = 'NOT ACCELERATING'
+            $playerFailures.Add(('Player did not move meaningfully forwards under throttle (forward {0:F3}, backward {1:F3} units).' -f $fwd, $back))
+        }
+    }
     if ($bad) { $fail = $true }
     [pscustomobject]@{ car = $(if ($player) { "player" } else { "ai $id" }); vt = "{0:X8}" -f [uint32]$s[0].vt; samples = $s.Count
         forward = [math]::Round($fwd, 1); backward = [math]::Round($back, 1)
-        net = [math]::Round($net, 1); verdict = $(if ($bad) { 'REVERSING' } else { 'ok' }) }
+        net = [math]::Round($net, 1); verdict = $verdict }
 }
 $rows | Sort-Object car | Format-Table -AutoSize | Out-String | Write-Host
-$playerRow = $rows | Where-Object car -eq 'player'
-if (-not $playerRow -or $playerRow.forward -le $playerRow.backward) {
-    Write-Host 'WARNING: player car did not come out forwards under throttle; forward vector sign is suspect'
+if (-not $playerSeen) {
+    $fail = $true
+    $playerFailures.Add('No player telemetry samples were collected under throttle.')
 }
+foreach ($reason in $playerFailures) { Write-Host "FAIL: $reason" }
 Write-Host ("fps limit {0}: {1}" -f $FpsLimit, $(if ($fail) { 'FAIL' } else { 'PASS' }))
 exit $(if ($fail) { 1 } else { 0 })

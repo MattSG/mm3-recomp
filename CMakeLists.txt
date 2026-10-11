@@ -10,6 +10,7 @@ set(RECOMP_GEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/recomp/gen" CACHE PATH
 option(MM3_RECOMP_ABI_CHECK "Check guest callee-saved register contracts" OFF)
 option(MM3_MOVIE_INPUT_TRACE "Observe movie completion and skip input" OFF)
 option(MM3_OFFLINE_XNET "Bypass MM3 network readiness for offline startup" ON)
+option(MM3_UNLOCK_ALL_CARS "Make every installed car selectable" ON)
 option(MM3_FRONTEND_WATCH "Trace writes to the RootLevel child pointer" OFF)
 option(MM3_TRACY "Profile the host rendering pipeline with Tracy" OFF)
 if(MM3_TRACY)
@@ -36,7 +37,6 @@ file(GLOB RECOMP_GEN_SOURCES CONFIGURE_DEPENDS
 # a chunk. Hooks rename the generated definition to <name>_original and the
 # project supplies <name>.
 set(MM3_RENAMED_FUNCTIONS
-    sub_0009BC04 sub_0009BC52    # recovered x87 helpers keep their unusual stack return
     sub_00170E5D sub_000145DC sub_001F02AD
     sub_0025968E)                # widescreen: wraps the projection-matrix builder
 if(MM3_MOVIE_INPUT_TRACE)
@@ -54,9 +54,15 @@ endif()
 # compile definition would bypass the hooks for callers in the same chunk.
 set(MM3_DISTANCE_FUNCTIONS sub_000D9E2E sub_000E2D5B sub_000F4AC3 sub_000FE71E
     sub_001661D0 sub_002256C7 sub_002203E5 sub_0022F298)
+set(MM3_DEFINITION_ONLY_FUNCTIONS ${MM3_DISTANCE_FUNCTIONS})
+# Keep same-chunk calls directed to the recovered x87 helper definitions.
+list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0009BC04 sub_0009BC35 sub_0009BC52)
+if(MM3_UNLOCK_ALL_CARS)
+    list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001DEA30)
+endif()
 
 list(JOIN MM3_RENAMED_FUNCTIONS "|" hook_names)
-list(JOIN MM3_DISTANCE_FUNCTIONS "|" distance_names)
+list(JOIN MM3_DEFINITION_ONLY_FUNCTIONS "|" distance_names)
 # recomp_runtime_entries.c holds the project's replacement x87 helper bodies.
 set(hook_scan_sources ${RECOMP_GEN_SOURCES})
 list(FILTER hook_scan_sources EXCLUDE REGEX "/recomp_runtime_entries[.]c$")
@@ -71,7 +77,7 @@ foreach(generated_source IN LISTS hook_scan_sources)
         set(owner_${hooked} "${generated_source}")
     endforeach()
 endforeach()
-foreach(hooked IN LISTS MM3_RENAMED_FUNCTIONS MM3_DISTANCE_FUNCTIONS)
+foreach(hooked IN LISTS MM3_RENAMED_FUNCTIONS MM3_DEFINITION_ONLY_FUNCTIONS)
     if(NOT DEFINED owner_${hooked})
         message(FATAL_ERROR "No generated definition of ${hooked} in ${RECOMP_GEN_DIR}")
     endif()
@@ -108,10 +114,10 @@ foreach(runtime_entry_index RANGE 0 ${runtime_entry_last})
         COMPILE_DEFINITIONS "sub_${runtime_entry_suffix}=sub_${runtime_entry_suffix}_unresolved")
 endforeach()
 
-# Distance hooks: compile a copy of each owning chunk with the definition
+# Distance and vehicle hooks: compile a copy of each owning chunk with the definition
 # renamed, carrying over the chunk's other compile properties.
 set(distance_owners "")
-foreach(hooked IN LISTS MM3_DISTANCE_FUNCTIONS)
+foreach(hooked IN LISTS MM3_DEFINITION_ONLY_FUNCTIONS)
     list(APPEND distance_owners "${owner_${hooked}}")
 endforeach()
 list(REMOVE_DUPLICATES distance_owners)
@@ -119,7 +125,7 @@ foreach(distance_input IN LISTS distance_owners)
     get_filename_component(distance_name "${distance_input}" NAME)
     set(distance_output "${CMAKE_CURRENT_BINARY_DIR}/render_distance/${distance_name}")
     file(READ "${distance_input}" distance_content)
-    foreach(hooked IN LISTS MM3_DISTANCE_FUNCTIONS)
+    foreach(hooked IN LISTS MM3_DEFINITION_ONLY_FUNCTIONS)
         if(owner_${hooked} STREQUAL distance_input)
             string(REPLACE "void ${hooked}(void)" "void ${hooked}_original(void)"
                 distance_content "${distance_content}")
@@ -158,6 +164,9 @@ if(MM3_MOVIE_INPUT_TRACE)
 endif()
 if(MM3_OFFLINE_XNET)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3_offline_compat.c)
+endif()
+if(MM3_UNLOCK_ALL_CARS)
+    target_sources(${PROJECT_NAME} PRIVATE src/mm3_car_unlocks.c)
 endif()
 if(MM3_FRONTEND_WATCH)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3_frontend_watch.c)

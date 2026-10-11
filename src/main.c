@@ -9,7 +9,9 @@
 #include "recomp_types.h"
 #include "recomp_funcs.h"
 #include "mm3_debug_teleport.h"
+#include "mm3_frame_limit.h"
 #include <xbox_host.h>
+#include <xinput_xbox.h>
 
 #define MM3_XBE_PATH "game_files/default.xbe"
 #define MM3_GAME_DIR "game_files"
@@ -144,12 +146,44 @@ int main(void)
      * tiny Windows writes and stalled the renderer on the shared FILE lock.
      * Movie markers and crash reports explicitly flush when needed. */
     static char stderr_buffer[64 * 1024];
-    if (getenv("MM3_LOG_UNBUFFERED"))
+    const char *unbuffered = getenv("MM3_LOG_UNBUFFERED");
+    if (unbuffered && *unbuffered && strcmp(unbuffered, "0") != 0)
         setvbuf(stderr, NULL, _IONBF, 0);
     else
         setvbuf(stderr, stderr_buffer, _IOFBF, sizeof stderr_buffer);
     SetUnhandledExceptionFilter(mm3_crash_report);
     puts("MM3 static recompilation");
+
+    /* Apply the same bounded rate before either vblank or presentation
+     * caches its setting, including launches that bypass play.ps1. */
+    char frame_limit[16];
+    snprintf(frame_limit, sizeof frame_limit, "%d",
+             mm3_frame_limit(getenv("RECOMP_FPS_LIMIT")));
+    if (_putenv_s("RECOMP_FPS_LIMIT", frame_limit) != 0) {
+        fprintf(stderr, "cannot set MM3 frame-rate limit\n");
+        return 1;
+    }
+
+    /* MM3 reads the triggers and left stick for driving. Keep the runtime's
+     * legacy keys available, with arrows also driving this title. */
+    if (!getenv("RECOMP_KEYBOARD_LAYOUT") &&
+        _putenv_s("RECOMP_KEYBOARD_LAYOUT", "mm3") != 0) {
+        fprintf(stderr, "cannot select MM3 keyboard controls\n");
+        return 1;
+    }
+
+    /* Keep internal rendering at 1440 lines and the laptop's 16:10 aspect
+     * when maximized. Explicit scale/aspect/auto settings take priority. */
+    if (!getenv("RECOMP_RENDER_SCALE") &&
+        _putenv_s("RECOMP_RENDER_SCALE", "3.0") != 0) {
+        fprintf(stderr, "cannot select MM3 rendering resolution\n");
+        return 1;
+    }
+    if (!getenv("RECOMP_ASPECT") &&
+        _putenv_s("RECOMP_ASPECT", "16:10") != 0) {
+        fprintf(stderr, "cannot select MM3 display aspect\n");
+        return 1;
+    }
 
     if (!load_file(MM3_XBE_PATH, &xbe_data, &xbe_size)) {
         fprintf(stderr, "cannot load %s\n", MM3_XBE_PATH);
@@ -176,6 +210,7 @@ int main(void)
     }
 
     g_xbox_mem_offset = xbox_GetMemoryOffset();
+    xbox_InputSetKeyboardDrivingProbe(mm3_keyboard_driving);
     mm3_debug_teleport_init();
     xbox_kernel_set_thunk_address(MM3_KERNEL_THUNK_ADDRESS,
                                    MM3_KERNEL_THUNK_COUNT);

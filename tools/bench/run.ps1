@@ -1,7 +1,7 @@
 <#
-Repeatable menu + race benchmark (uncapped unless -FpsLimit).
+Repeatable menu + race benchmark (60 FPS unless a lower -FpsLimit is selected).
 
-  pwsh tools\bench\run.ps1 -Exe <mm3_recomp.exe> -Save <save template dir> [-Tag name] [-FpsLimit 0] [-Secs 20]
+  pwsh tools\bench\run.ps1 -Exe <mm3_recomp.exe> -Save <save template dir> [-Tag name] [-FpsLimit 60] [-Secs 20]
 
 The save template is a copy of an MM3 save folder (HDD partition images with a
 profile); each run gets a fresh copy under conformance_tmp\bench\<tag>, so the
@@ -17,7 +17,7 @@ time). Menu input is time-based: if the race is not reached, "a" is pressed
 again until a car is live.
 #>
 param([Parameter(Mandatory)][string]$Exe, [Parameter(Mandatory)][string]$Save,
-      [string]$Tag = 'bench', [int]$FpsLimit = 0, [int]$Secs = 20,
+      [string]$Tag = 'bench', [ValidateRange(1, 60)][int]$FpsLimit = 60, [int]$Secs = 20,
       [double]$X = 698.76, [double]$Z = 1346.97)   # Paris (the template's city); Washington: 97.66 -1028.3
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path

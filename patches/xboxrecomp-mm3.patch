@@ -1,0 +1,834 @@
+diff --git a/src/input/xinput_device.c b/src/input/xinput_device.c
+index a91edbe..59c5815 100644
+--- a/src/input/xinput_device.c
++++ b/src/input/xinput_device.c
+@@ -14,6 +14,13 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
++static XBOX_KEYBOARD_DRIVING_PROBE s_keyboard_driving_probe;
++
++void xbox_InputSetKeyboardDrivingProbe(XBOX_KEYBOARD_DRIVING_PROBE probe)
++{
++    s_keyboard_driving_probe = probe;
++}
++
+ /* ======================================================================== */
+ #if defined(_WIN32)
+ /* ====================  XInput backend  ================================== */
+@@ -45,6 +52,14 @@ static DWORD g_last_packet[XBOX_MAX_CONTROLLERS] = { 0 };
+  *   Q E           white black       1 3        triggers
+  *   numpad 8/2/4/6 left thumb       I/K/J/L    right thumb
+  *
++ * RECOMP_KEYBOARD_LAYOUT=mm3 maps arrows to driving while the title's
++ * driving probe is true: up/down are the right/left triggers and left/right
++ * steer. Otherwise they are only menu d-pad buttons. The numbered trigger
++ * and numpad stick keys still work in either context. While driving, R/F
++ * also alias Xbox B/X (MM3's default manual gear up/down), and C aliases
++ * Black (change camera view). Escape aliases Start in this layout, both
++ * while driving and in menus.
++ *
+  * Keys come from the framebuffer window, which only receives them while it
+  * has the focus, so typing in another window does not drive the game.
+  */
+@@ -58,6 +73,16 @@ static BOOL keyboard_enabled(void)
+     return on ? TRUE : FALSE;
+ }
+ 
++static BOOL keyboard_mm3_layout(void)
++{
++    static int on = -1;
++    if (on < 0) {
++        const char *v = getenv("RECOMP_KEYBOARD_LAYOUT");
++        on = (v && _stricmp(v, "mm3") == 0) ? 1 : 0;
++    }
++    return on ? TRUE : FALSE;
++}
++
+ /* The framebuffer window records what is held; see src/video/fb_present.c.
+  *
+  * GetAsyncKeyState was the first attempt and reads nothing here -- under
+@@ -87,15 +112,21 @@ static SHORT axis_from_keys(int negative, int positive)
+ static void keyboard_state(XBOX_INPUT_STATE *pState)
+ {
+     static DWORD packet;
++    BOOL mm3 = keyboard_mm3_layout();
++    BOOL driving = mm3 && s_keyboard_driving_probe && s_keyboard_driving_probe();
++    BOOL steer_left, steer_right;
+     WORD b = 0;
+ 
+     memset(pState, 0, sizeof(*pState));
+ 
+-    if (key_down(VK_UP))     b |= XBOX_GAMEPAD_DPAD_UP;
+-    if (key_down(VK_DOWN))   b |= XBOX_GAMEPAD_DPAD_DOWN;
+-    if (key_down(VK_LEFT))   b |= XBOX_GAMEPAD_DPAD_LEFT;
+-    if (key_down(VK_RIGHT))  b |= XBOX_GAMEPAD_DPAD_RIGHT;
+-    if (key_down(VK_RETURN)) b |= XBOX_GAMEPAD_START;
++    if (!driving) {
++        if (key_down(VK_UP))     b |= XBOX_GAMEPAD_DPAD_UP;
++        if (key_down(VK_DOWN))   b |= XBOX_GAMEPAD_DPAD_DOWN;
++        if (key_down(VK_LEFT))   b |= XBOX_GAMEPAD_DPAD_LEFT;
++        if (key_down(VK_RIGHT))  b |= XBOX_GAMEPAD_DPAD_RIGHT;
++    }
++    if (key_down(VK_RETURN) || (mm3 && key_down(VK_ESCAPE)))
++        b |= XBOX_GAMEPAD_START;
+     if (key_down(VK_BACK))   b |= XBOX_GAMEPAD_BACK;
+     if (key_down(VK_SHIFT))  b |= XBOX_GAMEPAD_LEFT_THUMB;
+     if (key_down(VK_CONTROL))b |= XBOX_GAMEPAD_RIGHT_THUMB;
+@@ -104,17 +135,26 @@ static void keyboard_state(XBOX_INPUT_STATE *pState)
+     /* Analog on the console, so a key is 255 rather than a flag -- a title
+      * that reads these as a pressure never sees a press if they are 1. */
+     pState->Gamepad.bAnalogButtons[XBOX_BUTTON_A]        = key_down('Z') ? 255 : 0;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_B]        = key_down('X') ? 255 : 0;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_X]        = key_down('A') ? 255 : 0;
++    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_B] =
++        (key_down('X') || (driving && key_down('R'))) ? 255 : 0;
++    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_X] =
++        (key_down('A') || (driving && key_down('F'))) ? 255 : 0;
+     pState->Gamepad.bAnalogButtons[XBOX_BUTTON_Y]        = key_down('S') ? 255 : 0;
+     pState->Gamepad.bAnalogButtons[XBOX_BUTTON_WHITE]    = key_down('Q') ? 255 : 0;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_BLACK]    = key_down('E') ? 255 : 0;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_LTRIGGER] = key_down('1') ? 255 : 0;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_RTRIGGER] = key_down('3') ? 255 : 0;
++    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_BLACK] =
++        (key_down('E') || (driving && key_down('C'))) ? 255 : 0;
++    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_LTRIGGER] =
++        (key_down('1') || (driving && key_down(VK_DOWN))) ? 255 : 0;
++    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_RTRIGGER] =
++        (key_down('3') || (driving && key_down(VK_UP))) ? 255 : 0;
+ 
+     /* W/A/S/D would collide with the face buttons above, so the left thumb
+      * shares the arrow keys' row on the numeric pad instead. */
+-    pState->Gamepad.sThumbLX = axis_from_keys(VK_NUMPAD4, VK_NUMPAD6);
++    /* Aliases represent the same direction. Opposing keys cancel, while
++     * holding both aliases for one direction still produces full throw. */
++    steer_left = key_down(VK_NUMPAD4) || (driving && key_down(VK_LEFT));
++    steer_right = key_down(VK_NUMPAD6) || (driving && key_down(VK_RIGHT));
++    pState->Gamepad.sThumbLX = (SHORT)((steer_right - steer_left) * 32767);
+     pState->Gamepad.sThumbLY = axis_from_keys(VK_NUMPAD2, VK_NUMPAD8);
+     pState->Gamepad.sThumbRX = axis_from_keys('J', 'L');
+     pState->Gamepad.sThumbRY = axis_from_keys('K', 'I');
+@@ -167,9 +207,9 @@ DWORD xbox_InputGetState(DWORD dwPort, XBOX_INPUT_STATE *pState)
+     pState->Gamepad.bAnalogButtons[XBOX_BUTTON_Y] =
+         (xi_state.Gamepad.wButtons & XINPUT_GAMEPAD_Y) ? 255 : 0;
+     pState->Gamepad.bAnalogButtons[XBOX_BUTTON_BLACK] =
+-        (xi_state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) ? 255 : 0;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_WHITE] =
+         (xi_state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) ? 255 : 0;
++    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_WHITE] =
++        (xi_state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) ? 255 : 0;
+     pState->Gamepad.bAnalogButtons[XBOX_BUTTON_LTRIGGER] = xi_state.Gamepad.bLeftTrigger;
+     pState->Gamepad.bAnalogButtons[XBOX_BUTTON_RTRIGGER] = xi_state.Gamepad.bRightTrigger;
+ 
+@@ -316,9 +356,9 @@ DWORD xbox_InputGetState(DWORD dwPort, XBOX_INPUT_STATE *pState)
+     pState->Gamepad.bAnalogButtons[XBOX_BUTTON_Y] =
+         SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_Y) ? 255 : 0;
+     pState->Gamepad.bAnalogButtons[XBOX_BUTTON_BLACK] =
+-        SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_LEFTSHOULDER) ? 255 : 0;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_WHITE] =
+         SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER) ? 255 : 0;
++    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_WHITE] =
++        SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_LEFTSHOULDER) ? 255 : 0;
+ 
+     /* SDL trigger axes are 0..32767 -> Xbox analog button 0..255 */
+     pState->Gamepad.bAnalogButtons[XBOX_BUTTON_LTRIGGER] =
+diff --git a/src/input/xinput_xbox.h b/src/input/xinput_xbox.h
+index 4779275..07b2ffa 100644
+--- a/src/input/xinput_xbox.h
++++ b/src/input/xinput_xbox.h
+@@ -88,6 +88,13 @@ typedef struct XBOX_INPUT_CAPABILITIES {
+  */
+ void xbox_InputInit(void);
+ 
++/* Configure before input polling starts. The optional probe runs on the
++ * input thread, so it must be fast and safe to call from that thread.
++ * For the MM3 keyboard layout, TRUE maps arrows to driving controls;
++ * FALSE (or no probe) maps them only to the menu d-pad. Legacy is unchanged. */
++typedef BOOL (*XBOX_KEYBOARD_DRIVING_PROBE)(void);
++void xbox_InputSetKeyboardDrivingProbe(XBOX_KEYBOARD_DRIVING_PROBE probe);
++
+ /**
+  * Get the state of a controller.
+  * Port: 0-3 (Xbox controller ports)
+diff --git a/src/kernel/kernel_bridge.c b/src/kernel/kernel_bridge.c
+index ed7682a..14016a8 100644
+--- a/src/kernel/kernel_bridge.c
++++ b/src/kernel/kernel_bridge.c
+@@ -1511,9 +1511,11 @@ static void bridge_NtCreateEvent(void)
+         bridge_write_handle(handle_ptr, local_handle);
+     }
+ 
+-    fprintf(stderr, "  [BRIDGE] NtCreateEvent: handle_ptr=0x%08X type=%u init=%u → status=0x%08X handle=0x%08X\n",
+-            handle_ptr, event_type, initial_state, (uint32_t)status,
+-            (uint32_t)(uintptr_t)local_handle);
++    if (!NT_SUCCESS(status) || KERNEL_LOG_ON()) {
++        fprintf(stderr, "  [BRIDGE] NtCreateEvent: handle_ptr=0x%08X type=%u init=%u → status=0x%08X handle=0x%08X\n",
++                handle_ptr, event_type, initial_state, (uint32_t)status,
++                (uint32_t)(uintptr_t)local_handle);
++    }
+ 
+     g_eax = (uint32_t)status;
+ }
+@@ -2965,8 +2967,9 @@ static NTSTATUS bridge_create_file_impl(
+     }
+ 
+     if (bridge_is_cdrom_device(name.Buffer)) {
+-        fprintf(stderr, "  [FILE] %s -> synthetic DVD device handle\n",
+-                name.Buffer);
++        if (KERNEL_LOG_ON())
++            fprintf(stderr, "  [FILE] %s -> synthetic DVD device handle\n",
++                    name.Buffer);
+         if (handle_va)
+             BRIDGE_MEM32(handle_va) = BRIDGE_CDROM_HANDLE;
+         bridge_write_iostatus(iostatus_va, 0, 1 /* FILE_OPENED */);
+@@ -3122,11 +3125,11 @@ static void bridge_NtCreateFile(void)
+             xbox_VideoPlayFile(host);
+     }
+ 
+-    /* Paired with the [PATH] line the translation just printed: that says what
+-     * was asked for, this says whether it opened. A failed open is not itself
++    /* Paired with the optional path trace: that says what was asked for,
++     * this says whether it opened. A failed open is not itself
+      * a bug -- a title probing the cache partition before the disc expects one
+      * -- so the status is what separates a probe from a real miss. */
+-    {
++    if (g_eax || KERNEL_LOG_ON()) {
+         extern uint32_t xbox_LastFileError(void);
+         uint32_t _e = g_eax ? xbox_LastFileError() : 0u;
+         if (g_eax)
+@@ -3137,8 +3140,8 @@ static void bridge_NtCreateFile(void)
+                   : _e ==  3u ? " ERROR_PATH_NOT_FOUND" : "");
+         else
+             fprintf(stderr, "  [FILE] -> 0x%08X\n", g_eax);
++        fflush(stderr);
+     }
+-    fflush(stderr);
+ }
+ 
+ /* ── NtOpenFile (ordinal 202, 6 args = 24 bytes) ──────── */
+@@ -3448,8 +3451,10 @@ static void bridge_NtReadFile(void)
+ 
+     /* What a read actually delivered. A decoder that rejects its input cannot
+      * say whether the bytes were wrong or the read was, and the two look
+-     * identical from inside the title -- the first bytes settle it. */
+-    {
++     * identical from inside the title -- the first bytes settle it. Successful
++     * streaming reads must obey the trace budget instead of flushing stderr
++     * on every asset chunk during normal play. Keep failures visible. */
++    if ((NTSTATUS)g_eax != STATUS_SUCCESS || KERNEL_LOG_ON()) {
+         const uint8_t *p = (const uint8_t *)XBOX_TO_NATIVE(buffer_va);
+         uint32_t got = (uint32_t)ios.Information;
+         /* The offset matters as much as the length. A title streaming a pack
+@@ -3796,8 +3801,9 @@ static void bridge_NtDeviceIoControlFile(void)
+             uint32_t data_len = BRIDGE_MEM32(in_va + 12);
+             uint32_t page     = BRIDGE_MEM8(in_va + 30) & 0x3F;
+ 
+-            fprintf(stderr, "  [FILE] DVD MODE SENSE(10) page 0x%02X, "
+-                            "%u bytes -> authentication page\n", page, data_len);
++            if (KERNEL_LOG_ON())
++                fprintf(stderr, "  [FILE] DVD MODE SENSE(10) page 0x%02X, "
++                                "%u bytes -> authentication page\n", page, data_len);
+ 
+             if (data_va && data_len) {
+                 uint32_t i;
+@@ -3831,8 +3837,9 @@ static void bridge_NtDeviceIoControlFile(void)
+             return;
+         }
+ 
+-        fprintf(stderr, "  [FILE] DVD device IOCTL 0x%X (in=%u out=%u) "
+-                        "-> STATUS_SUCCESS\n", ioctl, in_len, out_len);
++        if (KERNEL_LOG_ON())
++            fprintf(stderr, "  [FILE] DVD device IOCTL 0x%X (in=%u out=%u) "
++                            "-> STATUS_SUCCESS\n", ioctl, in_len, out_len);
+         if (out_va && out_len) {
+             uint32_t i;
+             for (i = 0; i < out_len; i++)
+diff --git a/src/kernel/kernel_path.c b/src/kernel/kernel_path.c
+index caf6390..8d0c050 100644
+--- a/src/kernel/kernel_path.c
++++ b/src/kernel/kernel_path.c
+@@ -414,8 +414,7 @@ BOOL xbox_translate_path(const char* xbox_path, xbox_host_char* host_path_buf, D
+     }
+ 
+     if (xbox_partition_device_path(xbox_path, host_path_buf, buf_size)) {
+-        fprintf(stderr, "  [PATH] %s -> partition image\n", xbox_path);
+-        fflush(stderr);
++        XBOX_TRACE(XBOX_LOG_PATH, "%s -> partition image", xbox_path);
+         return TRUE;
+     }
+ 
+@@ -436,8 +435,6 @@ BOOL xbox_translate_path(const char* xbox_path, xbox_host_char* host_path_buf, D
+ translate:
+     if (g_xbox_path_hook)
+         g_xbox_path_hook(xbox_path);
+-    fprintf(stderr, "  [PATH] %s\n", xbox_path);
+-    fflush(stderr);
+     {
+         WCHAR remainder_wide[MAX_PATH];
+         MultiByteToWideChar(CP_ACP, 0, remainder, -1, remainder_wide, MAX_PATH);
+diff --git a/src/kernel/xbox_memory_layout.c b/src/kernel/xbox_memory_layout.c
+index a2e99fb..87ceafa 100644
+--- a/src/kernel/xbox_memory_layout.c
++++ b/src/kernel/xbox_memory_layout.c
+@@ -2494,13 +2494,22 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
+             MEM_RESERVE | MEM_COMMIT,
+             PAGE_READWRITE
+         );
+-        /* The pushbuffer survey rides on the same poll, so either
+-         * variable arms its report. The per-submission log is only for
+-         * tracing: RECOMP_PB_EXEC is on for every real run, and a line
+-         * plus a flush per kick cost a fifth of the GPU thread. */
++        /* Rendering does not need the periodic survey. Its texture inventory
++         * and optional RAM scans/captures run on the GPU acknowledgement
++         * thread, delaying DMA_GET and fences until the report is finished.
++         * Keep both reports and per-submission logs opt-in; RECOMP_PB_EXEC is
++         * on for normal play and must not enable either kind of logging. */
+         s_nv2a_trace = getenv("RECOMP_NV2A_TRACE") != NULL
+                     || getenv("RECOMP_PB_SCAN") != NULL;
+-        s_nv2a_report = s_nv2a_trace || getenv("RECOMP_PB_EXEC") != NULL;
++        s_nv2a_report = s_nv2a_trace
++                    || getenv("RECOMP_PB_REPORT_MS") != NULL
++                    || getenv("RECOMP_FB_DUMP") != NULL
++                    || getenv("RECOMP_PEEK") != NULL
++                    || getenv("RECOMP_PEEK_CHAIN") != NULL
++                    || getenv("RECOMP_FIND_NAN") != NULL
++                    || getenv("RECOMP_FIND_QUAD") != NULL
++                    || getenv("RECOMP_TEX_STATE") != NULL
++                    || getenv("RECOMP_PB_UNHANDLED_ALL") != NULL;
+         if (g_nv2a_memory) {
+             DWORD old_protect;
+             if (VirtualProtect((char *)g_nv2a_memory + 0x8000, 0x1000,
+diff --git a/src/usb/usb_gamepad.c b/src/usb/usb_gamepad.c
+index bd00f3f..575b5f3 100644
+--- a/src/usb/usb_gamepad.c
++++ b/src/usb/usb_gamepad.c
+@@ -592,14 +592,28 @@ int usb_gamepad_report(int pad, uint8_t *out, int max)
+             unsigned long now = (unsigned long)GetTickCount();
+             if (now - last > 1000) {
+                 XBOX_INPUT_STATE probe;
++                const char *keyboard = getenv("RECOMP_KEYBOARD");
++                const char *layout = getenv("RECOMP_KEYBOARD_LAYOUT");
+                 DWORD rc = xbox_InputGetState(0, &probe);
+                 last = now;
+-                fprintf(stderr, "  [INPUT] kbd_env=%d window_has_RETURN=%d "
+-                        "InputGetState=%lu buttons=0x%04X\n",
+-                        getenv("RECOMP_KEYBOARD") ? 1 : 0,
++                fprintf(stderr, "  [INPUT] pad=0 kbd_env=%s layout=%s "
++                        "window_has_RETURN=%d "
++                        "keys(up/3/down/1/left/right)=%d/%d/%d/%d/%d/%d "
++                        "InputGetState=%lu buttons=0x%04X LT=%u RT=%u LX=%d\n",
++                        keyboard ? keyboard : "off",
++                        layout ? layout : "legacy",
+                         xbox_FramebufferKeyDown(0x0D),
++                        xbox_FramebufferKeyDown(0x26),
++                        xbox_FramebufferKeyDown('3'),
++                        xbox_FramebufferKeyDown(0x28),
++                        xbox_FramebufferKeyDown('1'),
++                        xbox_FramebufferKeyDown(0x25),
++                        xbox_FramebufferKeyDown(0x27),
+                         (unsigned long)rc,
+-                        rc == 0 ? probe.Gamepad.wButtons : 0);
++                        rc == 0 ? probe.Gamepad.wButtons : 0,
++                        rc == 0 ? probe.Gamepad.bAnalogButtons[XBOX_BUTTON_LTRIGGER] : 0,
++                        rc == 0 ? probe.Gamepad.bAnalogButtons[XBOX_BUTTON_RTRIGGER] : 0,
++                        rc == 0 ? probe.Gamepad.sThumbLX : 0);
+                 fflush(stderr);
+             }
+         }
+diff --git a/src/video/nv2a_d3d11.c b/src/video/nv2a_d3d11.c
+index b9f3fa2..f32cffe 100644
+--- a/src/video/nv2a_d3d11.c
++++ b/src/video/nv2a_d3d11.c
+@@ -1413,13 +1413,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
+ }
+ 
+ /* Guest rows of a surface as BGRA, with the format's fixed alpha. */
+-static void surface_rows_to_bgra(const Surface *s, uint32_t *out)
++static void surface_rows_to_bgra(const Surface *s, const uint8_t *src,
++                                 uint32_t pitch, uint32_t *out)
+ {
+-    const uint8_t *src = guest(s->va);
+     int amode = surface_alpha_mode(s->color_fmt);
+     uint32_t x, y;
+     for (y = 0; y < s->h; y++) {
+-        const uint8_t *row = src + (size_t)y * s->pitch;
++        const uint8_t *row = src + (size_t)y * pitch;
+         uint32_t *dst = out + (size_t)y * s->w;
+         if (s->bpp == 4) {
+             memcpy(dst, row, (size_t)s->w * 4);
+@@ -1454,6 +1454,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
+ static UINT s_up_w[2], s_up_h[2];
+ static uint32_t *s_up_pixels, *s_mask_pixels;
+ static size_t s_up_cap, s_mask_cap;
++static uint8_t *s_swz_rows;
++static size_t s_swz_cap;
+ 
+ /* slot 0: image, slot 1: change mask */
+ static ID3D11ShaderResourceView *upload_slot(int k, const uint32_t *pixels, UINT w, UINT h)
+@@ -1489,6 +1491,25 @@ static uint32_t *scratch_pixels(size_t count)
+     return s_up_pixels;
+ }
+ 
++/* The shadow and change mask describe logical pixels. Swizzled targets
++ * need the same CPU-write detection after undoing their Morton layout. */
++static const uint8_t *surface_guest_rows(const Surface *s, uint32_t *pitch)
++{
++    size_t bytes;
++    *pitch = s->pitch;
++    if (!s->swizzled) return guest(s->va);
++    *pitch = s->w * s->bpp;
++    bytes = (size_t)*pitch * s->h;
++    if (bytes > s_swz_cap) {
++        free(s_swz_rows);
++        s_swz_rows = (uint8_t *)malloc(bytes);
++        s_swz_cap = s_swz_rows ? bytes : 0;
++    }
++    if (!s_swz_rows) return NULL;
++    xbox_unswizzle_rect(s_swz_rows, guest(s->va), s->w, s->h, s->bpp);
++    return s_swz_rows;
++}
++
+ /* Guest memory is the authority for what the CPU writes. A shadow copy of
+  * each surface's guest bytes says which pixels the CPU changed since the last
+  * look; only those replace what the GPU drew. A loading screen drawn by the
+@@ -1496,22 +1517,24 @@ static uint32_t *scratch_pixels(size_t count)
+ static void surface_sync_impl(Surface *s, int force)
+ {
+     uint32_t rowb = s->w * s->bpp, y, x, x0 = 0xFFFFFFFFu, x1 = 0, y0 = 0xFFFFFFFFu, y1 = 0;
++    uint32_t pitch;
+     uint32_t *px, *mask;
+     const uint8_t *g;
+-    if (!s->bpp || s->swizzled || !guest_ok(s->va, (size_t)s->pitch * s->h))
++    if (!s->bpp || !guest_ok(s->va, (size_t)s->pitch * s->h))
+         return;
+     if (!force && s->synced_frame == s_epoch)
+         return;
++    g = surface_guest_rows(s, &pitch);
++    if (!g) return;
+     s->synced_frame = s_epoch;
+-    g = guest(s->va);
+     if (!s->shadow) {
+         s->shadow = (uint8_t *)malloc((size_t)rowb * s->h);
+         if (!s->shadow) return;
+         for (y = 0; y < s->h; y++)
+-            memcpy(s->shadow + (size_t)y * rowb, g + (size_t)y * s->pitch, rowb);
++            memcpy(s->shadow + (size_t)y * rowb, g + (size_t)y * pitch, rowb);
+         px = scratch_pixels((size_t)s->w * s->h);
+         if (!px) return;
+-        surface_rows_to_bgra(s, px);
++        surface_rows_to_bgra(s, g, pitch, px);
+         {
+             ID3D11ShaderResourceView *srv = upload_image(px, s->w, s->h);
+             float x0, x1;
+@@ -1522,7 +1545,7 @@ static void surface_sync_impl(Surface *s, int force)
+         return;
+     }
+     for (y = 0; y < s->h; y++) {
+-        const uint8_t *row = g + (size_t)y * s->pitch;
++        const uint8_t *row = g + (size_t)y * pitch;
+         uint8_t *sh = s->shadow + (size_t)y * rowb;
+         if (!memcmp(row, sh, rowb)) continue;
+         if (y0 == 0xFFFFFFFFu) {
+@@ -1552,7 +1575,7 @@ static void surface_sync_impl(Surface *s, int force)
+                 s->phys, s_frame, x0, y0, x1, y1);
+     px = scratch_pixels((size_t)s->w * s->h);
+     if (!px) return;
+-    surface_rows_to_bgra(s, px);
++    surface_rows_to_bgra(s, g, pitch, px);
+     {
+         ID3D11ShaderResourceView *srv = upload_slot(0, px, s->w, s->h);
+         ID3D11ShaderResourceView *msk = upload_slot(1, s_mask_pixels, s->w, s->h);
+@@ -1572,8 +1595,11 @@ static void surface_sync(Surface *s, int force)
+     if (s_prof_on > 0) s_prof[PROF_SYNC] += qpc() - t0;
+ }
+ 
++static void writeback_drop_surface(Surface *s);
++
+ static void surface_release(Surface *s)
+ {
++    writeback_drop_surface(s);
+     if (s_cur_rt == s) unbind_targets();
+     if (s->srv) ID3D11ShaderResourceView_Release(s->srv);
+     if (s->rtv) ID3D11RenderTargetView_Release(s->rtv);
+@@ -1635,9 +1661,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
+     } else {
+         for (i = 0; i < MAX_SURFACES && !victim; i++)
+             if (!s_surf[i].tex) victim = &s_surf[i];
+-        for (i = 0; i < MAX_SURFACES && !victim; i++)
+-            if (!victim || s_surf[i].used_frame < victim->used_frame)
+-                victim = &s_surf[i];
++        if (!victim)
++            for (i = 0; i < MAX_SURFACES; i++)
++                if (!victim || s_surf[i].used_frame < victim->used_frame)
++                    victim = &s_surf[i];
+         if (!victim) victim = &s_surf[0];
+     }
+     surface_release(victim);
+@@ -1903,7 +1930,7 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
+ typedef struct TexEntry {
+     uint32_t phys, format, pitch, w, h, palette, used;
+     uint64_t hash, pal_hash;
+-    uint32_t checked_frame;
++    uint32_t checked_epoch;
+     size_t bytes;
+     ID3D11Texture2D *tex;
+     ID3D11ShaderResourceView *srv;
+@@ -2072,7 +2099,10 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+         if (e->phys == p && e->format == t->format && e->pitch == t->pitch &&
+             e->w == t->width && e->h == t->height && e->palette == pal_p)
+             break;
+-    if (e && e->checked_frame == s_frame) {
++    /* The CPU can refill streamed textures or palettes between submissions
++     * before a flip. Recheck once per kick, as surface CPU synchronization
++     * does; repeated draws in that submission still reuse the same check. */
++    if (e && e->checked_epoch == s_epoch) {
+         e->used = s_frame;
+         return e->srv;
+     }
+@@ -2082,7 +2112,7 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+         ph = hash_mem((const uint8_t *)pal, t->palette_len * 4);
+     }
+     if (e && e->hash == h && e->pal_hash == ph) {
+-        e->checked_frame = s_frame;
++        e->checked_epoch = s_epoch;
+         e->used = s_frame;
+         return e->srv;
+     }
+@@ -2152,7 +2182,7 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+     }
+     e->hash = h;
+     e->pal_hash = ph;
+-    e->checked_frame = s_frame;
++    e->checked_epoch = s_epoch;
+     e->used = s_frame;
+     tex_evict();
+     return e->srv;
+@@ -2707,7 +2737,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+         if (!mode_needs_texture(mode) || !t->addr || !t->width || !t->height)
+             continue;
+         tex_format(t->color, &kind);
+-        rt = !t->cube ? surface_find(phys(t->addr)) : NULL;
++        /* A recycled target address can now hold a streamed compressed or
++         * paletted image. Those layouts cannot alias a colour render target;
++         * decode their guest bytes instead of sampling the cached target. */
++        rt = !t->cube && kind != K_DXT && t->color != 0x0B
++             ? surface_find(phys(t->addr)) : NULL;
+         s_draw_textured = 1;
+         if (!s_draw_tex_addr) s_draw_tex_addr = t->addr;
+         if (rt && rt->sx > rt->sy * 1.001f) s_draw_reads_wide = 1;
+@@ -3271,6 +3305,13 @@ typedef struct {
+ } WbSlot;
+ static WbSlot s_wb[MAX_SURFACES];
+ 
++/* A readback belongs to the surface that queued it, not the reusable cache
++ * slot. A replacement of the same size must not inherit old GPU pixels. */
++static void writeback_drop_surface(Surface *s)
++{
++    s_wb[s - s_surf].pending = 0;
++}
++
+ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
+ {
+     if (k->stage && (k->w != w || k->h != h)) {
+diff --git a/tests/nv2a_targets/test_targets.c b/tests/nv2a_targets/test_targets.c
+index 9ba2f39..cebf661 100644
+--- a/tests/nv2a_targets/test_targets.c
++++ b/tests/nv2a_targets/test_targets.c
+@@ -1,4 +1,4 @@
+-/* Exercise real draw setup when a sampled surface has new CPU pixels. */
++/* Exercise real draw setup and GPU pixels after guest texture uploads. */
+ #include "../../src/video/nv2a_d3d11.c"
+ 
+ static uint8_t *ram;
+@@ -11,6 +11,48 @@ const uint32_t (*nv2a_vsh_program(uint32_t *start, uint32_t *version))[4] { retu
+ const float (*nv2a_vsh_constants(uint32_t *version))[4] { return NULL; }
+ 
+ #define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #x); return 1; } } while (0)
++
++static uint32_t read_pixel_at(ID3D11ShaderResourceView *view, unsigned x, unsigned y)
++{
++    ID3D11Resource *resource = NULL;
++    ID3D11Texture2D *source = NULL, *staging = NULL;
++    D3D11_TEXTURE2D_DESC desc;
++    D3D11_MAPPED_SUBRESOURCE mapped;
++    uint32_t value = 0xDEADBEEFu;
++    HRESULT hr;
++    if (!view) return value;
++    ID3D11ShaderResourceView_GetResource(view, &resource);
++    hr = ID3D11Resource_QueryInterface(resource, &IID_ID3D11Texture2D, (void **)&source);
++    ID3D11Resource_Release(resource);
++    if (FAILED(hr)) return value;
++    ID3D11Texture2D_GetDesc(source, &desc);
++    desc.Usage = D3D11_USAGE_STAGING;
++    desc.BindFlags = desc.MiscFlags = 0;
++    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
++    hr = ID3D11Device_CreateTexture2D(s_dev, &desc, NULL, &staging);
++    if (SUCCEEDED(hr)) {
++        ID3D11DeviceContext_CopyResource(s_ctx, (ID3D11Resource *)staging,
++                                       (ID3D11Resource *)source);
++        hr = ID3D11DeviceContext_Map(s_ctx, (ID3D11Resource *)staging, 0,
++                                   D3D11_MAP_READ, 0, &mapped);
++        if (SUCCEEDED(hr)) {
++            if (x < desc.Width && y < desc.Height)
++                memcpy(&value, (const uint8_t *)mapped.pData + y * mapped.RowPitch +
++                       x * (desc.Format == DXGI_FORMAT_R16G16B16A16_UNORM ? 8 : 4),
++                       sizeof value);
++            ID3D11DeviceContext_Unmap(s_ctx, (ID3D11Resource *)staging, 0);
++        }
++        ID3D11Texture2D_Release(staging);
++    }
++    ID3D11Texture2D_Release(source);
++    return value;
++}
++
++static uint32_t read_pixel(ID3D11ShaderResourceView *view)
++{
++    return read_pixel_at(view, 0, 0);
++}
++
+ int main(int argc, char **argv)
+ {
+     NvD3DState st = {0};
+@@ -20,11 +62,13 @@ int main(int argc, char **argv)
+     D3D11_VIEWPORT vp;
+     UINT nvp = 1;
+     uint32_t gw, gh, zmax;
++    unsigned i;
+     ram = calloc(1, 0x100000);
+     CHECK(ram);
+     _putenv_s("RECOMP_MSAA", argc > 1 ? argv[1] : "1");
+     _putenv_s("RECOMP_RENDER_SCALE", "1");
+     _putenv_s("RECOMP_PS_SPEC", "0");
++    _putenv_s("RECOMP_FPS_LIMIT", "0");
+     CHECK(nv2a_d3d_init());
+     sample = surface_get(0x20000, 32 * 4, 8, 32, 32, 0);
+     CHECK(sample);
+@@ -55,5 +99,228 @@ int main(int argc, char **argv)
+     ID3D11DeviceContext_RSGetViewports(s_ctx, &nvp, &vp);
+     CHECK(nvp == 1 && vp.Width == 64 && vp.Height == 64);
+     puts("PASS: sampled-surface upload preserves draw targets and viewport");
++
++    /* A full cache must retain a recently used render target. The victim
++     * search used to stop after slot 0, discarding it on every new target
++     * even while much older resources occupied the other slots. */
++    for (i = 0; i < MAX_SURFACES; i++) surface_release(&s_surf[i]);
++    for (i = 0; i < MAX_SURFACES; i++) {
++        s_frame = i + 1;
++        CHECK(surface_get(0x10000 + i * 0x4000, 128, 8, 32, 32, 0));
++    }
++    for (i = 0; i < MAX_SURFACES; i++)
++        CHECK(surface_find(0x10000 + i * 0x4000));
++    surface_find(0x10000)->used_frame = MAX_SURFACES + 10;
++    surface_find(0x10000 + 11 * 0x4000)->used_frame = 0;
++    s_frame = MAX_SURFACES + 11;
++    CHECK(surface_get(0xE0000, 128, 8, 32, 32, 0));
++    CHECK(surface_find(0x10000));
++    CHECK(!surface_find(0x10000 + 11 * 0x4000));
++    for (i = 1; i < MAX_SURFACES; i++)
++        if (i != 11) CHECK(surface_find(0x10000 + i * 0x4000));
++    CHECK(surface_find(0xE0000));
++    puts("PASS: full surface cache evicts oldest resource and preserves recent targets");
++
++    {
++        NvD3DTexture texture = {0};
++        ID3D11ShaderResourceView *view;
++        uint32_t *pixels = (uint32_t *)(ram + 0x70000);
++        uint32_t *palette = (uint32_t *)(ram + 0x73000);
++        uint32_t frame;
++        texture.addr = 0x70000;
++        texture.color = 0x12; /* Linear A8R8G8B8. */
++        texture.format = 0x1200;
++        texture.width = texture.height = 4;
++        texture.pitch = 16;
++        texture.levels = 1;
++        for (i = 0; i < 16; i++) pixels[i] = 0xFF000000u;
++        view = texture_get(&texture);
++        CHECK(view && read_pixel(view) == 0xFF000000u);
++        nv2a_d3d_kick();
++        CHECK(texture_get(&texture) == view); /* unchanged data keeps its upload */
++        frame = s_frame;
++        for (i = 0; i < 16; i++) pixels[i] = 0xFF00FF00u;
++        nv2a_d3d_kick();
++        CHECK(s_frame == frame);
++        CHECK(read_pixel(texture_get(&texture)) == 0xFF00FF00u);
++        nv2a_d3d_flip(0, 0);
++        CHECK(s_frame == frame + 1);
++        CHECK(read_pixel(texture_get(&texture)) == 0xFF00FF00u);
++        puts("PASS: guest texture rewrite reaches GPU pixels before the next flip");
++
++        memset(&texture, 0, sizeof texture);
++        texture.addr = 0x72000;
++        texture.color = 0x0B; /* P8, uniform indices avoid swizzle ambiguity. */
++        texture.format = 0x0B00;
++        texture.width = texture.height = 4;
++        texture.levels = 1;
++        texture.palette = 0x73000;
++        texture.palette_len = 256;
++        memset(ram + texture.addr, 7, 16);
++        palette[7] = 0xFFFF0000u;
++        CHECK(read_pixel(texture_get(&texture)) == 0xFFFF0000u);
++        frame = s_frame;
++        palette[7] = 0xFF0000FFu;
++        nv2a_d3d_kick();
++        CHECK(s_frame == frame);
++        CHECK(read_pixel(texture_get(&texture)) == 0xFF0000FFu);
++        nv2a_d3d_flip(0, 0);
++        CHECK(s_frame == frame + 1);
++        CHECK(read_pixel(texture_get(&texture)) == 0xFF0000FFu);
++        puts("PASS: guest palette rewrite reaches GPU pixels before the next flip");
++    }
++    /* Pending readbacks must not follow a cache slot when the target is
++     * released and replaced. Equal dimensions used to pass the readback
++     * check and overwrite unrelated guest memory with the old frame. */
++    for (i = 0; i < MAX_SURFACES; i++) surface_release(&s_surf[i]);
++    {
++        Surface *old, *replacement;
++        uint32_t *pixels;
++        float red[4] = { 1, 0, 0, 1 };
++        unsigned same_address, j;
++        for (same_address = 0; same_address < 2; same_address++) {
++            uint32_t old_va = 0x20000, new_va = same_address ? old_va : 0x30000;
++            old = surface_get(old_va, 128, 8, 32, 32, 0);
++            CHECK(old);
++            ID3D11DeviceContext_ClearRenderTargetView(s_ctx, old->rtv, red);
++            old->ms_dirty = 1;
++            old->gpu_dirty = 1;
++            writeback_surfaces();
++            CHECK(s_wb_pending && s_wb[old - s_surf].pending);
++            surface_release(old);
++            pixels = (uint32_t *)(ram + new_va);
++            for (j = 0; j < 32 * 32; j++) pixels[j] = 0xFF0000FFu;
++            replacement = surface_get(new_va, 128, 8, 32, 32, 0);
++            CHECK(replacement == old);
++            CHECK(writeback_finish(1));
++            for (j = 0; j < 32 * 32; j++) CHECK(pixels[j] == 0xFF0000FFu);
++            surface_release(replacement);
++        }
++        puts("PASS: queued pixels cannot overwrite replacements at new or reused guest addresses");
++
++        /* Retained targets still write GPU pixels back, while a row the
++         * CPU changed after submission stays intact for the next sync. */
++        old = surface_get(0x20000, 128, 8, 32, 32, 0);
++        CHECK(old);
++        ID3D11DeviceContext_ClearRenderTargetView(s_ctx, old->rtv, red);
++        old->ms_dirty = 1;
++        old->gpu_dirty = 1;
++        writeback_surfaces();
++        CHECK(s_wb_pending && s_wb[old - s_surf].pending);
++        pixels = (uint32_t *)(ram + old->va);
++        for (j = 0; j < 32; j++) pixels[j] = 0xFF00FF00u;
++        CHECK(writeback_finish(1));
++        for (j = 0; j < 32; j++) CHECK(pixels[j] == 0xFF00FF00u);
++        for (j = 32; j < 32 * 32; j++) CHECK(pixels[j] == 0xFFFF0000u);
++        puts("PASS: retained target writeback preserves later CPU writes and updates untouched rows");
++    }
++    for (i = 0; i < MAX_SURFACES; i++) surface_release(&s_surf[i]);
++    {
++        Surface *sampled, *drawn;
++        ID3D11ShaderResourceView *view = NULL;
++        float red[4] = { 1, 0, 0, 1 };
++        unsigned bpp, j;
++        for (bpp = 2; bpp <= 4; bpp += 2) {
++            uint32_t w = bpp == 2 ? 32 : 16, h = bpp == 2 ? 16 : 32;
++            uint32_t va = 0x40000 + bpp * 0x1000;
++            if (bpp == 2)
++                for (j = 0; j < w * h; j++) ((uint16_t *)(ram + va))[j] = 0x001F;
++            else
++                for (j = 0; j < w * h; j++) ((uint32_t *)(ram + va))[j] = 0xFF0000FFu;
++            sampled = surface_get(va, w * bpp, bpp == 2 ? 3 : 8, w, h, 1);
++            CHECK(sampled && read_pixel(sampled->srv) == 0xFF0000FFu);
++            ID3D11DeviceContext_ClearRenderTargetView(s_ctx, sampled->rtv, red);
++            sampled->gen++;
++            surface_sync(sampled, 1);
++            CHECK(read_pixel(sampled->srv) == 0xFFFF0000u);
++            /* Morton (3,5) is byte-independent texel index39 for both
++             * rectangles: X contributes5, Y contributes34. */
++            if (bpp == 2) ((uint16_t *)(ram + va))[39] = 0x07E0;
++            else ((uint32_t *)(ram + va))[39] = 0xFF00FF00u;
++            nv2a_d3d_kick();
++            memset(&st, 0, sizeof st);
++            st.color_addr = 0x10000; st.color_pitch = 64 * 4;
++            st.surface_format = 8; st.clip_w = st.clip_h = 64;
++            st.color_mask = 0x01010101; st.tex_used = 1;
++            st.tex[0].addr = va; st.tex[0].color = bpp == 2 ? 0x05 : 0x06;
++            st.tex[0].format = st.tex[0].color << 8;
++            st.tex[0].width = w; st.tex[0].height = h; st.tex[0].levels = 1;
++            CHECK(setup_pipeline(&st, NV_D3D_TRIANGLES, &drawn, &gw, &gh, &zmax));
++            ID3D11DeviceContext_PSGetShaderResources(s_ctx, 0, 1, &view);
++            CHECK(view == sampled->srv);
++            CHECK(read_pixel_at(view, 3, 5) == 0xFF00FF00u);
++            CHECK(read_pixel_at(view, 3, 4) == 0xFFFF0000u);
++            CHECK(read_pixel_at(view, 0, 1) == 0xFFFF0000u);
++            ID3D11ShaderResourceView_Release(view);
++            view = NULL;
++        }
++        puts("PASS: swizzled16/32-bit CPU pixels synchronize while unchanged GPU pixels survive");
++
++        /* Reuse the last target's block as ordinary DXT1 and P8 data.
++         * Draw setup must bind their decoded images rather than the old RT. */
++        for (j = 0; j < 4 * 8; j++) {
++            uint8_t *block = ram + st.tex[0].addr + j * 8;
++            block[0] = 0xE0; block[1] = 0x07;
++            memset(block + 2, 0, 6);
++        }
++        st.tex[0].color = 0x0C; st.tex[0].format = 0x0C00;
++        nv2a_d3d_kick();
++        CHECK(setup_pipeline(&st, NV_D3D_TRIANGLES, &drawn, &gw, &gh, &zmax));
++        ID3D11DeviceContext_PSGetShaderResources(s_ctx, 0, 1, &view);
++        CHECK(view != sampled->srv && read_pixel(view) == 0xFF00FF00u);
++        ID3D11ShaderResourceView_Release(view);
++        memset(ram + st.tex[0].addr, 7, 16 * 32);
++        ((uint32_t *)(ram + 0x74000))[7] = 0xFF0000FFu;
++        st.tex[0].color = 0x0B; st.tex[0].format = 0x0B00;
++        st.tex[0].palette = 0x74000; st.tex[0].palette_len = 256;
++        nv2a_d3d_kick();
++        CHECK(setup_pipeline(&st, NV_D3D_TRIANGLES, &drawn, &gw, &gh, &zmax));
++        view = NULL;
++        ID3D11DeviceContext_PSGetShaderResources(s_ctx, 0, 1, &view);
++        CHECK(view != sampled->srv && read_pixel(view) == 0xFF0000FFu);
++        ID3D11ShaderResourceView_Release(view);
++        puts("PASS: compressed/paletted uploads at old target addresses bind their decoded pixels");
++
++        /* Y16 is an intentional reinterpretation: one32-bit colour/depth
++         * pixel supplies two16-bit luminance texels. Preserve it, including
++         * depth taking precedence when both targets share an address. */
++        sampled = surface_get(0x50000, 128, 8, 32, 32, 0);
++        CHECK(sampled);
++        ID3D11DeviceContext_ClearRenderTargetView(s_ctx, sampled->rtv, red);
++        sampled->ms_dirty = 1; sampled->gen++;
++        memset(&st, 0, sizeof st);
++        st.color_addr = 0x10000; st.color_pitch = 64 * 4;
++        st.surface_format = 8; st.clip_w = st.clip_h = 64;
++        st.color_mask = 0x01010101; st.tex_used = 1;
++        st.tex[0].addr = sampled->va; st.tex[0].color = 0x35;
++        st.tex[0].format = 0x3500; st.tex[0].pitch = 128;
++        st.tex[0].width = 64; st.tex[0].height = 32; st.tex[0].levels = 1;
++        nv2a_d3d_kick();
++        CHECK(setup_pipeline(&st, NV_D3D_TRIANGLES, &drawn, &gw, &gh, &zmax));
++        view = NULL;
++        ID3D11DeviceContext_PSGetShaderResources(s_ctx, 0, 1, &view);
++        CHECK(view && view == sampled->y16_srv);
++        /* The readback helper returns R16/G16 packed for these views.
++         * RedARGB has low16=0, high16=FFFF, yielding black then white. */
++        CHECK(read_pixel_at(view, 0, 0) == 0);
++        CHECK(read_pixel_at(view, 1, 0) == 0xFFFFFFFFu);
++        ID3D11ShaderResourceView_Release(view);
++        {
++            Depth *zsample = depth_get(sampled->va, 32, 32, s_msaa);
++            CHECK(zsample);
++            zsample->zf = 2; zsample->w = zsample->h = 32;
++            zsample->seq = ++s_surf_seq; zsample->gen++;
++            ID3D11DeviceContext_ClearDepthStencilView(s_ctx, zsample->dsv,
++                D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
++            nv2a_d3d_kick();
++            CHECK(setup_pipeline(&st, NV_D3D_TRIANGLES, &drawn, &gw, &gh, &zmax));
++            view = NULL;
++            ID3D11DeviceContext_PSGetShaderResources(s_ctx, 0, 1, &view);
++            CHECK(view && view == zsample->y16_srv && view != sampled->y16_srv);
++            CHECK(read_pixel_at(view, 1, 0) == 0xFFFFFFFFu);
++            ID3D11ShaderResourceView_Release(view);
++        }
++        puts("PASS: colour/depth Y16 aliases retain GPU values and depth precedence");
++    }
+     return 0;
+ }

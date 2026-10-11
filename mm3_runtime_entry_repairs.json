@@ -1,5 +1,25 @@
 [
   {
+    "start": "0x0004C78C",
+    "end": "0x0004C793",
+    "note": "Runtime array-destructor callback observed at 0x00012BAB while changing game modes. Convert this from ECX to EAX and tail-call the existing 0x0024D249 destructor."
+  },
+  {
+    "start": "0x000139C1",
+    "end": "0x000139C8",
+    "note": "Runtime array-destructor callback observed at 0x00012BAB while changing game modes. Convert this from ECX to EAX and tail-call the existing 0x0024D275 destructor."
+  },
+  {
+    "start": "0x00138CF1",
+    "end": "0x00138CFC",
+    "note": "Runtime array-destructor callback observed at 0x00012BAB while changing game modes. Restore the derived vtable before tail-calling the existing 0x001550AE base cleanup."
+  },
+  {
+    "start": "0x00012B37",
+    "end": "0x00012B3E",
+    "note": "Runtime array-destructor callback observed at 0x00012BAB while changing game modes. Convert this from ECX to EAX and tail-call the existing 0x0024D2E9 destructor."
+  },
+  {
     "start": "0x0013679A",
     "end": "0x001369A8",
     "note": "Attribute-list virtual method tail target. The unresolved stub returns the object's vtable, causing Cruise resource lookup to dereference code bytes as strings."
@@ -93,29 +113,45 @@
     "start": "0x0009BB15",
     "end": "0x0009BC04",
     "note": "Runtime x87 math dispatch entry repeatedly reached through 0x0009B8E1 during Cruise loading. Inherits the caller's math frame; outgoing helpers 9BC52 and 9BC95 already have detected bodies.",
-    "x87_helper_unwinds_caller": true
+    "x87_helper_unwinds_caller": true,
+    "x87_extended_loads": ["0x003937F8"]
   },
   {
     "start": "0x0009BB04",
     "end": "0x0009BC04",
     "note": "Related x87 power dispatch entry sharing the caller's frame and the 9BB22 result path.",
-    "x87_helper_unwinds_caller": true
+    "x87_helper_unwinds_caller": true,
+    "x87_extended_loads": ["0x003937F8"]
   },
   {
     "start": "0x0009BB11",
     "end": "0x0009BC04",
     "note": "Backward shared x87 logarithm continuation referenced by the power dispatch path; preserve x87 stack and inherited frame.",
-    "x87_helper_unwinds_caller": true
+    "x87_helper_unwinds_caller": true,
+    "x87_extended_loads": ["0x003937F8"]
+  },
+  {
+    "start": "0x0009B4E2",
+    "end": "0x0009B4E7",
+    "note": "Shared x87 exponential-underflow tail: replace the input with zero while preserving the floating-point stack depth. The unresolved stub leaves the negative exponent as the tire-force result."
   },
   {
     "start": "0x0009BC04",
     "end": "0x0009BC35",
-    "note": "Original x87 overflow continuation pops the helper return address and returns from its caller. Recover the complete extended infinity operand."
+    "note": "Original x87 overflow continuation pops the helper return address and returns from its caller. Recover the complete extended infinity operand.",
+    "x87_extended_loads": ["0x003937F8"]
+  },
+  {
+    "start": "0x0009BC35",
+    "end": "0x0009BC45",
+    "note": "Original x87 overflow-result helper: replace the input with extended infinity and report overflow without changing floating-point stack depth.",
+    "x87_extended_loads": ["0x003937F8"]
   },
   {
     "start": "0x0009BC52",
     "end": "0x0009BC95",
-    "note": "Original x87 exponential range-reduction helper. Its 80-bit 32767.5 range limit must not be read as a 32-bit zero."
+    "note": "Original x87 exponential range-reduction helper. Its 80-bit 32767.5 range limit must not be read as a 32-bit zero.",
+    "x87_extended_loads": ["0x00393816"]
   },
   {
     "start": "0x00109367",

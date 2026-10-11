@@ -9,7 +9,7 @@ You need Windows 10/11 x64, Visual Studio 2022 or newer with **Desktop developme
 (it includes CMake), Python 3.11+ (the `py` launcher), git, and your own Midtown Madness 3 disc.
 
 ```powershell
-git clone --recurse-submodules https://github.com/MattSG/mm3-recomp.git
+git clone --recurse-submodules https://github.com/lakshya16157/mm3-recomp.git
 cd mm3-recomp
 pwsh scripts\setup.ps1 -Iso "D:\Games\Midtown Madness 3 (USA).iso"
 pwsh scripts\play.ps1            # -Keyboard to drive with the keyboard
@@ -19,6 +19,26 @@ pwsh scripts\play.ps1            # -Keyboard to drive with the keyboard
 extracts it to `game_files\`, generates the translated C into `src\recomp\gen\` (about six
 minutes, deterministic) and builds `build\RelWithDebInfo\mm3_recomp.exe`. Re-running skips
 finished steps; `-Force` redoes them. Nothing from the disc is committed.
+
+This repository includes its runtime fixes in `patches/xboxrecomp-mm3.patch`.
+Setup applies them to the pinned Xbox runtime submodule automatically and safely
+skips an already applied patch. The upstream toolkit and its generator history
+remain available through the submodule. Before building manually, run
+`python scripts/apply_runtime_patch.py` once after initializing submodules.
+
+For a checkout with local tools installed, activate them in the current PowerShell session:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+. .\scripts\enter-env.ps1
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup.ps1 -Iso "D:\Games\Midtown Madness 3 (USA).iso"
+```
+
+The local environment uses `tools\venv`, portable PowerShell at `tools\bin\powershell`,
+and MSVC/Windows SDK at `tools\bin\msvc` (via `setup_x64.bat`). With local MSVC,
+install CMake and Ninja in the venv (`python -m pip install "cmake>=3.20,<4" ninja`);
+setup uses Ninja Multi-Config and keeps the same `build\<Config>` output paths.
+Run these commands from the repository directory, not its parent folder.
 
 ### Which disc
 
@@ -59,11 +79,30 @@ $env:RECOMP_APU_DSP_ACK='0x80458810'
 build\RelWithDebInfo\mm3_recomp.exe
 ```
 
-**Keep `RECOMP_FPS_LIMIT` at 120 or below for races.** Above that the race AI reverses and
-wanders off the start line: `tools\powershell\Test-MM3AiStart.ps1` passes every run at 60
-(the default), 90 and 120, is flaky at 144 and fails at 165 and uncapped (`0`).
+The game enforces a maximum of **60 FPS** for presentation and emulated vblank.
+`RECOMP_FPS_LIMIT` may select a lower integer limit from 1 to 60; unset, invalid,
+uncapped (`0`), or higher settings use 60, including when launching the executable directly.
 
-F11 or Alt+Enter toggles fullscreen. The window size sets the internal resolution unless pinned.
+F11 or Alt+Enter toggles fullscreen. The game renders at 2304×1440 by default with a
+16:10 aspect, matching a 3840×2400 display, and scales the image to the window or
+fullscreen size. The internal height stays fixed when you maximize the window.
+Set `RECOMP_RENDER_SCALE=auto` to follow the window resolution instead;
+`RECOMP_SUPERSAMPLE` applies in that mode. Set `RECOMP_ASPECT=auto` to follow the
+window's aspect, or select another aspect explicitly.
+
+With `scripts\play.ps1 -Keyboard`, hold **Up** to accelerate, **Down** to brake/reverse,
+and **Left/Right** to steer. Arrows also navigate menus. **Z** confirms, **X** goes back,
+and **Enter/Esc** pauses/resumes. **C** changes the camera view while driving. The original
+**3** accelerator, **1** brake and numpad **4/6** steering keys still work. Keyboard input
+releases when the game loses focus.
+Choose **Manual** transmission in car setup, then tap **R** to shift up and **F** to shift down
+(the default Xbox B/X gear controls). These aliases operate only while driving.
+Set `RECOMP_KEYBOARD_LAYOUT=legacy` to use only the original runtime bindings.
+
+All 35 car models included on the supported disc are selectable, including the hidden bonus
+cars. Event-specific vehicle classes still apply. Bonus paints and career statistics continue
+to follow profile progress. Set `MM3_UNLOCK_ALL_CARS=0` to restore the original car locks;
+the availability change does not write unlock keys to your save.
 
 ### Options
 
@@ -73,20 +112,22 @@ F11 or Alt+Enter toggles fullscreen. The window size sets the internal resolutio
 | `RECOMP_FB_WINDOW` | off | Open the game window. **Required.** |
 | `RECOMP_USB` | off | Emulate the USB controller ports so pads (XInput) reach the game. **Required** for input. |
 | `RECOMP_APU_DSP_ACK` | unset | DSP acknowledgement address(es) the audio needs; use `0x80458810`. |
-| `RECOMP_KEYBOARD` | off | `1`: keyboard as a pad (arrows, Z X A S = A B X Y, Enter = Start, Backspace = Back). |
-| `RECOMP_FPS_LIMIT` | `60` | Frame-rate cap (the emulated vblank). `0` = uncapped. Over 120 the race AI misdrives; use for benchmarks only. |
+| `RECOMP_KEYBOARD` | off | `1`: keyboard as a pad (arrows drive/navigate, Z X A S = A B X Y, Enter = Start, Backspace = Back). |
+| `RECOMP_KEYBOARD_LAYOUT` | `mm3` | Arrow driving controls; `legacy` restores the original D-pad-only arrows and 1/3 trigger keys. |
+| `RECOMP_FPS_LIMIT` | `60` | Presentation and emulated-vblank cap, 1–60. Uncapped, invalid, or higher values use 60. |
 | `RECOMP_VSYNC` | `0` | Present sync interval passed to DXGI. |
 | `RECOMP_FULLSCREEN` | off | Start fullscreen. |
 | `RECOMP_WINDOW_SIZE` | auto | Initial window client size, `WxH`. |
-| `RECOMP_ASPECT` | window | Pin the display aspect: `16:9`, `4:3`, or a number. Widescreen UI follows it. |
-| `RECOMP_SUPERSAMPLE` | `2` | Render N×N pixels per window pixel (1–4). |
-| `RECOMP_RENDER_SCALE` | auto | Pin internal resolution as a multiple of 480 lines (0.5–8); overrides the above. |
+| `RECOMP_ASPECT` | `16:10` | Pin the display aspect: `16:10`, `16:9`, `4:3`, or a number. `auto` follows the window. Widescreen UI follows it. |
+| `RECOMP_SUPERSAMPLE` | `2` | In auto resolution mode, render N×N pixels per window pixel (1–4). |
+| `RECOMP_RENDER_SCALE` | `3.0` | Internal height as a multiple of 480 lines (0.5–8): default 1440, `2.25` = 1080, `1.5` = 720. `auto` follows the window and uses supersampling. |
 | `RECOMP_MSAA` | `4` | MSAA sample count (1/2/4/8). |
 | `RECOMP_ANISO` | `16` | Anisotropic filtering (1–16). |
 | `RECOMP_DRAW_DISTANCE` | `2` | View/LOD distance multiplier (1 = Xbox, up to 4). |
 | `RECOMP_SHARP_POINT` | `1` | `0`: plain point filtering for fonts and menu art instead of sharp outlines. |
 | `RECOMP_PS_SPEC` | `1` | `0`: skip specialised pixel shaders (slow; for debugging). |
 | `MM3_SAVE_DIR` | built-in | Folder holding the HDD/save partition images. |
+| `MM3_UNLOCK_ALL_CARS` | `1` | Make every installed car selectable; `0` restores earned car availability. |
 | `MM3_DEBUG_TELEPORT` | off | Enable the teleport pipe (`tools\powershell\Send-MM3Teleport.ps1`). |
 
 ### Automation and measurement

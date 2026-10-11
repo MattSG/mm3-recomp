@@ -3,7 +3,7 @@
 Run the recompiled Midtown Madness 3 built by scripts\setup.ps1.
 
 .DESCRIPTION
-  pwsh scripts\play.ps1 [-Keyboard] [-Fullscreen] [-FpsLimit 120] [-Exe <path>]
+  pwsh scripts\play.ps1 [-Keyboard] [-Fullscreen] [-FpsLimit 60] [-Exe <path>]
 
 Any RECOMP_*/MM3_* variable already set in your shell overrides these
 defaults (see README "Options"). F11 or Alt+Enter toggles fullscreen.
@@ -11,7 +11,7 @@ defaults (see README "Options"). F11 or Alt+Enter toggles fullscreen.
 param(
     [switch]$Keyboard,
     [switch]$Fullscreen,
-    [ValidateRange(1, 120)][int]$FpsLimit = 60,   # over 120 the race AI misdrives (README)
+    [ValidateRange(1, 60)][int]$FpsLimit = 60,
     [string]$Exe
 )
 $ErrorActionPreference = 'Stop'
@@ -26,6 +26,8 @@ if (-not (Test-Path (Join-Path $repo 'game_files\default.xbe'))) { throw 'game_f
 $defaults = @{
     RECOMP_PB_EXEC = '1'; RECOMP_FB_WINDOW = '1'; RECOMP_USB = '1'
     RECOMP_APU_DSP_ACK = '0x80458810'; RECOMP_FPS_LIMIT = "$FpsLimit"
+    RECOMP_KEYBOARD_LAYOUT = 'mm3'
+    RECOMP_RENDER_SCALE = '3.0'; RECOMP_ASPECT = '16:10'
 }
 if ($Keyboard) { $defaults.RECOMP_KEYBOARD = '1' }
 if ($Fullscreen) { $defaults.RECOMP_FULLSCREEN = '1' }
