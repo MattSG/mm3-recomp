@@ -41,7 +41,22 @@ static const struct {
     { "SID_CAR_SHORT_9008", "Bugatti Bolide" },
     { "SID_CAR_MF_9009", "Ford" },
     { "SID_CAR_MODEL_9009", "GT" },
-    { "SID_CAR_SHORT_9009", "Ford GT" }
+    { "SID_CAR_SHORT_9009", "Ford GT" },
+    { "SID_CAR_MF_9010", "McLaren" },
+    { "SID_CAR_MODEL_9010", "Senna" },
+    { "SID_CAR_SHORT_9010", "McLaren Senna" },
+    { "SID_CAR_MF_9011", "McLaren" },
+    { "SID_CAR_MODEL_9011", "Senna GTR" },
+    { "SID_CAR_SHORT_9011", "McLaren Senna GTR" },
+    { "SID_CAR_MF_9012", "Ferrari" },
+    { "SID_CAR_MODEL_9012", "FXX K" },
+    { "SID_CAR_SHORT_9012", "Ferrari FXX K" },
+    { "SID_CAR_MF_9013", "Koenigsegg" },
+    { "SID_CAR_MODEL_9013", "Regera" },
+    { "SID_CAR_SHORT_9013", "Koenigsegg Regera" },
+    { "SID_CAR_MF_9014", "Lamborghini" },
+    { "SID_CAR_MODEL_9014", "Aventador" },
+    { "SID_CAR_SHORT_9014", "Lamborghini Aventador" }
 };
 
 void sub_0011C194(void)

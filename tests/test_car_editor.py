@@ -26,6 +26,41 @@ def form(car):
 
 
 class CarEditorTest(unittest.TestCase):
+    def test_default_local_manifest_preserves_models_stats_and_apply_path(self):
+        folder = Path(self.temp.name)
+        tracked, local = folder / "cars.json", folder / "cars.local.json"
+        baseline = copy.deepcopy(self.model.config)
+        tracked.write_text(json.dumps(baseline), encoding="utf-8")
+        custom = copy.deepcopy(baseline)
+        custom["cars"][0]["physics"]["TorqueScale"] = 777
+        custom["cars"][3]["model_package"] = "prepared models/Panoz"
+        local.write_text(json.dumps(custom), encoding="utf-8")
+        selector = editor.prepare.default_config_path
+        with patch.object(editor.prepare, "default_config_path", lambda: selector(folder)):
+            args = editor.parse_args([])
+        model = editor.EditorModel(args.config)
+        self.assertEqual(model.config, custom)
+        model.replace_car(0, editor.edited_car(custom["cars"][0], **form(custom["cars"][0])))
+        model.save()
+        model.reload()
+        self.assertEqual(model.config, custom)
+        self.assertEqual(editor.prepare.load_config(tracked), baseline)
+        self.assertEqual(model.apply_command(folder / "game")[3], str(local.resolve()))
+
+    def test_editor_explicit_manifest_wins_and_no_local_file_uses_defaults(self):
+        folder = Path(self.temp.name)
+        tracked, local = folder / "cars.json", folder / "cars.local.json"
+        tracked.write_bytes(self.path.read_bytes())
+        selector = editor.prepare.default_config_path
+        with patch.object(editor.prepare, "default_config_path", lambda: selector(folder)):
+            self.assertEqual(editor.parse_args([]).config, tracked)
+            local.write_bytes(self.path.read_bytes())
+            self.assertEqual(editor.parse_args([]).config, local)
+            args = editor.parse_args(["--config", str(self.path), "--car-id", "9011", "--tab", "model"])
+        self.assertEqual(args.config, self.path)
+        self.assertEqual(args.car_id, 9011)
+        self.assertEqual(args.tab, "model")
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="mm3-editor-test-")
         self.path = Path(self.temp.name) / "settings with spaces.json"
@@ -61,8 +96,34 @@ class CarEditorTest(unittest.TestCase):
         self.assertEqual(saved["physics"]["GearRatioVector"], [-3.3, 2.6, 1.8, 1.3, 1.0, 0.8, 0.7])
         self.assertEqual(saved["colors"], ["#ff8800", "#123456"])
         self.assertEqual(saved["ratings"]["TOPSPEED"], 8)
+        self.assertEqual(saved["speedometer"], {"max_kmh": 650, "max_mph": 404})
         self.assertEqual(saved["id"], original["id"])
         self.assertEqual(self.model.config, self.model.saved)
+
+    def test_original_speedometer_edit_save_and_removal_preserve_car_stats(self):
+        cars = copy.deepcopy(self.model.config["cars"])
+        limits = copy.deepcopy(self.model.config["original_speedometers"])
+        limits["Koenigsegg"] = editor.edited_speedometer({"max_kmh": "1000", "max_mph": "621"})
+        limits["Corvette"] = editor.edited_speedometer({"max_kmh": "650", "max_mph": "404"})
+        self.model.replace_original_speedometers(limits)
+        self.model.save()
+        self.model.reload()
+        self.assertEqual(self.model.config["original_speedometers"], limits)
+        self.assertEqual(self.model.config["cars"], cars)
+        self.assertIsNone(editor.edited_speedometer({"max_kmh": "", "max_mph": " "}))
+        self.model.replace_original_speedometers({})
+        self.model.save()
+        self.assertNotIn("original_speedometers", editor.prepare.load_config(self.path))
+        self.assertEqual(self.model.config["cars"], cars)
+
+    def test_invalid_original_speedometer_edit_does_not_change_model_or_disk(self):
+        before, baseline = copy.deepcopy(self.model.config), self.path.read_bytes()
+        for settings in ({"Koenigsegg": {"max_kmh": 1201, "max_mph": 500}},
+                         {"UnknownCar": {"max_kmh": 800, "max_mph": 500}}):
+            with self.subTest(settings=settings), self.assertRaises(ValueError):
+                self.model.replace_original_speedometers(settings)
+            self.assertEqual(self.model.config, before)
+            self.assertEqual(self.path.read_bytes(), baseline)
 
     def test_blanks_remove_overrides_without_inventing_donor_defaults(self):
         car = self.model.config["cars"][0]
@@ -120,6 +181,53 @@ class CarEditorTest(unittest.TestCase):
         self.assertEqual(command[1], str(ROOT / "tools/car-mods/prepare.py"))
         self.assertEqual(command[2:], ["--config", str(self.path), "--game-dir", str(game.resolve()), "--apply"])
         self.assertNotIn("--restore", command)
+
+    def test_model_package_path_survives_stats_edit_save_and_reload(self):
+        original = self.model.config["cars"][3]
+        fields = form(original)
+        folder = "models with spaces/panoz"
+        car = editor.edited_car(original, **fields, model_package=folder)
+        self.model.replace_car(3, car)
+        self.model.save()
+        self.model.reload()
+        car = self.model.config["cars"][3]
+        self.assertEqual(car["model_package"], folder)
+        fields = form(car)
+        fields["physics"]["TorqueScale"] = "700"
+        edited = editor.edited_car(car, **fields)
+        self.assertEqual(edited["model_package"], folder)
+        self.model.replace_car(3, edited)
+        self.model.save()
+        self.model.reload()
+        self.assertEqual(self.model.config["cars"][3]["model_package"], folder)
+        cleared = editor.edited_car(self.model.config["cars"][3], **form(self.model.config["cars"][3]), model_package=" ")
+        self.assertNotIn("model_package", cleared)
+
+    def test_five_new_identities_roundtrip_without_changing_existing_user_tuning(self):
+        config = copy.deepcopy(self.model.config)
+        config["cars"] = [car for car in config["cars"] if car["id"] <= 9009]
+        config["cars"][0]["physics"]["TorqueScale"] = 777
+        config["cars"][0]["speedometer"] = {"max_kmh": 300, "max_mph": 311}
+        before = copy.deepcopy(config["cars"])
+        template = next(car for car in config["cars"] if car["id"] == 9005)
+        for ident in range(9010, 9015):
+            alias, donor, name = editor.prepare.IDENTITIES[ident]
+            car = copy.deepcopy(template)
+            car.update(id=ident, alias=alias, donor=donor, display_name=name)
+            car["model_package"] = f"models/{alias}"
+            config["cars"].append(car)
+        self.path.write_text(json.dumps(config))
+        self.model.reload()
+        for index in range(9, 14):
+            car = self.model.config["cars"][index]
+            self.model.replace_car(index, editor.edited_car(car, **form(car)))
+        self.model.save()
+        self.model.reload()
+        self.assertEqual(self.model.config["cars"][:9], before)
+        self.assertEqual(len(self.model.config["cars"]), 14)
+        for ident, car in zip(range(9010, 9015), self.model.config["cars"][9:]):
+            self.assertEqual(car["id"], ident)
+            self.assertEqual(car["model_package"], f"models/{editor.prepare.IDENTITIES[ident][0]}")
 
     def test_running_game_check_parses_process_rows(self):
         with patch.object(editor.sys, "platform", "win32"), patch.object(editor.subprocess, "run") as run:

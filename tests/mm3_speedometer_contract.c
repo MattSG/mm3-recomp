@@ -22,6 +22,18 @@ static double speed, metric;
 static unsigned text_calls, needle_calls, destroyed, constructors, formatted;
 static int displayed;
 static float rectangle[5];
+static int use_override;
+static unsigned override_calls;
+
+int mm3_speedometer_draw(uint32_t hud, uint32_t caller_frame, double velocity)
+{
+    assert(hud == node && caller_frame == frame);
+    assert(g_esi == renderer);
+    assert(velocity == speed);
+    assert(MEMF(frame + 8) == 531.0f); /* Getter setup overwrote renderer slot. */
+    ++override_calls;
+    return use_override;
+}
 
 static void mock_indirect(uint32_t target)
 {
@@ -163,6 +175,19 @@ int main(void)
                     check(contract_original, 0, type, split, units, velocities[i]);
                     check(contract_modified, 1, type, split, units, velocities[i]);
                 }
+    for (i = 0; i < sizeof velocities / sizeof velocities[0]; ++i) {
+        unsigned configured;
+        for (configured = 0; configured <= 1; ++configured) {
+            check(contract_modified, 1, 1, 0, 1, velocities[i]);
+            MEMF(0x38641C) = 81.0f;
+            use_override = configured;
+            override_calls = needle_calls = 0;
+            needle_modified();
+            assert(override_calls == 1 && needle_calls == !configured);
+            assert(g_esp == stack && g_fp_top == 0);
+            assert(g_ebx == speed_data && g_esi == renderer);
+        }
+    }
     puts("PASS: native high-speed readout; km/h/mph conversion, original needle "
          "continuation, placement, split-screen behavior, stack and text ownership");
     return 0;

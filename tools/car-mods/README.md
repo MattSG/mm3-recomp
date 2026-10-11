@@ -1,12 +1,14 @@
 # Extra cars and editable stats
 
-This pack adds nine separately selectable tuned variants. The original 35 cars
-remain in the catalog. Each variant has its own name, paint, ratings and driving
-setup, while reusing an original MM3 body, interior, engine sound and collision
-model. These are game-tuned interpretations, not replicas or measured real-world
-specifications; Formula 1 currently uses the enclosed Lotus body.
+Car Workshop supports fourteen separately selectable extra-car identities.
+The original 35 cars remain in the catalog. Each variant has its own name,
+ratings and driving setup, with an original MM3 donor providing physics,
+interior, sound and collision. A selected prepared model package supplies its
+custom body, wheels, textures and livery; a blank package selection uses the
+donor visuals. These are game-tuned interpretations, rather than measured
+real-world specifications.
 
-| Added car | MM3 body |
+| Added car | Original MM3 donor |
 |---|---|
 | Mini Rally | Mini |
 | Mustang GT | Mustang Fastback |
@@ -17,6 +19,11 @@ specifications; Formula 1 currently uses the enclosed Lotus body.
 | Bugatti Chiron | Koenigsegg |
 | Bugatti Bolide | Koenigsegg |
 | Ford GT | Koenigsegg |
+| McLaren Senna | Koenigsegg |
+| McLaren Senna GTR | Koenigsegg |
+| Ferrari FXX K | Koenigsegg |
+| Koenigsegg Regera | Koenigsegg |
+| Lamborghini Aventador | Koenigsegg |
 
 ## Visual editor
 
@@ -26,16 +33,77 @@ Double-click [editor.cmd](editor.cmd), or run it from the repository root:
 tools\car-mods\editor.cmd
 ```
 
+To open a specific car and tab directly, for example Panoz's model package:
+
+```powershell
+tools\car-mods\editor.cmd --car-id 9004 --tab model
+```
+
+Tabs are `driving`, `gears`, `advanced` and `model`. The added car IDs are
+9001–9014; the five new entries use 9010 (Senna), 9011 (Senna GTR), 9012 (FXX K),
+9013 (Regera) and 9014 (Aventador). Older nine-car manifests remain valid.
+
+The editor and installer use `cars.local.json` beside these tools when that
+file exists, otherwise [cars.json](cars.json). The local file is ignored by
+Git, so your model selections and tuning can stay on this computer. To start
+local settings on a fresh checkout, copy `cars.json` to `cars.local.json`
+before opening Workshop. An explicit `--config <path>` always selects that
+manifest. The tracked fourteen-car defaults contain no imported model paths;
+downloaded sources and prepared model packages are kept outside the release.
+
 Choose a car on the left. Edit its paint colors, menu ratings, physics, gearing,
-RPM thresholds and speedometer limits in the tabs. The paint preview is a
+RPM thresholds and **Speedometer maximum** values. The maximum km/h and mph
+values set both the on-screen dial scale and the interior needle range for added
+cars. **Original car speedometers…** opens a selector for the original sports
+cars, including Koenigsegg, Viper and Lotus. Edit their dial maxima, then choose
+**Keep changes** before saving in the main window. Original-car physics stay
+unchanged. The paint preview is a
 schematic, not a model editor. **Save** writes the settings; **Save & Apply**
 also installs them into the game data. Close the game before applying, and
 restart it afterward. Invalid settings are rejected before installation, and
 the original data backups are retained.
 
+The **Model** tab selects a prepared MM3 model package folder containing
+`package.json`. Custom visuals are applied after donor cloning each time, so
+editing stats and choosing **Save & Apply** keeps the selected body and
+textures. **Use donor model** clears the package selection. Raw MM2 `.ar` and
+`.pkg` models require conversion first. A prepared package supplies its own
+materials and textures; the schematic paint preview does not show those
+materials or guarantee that changing its paint colors recolors the imported
+body. Donor physics, collision and sounds are retained.
+
+The optional per-car `model_package` setting is a folder path relative to
+the selected manifest, or an absolute folder path. Existing manifests without this field
+continue to use their donor visuals. For example, a Panoz package has:
+
+```json
+{
+  "format": "mm3-car-model-v1",
+  "alias": "Panoz",
+  "car_id": 9004,
+  "files": [
+    {"archive": "loose", "path": "Data/Shared/Cars/Panoz/body.cmp", "source": "body.cmp"},
+    {"archive": "Data_hd.zip", "path": "Cars/Panoz/materialSet00.omb", "source": "materialSet00.omb"},
+    {"archive": "Data_dvd.zip", "path": "Cars/Panoz/panoz.cdds", "source": "panoz.cdds"}
+  ]
+}
+```
+
+Provide at least `alias` or `car_id`; both, when supplied, must match the
+selected car. File paths use forward slashes. Only loose `.cmp` meshes and
+archived `.omb` materials or `.cdds` textures in that alias's car/LOD folders
+are accepted. Packages may also supply archived menu icons at
+`Menu/Gfx/Vehicles/<alias>.cdds` and `<alias>_Small.cdds`, and the associated
+`LoadingScreens/Default_<alias>.tga`. Other cars' icons and loading screens are
+rejected. Source files must remain inside the package and cannot be links
+or junctions. Keep the package folder available for future reapplication.
+Package assets participate in the normal backup, integrity, rollback and
+restore process; restoration removes installed custom visuals without
+deleting the prepared source package.
+
 The editor uses the checkout's Python environment and standard Tkinter; it does
 not require a web server or additional packages. The code is in
-[editor.py](editor.py), and [cars.json](cars.json) remains editable by hand.
+[editor.py](editor.py), and the selected manifest remains editable by hand.
 
 ## Command-line installation
 
@@ -51,7 +119,8 @@ The first command previews the changes. The second installs the pack into your
 extracted `game_files` data. Use a build containing the custom car name hook so
 the extra cars have readable names in the vehicle menu.
 
-Edit [cars.json](cars.json), then run `prepare.py --apply` again to change their
+Edit the selected `cars.local.json` or [cars.json](cars.json), then run
+`prepare.py --apply` again to change their
 stats. Menu ratings and driving physics are separate: changing a rating only
 changes its menu bar. Physics values control engine torque, mass, drag,
 brakes and grip. Keep the car identities unchanged; their IDs and display names
@@ -110,12 +179,30 @@ for more engine torque, then reapply the pack. Its acceleration menu bar is
 controlled separately by `ratings.ACCELERATION`.
 
 The optional `speedometer` object contains `max_kmh` and `max_mph`, controlling
-the interior dashboard needle range separately from driving performance. The
-fast variants use 800 km/h and 500 mph. The full-screen sport and Koenigsegg HUDs
-also show numeric speed below the dial, using the game's selected units and
-continuing beyond the analog dial's highest marking. The analog needle retains
-its original calibration. Raising a dashboard range does not add engine power
-or change the menu's `TOPSPEED` rating.
+the on-screen dial maximum and the interior dashboard needle range separately
+from driving performance. The fast variants use 800 km/h and 500 mph; Mini Rally
+uses 500 km/h and 311 mph. The dial labels and needle use the selected maximum
+in the game's current units. Numeric speed below the dial continues above that
+maximum. Raising the range does not add engine power or change the menu's
+`TOPSPEED` rating. Allowed ranges are 100–1200 km/h and 60–750 mph; both values
+are required for an override. Leave both editor fields blank to restore the
+original HUD scale and inherit the donor's interior needle range.
+
+The optional top-level `original_speedometers` map sets on-screen dial maxima
+for original sports cars without changing their physics, paint or interior
+camera configuration. The shipped settings raise Koenigsegg, Viper and Lotus
+to 800 km/h / 500 mph. For example:
+
+```json
+"original_speedometers": {
+  "Koenigsegg": {"max_kmh": 1000, "max_mph": 621}
+}
+```
+
+The installer writes the configured ranges to `Data/mm3_speedometers.ini`.
+This file is tracked with the installed assets, rebuilt on reapplication and
+removed by restoration. The game reads it at startup, so restart MM3 after
+applying changes. A car with no explicit override uses its original HUD.
 
 The installer preserves a backup of each affected archive and checks unchanged
 resources keep their original bytes and local-header offsets. It never edits
@@ -141,3 +228,15 @@ tools\bin\powershell\pwsh.exe -NoProfile -File tools\car-mods\verify.ps1 `
 The verifier reports the actual loaded catalog IDs, names and ratings, and
 checks the expected extra entries. It also reports the current player's
 simulation when a car is active.
+
+Run the editor/installer and native HUD checks without starting the game:
+
+```powershell
+. .\scripts\enter-env.ps1
+python -m unittest discover -s tests -p "test_car*.py"
+python tests/mm3_speedometer_regression.py
+python tests/mm3_speedometer_dial_regression.py
+```
+
+The HUD checks cover both units, drawn numbers, needle calibration, retail
+fallbacks, native rendering arguments and preservation of guest registers.

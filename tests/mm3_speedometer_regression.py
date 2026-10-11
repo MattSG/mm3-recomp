@@ -24,13 +24,28 @@ def generated_function(name):
 def numeric_branch(text, name):
     header = text[:text.index("loc_0023F09B:")]
     branch = text[text.index("loc_0023F805:"):text.index("loc_0023F8F8:")]
-    # The analog needle is exercised as a continuation boundary. Its complete
-    # production body is also compared byte-for-byte below, since the seam
-    # must preserve its labels/calibration instead of misreporting speed.
+    # Exercise the numeric-to-analog continuation without a GPU.
     return header.replace("sub_0023F09B", name) + branch + """
 loc_0023F8F8: ;
     assert(g_esi == renderer);
     ++needle_calls;
+loc_0023FB95: ;
+    return;
+    #undef fp_push
+    #undef fp_pop
+    #undef fp_top
+    #undef fp_st
+    #undef fp_st1
+}
+"""
+
+
+def needle_branch(text, name):
+    header = text[:text.index("loc_0023F09B:")]
+    branch = text[text.index("loc_0023F8F8:"):text.index("    g_fp_cmp = RECOMP_FCMP(fp_top(), MEMF(0x384EF4));", text.index("loc_0023F91B:"))]
+    return header.replace("sub_0023F09B", name) + branch + """
+    ++needle_calls;
+    fp_pop();
 loc_0023FB95: ;
     return;
     #undef fp_push
@@ -70,17 +85,30 @@ def main():
 
         modified = transform(original)
         assert transform(original.replace("\n", "\r\n")) == modified
-        assert original[original.index("loc_0023F8F8:"):] == modified[modified.index("loc_0023F8F8:"):]
+        analog = modified[modified.index("loc_0023F8F8:"):]
+        analog = analog.replace("    mm3_speedometer_node = ebx;\n", "", 1)
+        override = """    if (mm3_speedometer_draw(mm3_speedometer_node, ebp, fp_top())) {
+        /* The native getter left one speed value on the x87 stack. */
+        fp_pop();
+        goto loc_0023FB95;
+    }
+"""
+        assert override in analog
+        assert original[original.index("loc_0023F8F8:"):] == analog.replace(override, "", 1)
         # Fail closed on changed/duplicated source, rather than silently
         # applying a HUD branch repair at the wrong location after regeneration.
         transform(original.replace("loc_0023F82D:", "loc_0023F82E:"), reject=True)
         transform(original + "\nloc_0023F82D: ;\n", reject=True)
         transform(original.replace("goto loc_0023F8F8; /* jne: not equal / not zero */",
                                    "goto loc_0023FB95; /* changed */"), reject=True)
+        transform(original.replace("loc_0023F91B:", "loc_0023F91C:"), reject=True)
+        transform(original + "\nloc_0023F91B: ;\n    g_fp_cmp = RECOMP_FCMP(fp_top(), MEMF(0x384EF4));", reject=True)
         transform(modified, reject=True)
         (folder / "production_speedometer.inc").write_text(
             conversion + "\n" + numeric_branch(original, "contract_original") + "\n" +
-            numeric_branch(modified, "contract_modified"))
+            numeric_branch(modified, "contract_modified") + "\n" +
+            needle_branch(original, "needle_original") + "\n" +
+            needle_branch(modified, "needle_modified"))
         shutil.copyfile(ROOT / "src/mm3_recomp_types.h", folder / "recomp_types.h")
         executable = folder / "contract.exe"
         subprocess.run(["cl", "/nologo", "/W3", "/WX", "/wd4102", "/Od", "/std:c11",
@@ -90,7 +118,7 @@ def main():
                         "/Fo:" + str(folder / "contract.obj"), "/Fe:" + str(executable)],
                        check=True, cwd=folder)
         subprocess.run([str(executable)], check=True)
-    print("PASS: exact CMake HUD seam, unchanged analog calibration, LF/CRLF and rejected invalid anchors")
+    print("PASS: exact CMake HUD seam, original fallback, override stack balance, LF/CRLF and rejected invalid anchors")
 
 
 if __name__ == "__main__":

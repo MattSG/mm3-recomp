@@ -197,6 +197,7 @@ endforeach()
 
 add_executable(${PROJECT_NAME}
     src/main.c
+    src/mm3_asset_cache.c
     src/mm3_debug_features.c
  src/mm3_memory_compat.c
  src/mm3_memory_tails.c
@@ -208,6 +209,7 @@ add_executable(${PROJECT_NAME}
  src/mm3_render_distance.c
  src/mm3_debug_teleport.c
  src/mm3_custom_car_names.c
+ src/mm3_speedometer.c
  src/mm3_cpu_compat.c
  src/recomp_trace_probe.c
  ${RECOMP_GEN_SOURCES})

@@ -9,7 +9,9 @@
 #include "recomp_types.h"
 #include "recomp_funcs.h"
 #include "mm3_debug_teleport.h"
+#include "mm3_asset_cache.h"
 #include "mm3_frame_limit.h"
+#include "mm3_performance_profile.h"
 #include <xbox_host.h>
 #include <xinput_xbox.h>
 
@@ -156,6 +158,12 @@ int main(void)
     SetUnhandledExceptionFilter(mm3_crash_report);
     puts("MM3 static recompilation");
 
+    const char *profile_error = mm3_apply_performance_defaults(getenv("MM3_PERFORMANCE_PROFILE"));
+    if (profile_error) {
+        fprintf(stderr, "cannot select MM3 performance setting %s\n", profile_error);
+        return 1;
+    }
+
     /* Apply the same bounded rate before either vblank or presentation
      * caches its setting, including launches that bypass play.ps1. */
     char frame_limit[16];
@@ -174,18 +182,18 @@ int main(void)
         return 1;
     }
 
-    /* Keep internal rendering at 1440 lines and the laptop's 16:10 aspect
-     * when maximized. Explicit scale/aspect/auto settings take priority. */
-    if (!getenv("RECOMP_RENDER_SCALE") &&
-        _putenv_s("RECOMP_RENDER_SCALE", "3.0") != 0) {
-        fprintf(stderr, "cannot select MM3 rendering resolution\n");
-        return 1;
-    }
+    /* The profile pins internal resolution while the window changes size.
+     * Explicit aspect and auto settings take priority over the default. */
     if (!getenv("RECOMP_ASPECT") &&
         _putenv_s("RECOMP_ASPECT", "16:10") != 0) {
         fprintf(stderr, "cannot select MM3 display aspect\n");
         return 1;
     }
+
+    fprintf(stderr, "[MM3_PERFORMANCE] profile=%s scale=%s msaa=%s distance=%s aniso=%s fps=%s\n",
+            mm3_performance_profile(getenv("MM3_PERFORMANCE_PROFILE"))->name,
+            getenv("RECOMP_RENDER_SCALE"), getenv("RECOMP_MSAA"),
+            getenv("RECOMP_DRAW_DISTANCE"), getenv("RECOMP_ANISO"), getenv("RECOMP_FPS_LIMIT"));
 
     if (!load_file(MM3_XBE_PATH, &xbe_data, &xbe_size)) {
         fprintf(stderr, "cannot load %s\n", MM3_XBE_PATH);
@@ -218,6 +226,7 @@ int main(void)
                                    MM3_KERNEL_THUNK_COUNT);
     xbox_kernel_init();
     xbox_path_init(MM3_GAME_DIR, getenv("MM3_SAVE_DIR"));
+    mm3_asset_cache_refresh();
     xbox_kernel_bridge_init();
     if (xbox_Nv2aMirrorFence(0x00351F48u, 0x2Cu, 0x30u) != 0 ||
         xbox_Nv2aCommandFence(0x00351F48u, 0xCu, 0u) != 0) {

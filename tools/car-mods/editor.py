@@ -18,7 +18,7 @@ import sys
 import tempfile
 import threading
 import tkinter as tk
-from tkinter import colorchooser, messagebox, ttk
+from tkinter import colorchooser, filedialog, messagebox, ttk
 
 HERE = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location("mm3_car_prepare", HERE / "prepare.py")
@@ -61,7 +61,8 @@ def number(text: str, label: str, integer: bool = False) -> int | float:
 
 
 def edited_car(car: dict, ratings: dict[str, str], physics: dict[str, str],
-               gears: str, colors: list[str], speedometer: dict[str, str]) -> dict:
+               gears: str, colors: list[str], speedometer: dict[str, str],
+               model_package: str | None = None) -> dict:
     """Translate the form into config data; blank physics fields inherit the donor."""
     result = copy.deepcopy(car)
     result["ratings"] = {key: number(ratings[key], key.title(), True) for key in RATING_ORDER}
@@ -74,11 +75,24 @@ def edited_car(car: dict, ratings: dict[str, str], physics: dict[str, str],
         result["physics"]["GearRatioVector"] = [number(token, "Gear ratio") for token in tokens]
     result["colors"] = [color.strip().lower() for color in colors]
     result.pop("speedometer", None)
-    if any(text.strip() for text in speedometer.values()):
-        if not all(text.strip() for text in speedometer.values()):
-            raise ValueError("Enter both speedometer limits, or leave both blank to inherit the donor")
-        result["speedometer"] = {key: number(text, "Speedometer limit") for key, text in speedometer.items()}
+    limits = edited_speedometer(speedometer)
+    if limits is not None:
+        result["speedometer"] = limits
+    if model_package is not None:
+        result.pop("model_package", None)
+        if model_package.strip():
+            result["model_package"] = model_package.strip()
     return result
+
+
+def edited_speedometer(fields: dict[str, str]) -> dict | None:
+    if not any(text.strip() for text in fields.values()):
+        return None
+    if not all(text.strip() for text in fields.values()):
+        raise ValueError("Enter both speedometer limits, or leave both blank to use the original range")
+    limits = {key: number(text, "Speedometer limit") for key, text in fields.items()}
+    prepare.validate_speedometer(limits)
+    return limits
 
 
 class EditorModel:
@@ -96,10 +110,18 @@ class EditorModel:
         candidate["cars"][index] = car
         self.config = validated(candidate)
 
+    def replace_original_speedometers(self, settings: dict) -> None:
+        candidate = copy.deepcopy(self.config)
+        if settings:
+            candidate["original_speedometers"] = copy.deepcopy(settings)
+        else:
+            candidate.pop("original_speedometers", None)
+        self.config = validated(candidate)
+
     def save(self) -> None:
         config = validated(self.config)
         if self.path.read_bytes() != self.baseline:
-            raise ValueError("cars.json changed outside the editor. Reload it before saving to keep those changes.")
+            raise ValueError(f"{self.path.name} changed outside the editor. Reload it before saving to keep those changes.")
         payload = (json.dumps(config, indent=2) + "\n").encode("utf-8")
         prepare.atomic_write(self.path, payload)
         self.baseline = payload
@@ -123,10 +145,85 @@ def game_is_running() -> bool:
     return any(row and row[0].lower() == "mm3_recomp.exe" for row in csv.reader(io.StringIO(result.stdout)))
 
 
+class OriginalSpeedometerDialog:
+    """Edit retail-car HUD ranges in memory; the main window saves/applies them."""
+    def __init__(self, parent: tk.Tk, model: EditorModel, changed, show: bool = True) -> None:
+        self.model, self.changed = model, changed
+        self.settings = copy.deepcopy(model.config.get("original_speedometers", {}))
+        self.aliases = sorted(prepare.ORIGINAL_SPEEDOMETERS, key=lambda alias: prepare.ORIGINAL_SPEEDOMETERS[alias])
+        self.current = "Koenigsegg"
+        self.window = tk.Toplevel(parent)
+        self.window.withdraw()
+        self.window.title("Original car speedometers")
+        self.window.geometry("455x345")
+        self.window.resizable(False, False)
+        self.window.transient(parent)
+        frame = ttk.Frame(self.window, padding=20)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="Original car speedometers", font=("Segoe UI", 15, "bold")).pack(anchor="w")
+        ttk.Label(frame, text="Set the on-screen dial maximum for each original sports car.",
+                  style="Sub.TLabel", wraplength=410).pack(anchor="w", pady=(5, 12))
+        self.selector = ttk.Combobox(frame, state="readonly", width=36,
+                                    values=[prepare.ORIGINAL_SPEEDOMETERS[alias] for alias in self.aliases])
+        self.selector.pack(fill="x", pady=(0, 12))
+        self.selector.bind("<<ComboboxSelected>>", self.select)
+        self.speed_vars = {key: tk.StringVar() for key in prepare.SPEEDOMETER}
+        for key, unit in (("max_kmh", "km/h"), ("max_mph", "mph")):
+            row = ttk.Frame(frame)
+            row.pack(fill="x", pady=4)
+            low, high = prepare.SPEEDOMETER[key]
+            ttk.Label(row, text=f"Maximum {unit}", width=16).pack(side="left")
+            ttk.Spinbox(row, from_=low, to=high, increment=10, textvariable=self.speed_vars[key], width=10).pack(side="left")
+            ttk.Label(row, text=f"{low}–{high}", style="Sub.TLabel").pack(side="left", padx=12)
+        ttk.Label(frame, text="Both blank = original HUD range. This changes the dial scale, not the car's speed or physics.\nUse Save & Apply in the main window after keeping these changes.",
+                  style="Sub.TLabel", wraplength=410).pack(anchor="w", pady=(9, 12))
+        buttons = ttk.Frame(frame)
+        buttons.pack(fill="x", side="bottom")
+        ttk.Button(buttons, text="Keep changes", command=self.keep).pack(side="left")
+        ttk.Button(buttons, text="Cancel", command=self.window.destroy).pack(side="right")
+        self.load(self.current)
+        if show:
+            self.window.deiconify()
+            self.window.grab_set()
+
+    def load(self, alias: str) -> None:
+        self.current = alias
+        self.selector.current(self.aliases.index(alias))
+        for key, variable in self.speed_vars.items():
+            variable.set(str(self.settings.get(alias, {}).get(key, "")))
+
+    def collect(self) -> None:
+        limits = edited_speedometer({key: variable.get() for key, variable in self.speed_vars.items()})
+        if limits is None:
+            self.settings.pop(self.current, None)
+        else:
+            self.settings[self.current] = limits
+
+    def select(self, _event=None) -> None:
+        alias = self.aliases[self.selector.current()]
+        try:
+            self.collect()
+        except ValueError as error:
+            self.selector.current(self.aliases.index(self.current))
+            messagebox.showerror("Check speedometer settings", str(error), parent=self.window)
+            return
+        self.load(alias)
+
+    def keep(self) -> None:
+        try:
+            self.collect()
+            self.model.replace_original_speedometers(self.settings)
+        except (ValueError, OSError) as error:
+            messagebox.showerror("Check speedometer settings", str(error), parent=self.window)
+            return
+        self.changed()
+        self.window.destroy()
+
+
 class CarEditor:
-    def __init__(self, root: tk.Tk, config: Path = HERE / "cars.json", game_dir: Path = prepare.ROOT / "game_files"):
+    def __init__(self, root: tk.Tk, config: Path | None = None, game_dir: Path = prepare.ROOT / "game_files"):
         self.root, self.game_dir = root, game_dir
-        self.model = EditorModel(config)
+        self.model = EditorModel(config if config is not None else prepare.default_config_path())
         self.current = 0
         self.loading = False
         self.applying = False
@@ -134,6 +231,9 @@ class CarEditor:
         self.rating_vars, self.physics_vars = {}, {}
         self.gear_var = tk.StringVar()
         self.speed_vars = {key: tk.StringVar() for key in ("max_kmh", "max_mph")}
+        self.model_var = tk.StringVar()
+        self.model_status = tk.StringVar()
+        self.model_var.trace_add("write", self._model_changed)
         self.color_vars = []
         self.preview_color = 0
         self.status = tk.StringVar(value="Choose a car, edit its settings, then save. Apply with the game closed.")
@@ -184,13 +284,31 @@ class CarEditor:
         self.identity_label = ttk.Label(main, style="Sub.TLabel")
         self.identity_label.pack(anchor="w", pady=(3, 12))
         notebook = ttk.Notebook(main)
+        self.notebook = notebook
         notebook.pack(fill="both", expand=True)
         driving = ttk.Frame(notebook, padding=14)
         transmission = ttk.Frame(notebook, padding=14)
         advanced = ttk.Frame(notebook, padding=14)
+        models = ttk.Frame(notebook, padding=14)
+        self.tabs = {"driving": driving, "gears": transmission, "advanced": advanced, "model": models}
         notebook.add(driving, text=" Driving ")
         notebook.add(transmission, text=" Gears & RPM ")
         notebook.add(advanced, text=" More settings ")
+        notebook.add(models, text=" Model ")
+        ttk.Label(models, text="Prepared MM3 model package", font=("Segoe UI", 11, "bold")).pack(anchor="w")
+        ttk.Label(models, text="Choose a converted model folder containing package.json. The package replaces this car's visuals and survives future Save & Apply changes.",
+                  style="Sub.TLabel", wraplength=390).pack(anchor="w", pady=(8, 12))
+        self.model_entry = ttk.Entry(models, textvariable=self.model_var)
+        self.model_entry.pack(fill="x")
+        model_buttons = ttk.Frame(models)
+        model_buttons.pack(fill="x", pady=8)
+        self.model_browse_button = ttk.Button(model_buttons, text="Choose folder…", command=self.browse_model)
+        self.model_browse_button.pack(side="left")
+        self.model_clear_button = ttk.Button(model_buttons, text="Use donor model", command=lambda: self.model_var.set(""))
+        self.model_clear_button.pack(side="left", padx=8)
+        ttk.Label(models, textvariable=self.model_status, style="Sub.TLabel", wraplength=390).pack(anchor="w", pady=(4, 12))
+        ttk.Label(models, text="Blank uses the original donor body. Raw MM2 .ar/.pkg files need conversion before they can be selected here. Donor physics, collision and sounds stay in use. A prepared package supplies its own livery and materials; paint controls do not recolor fixed imported textures. Stats and speedometer settings still work.",
+                  style="Sub.TLabel", wraplength=390).pack(anchor="w")
         ttk.Label(driving, text="Driving physics", font=("Segoe UI", 11, "bold")).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
         self._physics_fields(driving, DRIVING, 1)
         ttk.Separator(driving).grid(row=7, column=0, columnspan=3, sticky="ew", pady=10)
@@ -213,7 +331,7 @@ class CarEditor:
         ttk.Label(preview, text="PAINT PREVIEW", style="Sub.TLabel").pack(anchor="w", pady=(0, 8))
         self.canvas = tk.Canvas(preview, width=245, height=145, background="#172638", highlightthickness=0)
         self.canvas.pack()
-        ttk.Label(preview, text="Body schematic • reused donor mesh", style="Sub.TLabel", wraplength=245).pack(anchor="w", pady=(4, 5))
+        ttk.Label(preview, text="Body schematic • colors only", style="Sub.TLabel", wraplength=245).pack(anchor="w", pady=(4, 5))
         self.paint_frame = ttk.Frame(preview)
         self.paint_frame.pack(fill="x")
         palette_buttons = ttk.Frame(preview)
@@ -223,7 +341,7 @@ class CarEditor:
         self.remove_button = ttk.Button(palette_buttons, text="− Paint", command=self.remove_color, style="Small.TButton")
         self.remove_button.pack(side="right")
         ttk.Separator(preview).pack(fill="x", pady=7)
-        ttk.Label(preview, text="Interior speedometer range", font=("Segoe UI", 11, "bold")).pack(anchor="w")
+        ttk.Label(preview, text="Speedometer maximum", font=("Segoe UI", 11, "bold")).pack(anchor="w")
         self.gauge = tk.Canvas(preview, width=245, height=118, background="#f3f5f8", highlightthickness=0)
         self.gauge.pack(pady=3)
         limits = getattr(prepare, "SPEEDOMETER", {"max_kmh": (100, 1200), "max_mph": (60, 750)})
@@ -231,9 +349,13 @@ class CarEditor:
             row = ttk.Frame(preview)
             row.pack(fill="x", pady=2)
             ttk.Label(row, text=f"Max {unit}", width=11).pack(side="left")
-            ttk.Entry(row, textvariable=self.speed_vars[key], width=10).pack(side="left")
+            low, high = limits[key]
+            ttk.Spinbox(row, from_=low, to=high, increment=10, textvariable=self.speed_vars[key], width=10).pack(side="left")
             self.speed_vars[key].trace_add("write", self._draw)
-        ttk.Label(preview, text=f"Both blank = donor range.\nkm/h {limits['max_kmh'][0]}–{limits['max_kmh'][1]}; mph {limits['max_mph'][0]}–{limits['max_mph'][1]}.\nSets the dashboard needle range.", style="Sub.TLabel", wraplength=245).pack(anchor="w", pady=4)
+        ttk.Label(preview, text=f"On-screen dial and interior needle.\nBoth blank = original range.\nkm/h {limits['max_kmh'][0]}–{limits['max_kmh'][1]}; mph {limits['max_mph'][0]}–{limits['max_mph'][1]}.", style="Sub.TLabel", wraplength=245).pack(anchor="w", pady=4)
+        self.original_speed_button = ttk.Button(preview, text="Original car speedometers…", command=self.original_speedometers,
+                                               style="Small.TButton")
+        self.original_speed_button.pack(fill="x", pady=(4, 0))
         ttk.Separator(footer).pack(fill="x", pady=(10, 8))
         buttons = ttk.Frame(footer)
         buttons.pack(fill="x")
@@ -264,7 +386,8 @@ class CarEditor:
         self.current = index
         car = self.model.config["cars"][index]
         self.name_label.configure(text=car["display_name"])
-        self.identity_label.configure(text=f"ID {car['id']} · {car['donor']} donor model")
+        self.identity_label.configure(text=f"ID {car['id']} · {car['donor']} donor setup")
+        self.model_var.set(car.get("model_package", ""))
         for key, variable in self.rating_vars.items():
             variable.set(str(car["ratings"][key]))
         for key, variable in self.physics_vars.items():
@@ -279,6 +402,16 @@ class CarEditor:
         self.listbox.see(index)
         self.loading = False
         self._draw()
+
+    def select_initial(self, car_id: int | None, tab: str) -> None:
+        """Optional launch selection; ordinary launches still start at car one."""
+        if car_id is not None:
+            index = next((index for index, car in enumerate(self.model.config["cars"])
+                          if car["id"] == car_id), None)
+            if index is None:
+                raise ValueError(f"Car ID {car_id} is not present in this settings file")
+            self._load_car(index)
+        self.notebook.select(self.tabs[tab])
 
     def _paint_rows(self, colors: list[str]) -> None:
         for child in self.paint_frame.winfo_children():
@@ -346,6 +479,10 @@ class CarEditor:
         self.preview_color = index
         self._draw()
 
+    def original_speedometers(self) -> None:
+        OriginalSpeedometerDialog(self.root, self.model,
+                                  lambda: self.status.set("Original speedometer changes kept. Save & Apply to install them, then restart MM3."))
+
     def pick_color(self, index: int) -> None:
         self.preview_paint(index)
         current = self.color_vars[index].get()
@@ -357,6 +494,31 @@ class CarEditor:
         self._paint_rows([variable.get() for variable in self.color_vars] + ["#ffffff"])
         self._draw()
 
+    def _model_changed(self, *_args) -> None:
+        folder = self.model_var.get().strip()
+        if not folder:
+            self.model_status.set("Using the original donor model.")
+            return
+        path = Path(folder)
+        if not path.is_absolute():
+            path = self.model.path.parent / path
+        self.model_status.set("Package selected; files and target car are checked before applying."
+                              if (path / "package.json").is_file()
+                              else "package.json is missing from this folder. Choose a prepared MM3 model package.")
+
+    def browse_model(self) -> None:
+        folder = filedialog.askdirectory(parent=self.root, title="Choose prepared MM3 model package",
+                                         initialdir=str(self.model.path.parent), mustexist=True)
+        if not folder:
+            return
+        try:
+            car = {**self.model.config["cars"][self.current], "model_package": folder}
+            prepare.load_model_package(car, self.model.path.parent)
+        except (ValueError, OSError) as error:
+            self._error(error)
+            return
+        self.model_var.set(folder)
+
     def remove_color(self) -> None:
         self._paint_rows([variable.get() for variable in self.color_vars][:-1])
         self._draw()
@@ -366,7 +528,7 @@ class CarEditor:
                          {key: variable.get() for key, variable in self.rating_vars.items()},
                          {key: variable.get() for key, variable in self.physics_vars.items()},
                          self.gear_var.get(), [variable.get() for variable in self.color_vars],
-                         {key: variable.get() for key, variable in self.speed_vars.items()})
+                         {key: variable.get() for key, variable in self.speed_vars.items()}, self.model_var.get())
         self.model.replace_car(self.current, car)
 
     def _error(self, error) -> None:
@@ -420,7 +582,8 @@ class CarEditor:
             self._error(f"Unable to check whether the game is closed: {error}")
             return
         self.applying = True
-        for button in (self.save_button, self.apply_button, self.reload_button):
+        for button in (self.save_button, self.apply_button, self.reload_button, self.original_speed_button,
+                       self.model_browse_button, self.model_clear_button, self.model_entry):
             button.configure(state="disabled")
         self.status.set("Applying settings… Original game-data backups are preserved by the installer.")
         command = self.model.apply_command(self.game_dir)
@@ -442,7 +605,8 @@ class CarEditor:
             pass
         else:
             self.applying = False
-            for button in (self.save_button, self.apply_button, self.reload_button):
+            for button in (self.save_button, self.apply_button, self.reload_button, self.original_speed_button,
+                           self.model_browse_button, self.model_clear_button, self.model_entry):
                 button.configure(state="normal")
             if code:
                 self._error((stderr or stdout).strip() or "The installer did not complete.")
@@ -466,22 +630,44 @@ class CarEditor:
         self.root.destroy()
 
 
-def main() -> int:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=HERE / "cars.json")
+    parser.add_argument("--config", type=Path, default=prepare.default_config_path(),
+                        help="Manifest path (default: cars.local.json when present, otherwise cars.json)")
     parser.add_argument("--game-dir", type=Path, default=prepare.ROOT / "game_files")
+    parser.add_argument("--car-id", type=int, choices=tuple(prepare.IDENTITIES), help="Select this car when opening the workshop")
+    parser.add_argument("--tab", choices=("driving", "gears", "advanced", "model"), default="driving",
+                        help="Open this settings tab (default: driving)")
     parser.add_argument("--smoke-test", action="store_true", help="Open, verify and close the UI without saving or applying")
-    args = parser.parse_args()
+    return parser.parse_args(argv)
+
+
+def main() -> int:
+    args = parse_args()
     root = tk.Tk()
+    if args.smoke_test:
+        root.withdraw()
     try:
         app = CarEditor(root, args.config, args.game_dir)
+        app.select_initial(args.car_id, args.tab)
         if args.smoke_test:
             root.update()
+            if args.car_id is not None:
+                assert app.model.config["cars"][app.current]["id"] == args.car_id
+            assert app.notebook.select() == str(app.tabs[args.tab])
+            print(f"Initial selection checked: car {app.model.config['cars'][app.current]['id']}, tab {args.tab}.")
             for index in range(len(app.model.config["cars"])):
                 app._load_car(index)
                 app._collect()
                 root.update()
-            print(f"Car editor UI checked: {len(app.model.config['cars'])} cars, {len(app.physics_vars)} physics fields.")
+            dialog = OriginalSpeedometerDialog(root, app.model, lambda: None, show=False)
+            for alias in dialog.aliases:
+                dialog.load(alias)
+                dialog.collect()
+                root.update()
+            dialog.keep()
+            print(f"Car editor UI checked: {len(app.model.config['cars'])} added cars, "
+                  f"{len(dialog.aliases)} original speedometers, {len(app.physics_vars)} physics fields.")
             root.destroy()
         else:
             root.mainloop()

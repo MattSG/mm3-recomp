@@ -52,10 +52,48 @@ def material(names, donor, lod=False):
 
 
 class CarModsTest(unittest.TestCase):
+    def test_default_manifest_uses_local_file_and_falls_back_to_tracked_defaults(self):
+        with tempfile.TemporaryDirectory(prefix="mm3-manifest-default-") as temporary:
+            folder = Path(temporary)
+            tracked = folder / "cars.json"
+            local = folder / "cars.local.json"
+            tracked.write_bytes((ROOT / "tools/car-mods/cars.json").read_bytes())
+            self.assertEqual(MOD.default_config_path(folder), tracked)
+            baseline = MOD.load_config(tracked)
+            custom = copy.deepcopy(baseline)
+            custom["cars"][0]["physics"]["TorqueScale"] = 777
+            custom["cars"][3]["model_package"] = "models/Panoz"
+            local.write_text(json.dumps(custom), encoding="utf-8")
+            self.assertEqual(MOD.default_config_path(folder), local)
+            self.assertEqual(MOD.load_config(MOD.default_config_path(folder)), custom)
+            self.assertEqual(MOD.load_config(tracked), baseline)
+            local.unlink()
+            self.assertEqual(MOD.default_config_path(folder), tracked)
+            local.mkdir()
+            self.assertEqual(MOD.default_config_path(folder), tracked)
+
+    def test_cli_explicit_manifest_wins_over_existing_local_settings(self):
+        with tempfile.TemporaryDirectory(prefix="mm3-manifest-cli-") as temporary:
+            folder = Path(temporary)
+            tracked, local = folder / "cars.json", folder / "cars.local.json"
+            for path in (tracked, local):
+                path.write_bytes((ROOT / "tools/car-mods/cars.json").read_bytes())
+            selector = MOD.default_config_path
+            with patch.object(MOD, "default_config_path", lambda: selector(folder)):
+                self.assertEqual(MOD.parse_args([]).config, local)
+                args = MOD.parse_args(["--config", str(tracked)])
+                self.assertEqual(args.config, tracked)
+                self.assertFalse(args.apply)
+                self.assertFalse(args.restore)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.game = Path(self.temp.name)
         self.config = json.loads((ROOT / "tools/car-mods/cars.json").read_text())
+        # Keep donor fixtures independent of locally selected real model packs;
+        # package tests below construct their own isolated prepared sources.
+        for car in self.config["cars"]:
+            car.pop("model_package", None)
         hd, dvd = {"Cars/Tweak/SortOrder": b"12\r\n8\r\n11\r\n", "unrelated.bin": bytes(range(256))}, {"unrelated.texture": b"preserve me"}
         donor_ids = {"mini": 12, "MFastBack": 8, "Viper": 11, "Koenigsegg": 15, "Lotus": 18}
         for donor, stock_id in donor_ids.items():
@@ -98,6 +136,176 @@ class CarModsTest(unittest.TestCase):
 
     def plan(self, config=None):
         return MOD.build_plan(self.game, self.originals, config or self.config)[0]
+
+    def model_package(self):
+        folder = self.game / "prepared models" / "panoz"
+        folder.mkdir(parents=True)
+        assets = [
+            ("loose", "Data/Shared/Cars/Panoz/body.cmp", "body.cmp", b"custom panoz body"),
+            ("loose", "Data/Shared/Cars/Panoz_lod1/body.cmp", "lod.cmp", b"custom panoz lod"),
+            ("Data_hd.zip", "Cars/Panoz/materialSet00.omb", "paint.omb", b"custom panoz material"),
+            ("Data_dvd.zip", "Cars/Panoz/panoz.cdds", "texture.cdds", b"custom panoz texture"),
+        ]
+        package = {"format": "mm3-car-model-v1", "alias": "Panoz", "car_id": 9004,
+                   "files": [{"archive": archive, "path": path, "source": source}
+                             for archive, path, source, _ in assets]}
+        for _, _, source, data in assets:
+            (folder / source).write_bytes(data)
+        (folder / "package.json").write_text(json.dumps(package), encoding="utf-8")
+        config = copy.deepcopy(self.config)
+        config["cars"][3]["model_package"] = "prepared models/panoz"
+        return folder, package, config, assets
+
+    def test_prepared_model_survives_stats_reapply_and_restore_is_exact(self):
+        folder, package, config, assets = self.model_package()
+        manifest = self.game / "cars.json"
+        manifest.write_text(json.dumps(config), encoding="utf-8")
+        self.assertEqual(MOD.load_config(manifest), config)
+        output, _ = MOD.build_plan(self.game, self.originals, config, manifest.parent)
+        with zipfile.ZipFile(io.BytesIO(output[MOD.ARCHIVES[0]])) as hd:
+            self.assertEqual(hd.read("Cars/Panoz/materialSet00.omb"), b"custom panoz material")
+            self.assertEqual(hd.read("Cars/Panoz/data.ccol"), b"collision unchanged")
+            self.assertEqual(hd.read("SoundScripts/Cars/Panoz/Vehicle.mcs"), b"native engine script")
+        MOD.apply_plan(self.game, None, self.originals, output, config)
+        state, originals = MOD.read_install(self.game)
+        config["cars"][3]["physics"]["TorqueScale"] += 1
+        changed, _ = MOD.build_plan(self.game, originals, config, manifest.parent)
+        MOD.apply_plan(self.game, state, originals, changed, config)
+        for archive, path, _, data in assets:
+            if archive == "loose":
+                self.assertEqual((self.game / path).read_bytes(), data)
+            else:
+                with zipfile.ZipFile(self.game / "Data" / archive) as installed:
+                    self.assertEqual(installed.read(path), data)
+        with zipfile.ZipFile(self.game / MOD.ARCHIVES[0]) as hd:
+            self.assertIn(f"TorqueScale\t\t{config['cars'][3]['physics']['TorqueScale']}\r\n".encode(), hd.read("Cars/Tweak/Panoz.txt"))
+        state, originals = MOD.read_install(self.game)
+        MOD.restore(self.game, state, originals)
+        for relative, original in self.originals.items():
+            self.assertEqual((self.game / relative).read_bytes(), original)
+        self.assertFalse((self.game / assets[0][1]).exists())
+        self.assertEqual((self.game / "UDATA/profile").read_bytes(), b"do not change player save")
+        self.assertTrue((folder / "body.cmp").is_file())
+
+    def test_clear_package_restores_donor_visuals_and_removes_package_only_assets(self):
+        folder, package, config, assets = self.model_package()
+        new_source = folder / "extra.cmp"
+        new_source.write_bytes(b"extra model part")
+        extra = {"archive": "loose", "path": "Data/Shared/Cars/Panoz/extra.cmp", "source": "extra.cmp"}
+        package["files"].append(extra)
+        (folder / "package.json").write_text(json.dumps(package))
+        output, _ = MOD.build_plan(self.game, self.originals, config, self.game)
+        MOD.apply_plan(self.game, None, self.originals, output, config)
+        state, originals = MOD.read_install(self.game)
+        config["cars"][3]["model_package"] = ""
+        fallback, _ = MOD.build_plan(self.game, originals, config, self.game)
+        MOD.apply_plan(self.game, state, originals, fallback, config)
+        self.assertEqual((self.game / "Data/Shared/Cars/Panoz/body.cmp").read_bytes(), fallback["Data/Shared/Cars/Panoz/body.cmp"])
+        self.assertIn(b"Cars\\Panoz\\materialSet00.oms", fallback["Data/Shared/Cars/Panoz/body.cmp"])
+        self.assertFalse((self.game / extra["path"]).exists())
+        MOD.read_install(self.game)
+
+    def test_package_reapply_interruption_preserves_visuals_and_installed_state(self):
+        folder, package, config, assets = self.model_package()
+        output, _ = MOD.build_plan(self.game, self.originals, config, self.game)
+        MOD.apply_plan(self.game, None, self.originals, output, config)
+        state, originals = MOD.read_install(self.game)
+        previous_state = (self.game / MOD.STATE_DIR / "state.json").read_bytes()
+        (folder / "body.cmp").write_bytes(b"updated imported geometry")
+        changed, _ = MOD.build_plan(self.game, originals, config, self.game)
+        write = MOD.atomic_write
+        interrupted = False
+
+        def cancel(path, data):
+            nonlocal interrupted
+            if not interrupted and path == self.game / MOD.STATE_DIR / "state.json":
+                interrupted = True
+                raise KeyboardInterrupt("cancel after prepared visuals")
+            return write(path, data)
+
+        with patch.object(MOD, "atomic_write", side_effect=cancel), self.assertRaises(KeyboardInterrupt):
+            MOD.apply_plan(self.game, state, originals, changed, config)
+        self.assertTrue(interrupted)
+        for relative, previous in output.items():
+            self.assertEqual((self.game / relative).read_bytes(), previous)
+        self.assertEqual((self.game / MOD.STATE_DIR / "state.json").read_bytes(), previous_state)
+        self.assertEqual(MOD.read_install(self.game), (state, originals))
+
+    def test_model_package_paths_identity_and_format_reject_before_game_writes(self):
+        folder, package, config, _ = self.model_package()
+        invalids = [
+            ("alias", "Viper"), ("car_id", 9005), ("car_id", True), ("format", "mm2-pkg"),
+            ("files", []), ("files", [{"archive": "Data_hd.zip", "path": "Cars/Tweak/Panoz.txt", "source": "body.cmp"}]),
+            ("files", [{"archive": "Data_dvd.zip", "path": "Cars/Viper/body.cdds", "source": "body.cmp"}]),
+            ("files", [{"archive": "loose", "path": "Data/Shared/Cars/Panoz/../Viper/body.cmp", "source": "body.cmp"}]),
+            ("files", [{"archive": "loose", "path": "Data/Shared/Cars/Panoz/data.ccol", "source": "body.cmp"}]),
+            ("files", [{"archive": "loose", "path": "Data/Shared/Cars/Panoz/body.cmp", "source": "../outside.cmp"}]),
+            ("files", [{"archive": "loose", "path": "Data/Shared/Cars/Panoz/body.cmp", "source": "/body.cmp"}]),
+            ("files", [{"archive": "loose", "path": "Data/Shared/Cars/Panoz/body.cmp", "source": "nested\\body.cmp"}]),
+            ("files", [{"archive": "Data_hd.zip", "path": "Cars/Panoz/body.cmp", "source": "body.cmp"}]),
+            ("files", [package["files"][0], package["files"][0]]),
+        ]
+        for key, value in invalids:
+            rejected = copy.deepcopy(package)
+            rejected[key] = value
+            (folder / "package.json").write_text(json.dumps(rejected))
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                MOD.build_plan(self.game, self.originals, config, self.game)
+        for relative, original in self.originals.items():
+            self.assertEqual((self.game / relative).read_bytes(), original)
+        self.assertFalse((self.game / MOD.STATE_DIR / "state.json").exists())
+
+    def test_model_package_links_are_rejected(self):
+        folder, package, config, _ = self.model_package()
+        source = folder / "body.cmp"
+        source.unlink()
+        target = folder / "original.cmp"
+        target.write_bytes(b"model")
+        try:
+            source.symlink_to(target)
+        except OSError:
+            self.skipTest("Creating filesystem symbolic links is unavailable")
+        with self.assertRaisesRegex(ValueError, "links"):
+            MOD.build_plan(self.game, self.originals, config, self.game)
+
+    def test_package_can_replace_own_menu_icons_and_loading_screen_only(self):
+        folder, package, config, _ = self.model_package()
+        for target in ("Menu/Gfx/Vehicles/Panoz.cdds", "Menu/Gfx/Vehicles/Panoz_Small.cdds",
+                       "LoadingScreens/Default_Panoz.tga"):
+            package["files"].append({"archive": "Data_dvd.zip", "path": target, "source": "texture.cdds"})
+        (folder / "package.json").write_text(json.dumps(package))
+        output, _ = MOD.build_plan(self.game, self.originals, config, self.game)
+        with zipfile.ZipFile(io.BytesIO(output[MOD.ARCHIVES[1]])) as dvd:
+            for target in ("Menu/Gfx/Vehicles/Panoz.cdds", "Menu/Gfx/Vehicles/Panoz_Small.cdds",
+                           "LoadingScreens/Default_Panoz.tga"):
+                self.assertEqual(dvd.read(target), b"custom panoz texture")
+            self.assertEqual(dvd.read("Menu/Gfx/Vehicles/Viper.cdds"), b"menu image")
+            self.assertEqual(dvd.read("LoadingScreens/Default_Viper.tga"), b"donor loading image Viper")
+        for target in ("Menu/Gfx/Vehicles/Viper.cdds", "Menu/Gfx/Vehicles/Panoz_Extra.cdds",
+                       "Menu/Gfx/HUD/Panoz.cdds", "LoadingScreens/Default_Viper.tga",
+                       "LoadingScreens/Default_Panoz_Extra.tga", "LoadingScreens/Panoz.tga"):
+            rejected = copy.deepcopy(package)
+            rejected["files"][-1]["path"] = target
+            (folder / "package.json").write_text(json.dumps(rejected))
+            with self.subTest(target=target), self.assertRaisesRegex(ValueError, "destination"):
+                MOD.build_plan(self.game, self.originals, config, self.game)
+        rejected = copy.deepcopy(package)
+        rejected["files"][-1] = {"archive": "loose", "path": "Menu/Gfx/Vehicles/Panoz.cdds", "source": "texture.cdds"}
+        (folder / "package.json").write_text(json.dumps(rejected))
+        with self.assertRaisesRegex(ValueError, "destination"):
+            MOD.build_plan(self.game, self.originals, config, self.game)
+
+    def test_optional_model_package_accepts_old_manifest_and_absolute_folder(self):
+        folder, package, config, _ = self.model_package()
+        config["cars"][3]["model_package"] = str(folder)
+        output, _ = MOD.build_plan(self.game, self.originals, config, self.game / "unrelated")
+        self.assertEqual(output["Data/Shared/Cars/Panoz/body.cmp"], b"custom panoz body")
+        path = self.game / "model-path.json"
+        for value in (None, {}, 42, "bad\x00path"):
+            config["cars"][3]["model_package"] = value
+            path.write_text(json.dumps(config))
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                MOD.load_config(path)
 
     def test_archive_prefix_offsets_payload_and_catalog(self):
         output = self.plan()
@@ -144,8 +352,9 @@ class CarModsTest(unittest.TestCase):
 
     def test_requested_cars_are_independent_variants_of_shared_donors(self):
         expected = ["Panoz GTR-1", "McLaren F1", "Formula 1", "Bugatti Chiron", "Bugatti Bolide", "Ford GT"]
-        self.assertEqual([car["display_name"] for car in self.config["cars"][3:]], expected)
-        self.assertEqual(set(car["id"] for car in self.config["cars"]), set(range(9001, 9010)))
+        self.assertEqual([car["display_name"] for car in self.config["cars"][3:9]], expected)
+        ids = set(car["id"] for car in self.config["cars"])
+        self.assertTrue(set(range(9001, 9010)) <= ids <= set(MOD.IDENTITIES))
         output = self.plan()
         with zipfile.ZipFile(io.BytesIO(output[MOD.ARCHIVES[0]])) as hd:
             materials = set()
@@ -164,6 +373,39 @@ class CarModsTest(unittest.TestCase):
                     self.assertIn(f"Cars\\{alias}{suffix}\\materialSet00.oms".encode(), mesh)
                     self.assertEqual(len(mesh), len((self.game / f"Data/Shared/Cars/{car['donor']}{suffix}/body.cmp").read_bytes()))
             self.assertNotEqual(hd.read("Cars/McLaren_F1/materialSet00.omb"), hd.read("Cars/BChiron_GT/materialSet00.omb"))
+
+    def test_expanded_catalog_installs_all_fourteen_without_changing_old_settings(self):
+        config = copy.deepcopy(self.config)
+        config["cars"] = [car for car in config["cars"] if car["id"] <= 9009]
+        original_cars = copy.deepcopy(config["cars"])
+        template = next(car for car in config["cars"] if car["id"] == 9005)
+        for ident in range(9010, 9015):
+            alias, donor, name = MOD.IDENTITIES[ident]
+            self.assertEqual(len(alias), len(donor))
+            car = copy.deepcopy(template)
+            car.update(id=ident, alias=alias, donor=donor, display_name=name)
+            config["cars"].append(car)
+        path = self.game / "fourteen-cars.json"
+        path.write_text(json.dumps(config))
+        self.assertEqual(MOD.load_config(path), config)
+        output, counts = MOD.build_plan(self.game, self.originals, config, self.game)
+        self.assertEqual(counts["cars"], 14)
+        self.assertEqual(config["cars"][:9], original_cars)
+        with zipfile.ZipFile(io.BytesIO(output[MOD.ARCHIVES[0]])) as hd:
+            order = hd.read("Cars/Tweak/SortOrder").splitlines()
+            for car in config["cars"]:
+                self.assertEqual(order.count(str(car["id"]).encode()), 1)
+                self.assertIn(f"ID\t\t{car['id']}\r\n".encode(), hd.read(f"Cars/Tweak/{car['alias']}.txt"))
+                for suffix in ("", "_lod1"):
+                    mesh = output[f"Data/Shared/Cars/{car['alias']}{suffix}/body.cmp"]
+                    self.assertIn(f"Cars\\{car['alias']}{suffix}\\materialSet00.oms".encode(), mesh)
+                    self.assertEqual(len(mesh), len((self.game / f"Data/Shared/Cars/{car['donor']}{suffix}/body.cmp").read_bytes()))
+        MOD.apply_plan(self.game, None, self.originals, output, config)
+        state, originals = MOD.read_install(self.game)
+        self.assertEqual(state["config"]["cars"][:9], original_cars)
+        MOD.restore(self.game, state, originals)
+        for relative, original in self.originals.items():
+            self.assertEqual((self.game / relative).read_bytes(), original)
 
     def test_speedometer_validation_and_camera_serialization(self):
         path = self.game / "speedometer.json"
@@ -190,6 +432,63 @@ class CarModsTest(unittest.TestCase):
             path.write_text(json.dumps(config))
             with self.subTest(value=value), self.assertRaises(ValueError):
                 MOD.load_config(path)
+
+    def test_speedometer_sidecar_serializes_original_and_independent_variant_ranges(self):
+        config = copy.deepcopy(self.config)
+        config["cars"][3]["speedometer"] = {"max_kmh": 650, "max_mph": 404}
+        del config["cars"][0]["speedometer"]
+        output = self.plan(config)
+        settings = output[MOD.SPEEDOMETER_FILE].decode("ascii")
+        rows = [line.split() for line in settings.splitlines() if not line.startswith("#")]
+        actual = {alias: (float(kmh), float(mph)) for alias, kmh, mph in rows}
+        expected = {alias: (limits["max_kmh"], limits["max_mph"])
+                    for alias, limits in config["original_speedometers"].items()}
+        expected.update({car["alias"]: (car["speedometer"]["max_kmh"], car["speedometer"]["max_mph"])
+                         for car in config["cars"] if "speedometer" in car})
+        self.assertEqual(actual, expected)
+        self.assertEqual(len(rows), len(actual))
+        self.assertNotIn("MRly", actual)
+        self.assertEqual(actual["Koenigsegg"], (800, 500))
+        self.assertEqual(actual["Panoz"], (650, 404))
+        with zipfile.ZipFile(io.BytesIO(output[MOD.ARCHIVES[0]])) as hd, \
+                zipfile.ZipFile(io.BytesIO(self.originals[MOD.ARCHIVES[0]])) as before:
+            for alias in config["original_speedometers"]:
+                self.assertEqual(hd.read(f"Cars/Tweak/{alias}.txt"), before.read(f"Cars/Tweak/{alias}.txt"))
+
+    def test_original_speedometer_validation_and_version_one_compatibility(self):
+        path = self.game / "original-speedometers.json"
+        legacy = copy.deepcopy(self.config)
+        legacy.pop("original_speedometers")
+        path.write_text(json.dumps(legacy))
+        self.assertEqual(MOD.load_config(path), legacy)
+        self.assertNotIn(b"Koenigsegg ", self.plan(legacy)[MOD.SPEEDOMETER_FILE])
+        for value in (None, [], {"UnknownCar": {"max_kmh": 800, "max_mph": 500}},
+                      {"Koenigsegg": {"max_kmh": 800}},
+                      {"Koenigsegg": {"max_kmh": 800, "max_mph": float("inf")}},
+                      {"Koenigsegg": {"max_kmh": True, "max_mph": 500}},
+                      {"Viper": {"max_kmh": 800, "max_mph": 751}}):
+            config = copy.deepcopy(self.config)
+            config["original_speedometers"] = value
+            path.write_text(json.dumps(config))
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                MOD.load_config(path)
+
+    def test_speedometer_sidecar_is_owned_reapplied_and_removed_on_restore(self):
+        output = self.plan()
+        MOD.apply_plan(self.game, None, self.originals, output, self.config)
+        path = self.game / MOD.SPEEDOMETER_FILE
+        state, stock = MOD.read_install(self.game)
+        self.assertIn(MOD.SPEEDOMETER_FILE, state["installed"])
+        self.assertEqual(path.read_bytes(), output[MOD.SPEEDOMETER_FILE])
+        config = copy.deepcopy(self.config)
+        config["original_speedometers"]["Koenigsegg"] = {"max_kmh": 1000, "max_mph": 621}
+        changed = self.plan(config)
+        MOD.apply_plan(self.game, state, stock, changed, config)
+        self.assertIn(b"Koenigsegg 1000 621\n", path.read_bytes())
+        state, stock = MOD.read_install(self.game)
+        MOD.restore(self.game, state, stock)
+        self.assertFalse(path.exists())
+        self.assertEqual((self.game / "UDATA/profile").read_bytes(), b"do not change player save")
 
     def test_reapply_stats_is_idempotent_and_restore_is_exact(self):
         output = self.plan()

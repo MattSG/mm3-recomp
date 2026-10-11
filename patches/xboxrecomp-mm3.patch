@@ -1,5 +1,5 @@
 diff --git a/src/apu/apu_state.h b/src/apu/apu_state.h
-index 3493ba5..ad4ac94 100644
+index 3493ba5000e5e878dd3a29c697398081efa90bb8..ad4ac94600223fdefabc5723421eb37e3ded9c34 100644
 --- a/src/apu/apu_state.h
 +++ b/src/apu/apu_state.h
 @@ -159,14 +159,21 @@ static inline void hrtf_filter_process(HrtfFilter *f,
@@ -31,7 +31,7 @@ index 3493ba5..ad4ac94 100644
              out[n][ch] = acc;
          }
 diff --git a/src/apu/dsp/interp/dsp_cpu.c b/src/apu/dsp/interp/dsp_cpu.c
-index 012a67b..28dd8a0 100644
+index 012a67b869c756061090a3e4c196d9a42c869c27..28dd8a019fe2a9ff243ab7762efc656556834cd0 100644
 --- a/src/apu/dsp/interp/dsp_cpu.c
 +++ b/src/apu/dsp/interp/dsp_cpu.c
 @@ -45,6 +45,15 @@
@@ -86,7 +86,7 @@ index 012a67b..28dd8a0 100644
      assert((address & 0xFF000000) == 0);
      assert(address < DSP_PRAM_SIZE);
 diff --git a/src/input/xinput_device.c b/src/input/xinput_device.c
-index a91edbe..59c5815 100644
+index a91edbe57b930c3e0f52523422dff464b2cb66d3..59c5815611572ec199aacfb2f41e23d2bfc1c8d2 100644
 --- a/src/input/xinput_device.c
 +++ b/src/input/xinput_device.c
 @@ -14,6 +14,13 @@
@@ -220,7 +220,7 @@ index a91edbe..59c5815 100644
      /* SDL trigger axes are 0..32767 -> Xbox analog button 0..255 */
      pState->Gamepad.bAnalogButtons[XBOX_BUTTON_LTRIGGER] =
 diff --git a/src/input/xinput_xbox.h b/src/input/xinput_xbox.h
-index 4779275..07b2ffa 100644
+index 4779275135c47db7e6b37e514caaafa9bd8e6c5b..07b2ffa9eb9e07f4087fc5507e7d1791feb249ae 100644
 --- a/src/input/xinput_xbox.h
 +++ b/src/input/xinput_xbox.h
 @@ -88,6 +88,13 @@ typedef struct XBOX_INPUT_CAPABILITIES {
@@ -238,7 +238,7 @@ index 4779275..07b2ffa 100644
   * Get the state of a controller.
   * Port: 0-3 (Xbox controller ports)
 diff --git a/src/kernel/kernel.h b/src/kernel/kernel.h
-index b9a02bc..3028a35 100644
+index b9a02bc41c7b5e30287d72d479e408fe270eeae3..3028a35d1b983dbb54f9db6069d62291d1478b87 100644
 --- a/src/kernel/kernel.h
 +++ b/src/kernel/kernel.h
 @@ -124,6 +124,9 @@ enum {
@@ -260,7 +260,7 @@ index b9a02bc..3028a35 100644
  
  ULONG   __stdcall xbox_RtlNtStatusToDosError(NTSTATUS Status);
 diff --git a/src/kernel/kernel_bridge.c b/src/kernel/kernel_bridge.c
-index ed7682a..05db79d 100644
+index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5172e0afa 100644
 --- a/src/kernel/kernel_bridge.c
 +++ b/src/kernel/kernel_bridge.c
 @@ -365,15 +365,17 @@ static void kernel_data_init(void)
@@ -744,18 +744,19 @@ index ed7682a..05db79d 100644
      fprintf(stderr, "  Kernel thunk bridge: resolving %d entries at 0x%08X\n",
              g_thunk_table_count, g_thunk_table_base);
 diff --git a/src/kernel/kernel_file.c b/src/kernel/kernel_file.c
-index 1133eb5..5cf0465 100644
+index 1133eb5304987fd16f7b2cc3ad12c40e8e7377f9..f53626f6a92206e1466880a429fe94fc824b394d 100644
 --- a/src/kernel/kernel_file.c
 +++ b/src/kernel/kernel_file.c
-@@ -18,6 +18,7 @@
+@@ -18,6 +18,8 @@
  #include "kernel.h"
  #include <string.h>
  #include <stdio.h>
++#include <stddef.h>
 +#include <stdlib.h>
  
  #if !defined(_WIN32)
  #include <fcntl.h>
-@@ -71,6 +72,56 @@ uint32_t xbox_LastFileError(void)
+@@ -71,6 +73,273 @@ uint32_t xbox_LastFileError(void)
  /* ====================  Win32 backend  =================================== */
  /* ======================================================================== */
  
@@ -763,6 +764,223 @@ index 1133eb5..5cf0465 100644
 +static volatile LONG s_file_hitch_ready;
 +static int s_file_hitch_enabled;
 +static LARGE_INTEGER s_file_hitch_frequency;
++
++/* Opt-in evidence for a failed cache overwrite. Keep the guest's access and
++ * sharing contract unchanged: this records opens, never retries or closes an
++ * owner's handle. The ledger is diagnostic only, not handle ownership. */
++typedef struct XboxFileDiagOpen {
++    struct XboxFileDiagOpen *next;
++    HANDLE handle;
++    DWORD thread;
++    ULONG access, share, disposition, options;
++    WCHAR path[MAX_PATH];
++} XboxFileDiagOpen;
++
++static INIT_ONCE s_file_diag_once = INIT_ONCE_STATIC_INIT;
++static volatile LONG s_file_diag_ready;
++static int s_file_diag_enabled;
++static SRWLOCK s_file_diag_lock = SRWLOCK_INIT;
++static XboxFileDiagOpen *s_file_diag_opens;
++
++static BOOL CALLBACK file_diag_initialize(PINIT_ONCE once, PVOID parameter,
++                                         PVOID *context)
++{
++    const char *setting = getenv("RECOMP_FILE_DIAGNOSTICS");
++    (void)once; (void)parameter; (void)context;
++    s_file_diag_enabled = setting && *setting && strcmp(setting, "0") != 0;
++    InterlockedExchange(&s_file_diag_ready, 1);
++    return TRUE;
++}
++
++static void file_diag_init(void)
++{
++    if (!s_file_diag_ready)
++        InitOnceExecuteOnce(&s_file_diag_once, file_diag_initialize, NULL, NULL);
++}
++
++static int file_diag_path(const WCHAR *path, WCHAR normalized[MAX_PATH])
++{
++    WCHAR unc[MAX_PATH];
++    DWORD length;
++    if (!_wcsnicmp(path, L"\\\\?\\UNC\\", 8)) {
++        if (swprintf_s(unc, MAX_PATH, L"\\\\%s", path + 8) < 0) return 0;
++        path = unc;
++    } else if (!_wcsnicmp(path, L"\\\\?\\", 4)) {
++        path += 4;
++    }
++    length = GetFullPathNameW(path, MAX_PATH, normalized, NULL);
++    return length && length < MAX_PATH;
++}
++
++static int file_diag_archive(const WCHAR *path)
++{
++    const WCHAR *leaf = wcsrchr(path, L'\\');
++    return leaf && !_wcsicmp(leaf + 1, L"Data_hd.zip");
++}
++
++static int file_diag_cached_archive(const WCHAR *path)
++{
++    static const WCHAR suffix[] = L"\\Cache\\Data\\Data_hd.zip";
++    size_t length = wcslen(path), suffix_length = sizeof suffix / sizeof *suffix - 1;
++    return length >= suffix_length &&
++        !_wcsicmp(path + length - suffix_length, suffix);
++}
++
++static void file_diag_open(HANDLE handle, const WCHAR *path, ULONG access,
++                           ULONG share, ULONG disposition, ULONG options)
++{
++    XboxFileDiagOpen *entry;
++    WCHAR normalized[MAX_PATH];
++    DWORD error = GetLastError();
++    file_diag_init();
++    if (!s_file_diag_enabled || !file_diag_path(path, normalized) ||
++        !file_diag_archive(normalized)) goto done;
++    entry = malloc(sizeof *entry);
++    if (!entry) {
++        fprintf(stderr, "[FILE_DIAG] archive open could not be recorded handle=%p\n", handle);
++        goto done;
++    }
++    entry->handle = handle;
++    entry->thread = GetCurrentThreadId();
++    entry->access = access; entry->share = share;
++    entry->disposition = disposition; entry->options = options;
++    wcscpy_s(entry->path, MAX_PATH, normalized);
++    AcquireSRWLockExclusive(&s_file_diag_lock);
++    entry->next = s_file_diag_opens;
++    s_file_diag_opens = entry;
++    ReleaseSRWLockExclusive(&s_file_diag_lock);
++done:
++    SetLastError(error);
++}
++
++static BOOL file_diag_close_native(HANDLE handle)
++{
++    XboxFileDiagOpen **link, *entry = NULL;
++    DWORD error;
++    BOOL closed;
++    if (!s_file_diag_enabled) return CloseHandle(handle);
++    /* Serialize the close with ledger publication: once CloseHandle returns,
++     * another thread may already get this same native handle value. Removing
++     * by value after releasing the lock could erase that newer open's record. */
++    AcquireSRWLockExclusive(&s_file_diag_lock);
++    closed = CloseHandle(handle);
++    error = GetLastError();
++    if (closed) {
++        for (link = &s_file_diag_opens; *link; link = &(*link)->next) {
++            if ((*link)->handle != handle) continue;
++            entry = *link;
++            *link = entry->next;
++            break;
++        }
++    }
++    ReleaseSRWLockExclusive(&s_file_diag_lock);
++    free(entry);
++    SetLastError(error);
++    return closed;
++}
++
++/* SystemExtendedHandleInformation is used only on the failed-open path.
++ * Duplicate current-process handles long enough to query their disk paths,
++ * then close the duplicates. No foreign-process handles are opened, and no
++ * original handle is altered. A handle can disappear concurrently; such a
++ * failed duplicate is simply omitted rather than treated as an owner. */
++typedef struct XboxFileDiagHandleEntry {
++    PVOID object;
++    ULONG_PTR process_id, handle;
++    ULONG access;
++    USHORT backtrace, type;
++    ULONG attributes, reserved;
++} XboxFileDiagHandleEntry;
++typedef struct XboxFileDiagHandles {
++    ULONG_PTR count, reserved;
++    XboxFileDiagHandleEntry entries[1];
++} XboxFileDiagHandles;
++typedef LONG (NTAPI *XboxFileDiagQuerySystem)(ULONG, PVOID, ULONG, PULONG);
++
++static void file_diag_host_handles(const WCHAR *failed_path)
++{
++    XboxFileDiagQuerySystem query = (XboxFileDiagQuerySystem)GetProcAddress(
++        GetModuleHandleW(L"ntdll.dll"), "NtQuerySystemInformation");
++    XboxFileDiagHandles *snapshot = NULL;
++    ULONG capacity = 1024u * 1024u, needed = 0;
++    LONG status;
++    unsigned owners = 0;
++    if (!query) goto unavailable;
++    for (;;) {
++        snapshot = malloc(capacity);
++        if (!snapshot) goto unavailable;
++        status = query(64u, snapshot, capacity, &needed);
++        if (status >= 0) break;
++        free(snapshot); snapshot = NULL;
++        if ((ULONG)status != 0xC0000004u || capacity >= 32u * 1024u * 1024u)
++            goto unavailable;
++        capacity *= 2;
++        if (needed > capacity) capacity = needed;
++        if (capacity > 32u * 1024u * 1024u) goto unavailable;
++    }
++    if (snapshot->count > (capacity - offsetof(XboxFileDiagHandles, entries)) /
++                           sizeof snapshot->entries[0]) goto unavailable;
++    for (ULONG_PTR i = 0; i < snapshot->count; ++i) {
++        const XboxFileDiagHandleEntry *item = &snapshot->entries[i];
++        HANDLE duplicate;
++        WCHAR path[MAX_PATH], normalized[MAX_PATH];
++        DWORD length;
++        int tracked = 0;
++        if (item->process_id != GetCurrentProcessId()) continue;
++        if (!DuplicateHandle(GetCurrentProcess(), (HANDLE)item->handle,
++                GetCurrentProcess(), &duplicate, 0, FALSE, DUPLICATE_SAME_ACCESS)) continue;
++        if (GetFileType(duplicate) != FILE_TYPE_DISK) {
++            CloseHandle(duplicate);
++            continue;
++        }
++        length = GetFinalPathNameByHandleW(duplicate, path, MAX_PATH,
++                                         FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
++        CloseHandle(duplicate);
++        if (!length || length >= MAX_PATH || !file_diag_path(path, normalized) ||
++            _wcsicmp(normalized, failed_path)) continue;
++        AcquireSRWLockShared(&s_file_diag_lock);
++        for (XboxFileDiagOpen *entry = s_file_diag_opens; entry; entry = entry->next)
++            if (entry->handle == (HANDLE)item->handle &&
++                !_wcsicmp(entry->path, failed_path)) { tracked = 1; break; }
++        ReleaseSRWLockShared(&s_file_diag_lock);
++        fprintf(stderr, "[FILE_DIAG] host_same_file handle=%p granted=0x%08lX guest_tracked=%d\n",
++                (HANDLE)item->handle, (unsigned long)item->access, tracked);
++        ++owners;
++    }
++    fprintf(stderr, "[FILE_DIAG] current_process_same_file_handles=%u; external or transient ownership is not determined\n",
++            owners);
++    free(snapshot);
++    return;
++unavailable:
++    free(snapshot);
++    fprintf(stderr, "[FILE_DIAG] current-process handle inventory unavailable; lock ownership unresolved\n");
++}
++
++static void file_diag_failure(const WCHAR *path, DWORD error)
++{
++    WCHAR normalized[MAX_PATH];
++    unsigned owners = 0;
++    file_diag_init();
++    if (!s_file_diag_enabled || error != ERROR_SHARING_VIOLATION ||
++        !file_diag_path(path, normalized) || !file_diag_cached_archive(normalized))
++        goto done;
++    fprintf(stderr, "[FILE_DIAG] sharing failure pid=%lu thread=%lu path=%ls\n",
++            (unsigned long)GetCurrentProcessId(), (unsigned long)GetCurrentThreadId(), normalized);
++    AcquireSRWLockShared(&s_file_diag_lock);
++    for (XboxFileDiagOpen *entry = s_file_diag_opens; entry; entry = entry->next) {
++        if (_wcsicmp(entry->path, normalized)) continue;
++        fprintf(stderr, "[FILE_DIAG] guest_same_file handle=%p open_thread=%lu access=0x%08X share=0x%X disposition=%u options=0x%X\n",
++                entry->handle, (unsigned long)entry->thread, (unsigned)entry->access,
++                (unsigned)entry->share, (unsigned)entry->disposition, (unsigned)entry->options);
++        ++owners;
++    }
++    ReleaseSRWLockShared(&s_file_diag_lock);
++    fprintf(stderr, "[FILE_DIAG] active_guest_same_file_handles=%u\n", owners);
++    file_diag_host_handles(normalized);
++    fflush(stderr);
++done:
++    SetLastError(error);
++}
 +
 +static BOOL CALLBACK file_hitch_init(PINIT_ONCE once, PVOID parameter,
 +                                     PVOID *context)
@@ -812,13 +1030,14 @@ index 1133eb5..5cf0465 100644
  /* Convert Xbox create disposition to Win32 */
  static DWORD xbox_disposition_to_win32(ULONG Disposition)
  {
-@@ -196,8 +247,11 @@ NTSTATUS __stdcall xbox_NtCreateFile(
+@@ -196,8 +465,12 @@ NTSTATUS __stdcall xbox_NtCreateFile(
  
      if (h == INVALID_HANDLE_VALUE) {
          DWORD err = GetLastError();
 -        fprintf(stderr, "[NtCreateFile] FAILED path=%ls err=%lu\n",
 -                win_path, (unsigned long)err);
 +        NTSTATUS status;
++        file_diag_failure(win_path, err);
 +        fprintf(stderr, "[NtCreateFile] FAILED path=%ls err=%lu access=0x%08X share=0x%X disposition=%u options=0x%X\n",
 +                win_path, (unsigned long)err, (unsigned)DesiredAccess,
 +                (unsigned)ShareAccess, (unsigned)CreateDisposition,
@@ -826,7 +1045,7 @@ index 1133eb5..5cf0465 100644
          /* Kept for the caller's trace. An NTSTATUS says "it did not open";
           * only the Win32 error distinguishes a title probing for a file that
           * is genuinely absent from one it cannot open because this runtime
-@@ -209,17 +263,22 @@ NTSTATUS __stdcall xbox_NtCreateFile(
+@@ -209,19 +482,26 @@ NTSTATUS __stdcall xbox_NtCreateFile(
           * build that decision was invisible. */
          xbox_log(XBOX_LOG_WARN, XBOX_LOG_FILE,
                   "NtCreateFile FAILED: %S (err=%u)", win_path, err);
@@ -856,8 +1075,12 @@ index 1133eb5..5cf0465 100644
 +        return status;
      }
  
++    file_diag_open(h, win_path, DesiredAccess, ShareAccess,
++                   CreateDisposition, CreateOptions);
      *FileHandle = h;
-@@ -239,11 +298,15 @@ NTSTATUS __stdcall xbox_NtReadFile(
+     if (IoStatusBlock) {
+         IoStatusBlock->Status = STATUS_SUCCESS;
+@@ -239,11 +519,15 @@ NTSTATUS __stdcall xbox_NtReadFile(
      DWORD bytes_read = 0;
      BOOL result;
      OVERLAPPED ov;
@@ -873,7 +1096,7 @@ index 1133eb5..5cf0465 100644
      if (ByteOffset && ByteOffset->QuadPart >= 0) {
          memset(&ov, 0, sizeof(ov));
          ov.Offset = ByteOffset->LowPart;
-@@ -252,8 +315,11 @@ NTSTATUS __stdcall xbox_NtReadFile(
+@@ -252,8 +536,11 @@ NTSTATUS __stdcall xbox_NtReadFile(
      } else {
          result = ReadFile(FileHandle, Buffer, Length, &bytes_read, NULL);
      }
@@ -886,7 +1109,7 @@ index 1133eb5..5cf0465 100644
          IoStatusBlock->Information = bytes_read;
          if (bytes_read == 0 && Length > 0) {
              IoStatusBlock->Status = STATUS_END_OF_FILE;
-@@ -265,7 +331,6 @@ NTSTATUS __stdcall xbox_NtReadFile(
+@@ -265,7 +552,6 @@ NTSTATUS __stdcall xbox_NtReadFile(
      }
  
      {
@@ -894,7 +1117,16 @@ index 1133eb5..5cf0465 100644
          fprintf(stderr, "[NtReadFile] FAILED handle=%p len=%u err=%lu\n",
                  FileHandle, Length, (unsigned long)error);
          XBOX_TRACE(XBOX_LOG_FILE, "NtReadFile(handle=%p, len=%u) failed err=%u",
-@@ -842,12 +907,13 @@ NTSTATUS __stdcall xbox_NtCreateFile(
+@@ -318,7 +604,7 @@ NTSTATUS __stdcall xbox_NtClose(HANDLE Handle)
+     XBOX_TRACE(XBOX_LOG_FILE, "NtClose(handle=%p)", Handle);
+     if (Handle && Handle != INVALID_HANDLE_VALUE) {
+         xbox_dir_context_drop(Handle);
+-        CloseHandle(Handle);
++        file_diag_close_native(Handle);
+         return STATUS_SUCCESS;
+     }
+     return STATUS_INVALID_HANDLE;
+@@ -842,12 +1128,13 @@ NTSTATUS __stdcall xbox_NtCreateFile(
  
      if (fd < 0) {
          int e = errno;
@@ -911,7 +1143,7 @@ index 1133eb5..5cf0465 100644
  
      *FileHandle = w32_open_handle(fd, host_path);
 diff --git a/src/kernel/kernel_path.c b/src/kernel/kernel_path.c
-index caf6390..adf08cb 100644
+index caf6390b4176e298052243c0f156dd0fea479671..adf08cbdcb75d396d0a1d3d2b3a0892ce09b7939 100644
 --- a/src/kernel/kernel_path.c
 +++ b/src/kernel/kernel_path.c
 @@ -7,6 +7,8 @@
@@ -1051,7 +1283,7 @@ index caf6390..adf08cb 100644
              goto translate;
          }
 diff --git a/src/kernel/kernel_rtl.c b/src/kernel/kernel_rtl.c
-index 9760735..f9ec82c 100644
+index 97607350b22259203046c24eb6166ea06c80a0e3..f9ec82ca0e05782a0f2a6cca73b101f4b1e0ac29 100644
 --- a/src/kernel/kernel_rtl.c
 +++ b/src/kernel/kernel_rtl.c
 @@ -220,6 +220,17 @@ static XBOX_CS_SLOT* xbox_cs_slot_of(CRITICAL_SECTION* cs)
@@ -1213,7 +1445,7 @@ index 9760735..f9ec82c 100644
          case STATUS_END_OF_FILE:                return ERROR_HANDLE_EOF;
          case STATUS_INVALID_HANDLE:             return ERROR_INVALID_HANDLE;
 diff --git a/src/kernel/nv2a_pb_exec.c b/src/kernel/nv2a_pb_exec.c
-index 5275e59..0921f13 100644
+index 5275e593e6ac6e10dcc10985dd82ea8b52f92c15..0921f13bb7362e22243f06ca85928a82dcb607d4 100644
 --- a/src/kernel/nv2a_pb_exec.c
 +++ b/src/kernel/nv2a_pb_exec.c
 @@ -172,6 +172,9 @@ static int surface_write_refused(uint32_t base, uint32_t bytes, const char *what
@@ -1251,7 +1483,7 @@ index 5275e59..0921f13 100644
          s_gpu.clip_x = param & 0xFFFF;
          s_gpu.clip_w = (param >> 16) & 0xFFFF;
 diff --git a/src/kernel/nv2a_pb_scan.c b/src/kernel/nv2a_pb_scan.c
-index b9de8d0..ac83ecc 100644
+index b9de8d0b3a0f84f6579d5bf9a00db42e125de3e4..ac83ecc692ad1c4944576130f68c18189eb20add 100644
 --- a/src/kernel/nv2a_pb_scan.c
 +++ b/src/kernel/nv2a_pb_scan.c
 @@ -27,6 +27,7 @@
@@ -1861,7 +2093,7 @@ index b9de8d0..ac83ecc 100644
 +    return completed;
  }
 diff --git a/src/kernel/xbox_memory_layout.c b/src/kernel/xbox_memory_layout.c
-index a2e99fb..b9aab82 100644
+index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b8952bf0c1d3 100644
 --- a/src/kernel/xbox_memory_layout.c
 +++ b/src/kernel/xbox_memory_layout.c
 @@ -15,6 +15,7 @@
@@ -1872,6 +2104,15 @@ index a2e99fb..b9aab82 100644
  #include <stdio.h>
  #include <stdlib.h>
  #include <string.h>
+@@ -45,7 +46,7 @@ void nv2a_d3d_prof_add(int slot, long long ticks, unsigned verts);
+ static void *g_memory_base = NULL;
+ static size_t g_memory_size = 0;
+ static ptrdiff_t g_memory_offset = 0;  /* actual_base - XBOX_BASE_ADDRESS */
+-/* ponytail: one lock for both arenas and metadata; split if contention appears. */
++/* One lock for heap, contiguous and reservation ownership metadata. */
+ static CRITICAL_SECTION g_allocator_lock;
+ static int g_allocator_lock_initialized;
+ 
 @@ -196,8 +197,9 @@ static HANDLE g_contig_mapping = NULL;
   * gaps and ordinary RAM can sit below that high-water mark. Publish exact
   * allocations so bus masters resolve only memory the runtime handed out. */
@@ -2019,9 +2260,9 @@ index a2e99fb..b9aab82 100644
              } else if (s_fence_snap_ok[i] && *fence != s_fence_snap[i]) {
                  *fence = s_fence_snap[i];
 +                changed = 1;
-+            }
-+        }
-+    }
+             }
+         }
+     }
 +    if (changed) xbox_nv2a_wake_publish(&g_nv2a_wake);
 +}
 +
@@ -2070,7 +2311,7 @@ index a2e99fb..b9aab82 100644
 +                if (next) { native_heap = 1; break; }
 +                SwitchToThread();
 +                next = malloc(sizeof *next);
-             }
++            }
 +            next->native_heap = native_heap;
 +            next->target = target; next->value = value; next->next = NULL;
 +            if (tail) tail->next = next;
@@ -2111,7 +2352,7 @@ index a2e99fb..b9aab82 100644
 +        if (*fence != g_fence_mirrors[i].command_value) {
 +            *fence = g_fence_mirrors[i].command_value;
 +            changed = 1;
-         }
++        }
 +        next = g_fence_mirrors[i].command_head;
 +        while (next) {
 +            XBOX_COMMAND_FENCE *done = next;
@@ -2123,7 +2364,7 @@ index a2e99fb..b9aab82 100644
 +        }
 +        g_fence_mirrors[i].command_head = g_fence_mirrors[i].command_tail = NULL;
 +        g_fence_mirrors[i].command_pending = 0;
-     }
++    }
 +    if (changed) xbox_nv2a_wake_publish(&g_nv2a_wake);
  }
  
@@ -2481,7 +2722,273 @@ index a2e99fb..b9aab82 100644
          WaitForSingleObject(g_nv2a_ack_thread, 1000);
          CloseHandle(g_nv2a_ack_thread);
          g_nv2a_ack_thread = NULL;
-@@ -3453,14 +3777,22 @@ int xbox_HeapReclaimEnabled(void)
+@@ -3036,8 +3360,10 @@ void xbox_MemoryLayoutShutdown(void)
+  * memory through the mirrors.
+  *
+  * So reservations come from the mapped space *above* RAM instead. Those pages
+- * are already backed and distinct, nothing else hands them out, and a commit
+- * inside one is a no-op because it is real memory already.
++ * are already backed and distinct, and a commit inside one is a no-op because
++ * it is real memory already. The ordinary heap can also grow above RAM when
++ * the mapping is extended, so both allocators must exclude exact ownership
++ * spans from the other; a high-water mark includes unissued alignment gaps.
+  *
+  * Returns 0 when the mapping is no larger than RAM -- the default for titles
+  * that never call xbox_SetMapSize -- which leaves the old behaviour untouched.
+@@ -3047,29 +3373,13 @@ void xbox_MemoryLayoutShutdown(void)
+  * a real allocator; none has yet.
+  */
+ static uint32_t g_reserve_next;
+-
+-uint32_t xbox_ReserveAlloc(uint32_t size, uint32_t align)
+-{
+-    uint32_t base;
+-
+-    if (g_memory_size <= g_xbox_total_ram || size == 0)
+-        return 0;
+-    if (!align)
+-        align = 4096;
+-    if (!g_reserve_next)
+-        g_reserve_next = (uint32_t)g_xbox_total_ram;
+-
+-    base = (g_reserve_next + align - 1) & ~(align - 1);
+-    if ((size_t)base + size > g_memory_size)
+-        return 0;
+-    g_reserve_next = base + size;
+-    return base;
+-}
+-
+-int xbox_ReserveRangeAllocated(uint32_t va)
+-{
+-    return g_reserve_next && va >= (uint32_t)g_xbox_total_ram && va < g_reserve_next;
+-}
++#define XBOX_RESERVE_MAX_ALLOCS 65536
++/* Reservations remain owned after the bridge's release/decommit no-ops.
++ * Sorted append-only spans also keep DMA from treating skipped heap blocks
++ * or alignment padding as above-RAM reservations. */
++static struct { uint32_t addr, size; } g_reserve_allocs[XBOX_RESERVE_MAX_ALLOCS];
++static int g_reserve_alloc_count;
++static RECOMP_TLS uint32_t t_reserve_begin, t_reserve_end;
+ 
+ BOOL xbox_IsXboxAddress(uintptr_t address)
+ {
+@@ -3250,8 +3560,8 @@ void xbox_FreeThreadStack(uint32_t stack_top)
+  *
+  * Grows up from the base; XBOX_GPU_INSTANCE_DEFAULT is carved off the top by
+  * the GPU-instance bridge, so the two do not meet until the window is full.
+- * Never freed: contiguous blocks are framebuffers and pushbuffers, which a
+- * title allocates once. */
++ * Freed blocks are reused in place. Unissued alignment and heap-skip gaps
++ * remain available if the bump reaches the top of the window. */
+ /* Starts one page in. Physical page 0 is never handed out by the real
+  * kernel, and the XDK's USB stack relies on that: XPP carves its host
+  * controller structures from a private 0xFE0-byte arena ending at
+@@ -3283,9 +3593,109 @@ static void contig_remove(LONG at)
+     InterlockedDecrement(&g_contig_alloc_count);
+ }
+ 
++/* Find page-aligned space outside actual heap blocks, including freed blocks
++ * that HeapAlloc may reuse. The heap's high-water mark also covers contiguous
++ * allocations it skipped; treating that entire interval as heap ownership
++ * made a scene reload unable to reuse its own freed graphics pages.
++ * Both tables stay sorted and callers hold g_allocator_lock. */
++static int contig_heap_gap(uint32_t lo, uint64_t hi, uint32_t size,
++                           uint32_t alignment, uint32_t *start)
++{
++    uint64_t candidate = ((uint64_t)lo + alignment - 1) &
++                         ~((uint64_t)alignment - 1);
++    for (int i = 0; i < g_heap_block_count; ++i) {
++        uint64_t begin = g_heap_blocks[i].addr;
++        uint64_t end = begin + g_heap_blocks[i].size;
++        if (end <= candidate) continue;
++        if (candidate + size <= begin) break;
++        candidate = (end + alignment - 1) & ~((uint64_t)alignment - 1);
++    }
++    if (candidate + size > hi) return 0;
++    *start = (uint32_t)candidate;
++    return 1;
++}
++
++uint32_t xbox_ReserveAlloc(uint32_t size, uint32_t align)
++{
++    uint32_t base;
++    uint64_t limit = g_memory_size;
++    if (g_memory_size <= g_xbox_total_ram || !size || g_xbox_total_ram > UINT32_MAX)
++        return 0;
++    if (!align) align = 4096;
++    if (align & (align - 1)) return 0;
++    /* Both the returned base and the next bump are 32-bit guest addresses. */
++    if (limit > UINT32_MAX) limit = UINT32_MAX;
++    EnterCriticalSection(&g_allocator_lock);
++    if (g_reserve_alloc_count >= XBOX_RESERVE_MAX_ALLOCS ||
++        !contig_heap_gap(g_reserve_next ? g_reserve_next : (uint32_t)g_xbox_total_ram,
++                         limit, size, align, &base)) {
++        LeaveCriticalSection(&g_allocator_lock);
++        return 0;
++    }
++    g_reserve_allocs[g_reserve_alloc_count].addr = base;
++    g_reserve_allocs[g_reserve_alloc_count].size = size;
++    ++g_reserve_alloc_count;
++    g_reserve_next = base + size;
++    LeaveCriticalSection(&g_allocator_lock);
++    return base;
++}
++
++int xbox_ReserveRangeAllocated(uint32_t va)
++{
++    int lo = 0, hi, result = 0;
++    if ((size_t)va < g_xbox_total_ram) return 0;
++    /* Only positive coverage is cached: these spans never change backing or
++     * lose ownership. A miss can become allocated on the next call. */
++    if (va >= t_reserve_begin && va < t_reserve_end) return 1;
++    EnterCriticalSection(&g_allocator_lock);
++    hi = g_reserve_alloc_count;
++    while (lo < hi) {
++        int mid = lo + (hi - lo) / 2;
++        if (g_reserve_allocs[mid].addr <= va) lo = mid + 1;
++        else hi = mid;
++    }
++    if (lo) {
++        uint32_t begin = g_reserve_allocs[lo - 1].addr;
++        uint32_t end = begin + g_reserve_allocs[lo - 1].size;
++        result = va >= begin && va < end;
++        if (result) { t_reserve_begin = begin; t_reserve_end = end; }
++    }
++    LeaveCriticalSection(&g_allocator_lock);
++    return result;
++}
++
++/* Find the next ordinary heap address outside the sorted union of permanent
++ * contiguous and reservation ownership. A skip can land in the other table,
++ * so walk them together, not as two independent passes. Caller holds lock. */
++static uint64_t heap_unowned_start(uint32_t lo, uint32_t size, uint32_t alignment)
++{
++    uint64_t candidate = ((uint64_t)lo + alignment - 1) &
++                         ~((uint64_t)alignment - 1);
++    LONG contig = 0;
++    int reserve = 0;
++    while (contig < g_contig_alloc_count || reserve < g_reserve_alloc_count) {
++        uint64_t begin, end;
++        if (reserve == g_reserve_alloc_count ||
++            (contig < g_contig_alloc_count &&
++             g_contig_allocs[contig].offset <= g_reserve_allocs[reserve].addr)) {
++            begin = g_contig_allocs[contig].offset;
++            end = begin + g_contig_allocs[contig++].size;
++        } else {
++            begin = g_reserve_allocs[reserve].addr;
++            end = begin + g_reserve_allocs[reserve++].size;
++        }
++        if (end <= candidate) continue;
++        if (candidate + size <= begin) break;
++        candidate = (end + alignment - 1) & ~((uint64_t)alignment - 1);
++    }
++    return candidate;
++}
++
+ uint32_t xbox_ContiguousAlloc(uint32_t size, uint32_t alignment)
+ {
+-    uint32_t result;
++    uint32_t result, start;
++    const uint32_t limit = XBOX_CONTIG_SIZE - XBOX_GPU_INSTANCE_DEFAULT;
++    LONG insertion;
+ 
+     /* The kernel allocates physical pages, not byte-sized fragments. XDK
+      * DirectSound keeps its silent samples in the remainder of a small
+@@ -3296,8 +3706,9 @@ uint32_t xbox_ContiguousAlloc(uint32_t size, uint32_t alignment)
+         return 0;
+     size = (size + 0xFFFu) & ~0xFFFu;
+ 
+-    EnterCriticalSection(&g_allocator_lock);
+     if (alignment < 4096) alignment = 4096;
++    if (alignment & (alignment - 1)) return 0;
++    EnterCriticalSection(&g_allocator_lock);
+     /* Reuse freed pages first-fit by address, carving from the front of the
+      * lowest free extent that fits; freed neighbours are coalesced on free.
+      * Consecutive requests therefore come out adjacent, as they do from the
+@@ -3309,20 +3720,10 @@ uint32_t xbox_ContiguousAlloc(uint32_t size, uint32_t alignment)
+     for (LONG i = 0; i < g_contig_alloc_count; ++i) {
+         uint32_t offset = g_contig_allocs[i].offset;
+         uint32_t span = g_contig_allocs[i].size;
+-        uint32_t start, head, tail, lo = offset;
+-        uint64_t hi = (uint64_t)offset + span;
++        uint32_t head, tail;
+         if (g_contig_allocs[i].in_use || span < size) continue;
+-        /* Heap addresses remain reserved even after HeapFree, because
+-         * the ordinary allocator can reuse them at any time: use only the
+-         * part of a free extent outside [heap base, heap next). */
+-        if (hi > XBOX_HEAP_BASE && lo < g_heap_next) {
+-            if (lo < XBOX_HEAP_BASE) hi = XBOX_HEAP_BASE;
+-            else if (hi > g_heap_next) lo = g_heap_next;
+-            else continue;
+-        }
+-        start = ((XBOX_CONTIG_BASE + lo + alignment - 1) & ~(alignment - 1))
+-                - XBOX_CONTIG_BASE;
+-        if ((uint64_t)start + size > hi) continue;
++        if (!contig_heap_gap(offset, offset + span, size, alignment, &start))
++            continue;
+         head = start - offset;
+         tail = offset + span - (start + size);
+         if (g_contig_alloc_count + (head ? 1 : 0) + (tail ? 1 : 0) > XBOX_CONTIG_MAX_ALLOCS)
+@@ -3344,26 +3745,30 @@ uint32_t xbox_ContiguousAlloc(uint32_t size, uint32_t alignment)
+         LeaveCriticalSection(&g_allocator_lock);
+         return result;
+     }
+-    result = (g_contig_next + alignment - 1) & ~(alignment - 1);
+-
+     /* Low RAM and the contiguous window have separate host backing but share
+      * physical address numbers. Never claim pages already used by the heap:
+      * bus masters would otherwise switch a live heap buffer to unrelated
+      * contiguous storage, breaking audio DMA reads.
+      * Keep freed heap addresses reserved too, since HeapAlloc reuses them. */
+-    if ((uint64_t)(result - XBOX_CONTIG_BASE) + size > XBOX_HEAP_BASE &&
+-        result - XBOX_CONTIG_BASE < g_heap_next) {
+-        result = (XBOX_CONTIG_BASE + g_heap_next + alignment - 1) &
+-                 ~(alignment - 1);
++    insertion = g_contig_alloc_count;
++    if (!contig_heap_gap(g_contig_next - XBOX_CONTIG_BASE, limit,
++                         size, alignment, &start)) {
++        uint32_t lo = 0x1000u;
++        /* Recover unissued holes without claiming alignment gaps for DMA.
++         * Issued spans (even freed ones) keep their permanent backing and are
++         * handled by the reuse pass above. */
++        for (insertion = 0; insertion <= g_contig_alloc_count; ++insertion) {
++            uint32_t hi = insertion < g_contig_alloc_count
++                ? g_contig_allocs[insertion].offset : limit;
++            if (contig_heap_gap(lo, hi, size, alignment, &start)) break;
++            if (insertion < g_contig_alloc_count)
++                lo = g_contig_allocs[insertion].offset + g_contig_allocs[insertion].size;
++        }
+     }
+-
+-    /* Leave the top of the window for GPU instance memory. */
+-    if ((uint64_t)result + size >
+-            (uint64_t)XBOX_CONTIG_BASE + XBOX_CONTIG_SIZE
+-                - XBOX_GPU_INSTANCE_DEFAULT) {
++    if (insertion > g_contig_alloc_count) {
+         fprintf(stderr, "  [CONTIG] arena exhausted (%u requested, %u of %u used; aligned=%08X heap_next=%08X alignment=%u esp=%08X)\n",
+                 size, g_contig_next - XBOX_CONTIG_BASE,
+-                (unsigned)XBOX_CONTIG_SIZE, result, g_heap_next, alignment, g_esp);
++                (unsigned)XBOX_CONTIG_SIZE, g_contig_next, g_heap_next, alignment, g_esp);
+         fflush(stderr);
+         LeaveCriticalSection(&g_allocator_lock);
+         return 0;
+@@ -3374,12 +3779,10 @@ uint32_t xbox_ContiguousAlloc(uint32_t size, uint32_t alignment)
+         return 0;
+     }
+ 
+-    g_contig_next = result + size;
++    result = XBOX_CONTIG_BASE + start;
++    if (result + size > g_contig_next) g_contig_next = result + size;
+     memset((void *)((uintptr_t)result + g_memory_offset), 0, size);
+-    g_contig_allocs[g_contig_alloc_count].offset = result - XBOX_CONTIG_BASE;
+-    g_contig_allocs[g_contig_alloc_count].size = size;
+-    InterlockedExchange(&g_contig_allocs[g_contig_alloc_count].in_use, 1);
+-    InterlockedIncrement(&g_contig_alloc_count);
++    contig_insert(insertion, start, size, 1);
+     if (getenv("RECOMP_CONTIG_TRACE"))
+         fprintf(stderr, "[CONTIG_NEW] address=%08X size=%u esp=%08X ret=%08X\n", result, size,
+                 g_esp, *(const uint32_t *)((uintptr_t)g_esp + g_memory_offset));
+@@ -3453,14 +3856,22 @@ int xbox_HeapReclaimEnabled(void)
      return enabled;
  }
  
@@ -2508,7 +3015,7 @@ index a2e99fb..b9aab82 100644
      /* The table is split and coalesced in place; read it under the lock. */
      EnterCriticalSection(&g_allocator_lock);
      hi = g_contig_alloc_count;
-@@ -3479,7 +3811,6 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
+@@ -3479,7 +3890,6 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
       * the code bytes as colour static. A range may run on through adjacent
       * spans. */
      if (lo) {
@@ -2516,7 +3023,7 @@ index a2e99fb..b9aab82 100644
          i = lo - 1;
          covered = (uint64_t)g_contig_allocs[i].offset + g_contig_allocs[i].size;
          while (covered < end && i + 1 < g_contig_alloc_count &&
-@@ -3488,11 +3819,45 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
+@@ -3488,11 +3898,45 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
              covered += g_contig_allocs[i].size;
          }
          result = physical_offset >= g_contig_allocs[lo - 1].offset && end <= covered;
@@ -2562,8 +3069,62 @@ index a2e99fb..b9aab82 100644
  
  /* RECOMP_HEAP_WATCH=<hex address>: report heap blocks handed out over it. */
  static void heap_watch(const char *how, uint32_t addr, uint32_t size)
+@@ -3510,9 +3954,11 @@ static void heap_watch(const char *how, uint32_t addr, uint32_t size)
+ uint32_t xbox_HeapAlloc(uint32_t size, uint32_t alignment)
+ {
+     uint32_t result;
++    uint64_t candidate;
+ 
+-    EnterCriticalSection(&g_allocator_lock);
+     if (alignment < 4) alignment = 4;
++    if (alignment & (alignment - 1)) return 0;
++    EnterCriticalSection(&g_allocator_lock);
+     if (size >= 16u * 1024u * 1024u) {
+         static unsigned large_reports;
+         if (large_reports++ < 24) {
+@@ -3569,21 +4015,13 @@ uint32_t xbox_HeapAlloc(uint32_t size, uint32_t alignment)
+         return result;
+     }
+ 
+-    /* Align the next pointer */
+-    result = (g_heap_next + alignment - 1) & ~(alignment - 1);
+-
+     /* Reciprocal ownership rule: a new heap block must not use physical
+      * pages already owned by the independently backed contiguous window.
+      * Freed spans stay owned: bus masters still resolve them to the window
+-     * (see xbox_ContiguousRangeAllocated). */
+-    for (LONG i = 0; i < g_contig_alloc_count; i++) {
+-        uint32_t start = g_contig_allocs[i].offset;
+-        uint32_t end = start + g_contig_allocs[i].size;
+-        if ((uint64_t)result + size > start && result < end)
+-            result = (end + alignment - 1) & ~(alignment - 1);
+-    }
+-
+-    if (result + size > XBOX_HEAP_TOP) {
++     * (see xbox_ContiguousRangeAllocated). Above-RAM guest reservations must
++     * also stay intact when the ordinary heap grows into the extended map. */
++    candidate = heap_unowned_start(g_heap_next, size, alignment);
++    if (candidate + size > XBOX_HEAP_TOP || candidate + size > UINT32_MAX) {
+         fprintf(stderr, "xbox_HeapAlloc: out of memory (requested %u, used %u/%u)\n",
+                 size, g_heap_next - XBOX_HEAP_BASE,
+                 (unsigned)(XBOX_HEAP_TOP - XBOX_HEAP_BASE));
+@@ -3618,7 +4056,14 @@ uint32_t xbox_HeapAlloc(uint32_t size, uint32_t alignment)
+         LeaveCriticalSection(&g_allocator_lock);
+         return 0;
+     }
++    result = (uint32_t)candidate;
+ 
++    /* Exact physical ownership depends on recording every heap block. */
++    if (g_heap_block_count >= XBOX_HEAP_MAX_BLOCKS) {
++        fprintf(stderr, "xbox_HeapAlloc: allocation table full\n");
++        LeaveCriticalSection(&g_allocator_lock);
++        return 0;
++    }
+     g_heap_next = result + size;
+ 
+     /* Zero-fill the allocated block (Xbox memory is always zeroed) */
 diff --git a/src/kernel/xbox_memory_layout.h b/src/kernel/xbox_memory_layout.h
-index 69f1bf6..d9e5d9a 100644
+index 69f1bf65ce430454de6aed19113e0be09c7c9489..d9e5d9a305fe354f2e45ff1e67ada31baa754250 100644
 --- a/src/kernel/xbox_memory_layout.h
 +++ b/src/kernel/xbox_memory_layout.h
 @@ -195,16 +195,56 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size);
@@ -2626,7 +3187,7 @@ index 69f1bf6..d9e5d9a 100644
  void xbox_MemoryLayoutShutdown(void);
  
 diff --git a/src/usb/usb_gamepad.c b/src/usb/usb_gamepad.c
-index bd00f3f..575b5f3 100644
+index bd00f3fc02f3bac594c79acae4f0bbd61bcc2b5d..575b5f32ea729ab4474f91ce9aaf673c7e0fb6eb 100644
 --- a/src/usb/usb_gamepad.c
 +++ b/src/usb/usb_gamepad.c
 @@ -592,14 +592,28 @@ int usb_gamepad_report(int pad, uint8_t *out, int max)
@@ -2663,7 +3224,7 @@ index bd00f3f..575b5f3 100644
              }
          }
 diff --git a/src/video/nv2a_d3d11.c b/src/video/nv2a_d3d11.c
-index b9f3fa2..c312e57 100644
+index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97c3c4d86f 100644
 --- a/src/video/nv2a_d3d11.c
 +++ b/src/video/nv2a_d3d11.c
 @@ -29,6 +29,8 @@
@@ -2838,7 +3399,7 @@ index b9f3fa2..c312e57 100644
  }
  
  static uint32_t             s_frame = 1;
-@@ -319,6 +409,45 @@ static ID3D11BlendState *s_blend_opaque;
+@@ -319,6 +409,82 @@ static ID3D11BlendState *s_blend_opaque;
  static ID3D11RasterizerState *s_rs_plain;
  static ID3D11DepthStencilState *s_ds_off;
  
@@ -2848,6 +3409,10 @@ index b9f3fa2..c312e57 100644
 +static ID3D11VertexShader *s_bound_vs;
 +static ID3D11Buffer *s_bound_vs_b0;
 +static int s_bound_vs_valid, s_bound_vs_b0_valid;
++static ID3D11PixelShader *s_bound_ps;
++static ID3D11SamplerState *s_bound_ps_samplers[4];
++static int s_bound_ps_valid;
++static uint32_t s_bound_ps_samplers_valid;
 +
 +static void bind_vertex_shader(ID3D11VertexShader *shader)
 +{
@@ -2867,6 +3432,37 @@ index b9f3fa2..c312e57 100644
 +    }
 +}
 +
++/* Every PS shader/sampler writer uses these helpers, including clears,
++ * surface views, blits and presentation. These slots have no render-target
++ * alias hazard: binding outputs can clear SRVs, but cannot change samplers or
++ * shaders. A short sampler write preserves the untouched upper slots. */
++static void bind_pixel_shader(ID3D11PixelShader *shader)
++{
++    if (!s_bound_ps_valid || s_bound_ps != shader) {
++        ID3D11DeviceContext_PSSetShader(s_ctx, shader, NULL, 0);
++        s_bound_ps = shader;
++        s_bound_ps_valid = 1;
++    }
++}
++
++static void bind_pixel_samplers(UINT count, ID3D11SamplerState *const *samplers)
++{
++    uint32_t valid;
++    if (!count) return;
++    if (count > 4) {
++        ID3D11DeviceContext_PSSetSamplers(s_ctx, 0, count, samplers);
++        s_bound_ps_samplers_valid = 0;
++        return;
++    }
++    valid = (1u << count) - 1u;
++    if ((s_bound_ps_samplers_valid & valid) != valid ||
++        memcmp(s_bound_ps_samplers, samplers, count * sizeof *samplers)) {
++        ID3D11DeviceContext_PSSetSamplers(s_ctx, 0, count, samplers);
++        memcpy(s_bound_ps_samplers, samplers, count * sizeof *samplers);
++        s_bound_ps_samplers_valid |= valid;
++    }
++}
++
 +/* No other pass writes VS t0/b1-b3 or PS b1. The raw buffer is input-only
 + * and cannot overlap any texture output, so D3D11's output hazard handling
 + * cannot unbind it. DISCARD changes its storage, not its resource binding.
@@ -2879,12 +3475,14 @@ index b9f3fa2..c312e57 100644
 +    ID3D11DeviceContext_VSSetShaderResources(s_ctx, 0, 1, &s_raw_srv);
 +    ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 1, 1, &s_cb_ps);
 +    s_bound_vs_valid = s_bound_vs_b0_valid = 0;
++    s_bound_ps_valid = 0;
++    s_bound_ps_samplers_valid = 0;
 +}
 +
  static void fail(const char *what, HRESULT hr)
  {
      fprintf(stderr, "[D3D11] %s failed: 0x%08lX\n", what, (unsigned long)hr);
-@@ -346,24 +475,7 @@ static uint32_t phys(uint32_t va)
+@@ -346,24 +512,7 @@ static uint32_t phys(uint32_t va)
      return va >= CONTIG_BASE ? va - CONTIG_BASE : va;
  }
  
@@ -2910,7 +3508,7 @@ index b9f3fa2..c312e57 100644
  
  /* ---------------------------------------------------------------- shaders */
  
-@@ -868,12 +980,13 @@ typedef struct {
+@@ -868,12 +1017,13 @@ typedef struct {
  
  static void display_config(int now);
  
@@ -2927,7 +3525,7 @@ index b9f3fa2..c312e57 100644
      if (FAILED(hr)) {
          fprintf(stderr, "[D3D11] shader %s: %s\n", entry,
                  err ? (const char *)ID3D10Blob_GetBufferPointer(err) : "?");
-@@ -883,6 +996,11 @@ static ID3DBlob *compile_def(const char *entry, const char *target, const D3D_SH
+@@ -883,6 +1033,11 @@ static ID3DBlob *compile_def(const char *entry, const char *target, const D3D_SH
      return SUCCEEDED(hr) ? code : NULL;
  }
  
@@ -2939,7 +3537,7 @@ index b9f3fa2..c312e57 100644
  static ID3DBlob *compile(const char *entry, const char *target)
  {
      return compile_def(entry, target, NULL);
-@@ -903,10 +1021,14 @@ typedef struct {
+@@ -903,10 +1058,14 @@ typedef struct {
      uint32_t tex_info[4][3];
  } PsKey;
  
@@ -2955,7 +3553,7 @@ index b9f3fa2..c312e57 100644
  } PsSpec;
  
  #define PS_SPEC_SLOTS 4096          /* power of two */
-@@ -914,9 +1036,162 @@ typedef struct {
+@@ -914,9 +1073,162 @@ typedef struct {
  static PsSpec *s_spec;
  static PsSpec *s_spec_q[PS_SPEC_QUEUE];
  static unsigned s_spec_head, s_spec_tail;  /* guarded by s_spec_cs */
@@ -3118,7 +3716,7 @@ index b9f3fa2..c312e57 100644
  
  static DWORD WINAPI spec_worker(LPVOID arg)
  {
-@@ -926,12 +1201,19 @@ static DWORD WINAPI spec_worker(LPVOID arg)
+@@ -926,12 +1238,19 @@ static DWORD WINAPI spec_worker(LPVOID arg)
          const PsKey *k;
          char decl[2048];
          ID3DBlob *b;
@@ -3142,7 +3740,7 @@ index b9f3fa2..c312e57 100644
          LeaveCriticalSection(&s_spec_cs);
          k = &e->key;
          snprintf(decl, sizeof decl,
-@@ -965,45 +1247,87 @@ static DWORD WINAPI spec_worker(LPVOID arg)
+@@ -965,45 +1284,87 @@ static DWORD WINAPI spec_worker(LPVOID arg)
          m[1].Name = "SPEC_DECL"; m[1].Definition = decl;
          m[2].Name = flat ? "FLATQ" : NULL; m[2].Definition = flat ? "nointerpolation" : NULL;
          m[3].Name = NULL; m[3].Definition = NULL;
@@ -3253,7 +3851,7 @@ index b9f3fa2..c312e57 100644
      memset(&k, 0, sizeof k);
      memcpy(k.c_icw, pc->c_icw, sizeof k.c_icw);
      memcpy(k.a_icw, pc->a_icw, sizeof k.a_icw);
-@@ -1017,23 +1341,7 @@ static ID3D11PixelShader *spec_ps(const PSConsts *pc, uint32_t variant)
+@@ -1017,23 +1378,7 @@ static ID3D11PixelShader *spec_ps(const PSConsts *pc, uint32_t variant)
          k.tex_info[i][0] = pc->tex_info[i][0]; k.tex_info[i][1] = pc->tex_info[i][1];
          k.tex_info[i][2] = pc->tex_info[i][2];
      }
@@ -3278,7 +3876,7 @@ index b9f3fa2..c312e57 100644
  }
  
  static ID3D11Buffer *make_buffer(UINT bytes, UINT bind)
-@@ -1050,13 +1358,34 @@ static ID3D11Buffer *make_buffer(UINT bytes, UINT bind)
+@@ -1050,14 +1395,37 @@ static ID3D11Buffer *make_buffer(UINT bytes, UINT bind)
      return b;
  }
  
@@ -3291,7 +3889,7 @@ index b9f3fa2..c312e57 100644
          memcpy(m.pData, data, bytes);
          ID3D11DeviceContext_Unmap(s_ctx, (ID3D11Resource *)b, 0);
 +        return 1;
-+    }
+     }
 +    return 0;
 +}
 +
@@ -3301,20 +3899,23 @@ index b9f3fa2..c312e57 100644
 + * uploads: a failed Map must retry even if the next draw has the same state. */
 +static PSConsts s_uploaded_pc;
 +static int s_uploaded_pc_valid;
-+static void upload_ps_constants(const PSConsts *pc)
++static int upload_ps_constants(const PSConsts *pc)
 +{
 +    if (s_uploaded_pc_valid && !memcmp(&s_uploaded_pc, pc, sizeof *pc)) {
 +        if (s_prof_on > 0) s_prof_ps_reused++;
-+        return;
++        return 1;
 +    }
 +    if (upload_cb(s_cb_ps, pc, sizeof *pc)) {
 +        memcpy(&s_uploaded_pc, pc, sizeof *pc);
 +        s_uploaded_pc_valid = 1;
 +        if (s_prof_on > 0) s_prof_ps_uploads++;
-     }
++        return 1;
++    }
++    return 0;
  }
  
-@@ -1217,6 +1546,8 @@ int nv2a_d3d_init(void)
+ int nv2a_d3d_init(void)
+@@ -1217,6 +1585,8 @@ int nv2a_d3d_init(void)
          if (qc && qd) break;
      }
      if (s_msaa < 1) s_msaa = 1;
@@ -3323,19 +3924,28 @@ index b9f3fa2..c312e57 100644
      s_init_state = 1;
      fprintf(stderr, "[D3D11] renderer ready: %ux%u internal, display aspect %.3f, %ux MSAA, %ux AF\n",
              (uint32_t)(GUEST_W * s_scale * widen() + 0.5f), (uint32_t)(GUEST_H * s_scale + 0.5f),
-@@ -1379,9 +1710,8 @@ static void blit_span(ID3D11ShaderResourceView *srv, ID3D11ShaderResourceView *m
+@@ -1379,16 +1749,15 @@ static void blit_span(ID3D11ShaderResourceView *srv, ID3D11ShaderResourceView *m
      ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
      ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
      ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 -    ID3D11DeviceContext_IASetInputLayout(s_ctx, NULL);
 -    ID3D11DeviceContext_VSSetShader(s_ctx, s_present_vs, NULL, 0);
 -    ID3D11DeviceContext_VSSetConstantBuffers(s_ctx, 0, 1, &s_cb_present);
+-    ID3D11DeviceContext_PSSetShader(s_ctx, s_present_ps, NULL, 0);
 +    bind_vertex_shader(s_present_vs);
 +    bind_vertex_constants(s_cb_present);
-     ID3D11DeviceContext_PSSetShader(s_ctx, s_present_ps, NULL, 0);
++    bind_pixel_shader(s_present_ps);
      ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 0, 1, &s_cb_present);
      {
-@@ -1413,13 +1743,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
+         ID3D11ShaderResourceView *views[2] = { srv, mask };
+         ID3D11SamplerState *smp[2] = { s_linear_clamp, s_point_clamp };
+         ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 2, views);
+-        ID3D11DeviceContext_PSSetSamplers(s_ctx, 0, 2, smp);
++        bind_pixel_samplers(2, smp);
+     }
+     ID3D11DeviceContext_Draw(s_ctx, 4, 0);
+     unbind_targets();
+@@ -1413,13 +1782,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
  }
  
  /* Guest rows of a surface as BGRA, with the format's fixed alpha. */
@@ -3352,7 +3962,7 @@ index b9f3fa2..c312e57 100644
          uint32_t *dst = out + (size_t)y * s->w;
          if (s->bpp == 4) {
              memcpy(dst, row, (size_t)s->w * 4);
-@@ -1454,6 +1784,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
+@@ -1454,6 +1823,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
  static UINT s_up_w[2], s_up_h[2];
  static uint32_t *s_up_pixels, *s_mask_pixels;
  static size_t s_up_cap, s_mask_cap;
@@ -3361,7 +3971,7 @@ index b9f3fa2..c312e57 100644
  
  /* slot 0: image, slot 1: change mask */
  static ID3D11ShaderResourceView *upload_slot(int k, const uint32_t *pixels, UINT w, UINT h)
-@@ -1489,6 +1821,25 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1489,6 +1860,25 @@ static uint32_t *scratch_pixels(size_t count)
      return s_up_pixels;
  }
  
@@ -3387,7 +3997,7 @@ index b9f3fa2..c312e57 100644
  /* Guest memory is the authority for what the CPU writes. A shadow copy of
   * each surface's guest bytes says which pixels the CPU changed since the last
   * look; only those replace what the GPU drew. A loading screen drawn by the
-@@ -1496,22 +1847,24 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1496,22 +1886,24 @@ static uint32_t *scratch_pixels(size_t count)
  static void surface_sync_impl(Surface *s, int force)
  {
      uint32_t rowb = s->w * s->bpp, y, x, x0 = 0xFFFFFFFFu, x1 = 0, y0 = 0xFFFFFFFFu, y1 = 0;
@@ -3416,7 +4026,7 @@ index b9f3fa2..c312e57 100644
          {
              ID3D11ShaderResourceView *srv = upload_image(px, s->w, s->h);
              float x0, x1;
-@@ -1522,7 +1875,7 @@ static void surface_sync_impl(Surface *s, int force)
+@@ -1522,7 +1914,7 @@ static void surface_sync_impl(Surface *s, int force)
          return;
      }
      for (y = 0; y < s->h; y++) {
@@ -3425,7 +4035,7 @@ index b9f3fa2..c312e57 100644
          uint8_t *sh = s->shadow + (size_t)y * rowb;
          if (!memcmp(row, sh, rowb)) continue;
          if (y0 == 0xFFFFFFFFu) {
-@@ -1552,7 +1905,7 @@ static void surface_sync_impl(Surface *s, int force)
+@@ -1552,7 +1944,7 @@ static void surface_sync_impl(Surface *s, int force)
                  s->phys, s_frame, x0, y0, x1, y1);
      px = scratch_pixels((size_t)s->w * s->h);
      if (!px) return;
@@ -3434,7 +4044,7 @@ index b9f3fa2..c312e57 100644
      {
          ID3D11ShaderResourceView *srv = upload_slot(0, px, s->w, s->h);
          ID3D11ShaderResourceView *msk = upload_slot(1, s_mask_pixels, s->w, s->h);
-@@ -1572,8 +1925,11 @@ static void surface_sync(Surface *s, int force)
+@@ -1572,8 +1964,11 @@ static void surface_sync(Surface *s, int force)
      if (s_prof_on > 0) s_prof[PROF_SYNC] += qpc() - t0;
  }
  
@@ -3446,7 +4056,7 @@ index b9f3fa2..c312e57 100644
      if (s_cur_rt == s) unbind_targets();
      if (s->srv) ID3D11ShaderResourceView_Release(s->srv);
      if (s->rtv) ID3D11RenderTargetView_Release(s->rtv);
-@@ -1635,9 +1991,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
+@@ -1635,9 +2030,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
      } else {
          for (i = 0; i < MAX_SURFACES && !victim; i++)
              if (!s_surf[i].tex) victim = &s_surf[i];
@@ -3460,7 +4070,7 @@ index b9f3fa2..c312e57 100644
          if (!victim) victim = &s_surf[0];
      }
      surface_release(victim);
-@@ -1901,9 +2258,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
+@@ -1901,9 +2297,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
  }
  
  typedef struct TexEntry {
@@ -3472,7 +4082,7 @@ index b9f3fa2..c312e57 100644
      size_t bytes;
      ID3D11Texture2D *tex;
      ID3D11ShaderResourceView *srv;
-@@ -1954,12 +2311,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
+@@ -1954,12 +2350,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
      return 1;
  }
  
@@ -3528,7 +4138,7 @@ index b9f3fa2..c312e57 100644
          for (by = 0; by < bh; by++)
              for (bx = 0; bx < bw; bx++) {
                  d3d8_dxt_decode_block(src + ((size_t)by * bw + bx) * L->bpp, t->color, px);
-@@ -1969,6 +2369,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
+@@ -1969,6 +2408,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
              }
          return;
      }
@@ -3540,7 +4150,7 @@ index b9f3fa2..c312e57 100644
      if (L->kind == K_LIN) {
          for (y = 0; y < h; y++) {
              const uint8_t *row = src + (size_t)y * t->pitch;
-@@ -2057,22 +2462,55 @@ static int host_levels(const TexLayout *L, const NvD3DTexture *t)
+@@ -2057,22 +2501,55 @@ static int host_levels(const TexLayout *L, const NvD3DTexture *t)
      return n > L->levels ? n : L->levels;
  }
  
@@ -3603,7 +4213,7 @@ index b9f3fa2..c312e57 100644
          e->used = s_frame;
          return e->srv;
      }
-@@ -2082,21 +2520,47 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2082,21 +2559,47 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
          ph = hash_mem((const uint8_t *)pal, t->palette_len * 4);
      }
      if (e && e->hash == h && e->pal_hash == ph) {
@@ -3657,7 +4267,7 @@ index b9f3fa2..c312e57 100644
          if (L.faces == 6) {
              sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
              sd.TextureCube.MipLevels = (UINT)hl;
-@@ -2104,36 +2568,45 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2104,36 +2607,45 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
              sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
              sd.Texture2D.MipLevels = (UINT)hl;
          }
@@ -3725,7 +4335,7 @@ index b9f3fa2..c312e57 100644
              w = L.level_w[L.levels - 1]; h = L.level_h[L.levels - 1];
              memcpy(a, px, (size_t)w * h * 4);
              for (; lv < hl; lv++) {
-@@ -2152,23 +2625,44 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2152,23 +2664,44 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
      }
      e->hash = h;
      e->pal_hash = ph;
@@ -3773,7 +4383,7 @@ index b9f3fa2..c312e57 100644
  /* -------------------------------------------------------- state objects */
  
  typedef struct { uint64_t key; void *obj; } StateSlot;
-@@ -2346,12 +2840,29 @@ static D3D11_TEXTURE_ADDRESS_MODE addr_mode(uint32_t m)
+@@ -2346,12 +2879,29 @@ static D3D11_TEXTURE_ADDRESS_MODE addr_mode(uint32_t m)
      }
  }
  
@@ -3804,7 +4414,7 @@ index b9f3fa2..c312e57 100644
      if (bias13 & 0x1000) bias13 -= 0x2000;
      key = (uint64_t)minf | ((uint64_t)magf << 8) | ((uint64_t)(bias13 & 0x1FFF) << 12) |
            ((uint64_t)(levels & 15) << 25) | ((uint64_t)(reduce != 0) << 29) |
-@@ -2393,9 +2904,26 @@ static ID3D11SamplerState *sampler(const NvD3DTexture *t, int levels, int reduce
+@@ -2393,9 +2943,26 @@ static ID3D11SamplerState *sampler(const NvD3DTexture *t, int levels, int reduce
          }
          ID3D11Device_CreateSamplerState(s_dev, &d, (ID3D11SamplerState **)slot);
      }
@@ -3831,27 +4441,31 @@ index b9f3fa2..c312e57 100644
  /* ------------------------------------------------------------------- draw */
  
  static uint32_t mode_needs_texture(uint32_t mode)
-@@ -2585,8 +3113,7 @@ static ID3D11ShaderResourceView *surface_y16(Surface *s)
+@@ -2585,9 +3152,8 @@ static ID3D11ShaderResourceView *surface_y16(Surface *s)
          ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
          ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
          ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 -        ID3D11DeviceContext_IASetInputLayout(s_ctx, NULL);
 -        ID3D11DeviceContext_VSSetShader(s_ctx, s_y16_vs, NULL, 0);
+-        ID3D11DeviceContext_PSSetShader(s_ctx, s_y16_ps[s->ms ? 1 : 0], NULL, 0);
 +        bind_vertex_shader(s_y16_vs);
-         ID3D11DeviceContext_PSSetShader(s_ctx, s_y16_ps[s->ms ? 1 : 0], NULL, 0);
++        bind_pixel_shader(s_y16_ps[s->ms ? 1 : 0]);
          ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 1, &src);
          ID3D11DeviceContext_Draw(s_ctx, 3, 0);
-@@ -2622,8 +3149,7 @@ static ID3D11ShaderResourceView *depth_y16(Depth *d)
+         unbind_targets();
+@@ -2622,9 +3188,8 @@ static ID3D11ShaderResourceView *depth_y16(Depth *d)
          ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
          ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
          ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 -        ID3D11DeviceContext_IASetInputLayout(s_ctx, NULL);
 -        ID3D11DeviceContext_VSSetShader(s_ctx, s_y16_vs, NULL, 0);
+-        ID3D11DeviceContext_PSSetShader(s_ctx, s_y16d_ps[d->samples > 1 ? 1 : 0], NULL, 0);
 +        bind_vertex_shader(s_y16_vs);
-         ID3D11DeviceContext_PSSetShader(s_ctx, s_y16d_ps[d->samples > 1 ? 1 : 0], NULL, 0);
++        bind_pixel_shader(s_y16d_ps[d->samples > 1 ? 1 : 0]);
          ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 1, src);
          {
-@@ -2707,7 +3233,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+             float cc[8] = { 0 };
+@@ -2707,7 +3272,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          if (!mode_needs_texture(mode) || !t->addr || !t->width || !t->height)
              continue;
          tex_format(t->color, &kind);
@@ -3864,7 +4478,7 @@ index b9f3fa2..c312e57 100644
          s_draw_textured = 1;
          if (!s_draw_tex_addr) s_draw_tex_addr = t->addr;
          if (rt && rt->sx > rt->sy * 1.001f) s_draw_reads_wide = 1;
-@@ -2742,9 +3272,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2742,9 +3311,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
                  }
              }
          } else {
@@ -3875,7 +4489,7 @@ index b9f3fa2..c312e57 100644
              if (kind == K_LIN) {
                  pc.tex_scale[n][0] = 1.0f / (float)t->width;
                  pc.tex_scale[n][1] = 1.0f / (float)t->height;
-@@ -2758,7 +3286,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2758,7 +3325,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          }
          if (!view) continue;
          if (t->cube && !rt) srv[4 + n] = view; else srv[n] = view;
@@ -3884,24 +4498,30 @@ index b9f3fa2..c312e57 100644
          pc.tex_info[n][0] = (t->control0 >> 2) & 1;
          pc.tex_info[n][1] = t->filter >> 28;
          /* Point taps of an upscaled linear target average the guest pixel's
-@@ -2816,7 +3344,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2816,7 +3383,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          pc.zp1[0] = 1.0f / ((float)zm + 1.0f);
          pc.zp1[1] = (float)zm;
      }
 -    upload_cb(s_cb_ps, &pc, sizeof pc);
-+    upload_ps_constants(&pc);
++    if (!upload_ps_constants(&pc)) return 0;
  
      if (st->poly_offset_fill && !(st->z_perspective && d)) {
          /* The slope term multiplies the depth change per pixel. At an
-@@ -2834,7 +3362,6 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2832,11 +3399,10 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+     {
+         uint32_t v = (st->flat_shade ? 1u : 0u) | (st->z_perspective && d ? 2u : 0u);
          ID3D11PixelShader *ps = spec_ps(&pc, v);
-         ID3D11DeviceContext_PSSetShader(s_ctx, ps ? ps : s_psv[v], NULL, 0);
+-        ID3D11DeviceContext_PSSetShader(s_ctx, ps ? ps : s_psv[v], NULL, 0);
++        bind_pixel_shader(ps ? ps : s_psv[v]);
      }
 -    ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 1, 1, &s_cb_ps);
      ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 8, srv);
-     ID3D11DeviceContext_PSSetSamplers(s_ctx, 0, 4, smp);
+-    ID3D11DeviceContext_PSSetSamplers(s_ctx, 0, 4, smp);
++    bind_pixel_samplers(4, smp);
      ID3D11DeviceContext_RSSetState(s_ctx, rs_state(cull == 3 ? 0 : cull,
-@@ -3025,6 +3552,7 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+                                                    st->front_face == 0x901, bias, slope));
+     apply_scissor(st, gw, gh);
+@@ -3025,6 +3591,7 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
                        uint32_t lo, uint32_t hi, const float (*pos)[4])
  {
      static uint32_t s_prog_version, s_vconst_version;
@@ -3909,7 +4529,7 @@ index b9f3fa2..c312e57 100644
      static float *dx;
      static uint32_t dx_cap;
      struct { const uint8_t *base; uint32_t stride, span; } grp[16];
-@@ -3073,9 +3601,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -3073,9 +3640,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
      RECOMP_PROFILE_BEGIN("D3D11 draw");
      t_draw = s_prof_on > 0 ? qpc() : 0;
      s_prof_draws++;
@@ -3927,7 +4547,7 @@ index b9f3fa2..c312e57 100644
      }
      if (pos && s && s->sx > s->sy * 1.001f) {
          /* Menu artwork and controls span the display together. Only the
-@@ -3158,13 +3691,25 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -3158,13 +3730,25 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
          const uint32_t (*prog)[4] = nv2a_vsh_program(&start, &pver);
          const float (*consts)[4] = nv2a_vsh_constants(&cver);
          uc.info[0] = start;
@@ -3957,7 +4577,7 @@ index b9f3fa2..c312e57 100644
          }
      }
      uc.map[0] = 2.0f / (float)gw;
-@@ -3177,14 +3722,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -3177,14 +3761,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
      uc.fogf[1] = st->fog_param[1];
      uc.place[0] = shift;
      uc.place[1] = yscale;
@@ -3978,7 +4598,7 @@ index b9f3fa2..c312e57 100644
          ID3D11DeviceContext_DrawIndexed(s_ctx, ni, 0, 0);
      }
      s_raw_pos += (at + 255) & ~255u;
-@@ -3204,11 +3749,18 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3204,11 +3788,18 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
      float cc[8];
      D3D11_RECT r;
      int zclear = (flags & 1) != 0, sclear = (flags & 2) != 0;
@@ -3999,7 +4619,7 @@ index b9f3fa2..c312e57 100644
      if (s) {
          if (flags & 0x10) mask |= D3D11_COLOR_WRITE_ENABLE_RED;
          if (flags & 0x20) mask |= D3D11_COLOR_WRITE_ENABLE_GREEN;
-@@ -3217,8 +3769,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3217,8 +3808,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
              mask |= D3D11_COLOR_WRITE_ENABLE_ALPHA;
      }
      if (!d) { zclear = sclear = 0; }
@@ -4011,7 +4631,7 @@ index b9f3fa2..c312e57 100644
      if (s && mask) s->gpu_dirty = 1;
      zf = (st->surface_format >> 4) & 0xF;
      unpack4(color, cc);
-@@ -3234,8 +3788,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3234,8 +3827,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
      upload_cb(s_cb_clear, cc, sizeof cc);
      if (x1 >= gw) x1 = gw - 1;
      if (y1 >= gh) y1 = gh - 1;
@@ -4023,23 +4643,24 @@ index b9f3fa2..c312e57 100644
      r.left = (LONG)(x0 * s_aa_x * s_cur_sx + 0.5f);
      r.top = (LONG)(y0 * s_aa_y * s_cur_sy + 0.5f);
      r.right = (LONG)((x1 + 1) * s_aa_x * s_cur_sx + 0.5f);
-@@ -3247,12 +3803,12 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3247,12 +3842,12 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
          ds_state(zclear, 7, zclear, sclear, 7, 0xFF, 0xFF, 0x1E01, 0x1E01, 0x1E01),
          zf == 1 ? 0 : (zstencil & 0xFF));
      ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 -    ID3D11DeviceContext_IASetInputLayout(s_ctx, NULL);
 -    ID3D11DeviceContext_VSSetShader(s_ctx, s_clear_vs, NULL, 0);
 -    ID3D11DeviceContext_VSSetConstantBuffers(s_ctx, 0, 1, &s_cb_clear);
+-    ID3D11DeviceContext_PSSetShader(s_ctx, s_clear_ps, NULL, 0);
 +    bind_vertex_shader(s_clear_vs);
 +    bind_vertex_constants(s_cb_clear);
-     ID3D11DeviceContext_PSSetShader(s_ctx, s_clear_ps, NULL, 0);
++    bind_pixel_shader(s_clear_ps);
      ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 0, 1, &s_cb_clear);
      ID3D11DeviceContext_Draw(s_ctx, 4, 0);
 +    hitch_trace_report("clear_submit", trace_begin);
  }
  
  /* -------------------------------------------------------------- write-back */
-@@ -3270,6 +3826,27 @@ typedef struct {
+@@ -3270,6 +3865,27 @@ typedef struct {
      ID3D11RenderTargetView *down_rtv;
  } WbSlot;
  static WbSlot s_wb[MAX_SURFACES];
@@ -4067,7 +4688,7 @@ index b9f3fa2..c312e57 100644
  
  static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
  {
-@@ -3289,12 +3866,14 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
+@@ -3289,12 +3905,14 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
              return 0;
          k->w = w; k->h = h;
      }
@@ -4088,7 +4709,7 @@ index b9f3fa2..c312e57 100644
      }
      return 1;
  }
-@@ -3305,21 +3884,63 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
+@@ -3305,21 +3923,63 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
   * (nv2a_d3d_writeback_busy), holding back DMA_GET and fence releases until
   * then -- the title cannot learn the frame is finished before its pixels are
   * in guest memory. */
@@ -4154,7 +4775,7 @@ index b9f3fa2..c312e57 100644
      for (i = 0; i < MAX_SURFACES; i++) {
          Surface *s = &s_surf[i];
          WbSlot *k = &s_wb[i];
-@@ -3328,16 +3949,18 @@ static int writeback_finish(int wait)
+@@ -3328,16 +3988,18 @@ static int writeback_finish(int wait)
          uint32_t x, y, rowb;
          int amode, r565;
          HRESULT hr;
@@ -4174,7 +4795,7 @@ index b9f3fa2..c312e57 100644
          if (FAILED(hr))
              continue;
          dst = (uint8_t *)guest(s->va);
-@@ -3374,6 +3997,8 @@ static int writeback_finish(int wait)
+@@ -3374,6 +4036,8 @@ static int writeback_finish(int wait)
      }
      RECOMP_PROFILE_END();
      s_wb_pending = left;
@@ -4183,7 +4804,7 @@ index b9f3fa2..c312e57 100644
      return !left;
  }
  
-@@ -3381,10 +4006,8 @@ int nv2a_d3d_writeback_busy(void)
+@@ -3381,10 +4045,8 @@ int nv2a_d3d_writeback_busy(void)
  {
      if (!s_wb_pending || writeback_finish(0))
          return 0;
@@ -4196,7 +4817,7 @@ index b9f3fa2..c312e57 100644
      return 1;
  }
  
-@@ -3420,10 +4043,20 @@ static void writeback_surfaces(void)
+@@ -3420,10 +4082,20 @@ static void writeback_surfaces(void)
          }
          s->gpu_dirty = 0;                        /* later draws dirty it again */
          k->pending = 1;
@@ -4218,7 +4839,7 @@ index b9f3fa2..c312e57 100644
      RECOMP_PROFILE_END();
  }
  
-@@ -3439,13 +4072,16 @@ static uint64_t s_zpass;
+@@ -3439,13 +4111,16 @@ static uint64_t s_zpass;
  static void zpass_collect(void)
  {
      UINT64 n = 0;
@@ -4235,19 +4856,29 @@ index b9f3fa2..c312e57 100644
  }
  
  void nv2a_d3d_zpass_enable(int on)
-@@ -3657,9 +4293,8 @@ static void composite(ID3D11RenderTargetView *rtv, UINT w, UINT h, Surface *s,
+@@ -3657,17 +4332,16 @@ static void composite(ID3D11RenderTargetView *rtv, UINT w, UINT h, Surface *s,
      ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
      ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
      ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 -    ID3D11DeviceContext_IASetInputLayout(s_ctx, NULL);
 -    ID3D11DeviceContext_VSSetShader(s_ctx, s_present_vs, NULL, 0);
 -    ID3D11DeviceContext_VSSetConstantBuffers(s_ctx, 0, 1, &s_cb_present);
+-    ID3D11DeviceContext_PSSetShader(s_ctx, s_present_ps, NULL, 0);
 +    bind_vertex_shader(s_present_vs);
 +    bind_vertex_constants(s_cb_present);
-     ID3D11DeviceContext_PSSetShader(s_ctx, s_present_ps, NULL, 0);
++    bind_pixel_shader(s_present_ps);
      ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 0, 1, &s_cb_present);
      surface_resolve(s);
-@@ -3724,7 +4359,36 @@ static ID3D11Texture2D *s_cap_tex;
+     {
+         ID3D11ShaderResourceView *views[2] = { s->srv, pc->ovl_flags[0] ? s_ovl_srv : NULL };
+         ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 2, views);
+     }
+-    ID3D11DeviceContext_PSSetSamplers(s_ctx, 0, 1, &s_linear_clamp);
++    bind_pixel_samplers(1, &s_linear_clamp);
+     ID3D11DeviceContext_Draw(s_ctx, 4, 0);
+     unbind_targets();
+     unbind_textures();
+@@ -3724,7 +4398,36 @@ static ID3D11Texture2D *s_cap_tex;
  static ID3D11RenderTargetView *s_cap_rtv;
  static UINT s_cap_w, s_cap_h;
  
@@ -4285,7 +4916,7 @@ index b9f3fa2..c312e57 100644
  {
      PresentConsts pc;
      s_last_present = GetTickCount();
-@@ -3755,12 +4419,24 @@ static void present_surface(Surface *s)
+@@ -3755,12 +4458,24 @@ static void present_surface(Surface *s)
          ID3D11RenderTargetView *rtv = NULL;
          if (SUCCEEDED(IDXGISwapChain1_GetBuffer(s_swap, 0, &IID_ID3D11Texture2D, (void **)&bb))) {
              static int vsync = -1;
@@ -4312,7 +4943,7 @@ index b9f3fa2..c312e57 100644
              ID3D11RenderTargetView_Release(rtv);
              ID3D11Texture2D_Release(bb);
          }
-@@ -3779,40 +4455,24 @@ static void pace_vblank(void)
+@@ -3779,40 +4494,24 @@ static void pace_vblank(void)
      static LARGE_INTEGER freq;
      static int64_t next;
      static HANDLE timer;
@@ -4357,7 +4988,7 @@ index b9f3fa2..c312e57 100644
      }
  }
  
-@@ -3897,6 +4557,7 @@ static Surface *scan_surface(uint32_t va, uint32_t pitch)
+@@ -3897,6 +4596,7 @@ static Surface *scan_surface(uint32_t va, uint32_t pitch)
  void nv2a_d3d_flip(uint32_t surface_addr, uint32_t pitch)
  {
      Surface *s;
@@ -4365,7 +4996,7 @@ index b9f3fa2..c312e57 100644
      if (!nv2a_d3d_init())
          return;
      s_frame_bg_tex = 0;
-@@ -3910,17 +4571,17 @@ void nv2a_d3d_flip(uint32_t surface_addr, uint32_t pitch)
+@@ -3910,17 +4610,17 @@ void nv2a_d3d_flip(uint32_t surface_addr, uint32_t pitch)
          int64_t t0 = s_prof_on > 0 ? qpc() : 0, t1;
          writeback_surfaces();
          t1 = s_prof_on > 0 ? qpc() : 0;
@@ -4390,7 +5021,7 @@ index b9f3fa2..c312e57 100644
      RECOMP_PROFILE_FRAME();
      prof_report();
      display_config(0);
-@@ -3940,7 +4601,7 @@ void nv2a_d3d_tick(void)
+@@ -3940,7 +4640,7 @@ void nv2a_d3d_tick(void)
          return;
      if (xbox_FramebufferScanSource(&va, &pitch)) {
          Surface *s = scan_surface(va, pitch);
@@ -4399,7 +5030,7 @@ index b9f3fa2..c312e57 100644
          s_frame++;
          return;
      }
-@@ -3948,7 +4609,7 @@ void nv2a_d3d_tick(void)
+@@ -3948,7 +4648,7 @@ void nv2a_d3d_tick(void)
      if (s_shown && now - s_last_flip > 50) {
          XboxOverlay ovl;
          if (xbox_FramebufferOverlay(&ovl))
@@ -4409,7 +5040,7 @@ index b9f3fa2..c312e57 100644
              s_last_present = now;
      }
 diff --git a/tests/dsp/CMakeLists.txt b/tests/dsp/CMakeLists.txt
-index 1e4ebc0..d3e1010 100644
+index 1e4ebc07943573bc6f859daa06dedd9ef4c6e609..d3e10109d446a8289553d52dc5f0eeae929a7285 100644
 --- a/tests/dsp/CMakeLists.txt
 +++ b/tests/dsp/CMakeLists.txt
 @@ -19,6 +19,10 @@ add_executable(dsp_disasm_test dsp_disasm_test.c)
@@ -4435,10 +5066,10 @@ index 1e4ebc0..d3e1010 100644
    target_include_directories(dsp_apu_test PRIVATE ../../src ../../src/apu)
    target_compile_definitions(dsp_apu_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
 diff --git a/tests/kernel_dispatch/CMakeLists.txt b/tests/kernel_dispatch/CMakeLists.txt
-index a8e9688..cb6e4cd 100644
+index a8e9688c5161e277ae01aa7c37ac26b1705f053c..d92b5acb6613727c503d06675863007782df17d3 100644
 --- a/tests/kernel_dispatch/CMakeLists.txt
 +++ b/tests/kernel_dispatch/CMakeLists.txt
-@@ -7,5 +7,51 @@ add_subdirectory(../.. xboxrecomp)
+@@ -7,5 +7,59 @@ add_subdirectory(../.. xboxrecomp)
  add_executable(kernel-dispatch-thread-test kernel_dispatch_thread_test.c)
  target_include_directories(kernel-dispatch-thread-test PRIVATE ../../src/kernel)
  target_link_libraries(kernel-dispatch-thread-test PRIVATE xboxrecomp)
@@ -4463,6 +5094,12 @@ index a8e9688..cb6e4cd 100644
 +add_executable(contig-range-cache-test contig_range_cache_test.c)
 +target_include_directories(contig-range-cache-test PRIVATE ../../src/kernel)
 +target_link_libraries(contig-range-cache-test PRIVATE xboxrecomp)
++add_executable(contig-heap-ownership-test contig_heap_ownership_test.c)
++target_include_directories(contig-heap-ownership-test PRIVATE ../../src/kernel)
++target_link_libraries(contig-heap-ownership-test PRIVATE xboxrecomp)
++add_executable(reserve-heap-ownership-test reserve_heap_ownership_test.c)
++target_include_directories(reserve-heap-ownership-test PRIVATE ../../src/kernel)
++target_link_libraries(reserve-heap-ownership-test PRIVATE xboxrecomp)
 +add_executable(nv2a-command-fence-test nv2a_command_fence_test.c)
 +target_include_directories(nv2a-command-fence-test PRIVATE ../../src/kernel)
 +target_link_libraries(nv2a-command-fence-test PRIVATE xboxrecomp)
@@ -4483,6 +5120,8 @@ index a8e9688..cb6e4cd 100644
 +add_test(NAME nv2a-notify-wait COMMAND nv2a-notify-wait-test)
 +add_test(NAME nv2a-fence-wait COMMAND nv2a-fence-wait-test)
 +add_test(NAME contig-range-cache COMMAND contig-range-cache-test)
++add_test(NAME contig-heap-ownership COMMAND contig-heap-ownership-test)
++add_test(NAME reserve-heap-ownership COMMAND reserve-heap-ownership-test)
 +add_test(NAME nv2a-command-fence COMMAND nv2a-command-fence-test)
 +add_test(NAME nv2a-dma-sync COMMAND nv2a-dma-sync-test)
 +add_test(NAME nv2a-pb-capture COMMAND nv2a-pb-hitch-test capture "${CMAKE_CURRENT_BINARY_DIR}/pb-capture-test")
@@ -4491,7 +5130,7 @@ index a8e9688..cb6e4cd 100644
 +add_test(NAME nv2a-pb-hitch-trace COMMAND nv2a-pb-hitch-test trace)
 +set_tests_properties(nv2a-pb-hitch-trace PROPERTIES PASS_REGULAR_EXPRESSION "cpu_ms=40[.]000.*max_ms=80[.]000.*method=17FC")
 diff --git a/tests/kernel_dispatch/README.md b/tests/kernel_dispatch/README.md
-index dd7efb0..5ad726b 100644
+index dd7efb097e3ddeaa79263075e946c06982fc3ee0..5ad726b10f09c08ffd7577a6aa182fcd3ac00c98 100644
 --- a/tests/kernel_dispatch/README.md
 +++ b/tests/kernel_dispatch/README.md
 @@ -1,14 +1,144 @@
@@ -4641,8 +5280,139 @@ index dd7efb0..5ad726b 100644
  ```
 +
 +These ten executables provide all fifteen registered CTest cases.
+diff --git a/tests/memory_regressions/CMakeLists.txt b/tests/memory_regressions/CMakeLists.txt
+index e7e9b9e9cce069648496595e9c37216be4c129a5..4e7a35fd8e883e8726162b00aeda080458c14253 100644
+--- a/tests/memory_regressions/CMakeLists.txt
++++ b/tests/memory_regressions/CMakeLists.txt
+@@ -16,3 +16,4 @@ add_test(NAME memory_regressions_default COMMAND memory_regressions_test default
+ add_test(NAME memory_regressions_heap_reclaim COMMAND memory_regressions_test heap-reclaim ${XBE})
+ add_test(NAME memory_regressions_ext_vma COMMAND memory_regressions_test ext-vma ${XBE})
+ add_test(NAME memory_regressions_ext_vma_128 COMMAND memory_regressions_test ext-vma-128 ${XBE})
++add_test(NAME memory_regressions_reserve_heap COMMAND memory_regressions_test reserve-heap ${XBE})
+diff --git a/tests/memory_regressions/README.md b/tests/memory_regressions/README.md
+index da463248602e49a9505823958d12bd8ac902811a..7a8644eb1802461e14cfbf7b0bbfe849c9653913 100644
+--- a/tests/memory_regressions/README.md
++++ b/tests/memory_regressions/README.md
+@@ -19,6 +19,7 @@ One test per mode, one process each, because the switches are read once and cach
+ | `memory_regressions_heap_reclaim` | `RECOMP_HEAP_RECLAIM=1`. The first table below. |
+ | `memory_regressions_ext_vma` | `RECOMP_EXT_VMA=1`. The second table. |
+ | `memory_regressions_ext_vma_128` | `RECOMP_EXT_VMA=1` on a 128 MB map. The tracker stays off. |
++| `memory_regressions_reserve_heap` | Retail RAM on a 128 MB map. Heap growth preserves above-RAM reservations, partial commit retains its address, and the existing reserve release/decommit no-ops retain ownership. Later reservations skip issued heap blocks. |
+ 
+ ## `RECOMP_HEAP_RECLAIM`
+ 
+@@ -70,4 +71,6 @@ particular title runs better with them. Which titles free enough for the switch
+ whether a title's addresses matter to it, is a per-title question.
+ 
+ The block table's lock is not exercised: nothing here allocates from two
+-threads.
++threads. `tests/kernel_dispatch/reserve_heap_ownership_test.c` separately checks
++both allocation orders, exact alignment gaps, arithmetic overflow, and eight
++simultaneous reservation/heap allocation threads.
+diff --git a/tests/memory_regressions/test_main.c b/tests/memory_regressions/test_main.c
+index 35659cc82638caaf3f4119ab0aee4647890c5759..2e6a2e034be2e790b339a3785667a8c4fda3d036 100644
+--- a/tests/memory_regressions/test_main.c
++++ b/tests/memory_regressions/test_main.c
+@@ -32,6 +32,9 @@
+  *   ext-vma-128   The same switch on a 128 MB map, where the mirrors already
+  *                 reach past user space. The tracker must stay out of the way
+  *                 rather than reserve a range of negative size.
++ *   reserve-heap  Retail RAM on a 128 MB map. Above-RAM reservations keep
++ *                 exact ownership through partial commit and no-op release,
++ *                 and both allocators exclude the other's issued blocks.
+  */
+ #include "kernel.h"
+ #include "xbox_memory_layout.h"
+@@ -180,22 +183,25 @@ int main(int argc, char **argv)
+     int reclaim = !strcmp(mode, "heap-reclaim");
+     int ext128 = !strcmp(mode, "ext-vma-128");
+     int ext = ext128 || !strcmp(mode, "ext-vma");
++    int reserve_heap = !strcmp(mode, "reserve-heap");
+     size_t xbe_len = 0;
+     unsigned char *xbe;
+     char d[160];
+     int i;
+ 
+     setvbuf(stdout, NULL, _IONBF, 0);
+-    if (!reclaim && !ext && strcmp(mode, "default")) {
++    if (!reclaim && !ext && !reserve_heap && strcmp(mode, "default")) {
+         printf("unknown mode '%s'\n", mode);
+         return 2;
+     }
+-    if (reclaim)
++    if (reclaim || reserve_heap)
+         set_env("RECOMP_HEAP_RECLAIM", "1");
+     if (ext)
+         set_env("RECOMP_EXT_VMA", "1");
+     if (ext128)
+         xbox_SetTotalRam(XBOX_DEVKIT_RAM);
++    if (reserve_heap)
++        xbox_SetMapSize(XBOX_DEVKIT_RAM);
+ 
+     xbe = load_file(path, &xbe_len);
+     if (!xbe) {
+@@ -220,6 +226,51 @@ int main(int argc, char **argv)
+         }
+     }
+     printf("mode: %s\n", mode);
++    if (reserve_heap) {
++        const uint32_t ram_end = XBOX_TOTAL_RAM;
++        uint32_t reserve = 0, size = 0x100000, st, base, heap, later, args[3];
++        st = nt_alloc_at(&reserve, &size, 0x2000);
++        check(st == 0 && reserve == ram_end && size == 0x100000,
++              "large pure reserve starts above retail RAM", NULL);
++        if (st != 0 || reserve != ram_end) goto shutdown;
++
++        base = reserve + 0x1000; size = 0x1000;
++        st = nt_alloc_at(&base, &size, 0x1000);
++        check(st == 0 && base == reserve + 0x1000 && size == 0x1000,
++              "partial commit keeps its reserved guest address", NULL);
++        *G(reserve) = 0xA5A5A5A5u;
++        *G(reserve + 0x1000) = 0xC0FFEE01u;
++        *G(reserve + 0xFFFFC) = 0xA5A5A5A5u;
++
++        /* A single request that previously crossed 64 MB must move past the
++         * whole reservation before zero filling any byte. */
++        heap = xbox_HeapAlloc(ram_end - (scratch + 0x10000) + 0x1000, 4096);
++        check(heap == reserve + 0x100000,
++              "heap growth crossing 64 MB skips the full reservation", NULL);
++        check(*G(reserve) == 0xA5A5A5A5u && *G(reserve + 0x1000) == 0xC0FFEE01u &&
++              *G(reserve + 0xFFFFC) == 0xA5A5A5A5u,
++              "ordinary heap zero fill preserves committed/reserved bytes", NULL);
++
++        *G(OUT_VA) = reserve + 0x1000; *G(OUT_VA + 4) = 0x1000;
++        args[0] = OUT_VA; args[1] = OUT_VA + 4; args[2] = 0x4000;
++        st = call(S_FREE, 3, args);
++        check(st == 0 && xbox_ReserveRangeAllocated(reserve + 0x1000) &&
++              *G(reserve + 0x1000) == 0xC0FFEE01u,
++              "reserve decommit remains a no-op and retains exact ownership", NULL);
++        st = nt_release(reserve);
++        check(st == 0 && xbox_ReserveRangeAllocated(reserve) &&
++              xbox_ReserveRangeAllocated(reserve + 0xFFFFF),
++              "reserve release remains a no-op even with heap reclaim enabled", NULL);
++
++        later = 0; size = 0x100000;
++        st = nt_alloc_at(&later, &size, 0x2000);
++        check(st == 0 && later >= heap + xbox_HeapBlockSize(heap),
++              "later reservation skips the already-issued ordinary heap", NULL);
++        check(!xbox_ReserveRangeAllocated(heap) &&
++              !xbox_ReserveRangeAllocated(reserve + 0x100000),
++              "skipped ordinary heap bytes are not reservation coverage", NULL);
++        goto shutdown;
++    }
+     *G(0x00070000u) = 0x12345678u;
+     *G(0x80070000u) = 0x87654321u;
+     check(*G(0x00070000u) == 0x12345678u &&
+@@ -391,6 +442,7 @@ int main(int argc, char **argv)
+         }
+     }
+ 
++shutdown: ;
+ #ifdef _WIN32
+     void *host_base = (void *)((uintptr_t)xbox_GetMemoryOffset());
+ #endif
 diff --git a/tests/nv2a_targets/test_targets.c b/tests/nv2a_targets/test_targets.c
-index 9ba2f39..9c5a4d3 100644
+index 9ba2f392667b566216df2fdad94f21405047a786..9c5a4d3115fee7167ef50927c53501572e81dc6a 100644
 --- a/tests/nv2a_targets/test_targets.c
 +++ b/tests/nv2a_targets/test_targets.c
 @@ -1,4 +1,4 @@
@@ -5035,7 +5805,7 @@ index 9ba2f39..9c5a4d3 100644
  }
 diff --git a/src/kernel/nv2a_notify_wait.h b/src/kernel/nv2a_notify_wait.h
 new file mode 100644
-index 0000000..b853df4
+index 0000000000000000000000000000000000000000..b853df4634248bc02a66779f924d5cd0cc16f81e
 --- /dev/null
 +++ b/src/kernel/nv2a_notify_wait.h
 @@ -0,0 +1,126 @@
@@ -5167,7 +5937,7 @@ index 0000000..b853df4
 +#endif
 diff --git a/src/video/nv2a_pacing.h b/src/video/nv2a_pacing.h
 new file mode 100644
-index 0000000..bd286fb
+index 0000000000000000000000000000000000000000..bd286fb252a11131559d72960217094518317113
 --- /dev/null
 +++ b/src/video/nv2a_pacing.h
 @@ -0,0 +1,104 @@
@@ -5277,7 +6047,7 @@ index 0000000..bd286fb
 +#endif
 diff --git a/src/video/nv2a_ps_manifest.h b/src/video/nv2a_ps_manifest.h
 new file mode 100644
-index 0000000..5ddea2c
+index 0000000000000000000000000000000000000000..5ddea2c54e39f2f8557b4dcf34722ba9a3b7c10f
 --- /dev/null
 +++ b/src/video/nv2a_ps_manifest.h
 @@ -0,0 +1,118 @@
@@ -5401,7 +6171,7 @@ index 0000000..5ddea2c
 +#endif
 diff --git a/src/video/nv2a_shader_cache.h b/src/video/nv2a_shader_cache.h
 new file mode 100644
-index 0000000..f833590
+index 0000000000000000000000000000000000000000..f833590aeb244eabc6975f9876f93b2da4cfe272
 --- /dev/null
 +++ b/src/video/nv2a_shader_cache.h
 @@ -0,0 +1,272 @@
@@ -5679,7 +6449,7 @@ index 0000000..f833590
 +#endif
 diff --git a/src/video/nv2a_texture_hash.h b/src/video/nv2a_texture_hash.h
 new file mode 100644
-index 0000000..1940901
+index 0000000000000000000000000000000000000000..19409014825669d17904c214e11f3e4ebac8678c
 --- /dev/null
 +++ b/src/video/nv2a_texture_hash.h
 @@ -0,0 +1,84 @@
@@ -5769,7 +6539,7 @@ index 0000000..1940901
 +#endif
 diff --git a/tests/dsp/dsp_interrupt_fastpath_test.c b/tests/dsp/dsp_interrupt_fastpath_test.c
 new file mode 100644
-index 0000000..f0adcc2
+index 0000000000000000000000000000000000000000..f0adcc2543aa3cc4506ec15d697a7b032e3427d7
 --- /dev/null
 +++ b/tests/dsp/dsp_interrupt_fastpath_test.c
 @@ -0,0 +1,59 @@
@@ -5834,7 +6604,7 @@ index 0000000..f0adcc2
 +}
 diff --git a/tests/dsp/hrtf_filter_test.c b/tests/dsp/hrtf_filter_test.c
 new file mode 100644
-index 0000000..192774a
+index 0000000000000000000000000000000000000000..192774a1fb511c99904204fffab560346bdb1d93
 --- /dev/null
 +++ b/tests/dsp/hrtf_filter_test.c
 @@ -0,0 +1,97 @@
@@ -5935,9 +6705,167 @@ index 0000000..192774a
 +    printf("HRTF exact state/PCM equivalence passed: %u frames\n", frames);
 +    return 0;
 +}
+diff --git a/tests/kernel_dispatch/contig_heap_ownership_test.c b/tests/kernel_dispatch/contig_heap_ownership_test.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..8acb74be7870be1032d18a02bf627d5ce6dd69f7
+--- /dev/null
++++ b/tests/kernel_dispatch/contig_heap_ownership_test.c
+@@ -0,0 +1,152 @@
++/* Exercise production heap/contiguous ownership with a private host arena.
++ * Heap high-water marks include addresses skipped over contiguous blocks;
++ * only blocks actually issued by the heap reserve physical addresses. */
++#include "kernel.h"
++#include "xbox_memory_layout.h"
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#include "../../src/kernel/xbox_memory_layout.c"
++
++void *recomp_lookup(ULONG address) { (void)address; abort(); }
++void *recomp_lookup_manual(ULONG address) { (void)address; abort(); }
++
++#define CHECK(expr) do { if (!(expr)) { \
++    fprintf(stderr, "line %d: %s\n", __LINE__, #expr); exit(1); \
++} } while (0)
++
++static uint8_t *guest_bytes(uint32_t address)
++{
++    return (uint8_t *)((uintptr_t)address + g_memory_offset);
++}
++
++static void expect_bytes(uint32_t address, uint32_t size, uint8_t value)
++{
++    const uint8_t *bytes = guest_bytes(address);
++    for (uint32_t i = 0; i < size; ++i) CHECK(bytes[i] == value);
++}
++
++static void check_ownership(void)
++{
++    /* Freed blocks still own their physical addresses in both tables. */
++    for (LONG i = 0; i < g_contig_alloc_count; ++i) {
++        uint32_t begin = g_contig_allocs[i].offset;
++        uint64_t end = (uint64_t)begin + g_contig_allocs[i].size;
++        CHECK(begin >= 0x1000u && !(begin & 0xFFFu));
++        CHECK(!(g_contig_allocs[i].size & 0xFFFu));
++        CHECK(end <= XBOX_CONTIG_SIZE - XBOX_GPU_INSTANCE_DEFAULT);
++        if (i) CHECK((uint64_t)g_contig_allocs[i - 1].offset +
++                     g_contig_allocs[i - 1].size <= begin);
++        CHECK(xbox_ContiguousRangeAllocated(begin, g_contig_allocs[i].size));
++        for (int j = 0; j < g_heap_block_count; ++j) {
++            uint64_t heap_end = (uint64_t)g_heap_blocks[j].addr + g_heap_blocks[j].size;
++            CHECK(end <= g_heap_blocks[j].addr || heap_end <= begin);
++        }
++    }
++    for (int i = 0; i < g_heap_block_count; ++i)
++        CHECK(!xbox_ContiguousRangeAllocated(g_heap_blocks[i].addr, 1));
++}
++
++int main(void)
++{
++    const size_t reservation = (size_t)XBOX_CONTIG_BASE + XBOX_CONTIG_SIZE;
++    uint8_t *arena = VirtualAlloc(NULL, reservation, MEM_RESERVE, PAGE_READWRITE);
++    uint32_t heap, heap_cross, heap_later, first, aligned, fill, after_heap, reused, gap;
++    uint32_t alignment_gap, second_alignment_gap, large_alignment_gap, heap_skip_gap;
++    CHECK(arena);
++    CHECK(VirtualAlloc(arena + XBOX_CONTIG_BASE, XBOX_CONTIG_SIZE,
++                       MEM_COMMIT, PAGE_READWRITE));
++    CHECK(VirtualAlloc(arena + XBOX_HEAP_BASE, 0x20000,
++                       MEM_COMMIT, PAGE_READWRITE));
++    g_memory_offset = (ptrdiff_t)arena;
++    InitializeCriticalSection(&g_allocator_lock);
++    g_allocator_lock_initialized = 1;
++    SetEnvironmentVariableA("RECOMP_CONTIG_TRACE", NULL);
++
++    heap = xbox_HeapAlloc(0x2000, 4096);
++    CHECK(heap == XBOX_HEAP_BASE);
++    memset(guest_bytes(heap), 0xA5, 0x2000);
++    first = xbox_ContiguousAlloc(0x1000, 4096);
++    aligned = xbox_ContiguousAlloc(0x1000, 0x10000);
++    CHECK(first == XBOX_CONTIG_BASE + 0x1000);
++    CHECK(aligned == XBOX_CONTIG_BASE + 0x10000);
++    CHECK(!xbox_ContiguousRangeAllocated(0x2000, 1));
++    fill = xbox_ContiguousAlloc(XBOX_HEAP_BASE - 0x11000, 4096);
++    CHECK(fill == aligned + 0x1000);
++    after_heap = xbox_ContiguousAlloc(0x4000, 4096);
++    CHECK(after_heap == XBOX_CONTIG_BASE + heap + 0x2000);
++    check_ownership();
++    expect_bytes(heap, 0x2000, 0xA5);
++
++    /* Ordinary heap growth skips an existing contiguous block. Alignment
++     * then leaves another unissued gap below its high-water mark. */
++    heap_cross = xbox_HeapAlloc(0x3000, 4096);
++    CHECK(heap_cross == heap + 0x6000);
++    CHECK(g_heap_next > after_heap - XBOX_CONTIG_BASE + 0x4000);
++    memset(guest_bytes(heap_cross), 0x3C, 0x3000);
++    heap_later = xbox_HeapAlloc(0x3000, 0x10000);
++    CHECK(heap_later == heap + 0x10000);
++    memset(guest_bytes(heap_later), 0x5A, 0x3000);
++    memset(guest_bytes(after_heap), 0xC3, 0x4000);
++    CHECK(xbox_ContiguousRangeAllocated(after_heap - XBOX_CONTIG_BASE, 0x4000));
++    CHECK(xbox_ContiguousFree(after_heap));
++    CHECK(!xbox_ContiguousBlockSize(after_heap));
++    CHECK(xbox_ContiguousRangeAllocated(after_heap - XBOX_CONTIG_BASE, 0x4000));
++    reused = xbox_ContiguousAlloc(0x4000, 4096);
++    CHECK(reused == after_heap);
++    expect_bytes(reused, 0x4000, 0);
++    gap = xbox_ContiguousAlloc(0x3000, 4096);
++    CHECK(gap == XBOX_CONTIG_BASE + heap + 0x9000);
++    CHECK(!xbox_ContiguousRangeAllocated(heap + 0xC000, 1));
++    check_ownership();
++    expect_bytes(heap, 0x2000, 0xA5);
++    expect_bytes(heap_cross, 0x3000, 0x3C);
++    expect_bytes(heap_later, 0x3000, 0x5A);
++
++    xbox_HeapFree(heap);
++    CHECK(!xbox_HeapBlockSize(heap));
++    CHECK(!xbox_ContiguousRangeAllocated(heap, 0x2000));
++    expect_bytes(heap, 0x2000, 0xA5);
++
++    /* Simulate an exhausted bump without issuing every remaining page. Only
++     * the bump changes: production tables still describe the real holes.
++     * The fallback must insert these new lower offsets in sorted order. */
++    g_contig_next = XBOX_CONTIG_BASE + XBOX_CONTIG_SIZE - XBOX_GPU_INSTANCE_DEFAULT;
++    alignment_gap = xbox_ContiguousAlloc(0x1000, 0x4000);
++    CHECK(alignment_gap == XBOX_CONTIG_BASE + 0x4000);
++    CHECK(!(alignment_gap & 0x3FFF));
++    second_alignment_gap = xbox_ContiguousAlloc(0x2000, 0x4000);
++    CHECK(second_alignment_gap == XBOX_CONTIG_BASE + 0x8000);
++    CHECK(!(second_alignment_gap & 0x3FFF));
++    large_alignment_gap = xbox_ContiguousAlloc(0x6000, 4096);
++    CHECK(large_alignment_gap == XBOX_CONTIG_BASE + 0xA000);
++    heap_skip_gap = xbox_ContiguousAlloc(0x4000, 4096);
++    CHECK(heap_skip_gap == XBOX_CONTIG_BASE + heap + 0xC000);
++    CHECK(xbox_ContiguousRangeAllocated(heap + 0x2000, 0x4000));
++    CHECK(!xbox_ContiguousRangeAllocated(heap + 0x6000, 1));
++    CHECK(xbox_ContiguousRangeAllocated(heap + 0x9000, 0x7000));
++    CHECK(!xbox_ContiguousRangeAllocated(heap + 0x10000, 1));
++    CHECK(!xbox_ContiguousRangeAllocated(0x3000, 2));
++    check_ownership();
++    expect_bytes(heap, 0x2000, 0xA5);
++    expect_bytes(heap_cross, 0x3000, 0x3C);
++    expect_bytes(heap_later, 0x3000, 0x5A);
++
++    /* Heap free/reuse cannot transfer its address to contiguous storage. */
++    CHECK(xbox_HeapAlloc(0x2000, 4096) == heap);
++    expect_bytes(heap, 0x2000, 0);
++    expect_bytes(heap_cross, 0x3000, 0x3C);
++    expect_bytes(heap_later, 0x3000, 0x5A);
++    check_ownership();
++    CHECK(xbox_ContiguousFree(alignment_gap));
++    CHECK(xbox_ContiguousRangeAllocated(0x4000, 0x1000));
++    CHECK(xbox_ContiguousAlloc(0x1000, 0x4000) == alignment_gap);
++    check_ownership();
++
++    puts("contiguous exact heap ownership and exhausted-arena gap reuse passed");
++    DeleteCriticalSection(&g_allocator_lock);
++    CHECK(VirtualFree(arena, 0, MEM_RELEASE));
++    return 0;
++}
 diff --git a/tests/kernel_dispatch/contig_range_cache_test.c b/tests/kernel_dispatch/contig_range_cache_test.c
 new file mode 100644
-index 0000000..88b6e78
+index 0000000000000000000000000000000000000000..88b6e78b3f4ef8dacf838ba61007e9892def246d
 --- /dev/null
 +++ b/tests/kernel_dispatch/contig_range_cache_test.c
 @@ -0,0 +1,209 @@
@@ -6152,7 +7080,7 @@ index 0000000..88b6e78
 +}
 diff --git a/tests/kernel_dispatch/kernel_cs_test.c b/tests/kernel_dispatch/kernel_cs_test.c
 new file mode 100644
-index 0000000..010fbf0
+index 0000000000000000000000000000000000000000..010fbf045e55480a6e37c9d740f22010a55ab975
 --- /dev/null
 +++ b/tests/kernel_dispatch/kernel_cs_test.c
 @@ -0,0 +1,183 @@
@@ -6341,7 +7269,7 @@ index 0000000..010fbf0
 +}
 diff --git a/tests/kernel_dispatch/kernel_file_sharing_test.c b/tests/kernel_dispatch/kernel_file_sharing_test.c
 new file mode 100644
-index 0000000..37b0f04
+index 0000000000000000000000000000000000000000..37b0f04ae2d6aa987ab816a90398840e4f0de362
 --- /dev/null
 +++ b/tests/kernel_dispatch/kernel_file_sharing_test.c
 @@ -0,0 +1,108 @@
@@ -6455,7 +7383,7 @@ index 0000000..37b0f04
 +}
 diff --git a/tests/kernel_dispatch/kernel_handle_thread_test.c b/tests/kernel_dispatch/kernel_handle_thread_test.c
 new file mode 100644
-index 0000000..95ff65e
+index 0000000000000000000000000000000000000000..95ff65eed1e637dc69587abe3f34cbea88d7f369
 --- /dev/null
 +++ b/tests/kernel_dispatch/kernel_handle_thread_test.c
 @@ -0,0 +1,327 @@
@@ -6788,7 +7716,7 @@ index 0000000..95ff65e
 +}
 diff --git a/tests/kernel_dispatch/kernel_log_test.c b/tests/kernel_dispatch/kernel_log_test.c
 new file mode 100644
-index 0000000..60420ee
+index 0000000000000000000000000000000000000000..60420ee2e1a24763e0d6094310bd9c6058252dc9
 --- /dev/null
 +++ b/tests/kernel_dispatch/kernel_log_test.c
 @@ -0,0 +1,124 @@
@@ -6918,7 +7846,7 @@ index 0000000..60420ee
 +}
 diff --git a/tests/kernel_dispatch/nv2a_command_fence_test.c b/tests/kernel_dispatch/nv2a_command_fence_test.c
 new file mode 100644
-index 0000000..c57fdd2
+index 0000000000000000000000000000000000000000..c57fdd27600e8b55957a5ff901bdc42ca9ea90d7
 --- /dev/null
 +++ b/tests/kernel_dispatch/nv2a_command_fence_test.c
 @@ -0,0 +1,274 @@
@@ -7198,7 +8126,7 @@ index 0000000..c57fdd2
 +}
 diff --git a/tests/kernel_dispatch/nv2a_dma_sync_test.c b/tests/kernel_dispatch/nv2a_dma_sync_test.c
 new file mode 100644
-index 0000000..f49c566
+index 0000000000000000000000000000000000000000..f49c566d6258666fa6ac52b68c1343be17b2acea
 --- /dev/null
 +++ b/tests/kernel_dispatch/nv2a_dma_sync_test.c
 @@ -0,0 +1,263 @@
@@ -7467,7 +8395,7 @@ index 0000000..f49c566
 +}
 diff --git a/tests/kernel_dispatch/nv2a_fence_wait_test.c b/tests/kernel_dispatch/nv2a_fence_wait_test.c
 new file mode 100644
-index 0000000..0adeef9
+index 0000000000000000000000000000000000000000..0adeef9172bb5df8043bf8be957f50761ba52400
 --- /dev/null
 +++ b/tests/kernel_dispatch/nv2a_fence_wait_test.c
 @@ -0,0 +1,120 @@
@@ -7593,7 +8521,7 @@ index 0000000..0adeef9
 +}
 diff --git a/tests/kernel_dispatch/nv2a_notify_wait_test.c b/tests/kernel_dispatch/nv2a_notify_wait_test.c
 new file mode 100644
-index 0000000..2f5a9a8
+index 0000000000000000000000000000000000000000..2f5a9a81246dfba0d6df944a204d0bdc30d56aa4
 --- /dev/null
 +++ b/tests/kernel_dispatch/nv2a_notify_wait_test.c
 @@ -0,0 +1,155 @@
@@ -7754,7 +8682,7 @@ index 0000000..2f5a9a8
 +}
 diff --git a/tests/kernel_dispatch/nv2a_pb_hitch_test.c b/tests/kernel_dispatch/nv2a_pb_hitch_test.c
 new file mode 100644
-index 0000000..406c366
+index 0000000000000000000000000000000000000000..406c36694adc4dec58acf69638f95cdb5ba5ec2a
 --- /dev/null
 +++ b/tests/kernel_dispatch/nv2a_pb_hitch_test.c
 @@ -0,0 +1,490 @@
@@ -8248,9 +9176,376 @@ index 0000000..406c366
 +    puts("PASS: tracing, PUT/cap continuations, exact decoding and ring/bus wraps preserve command order");
 +    return 0;
 +}
+diff --git a/tests/kernel_dispatch/reserve_heap_ownership_test.c b/tests/kernel_dispatch/reserve_heap_ownership_test.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..d0a5541ee35f6df8addc51eeac09610828ab8094
+--- /dev/null
++++ b/tests/kernel_dispatch/reserve_heap_ownership_test.c
+@@ -0,0 +1,170 @@
++/* Production allocator regression: above-RAM reservations and the mapped
++ * ordinary heap must never grant the same bytes, in either allocation order. */
++#include "kernel.h"
++#include "xbox_memory_layout.h"
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#include "../../src/kernel/xbox_memory_layout.c"
++
++void *recomp_lookup(ULONG address) { (void)address; abort(); }
++void *recomp_lookup_manual(ULONG address) { (void)address; abort(); }
++
++#define CHECK(expr) do { if (!(expr)) { \
++    fprintf(stderr, "line %d: %s\n", __LINE__, #expr); exit(1); \
++} } while (0)
++#define RAM_END 0x04000000u
++#define MAP_END 0x08000000u
++
++static uint8_t *bytes(uint32_t address)
++{
++    return (uint8_t *)((uintptr_t)address + g_memory_offset);
++}
++
++static void expect_bytes(uint32_t address, uint32_t size, uint8_t value)
++{
++    for (uint32_t i = 0; i < size; ++i) CHECK(bytes(address)[i] == value);
++}
++
++static void reset_allocators(void)
++{
++    g_heap_next = XBOX_HEAP_BASE;
++    g_heap_block_count = 0;
++    g_heap_alloc_count = 0;
++    g_reserve_next = 0;
++    g_reserve_alloc_count = 0;
++    t_reserve_begin = t_reserve_end = 0;
++    g_contig_alloc_count = 0;
++    g_contig_next = XBOX_CONTIG_BASE + 0x1000;
++}
++
++static void check_ownership(void)
++{
++    for (int i = 0; i < g_reserve_alloc_count; ++i) {
++        uint64_t begin = g_reserve_allocs[i].addr;
++        uint64_t end = begin + g_reserve_allocs[i].size;
++        CHECK(begin >= RAM_END && end <= MAP_END);
++        if (i) CHECK((uint64_t)g_reserve_allocs[i - 1].addr +
++                     g_reserve_allocs[i - 1].size <= begin);
++        for (int j = 0; j < g_heap_block_count; ++j)
++            CHECK(end <= g_heap_blocks[j].addr ||
++                  (uint64_t)g_heap_blocks[j].addr + g_heap_blocks[j].size <= begin);
++    }
++}
++
++enum { THREADS = 8, ALLOCS_PER_THREAD = 128 };
++static HANDLE start_event;
++static DWORD WINAPI allocation_worker(void *context)
++{
++    uintptr_t kind = (uintptr_t)context;
++    CHECK(WaitForSingleObject(start_event, 10000) == WAIT_OBJECT_0);
++    for (unsigned i = 0; i < ALLOCS_PER_THREAD; ++i) {
++        uint32_t address = kind & 1
++            ? xbox_ReserveAlloc(4096, 4096) : xbox_HeapAlloc(4096, 4096);
++        CHECK(address);
++        memset(bytes(address), (int)(kind + 1), 4096);
++    }
++    return 0;
++}
++
++int main(void)
++{
++    uint8_t *arena = VirtualAlloc(NULL, MAP_END, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
++    uint32_t reservation, heap, second, next;
++    HANDLE workers[THREADS];
++    CHECK(arena);
++    g_memory_offset = (ptrdiff_t)arena;
++    g_memory_size = MAP_END;
++    g_xbox_map_size = MAP_END;
++    g_xbox_total_ram = RAM_END;
++    InitializeCriticalSection(&g_allocator_lock);
++    g_allocator_lock_initialized = 1;
++    SetEnvironmentVariableA("RECOMP_HEAP_WATCH", NULL);
++
++    /* This is the menu-stall layout: CRT reserves at 64 MB before the
++     * ordinary heap grows across that address. No allocator may zero it. */
++    reservation = xbox_ReserveAlloc(0x100000, 4096);
++    CHECK(reservation == RAM_END);
++    memset(bytes(reservation), 0xA5, 0x100000);
++    g_heap_next = RAM_END - 4096;
++    heap = xbox_HeapAlloc(8192, 4096);
++    CHECK(heap == RAM_END + 0x100000);
++    expect_bytes(reservation, 0x100000, 0xA5);
++    check_ownership();
++
++    /* A reservation made later must skip live and freed heap blocks. */
++    reset_allocators();
++    g_heap_next = RAM_END;
++    heap = xbox_HeapAlloc(8192, 4096);
++    memset(bytes(heap), 0x3C, 8192);
++    xbox_HeapFree(heap);
++    reservation = xbox_ReserveAlloc(0x100000, 4096);
++    CHECK(reservation == RAM_END + 8192);
++    CHECK(!xbox_ReserveRangeAllocated(heap));
++    memset(bytes(reservation), 0xA5, 0x100000);
++    expect_bytes(heap, 8192, 0x3C);
++    CHECK(xbox_HeapAlloc(8192, 4096) == heap);
++    expect_bytes(reservation, 0x100000, 0xA5);
++    check_ownership();
++
++    /* Alignment and skipped heap bytes do not become reservation coverage. */
++    reset_allocators();
++    g_heap_next = RAM_END + 0x10000;
++    heap = xbox_HeapAlloc(8192, 4096);
++    reservation = xbox_ReserveAlloc(8192, 4096);
++    second = xbox_ReserveAlloc(8192, 0x10000);
++    CHECK(reservation == RAM_END && second == RAM_END + 0x20000);
++    CHECK(xbox_ReserveRangeAllocated(reservation + 8191));
++    CHECK(!xbox_ReserveRangeAllocated(reservation + 8192));
++    CHECK(!xbox_ReserveRangeAllocated(heap));
++    CHECK(!xbox_ReserveRangeAllocated(second - 1));
++    CHECK(xbox_ReserveRangeAllocated(second));
++    CHECK(!xbox_ReserveRangeAllocated(second + 8192));
++    next = xbox_HeapAlloc(8192, 4096);
++    CHECK(next == RAM_END + 0x12000);
++    check_ownership();
++
++    /* All failing arithmetic leaves ownership/high-water metadata intact. */
++    next = g_reserve_next;
++    CHECK(!xbox_ReserveAlloc(0xFFFFFFFFu, 4096));
++    CHECK(!xbox_ReserveAlloc(4096, 0x80000000u));
++    CHECK(!xbox_ReserveAlloc(4096, 12288));
++    CHECK(g_reserve_next == next);
++    next = g_heap_next;
++    CHECK(!xbox_HeapAlloc(0xFFFFFFFFu, 4096));
++    CHECK(!xbox_HeapAlloc(4096, 0x80000000u));
++    CHECK(!xbox_HeapAlloc(4096, 12288));
++    CHECK(g_heap_next == next);
++    check_ownership();
++
++    /* Simultaneous reservations cannot race each other or heap allocation. */
++    reset_allocators();
++    g_heap_next = RAM_END;
++    start_event = CreateEventA(NULL, TRUE, FALSE, NULL);
++    CHECK(start_event);
++    for (uintptr_t i = 0; i < THREADS; ++i) {
++        workers[i] = CreateThread(NULL, 0, allocation_worker, (void *)i, 0, NULL);
++        CHECK(workers[i]);
++    }
++    CHECK(SetEvent(start_event));
++    CHECK(WaitForMultipleObjects(THREADS, workers, TRUE, 10000) == WAIT_OBJECT_0);
++    for (unsigned i = 0; i < THREADS; ++i) {
++        DWORD code;
++        CHECK(GetExitCodeThread(workers[i], &code) && code == 0);
++        CloseHandle(workers[i]);
++    }
++    CloseHandle(start_event);
++    CHECK(g_reserve_alloc_count == THREADS / 2 * ALLOCS_PER_THREAD);
++    CHECK(g_heap_block_count == THREADS / 2 * ALLOCS_PER_THREAD);
++    check_ownership();
++
++    /* A retail-sized mapping still has no above-RAM reserve arena. */
++    g_memory_size = RAM_END;
++    CHECK(!xbox_ReserveAlloc(4096, 4096));
++    DeleteCriticalSection(&g_allocator_lock);
++    CHECK(VirtualFree(arena, 0, MEM_RELEASE));
++    puts("reserve/heap exact ownership, arithmetic and concurrency passed");
++    return 0;
++}
+diff --git a/tests/kernel_save_paths/CMakeLists.txt b/tests/kernel_save_paths/CMakeLists.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..944865e2530fa17585f20fc747f5dcaed48b10a8
+--- /dev/null
++++ b/tests/kernel_save_paths/CMakeLists.txt
+@@ -0,0 +1,11 @@
++cmake_minimum_required(VERSION 3.20)
++project(kernel_save_paths_test C)
++set(CMAKE_C_STANDARD 11)
++if(NOT WIN32)
++    message(FATAL_ERROR "This temporary-files regression requires the Win32 path backend")
++endif()
++add_executable(kernel_save_paths_test test_main.c)
++target_include_directories(kernel_save_paths_test PRIVATE ../../src ../../src/kernel)
++target_link_libraries(kernel_save_paths_test PRIVATE shell32)
++enable_testing()
++add_test(NAME kernel_save_paths_test COMMAND kernel_save_paths_test)
+diff --git a/tests/kernel_save_paths/README.md b/tests/kernel_save_paths/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..77044eb038fec468ce8c6933fa69e78d25f27e2c
+--- /dev/null
++++ b/tests/kernel_save_paths/README.md
+@@ -0,0 +1,18 @@
++# Explicit save-directory routing
++
++Windows regression that compiles the real `kernel_path.c` backend and uses
++temporary directories. XAPI's mounted U:/T: drives resolve to Partition1 UDATA
++and TDATA paths. These paths must use a supplied save root rather than bypassing
++it and writing to the extracted game directory. With no supplied root the
++existing game-directory layout remains available.
++
++The test covers mounted and direct paths, case-insensitive components, similarly
++named asset directories, missing metadata, and an isolated write that preserves
++a legacy profile. It substitutes only the symbolic-link table and default
++app-data directory; it never opens game assets or user saves.
++
++```powershell
++cmake -S tools/xboxrecomp/tests/kernel_save_paths -B build/save-paths
++cmake --build build/save-paths --config Release
++ctest --test-dir build/save-paths -C Release --output-on-failure
++```
+diff --git a/tests/kernel_save_paths/test_main.c b/tests/kernel_save_paths/test_main.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..2c49799f5985bf76e37b589ef2a2025c06c4aa16
+--- /dev/null
++++ b/tests/kernel_save_paths/test_main.c
+@@ -0,0 +1,144 @@
++/* Compile the actual path backend. Only the symbolic-link table and default
++ * app-data location are substituted, keeping every test write in our own
++ * temporary directory and avoiding any game or existing save files. */
++#include "kernel.h"
++#include <shlobj.h>
++#include <stdio.h>
++#include <string.h>
++#include <wchar.h>
++
++static WCHAR default_folder[MAX_PATH];
++static int mounted;
++
++static HRESULT test_default_folder(HWND window, int folder, HANDLE token,
++                                   DWORD flags, LPWSTR path)
++{
++    (void)window; (void)folder; (void)token; (void)flags;
++    wcscpy_s(path, MAX_PATH, default_folder);
++    return S_OK;
++}
++
++void xbox_log(int level, const char *subsystem, const char *fmt, ...)
++{
++    (void)level; (void)subsystem; (void)fmt;
++}
++
++const char *xbox_LookupSymbolicLink(const char *link)
++{
++    if (!mounted) return NULL;
++    if (strcmp(link, "\\??\\U:") == 0)
++        return "\\Device\\Harddisk0\\Partition1\\UDATA\\4d53002a";
++    if (strcmp(link, "\\??\\T:") == 0)
++        return "\\Device\\Harddisk0\\Partition1\\TDATA\\4d53002a";
++    return NULL;
++}
++
++#define SHGetFolderPathW test_default_folder
++#include "../../src/kernel/kernel_path.c"
++#undef SHGetFolderPathW
++
++static int failures;
++
++static void check_path(const char *guest, const WCHAR *base, const WCHAR *tail)
++{
++    WCHAR actual[MAX_PATH], expected[MAX_PATH];
++    if (tail[0]) swprintf_s(expected, MAX_PATH, L"%s\\%s", base, tail);
++    else wcscpy_s(expected, MAX_PATH, base);
++    if (!xbox_translate_path(guest, actual, MAX_PATH) ||
++        _wcsicmp(actual, expected) != 0) {
++        fprintf(stderr, "FAIL %s: got %ls, expected %ls\n", guest, actual, expected);
++        failures++;
++    }
++}
++
++static void clean_save_root(const WCHAR *base)
++{
++    static const WCHAR *dirs[] = { L"TitleData", L"UserData", L"Cache",
++                                    L"SystemData", L"UDATA", L"TDATA" };
++    WCHAR path[MAX_PATH];
++    for (int i = 0; i < 6; i++) {
++        swprintf_s(path, MAX_PATH, L"%s\\Partition%d.img", base, i);
++        DeleteFileW(path);
++        swprintf_s(path, MAX_PATH, L"%s\\%s", base, dirs[i]);
++        RemoveDirectoryW(path);
++    }
++    RemoveDirectoryW(base);
++}
++
++int main(void)
++{
++    WCHAR temp[MAX_PATH], root[MAX_PATH], game[MAX_PATH], save[MAX_PATH];
++    WCHAR path[MAX_PATH], original[MAX_PATH], isolated[MAX_PATH];
++    char game_utf8[MAX_PATH], save_utf8[MAX_PATH];
++    DWORD bytes;
++    HANDLE file;
++    char value[8] = {0};
++    GetTempPathW(MAX_PATH, temp);
++    swprintf_s(root, MAX_PATH, L"%smm3-save-paths-%lu-%llu", temp,
++        GetCurrentProcessId(), (unsigned long long)GetTickCount64());
++    if (!CreateDirectoryW(root, NULL)) return 10;
++    swprintf_s(game, MAX_PATH, L"%s\\game", root);
++    swprintf_s(save, MAX_PATH, L"%s\\isolated", root);
++    swprintf_s(default_folder, MAX_PATH, L"%s\\default", root);
++    CreateDirectoryW(game, NULL);
++    WideCharToMultiByte(CP_UTF8, 0, game, -1, game_utf8, MAX_PATH, NULL, NULL);
++    WideCharToMultiByte(CP_UTF8, 0, save, -1, save_utf8, MAX_PATH, NULL, NULL);
++    xbox_path_init(game_utf8, save_utf8);
++
++    check_path("\\Device\\Harddisk0\\Partition1\\UDATA\\4d53002a\\profile", save,
++               L"UDATA\\4d53002a\\profile");
++    check_path("\\device\\harddisk0\\partition1\\tdata\\4d53002a\\$C", save,
++               L"TDATA\\4d53002a\\$C");
++    check_path("\\Device\\Harddisk0\\Partition1\\UDATA", save, L"UDATA");
++    check_path("\\Device\\Harddisk0\\Partition1\\TDATA\\", save, L"TDATA");
++    check_path("\\Device\\Harddisk0\\Partition1\\UDATA_backup\\profile", game,
++               L"UDATA_backup\\profile");
++    check_path("\\Device\\Harddisk0\\Partition1\\TDATA2\\asset", game, L"TDATA2\\asset");
++    check_path("\\Device\\Harddisk0\\Partition1\\Data\\Shared\\Cars\\VRace\\body.cmp", game,
++               L"Data\\Shared\\Cars\\VRace\\body.cmp");
++    check_path("D:\\Data\\Data_hd.zip", game, L"Data\\Data_hd.zip");
++    check_path("U:\\profile", save, L"UserData\\profile");
++    mounted = 1;
++    check_path("U:\\194916D15BE4\\profile", save, L"UDATA\\4d53002a\\194916D15BE4\\profile");
++    check_path("\\??\\T:\\$u\\contentmeta.xbx", save, L"TDATA\\4d53002a\\$u\\contentmeta.xbx");
++
++    /* Translation does not manufacture a missing save slot or metadata. */
++    xbox_translate_path("U:\\96734455B22F\\SaveMeta.xbx", path, MAX_PATH);
++    if (GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES) failures++;
++    swprintf_s(path, MAX_PATH, L"%s\\UDATA\\4d53002a\\96734455B22F", save);
++    if (GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES) failures++;
++
++    /* A write using the mounted drive cannot change the legacy profile. */
++    swprintf_s(path, MAX_PATH, L"%s\\UDATA", game); CreateDirectoryW(path, NULL);
++    swprintf_s(original, MAX_PATH, L"%s\\UDATA\\profile", game);
++    file = CreateFileW(original, GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
++    if (file == INVALID_HANDLE_VALUE || !WriteFile(file, "legacy", 6, &bytes, NULL)) return 11;
++    CloseHandle(file);
++    swprintf_s(path, MAX_PATH, L"%s\\UDATA\\4d53002a", save); CreateDirectoryW(path, NULL);
++    xbox_translate_path("U:\\profile", isolated, MAX_PATH);
++    file = CreateFileW(isolated, GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
++    if (file == INVALID_HANDLE_VALUE || !WriteFile(file, "test", 4, &bytes, NULL)) return 12;
++    CloseHandle(file);
++    file = CreateFileW(original, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL);
++    if (file == INVALID_HANDLE_VALUE || !ReadFile(file, value, sizeof(value), &bytes, NULL) ||
++        bytes != 6 || memcmp(value, "legacy", 6) != 0) failures++;
++    CloseHandle(file);
++
++    /* NULL and empty save roots retain the existing game_dir save layout. */
++    xbox_path_init(game_utf8, NULL);
++    check_path("U:\\profile", game, L"UDATA\\4d53002a\\profile");
++    check_path("T:\\$C", game, L"TDATA\\4d53002a\\$C");
++    xbox_path_init(game_utf8, "");
++    check_path("\\Device\\Harddisk0\\Partition1\\UDATA\\profile", game, L"UDATA\\profile");
++
++    DeleteFileW(isolated);
++    swprintf_s(path, MAX_PATH, L"%s\\UDATA\\4d53002a", save); RemoveDirectoryW(path);
++    DeleteFileW(original);
++    swprintf_s(path, MAX_PATH, L"%s\\UDATA", game); RemoveDirectoryW(path);
++    clean_save_root(save);
++    swprintf_s(path, MAX_PATH, L"%s\\xboxrecomp", default_folder); clean_save_root(path);
++    RemoveDirectoryW(default_folder); RemoveDirectoryW(game); RemoveDirectoryW(root);
++    if (failures) return 1;
++    puts("PASS: explicit and default save routing, mounted U:/T:, asset paths, and legacy profile preservation");
++    return 0;
++}
 diff --git a/tests/nv2a_bindings/CMakeLists.txt b/tests/nv2a_bindings/CMakeLists.txt
 new file mode 100644
-index 0000000..63755a7
+index 0000000000000000000000000000000000000000..3f8db75dcb265bf4e63bc8fda551d8148feb76c6
 --- /dev/null
 +++ b/tests/nv2a_bindings/CMakeLists.txt
 @@ -0,0 +1,9 @@
@@ -8260,15 +9555,15 @@ index 0000000..63755a7
 +add_executable(nv2a_bindings test_bindings.c)
 +target_include_directories(nv2a_bindings PRIVATE ../../src ../../src/video)
 +target_link_libraries(nv2a_bindings PRIVATE d3d11 dxgi dxguid d3dcompiler)
-+foreach(case pixels fixed_updates failures resize init_failure)
++foreach(case pixels fixed_updates failures resize init_failure ps_bindings ps_failure ps_reset)
 +    add_test(NAME nv2a_bindings_${case} COMMAND nv2a_bindings ${case})
 +endforeach()
 diff --git a/tests/nv2a_bindings/test_bindings.c b/tests/nv2a_bindings/test_bindings.c
 new file mode 100644
-index 0000000..b1640a7
+index 0000000000000000000000000000000000000000..3ce0f2f32d4d0786df42ec8b6d8666adfeaef839
 --- /dev/null
 +++ b/tests/nv2a_bindings/test_bindings.c
-@@ -0,0 +1,339 @@
+@@ -0,0 +1,514 @@
 +/* Inspect the real D3D11 slots and pixels produced by the actual renderer.
 + * The reference restores all original per-draw binds immediately before the
 + * real DrawIndexed, independently of the optimized helpers' bookkeeping. */
@@ -8281,8 +9576,11 @@ index 0000000..b1640a7
 +#include <string.h>
 +
 +static unsigned shader_calls, vs_cb_calls, srv_calls, ps_cb1_calls, layout_calls;
-+static int reference, fail_map, fail_buffers;
++static unsigned ps_shader_calls, ps_sampler_calls, draw_calls, ps_map_calls;
++static int reference, pixel_reference, fail_map, fail_ps_map, fail_buffers;
 +static void set_vs(ID3D11DeviceContext *, ID3D11VertexShader *, ID3D11ClassInstance *const *, UINT);
++static void set_ps(ID3D11DeviceContext *, ID3D11PixelShader *, ID3D11ClassInstance *const *, UINT);
++static void set_ps_samplers(ID3D11DeviceContext *, UINT, UINT, ID3D11SamplerState *const *);
 +static void set_vs_cb(ID3D11DeviceContext *, UINT, UINT, ID3D11Buffer *const *);
 +static void set_vs_srv(ID3D11DeviceContext *, UINT, UINT, ID3D11ShaderResourceView *const *);
 +static void set_ps_cb(ID3D11DeviceContext *, UINT, UINT, ID3D11Buffer *const *);
@@ -8291,6 +9589,8 @@ index 0000000..b1640a7
 +static HRESULT map_resource(ID3D11DeviceContext *, ID3D11Resource *, UINT, D3D11_MAP, UINT, D3D11_MAPPED_SUBRESOURCE *);
 +static HRESULT create_buffer(ID3D11Device *, const D3D11_BUFFER_DESC *, const D3D11_SUBRESOURCE_DATA *, ID3D11Buffer **);
 +#undef ID3D11DeviceContext_VSSetShader
++#undef ID3D11DeviceContext_PSSetShader
++#undef ID3D11DeviceContext_PSSetSamplers
 +#undef ID3D11DeviceContext_VSSetConstantBuffers
 +#undef ID3D11DeviceContext_VSSetShaderResources
 +#undef ID3D11DeviceContext_PSSetConstantBuffers
@@ -8299,6 +9599,8 @@ index 0000000..b1640a7
 +#undef ID3D11DeviceContext_Map
 +#undef ID3D11Device_CreateBuffer
 +#define ID3D11DeviceContext_VSSetShader set_vs
++#define ID3D11DeviceContext_PSSetShader set_ps
++#define ID3D11DeviceContext_PSSetSamplers set_ps_samplers
 +#define ID3D11DeviceContext_VSSetConstantBuffers set_vs_cb
 +#define ID3D11DeviceContext_VSSetShaderResources set_vs_srv
 +#define ID3D11DeviceContext_PSSetConstantBuffers set_ps_cb
@@ -8308,6 +9610,7 @@ index 0000000..b1640a7
 +#define ID3D11Device_CreateBuffer create_buffer
 +#include "../../src/video/nv2a_d3d11.c"
 +
++static const NvD3DState *pixel_state;
 +static uint8_t ram[0x100000];
 +static HWND test_window;
 +ptrdiff_t xbox_GetMemoryOffset(void) { return (ptrdiff_t)ram; }
@@ -8321,6 +9624,10 @@ index 0000000..b1640a7
 +
 +static void set_vs(ID3D11DeviceContext *c, ID3D11VertexShader *s, ID3D11ClassInstance *const *i, UINT n)
 +{ shader_calls++; c->lpVtbl->VSSetShader(c,s,i,n); }
++static void set_ps(ID3D11DeviceContext *c, ID3D11PixelShader *s, ID3D11ClassInstance *const *i, UINT n)
++{ ps_shader_calls++; c->lpVtbl->PSSetShader(c,s,i,n); }
++static void set_ps_samplers(ID3D11DeviceContext *c, UINT slot, UINT n, ID3D11SamplerState *const *s)
++{ ps_sampler_calls++; c->lpVtbl->PSSetSamplers(c,slot,n,s); }
 +static void set_vs_cb(ID3D11DeviceContext *c, UINT slot, UINT n, ID3D11Buffer *const *b)
 +{ vs_cb_calls++; c->lpVtbl->VSSetConstantBuffers(c,slot,n,b); }
 +static void set_vs_srv(ID3D11DeviceContext *c, UINT slot, UINT n, ID3D11ShaderResourceView *const *v)
@@ -8344,11 +9651,39 @@ index 0000000..b1640a7
 +    bind_vertex_shader(s_ub_vs);
 +    bind_vertex_constants(s_cb_ub);
 +}
++static void expected_pixel_bindings(const NvD3DState *st, ID3D11PixelShader **ps,
++                                    ID3D11SamplerState *samplers[4])
++{
++    unsigned n;
++    *ps=s_psv[(st->flat_shade?1u:0u)|(st->z_perspective?2u:0u)];
++    for(n=0;n<4;n++) {
++        unsigned mode=st->rc_seen?(st->rc.stage_program>>(n*5))&31u:
++                      n==0&&(st->tex_used&1);
++        samplers[n]=s_linear_clamp;
++        if(mode_needs_texture(mode)&&st->tex[n].addr&&st->tex[n].width&&st->tex[n].height)
++            samplers[n]=sampler(&st->tex[n],1,0); /* Fixtures have one guest mip. */
++    }
++}
++static __declspec(noinline) void legacy_pixel_bind(void)
++{
++    ID3D11PixelShader *ps; ID3D11SamplerState *samplers[4];
++    expected_pixel_bindings(pixel_state,&ps,samplers);
++    s_ctx->lpVtbl->PSSetShader(s_ctx,ps,NULL,0);
++    s_ctx->lpVtbl->PSSetSamplers(s_ctx,0,4,samplers);
++}
 +static void draw_indexed(ID3D11DeviceContext *c, UINT n, UINT start, INT base)
-+{ if(reference) legacy_bind(); c->lpVtbl->DrawIndexed(c,n,start,base); }
++{
++    if(reference) legacy_bind();
++    if(pixel_reference) legacy_pixel_bind();
++    draw_calls++; c->lpVtbl->DrawIndexed(c,n,start,base);
++}
 +static HRESULT map_resource(ID3D11DeviceContext *c, ID3D11Resource *r, UINT sub,
 +                            D3D11_MAP kind, UINT flags, D3D11_MAPPED_SUBRESOURCE *m)
 +{
++    if(r==(ID3D11Resource *)s_cb_ps) {
++        ps_map_calls++;
++        if(fail_ps_map) { fail_ps_map--; return E_FAIL; }
++    }
 +    if(fail_map && r==(ID3D11Resource *)s_raw) { fail_map=0; return E_FAIL; }
 +    return c->lpVtbl->Map(c,r,sub,kind,flags,m);
 +}
@@ -8399,8 +9734,10 @@ index 0000000..b1640a7
 +    uint32_t idx[3]={0,1,2}; unsigned i;
 +    for(i=0;i<3;i++) positions[i][0]+=(float)moved;
 +    def[3][color%3]=1; def[3][3]=1;
++    def[9][0]=-.4375f; def[9][1]=.1875f; def[9][3]=1;
 +    attr[0].enabled=1; attr[0].type=2; attr[0].size=4;
 +    attr[0].stride=16; attr[0].data=(const uint8_t *)positions;
++    pixel_state=st;
 +    nv2a_d3d_draw_ub(st,NV_D3D_TRIANGLES,attr,def,0,idx,3,0,2,NULL);
 +}
 +static void read_pixels(uint32_t pixels[64*64])
@@ -8529,7 +9866,7 @@ index 0000000..b1640a7
 +            s_ctx->lpVtbl->PSSetConstantBuffers(s_ctx,1,1,&s_cb_ps);
 +        }
 +        bind_vertex_shader(vs); bind_vertex_constants(s_cb_ub);
-+        ID3D11DeviceContext_PSSetShader(s_ctx,ps,NULL,0);
++        bind_pixel_shader(ps);
 +        ID3D11DeviceContext_Draw(s_ctx,3,0);
 +        check_slots(vs,s_cb_ub); read_pixels(mode?actual:expected);
 +        if(mode) {
@@ -8541,6 +9878,7 @@ index 0000000..b1640a7
 +    }
 +    CHECK(layout_calls==1 && srv_calls==1 && ps_cb1_calls==1);
 +    bind_vertex_shader(s_ub_vs); /* Lifetime cache never points to released VS. */
++    bind_pixel_shader(s_psv[0]);
 +    ID3D11VertexShader_Release(vs); ID3D11PixelShader_Release(ps);
 +    puts("PASS: GPU reads freshly DISCARDed VS b2/b3 and raw t0 through retained initial binds; exact reference pixels and changing colors");
 +}
@@ -8560,6 +9898,134 @@ index 0000000..b1640a7
 +    CHECK(layout_calls==1 && srv_calls==1 && ps_cb1_calls==1);
 +    DestroyWindow(test_window); test_window=NULL;
 +    puts("PASS: real settled resize releases surfaces, retains immutable slots and restores exact draw pixels");
++}
++static void check_pixel_slots(ID3D11PixelShader *expected, ID3D11SamplerState *samplers[4])
++{
++    ID3D11PixelShader *ps=NULL; ID3D11SamplerState *actual[4]={0}; unsigned i;
++    ID3D11DeviceContext_PSGetShader(s_ctx,&ps,NULL,NULL);
++    ID3D11DeviceContext_PSGetSamplers(s_ctx,0,4,actual);
++    CHECK(ps==expected);
++    for(i=0;i<4;i++) {
++        CHECK(actual[i]==samplers[i]);
++        if(actual[i]) ID3D11SamplerState_Release(actual[i]);
++    }
++    if(ps) ID3D11PixelShader_Release(ps);
++}
++static void check_draw_pixel_slots(const NvD3DState *st)
++{
++    ID3D11PixelShader *ps; ID3D11SamplerState *samplers[4];
++    expected_pixel_bindings(st,&ps,samplers); check_pixel_slots(ps,samplers);
++}
++static NvD3DState textured_state(void)
++{
++    NvD3DState st=draw_state(); unsigned x,y;
++    st.tex_used=1;
++    st.tex[0].addr=0x70000; st.tex[0].color=0x12; st.tex[0].format=0x1200;
++    st.tex[0].width=st.tex[0].height=8; st.tex[0].pitch=32; st.tex[0].levels=1;
++    st.tex[0].filter=(1u<<16)|(1u<<24); st.tex[0].address=0x010101;
++    for(y=0;y<8;y++) for(x=0;x<8;x++) {
++        uint32_t color=0xFF000000u|((32+x*27)<<16)|((64+y*21)<<8)|(32+x*25);
++        memcpy(ram+0x70000+(y*8+x)*4,&color,4);
++    }
++    return st;
++}
++static void test_ps_bindings(void)
++{
++    uint32_t expected[64*64],actual[64*64]; unsigned pass,mode;
++    NvD3DState st=textured_state();
++    for(pass=0;pass<6;pass++) for(mode=0;mode<2;mode++) {
++        unsigned before_ps,before_sampler;
++        ID3D11PixelShader *aux_ps; ID3D11SamplerState *aux_samplers[4];
++        pixel_reference=!mode;
++        st.flat_shade=pass&1; st.tex[0].address=0x010101;
++        nv2a_d3d_clear(&st,0xF0,0xFF000000,0,0,0,63,63);
++        triangle(&st,2,0); check_draw_pixel_slots(&st);
++        expected_pixel_bindings(&st,&aux_ps,aux_samplers);
++        auxiliary(pass,&st);
++        if(pass==1) aux_ps=s_clear_ps;
++        if(pass==2) aux_ps=s_y16_ps[0];
++        if(pass==3) aux_ps=s_y16d_ps[0];
++        if(pass>=4) { aux_ps=s_present_ps; aux_samplers[0]=s_linear_clamp; }
++        if(pass==4) aux_samplers[1]=s_point_clamp;
++        check_pixel_slots(aux_ps,aux_samplers);
++        triangle(&st,2,2); check_draw_pixel_slots(&st);
++        before_ps=ps_shader_calls; before_sampler=ps_sampler_calls;
++        triangle(&st,2,4); check_draw_pixel_slots(&st);
++        CHECK(ps_shader_calls==before_ps && ps_sampler_calls==before_sampler);
++        st.tex[0].address=0x030303;
++        triangle(&st,2,6); check_draw_pixel_slots(&st);
++        CHECK(ps_shader_calls==before_ps && ps_sampler_calls==before_sampler+1);
++        read_pixels(mode?actual:expected);
++        if(mode) {
++            CHECK(!memcmp(expected,actual,sizeof actual));
++            CHECK((actual[16*64+20]&0xFFFFFF)!=0);
++        }
++    }
++    pixel_reference=0;
++    {
++        ID3D11SamplerState *slots[4]={s_point_clamp,s_linear_clamp,s_point_clamp,s_linear_clamp};
++        ID3D11SamplerState *short_write[2]={NULL,s_point_clamp};
++        unsigned before;
++        bind_pixel_shader(NULL); bind_pixel_samplers(4,slots); check_pixel_slots(NULL,slots);
++        before=ps_shader_calls; bind_pixel_shader(NULL); CHECK(ps_shader_calls==before);
++        bind_pixel_samplers(2,short_write); slots[0]=NULL; slots[1]=s_point_clamp;
++        check_pixel_slots(NULL,slots); before=ps_sampler_calls;
++        bind_pixel_samplers(2,short_write); CHECK(ps_sampler_calls==before);
++        bind_pixel_samplers(0,short_write); CHECK(ps_sampler_calls==before);
++        triangle(&st,2,0); check_draw_pixel_slots(&st);
++    }
++    puts("PASS: exact reference textured pixels and actual PS slots across clear, color/depth Y16, blit, composite and draw; repeated/changed/partial/NULL bindings");
++}
++static void test_ps_failure(void)
++{
++    NvD3DState st=draw_state(); uint32_t before[64*64],after[64*64]; unsigned initial;
++    for(initial=0;initial<2;initial++) {
++        unsigned draws,maps; PSConsts last;
++        nv2a_d3d_clear(&st,0xF0,0xFF000000,0,0,0,63,63);
++        triangle(&st,1,0); read_pixels(before);
++        last=s_uploaded_pc;
++        if(initial) s_uploaded_pc_valid=0;
++        st.alpha_ref+=37; draws=draw_calls; maps=ps_map_calls;
++        fail_ps_map=1; triangle(&st,2,0);
++        CHECK(!fail_ps_map && draw_calls==draws && ps_map_calls==maps+1);
++        CHECK(!memcmp(&last,&s_uploaded_pc,sizeof last));
++        if(initial) CHECK(!s_uploaded_pc_valid);
++        read_pixels(after); CHECK(!memcmp(before,after,sizeof before));
++        triangle(&st,2,0); CHECK(draw_calls==draws+1 && ps_map_calls==maps+2);
++        CHECK(s_uploaded_pc_valid && s_uploaded_pc.alpha_ref==st.alpha_ref);
++        read_pixels(after); CHECK(memcmp(before,after,sizeof before)!=0);
++        triangle(&st,2,0); CHECK(ps_map_calls==maps+2);
++    }
++    puts("PASS: failed first/changed PS constant Maps skip DrawIndexed and preserve pixels/cache; unchanged state retries successfully and then reuses the upload");
++}
++static void test_ps_reset(void)
++{
++    NvD3DState st=textured_state(); ID3D11SamplerState *bound[4]; ID3D11PixelShader *ps;
++    unsigned i,before_ps,before_sampler; uint32_t before[64*64],after[64*64];
++    triangle(&st,2,0); read_pixels(before); expected_pixel_bindings(&st,&ps,bound);
++    /* Table eviction releases its reference; a bound sampler remains owned
++     * by the actual context and therefore cannot be recycled underneath it. */
++    for(i=0;i<STATE_SLOTS*4;i++) {
++        NvD3DTexture t=st.tex[0]; t.border=0xFF000000u+i;
++        CHECK(sampler(&t,1,0));
++    }
++    check_pixel_slots(ps,bound);
++    triangle(&st,2,0); check_draw_pixel_slots(&st); read_pixels(after);
++    CHECK(!memcmp(before,after,sizeof before));
++    ID3D11DeviceContext_ClearState(s_ctx);
++    bind_fixed_resources(); CHECK(!s_bound_ps_valid && !s_bound_ps_samplers_valid);
++    before_ps=ps_shader_calls; before_sampler=ps_sampler_calls;
++    triangle(&st,2,0); check_draw_pixel_slots(&st); read_pixels(after);
++    CHECK(ps_shader_calls==before_ps+1 && ps_sampler_calls==before_sampler+1);
++    CHECK(!memcmp(before,after,sizeof before));
++    test_window=CreateWindowExW(0,L"STATIC",L"pixel binding resize",WS_POPUP,0,0,256,128,NULL,NULL,NULL,NULL);
++    CHECK(test_window); _putenv_s("RECOMP_ASPECT","");
++    display_config(0); Sleep(350); display_config(0);
++    CHECK(!surface_find(0x20000));
++    triangle(&st,2,0); check_draw_pixel_slots(&st); read_pixels(after);
++    CHECK(!memcmp(before,after,sizeof before));
++    DestroyWindow(test_window); test_window=NULL;
++    puts("PASS: context-owned sampler survives cache eviction; actual ClearState plus fixed-resource reset restores PS binds and pixels; settled resize remains valid");
 +}
 +static void benchmark(void)
 +{
@@ -8596,6 +10062,7 @@ index 0000000..b1640a7
 +    if(!strcmp(argv[1],"init_failure")) {
 +        fail_buffers=1; CHECK(!nv2a_d3d_init()); CHECK(!nv2a_d3d_init());
 +        CHECK(!s_bound_vs_valid && !s_bound_vs_b0_valid);
++        CHECK(!s_bound_ps_valid && !s_bound_ps_samplers_valid);
 +        CHECK(!layout_calls && !srv_calls && !ps_cb1_calls && !vs_cb_calls);
 +        puts("PASS: failed initialization publishes no fixed bindings and cannot use cached state"); return 0;
 +    }
@@ -8604,13 +10071,16 @@ index 0000000..b1640a7
 +    else if(!strcmp(argv[1],"fixed_updates")) test_fixed_updates();
 +    else if(!strcmp(argv[1],"failures")) test_failures();
 +    else if(!strcmp(argv[1],"resize")) test_resize();
++    else if(!strcmp(argv[1],"ps_bindings")) test_ps_bindings();
++    else if(!strcmp(argv[1],"ps_failure")) test_ps_failure();
++    else if(!strcmp(argv[1],"ps_reset")) test_ps_reset();
 +    else if(!strcmp(argv[1],"benchmark")) benchmark();
 +    else CHECK(0);
 +    return 0;
 +}
 diff --git a/tests/nv2a_hash/CMakeLists.txt b/tests/nv2a_hash/CMakeLists.txt
 new file mode 100644
-index 0000000..a40e0fd
+index 0000000000000000000000000000000000000000..a40e0fdeb90986006118a20943af179c26c1ce99
 --- /dev/null
 +++ b/tests/nv2a_hash/CMakeLists.txt
 @@ -0,0 +1,17 @@
@@ -8633,7 +10103,7 @@ index 0000000..a40e0fd
 +endforeach()
 diff --git a/tests/nv2a_hash/README.md b/tests/nv2a_hash/README.md
 new file mode 100644
-index 0000000..e985539
+index 0000000000000000000000000000000000000000..e985539c026d128c3ac2812d63df7dc1a710cd34
 --- /dev/null
 +++ b/tests/nv2a_hash/README.md
 @@ -0,0 +1,58 @@
@@ -8697,7 +10167,7 @@ index 0000000..e985539
 +OS state or non-MSVC targets retain the original scalar computation.
 diff --git a/tests/nv2a_hash/test_dispatch.c b/tests/nv2a_hash/test_dispatch.c
 new file mode 100644
-index 0000000..16348c1
+index 0000000000000000000000000000000000000000..16348c198cd36459de77971ab9b0a49beb28627b
 --- /dev/null
 +++ b/tests/nv2a_hash/test_dispatch.c
 @@ -0,0 +1,7 @@
@@ -8710,7 +10180,7 @@ index 0000000..16348c1
 +}
 diff --git a/tests/nv2a_hash/test_hash.c b/tests/nv2a_hash/test_hash.c
 new file mode 100644
-index 0000000..46c8fb8
+index 0000000000000000000000000000000000000000..46c8fb89c69986e497da1efb948b09e9ec338589
 --- /dev/null
 +++ b/tests/nv2a_hash/test_hash.c
 @@ -0,0 +1,154 @@
@@ -8870,7 +10340,7 @@ index 0000000..46c8fb8
 +}
 diff --git a/tests/nv2a_pacing/CMakeLists.txt b/tests/nv2a_pacing/CMakeLists.txt
 new file mode 100644
-index 0000000..aba0ece
+index 0000000000000000000000000000000000000000..aba0ecec27da985a927025d2cfff2a5e4045d278
 --- /dev/null
 +++ b/tests/nv2a_pacing/CMakeLists.txt
 @@ -0,0 +1,8 @@
@@ -8884,7 +10354,7 @@ index 0000000..aba0ece
 +endforeach()
 diff --git a/tests/nv2a_pacing/README.md b/tests/nv2a_pacing/README.md
 new file mode 100644
-index 0000000..3efe343
+index 0000000000000000000000000000000000000000..3efe3430c1414ea6cc28fabceb25dd8baddc0ed9
 --- /dev/null
 +++ b/tests/nv2a_pacing/README.md
 @@ -0,0 +1,35 @@
@@ -8925,7 +10395,7 @@ index 0000000..3efe343
 +- [QueryThreadCycleTime](https://learn.microsoft.com/en-us/windows/win32/api/realtimeapiset/nf-realtimeapiset-querythreadcycletime): thread cycles include user/kernel execution and must not be converted directly to elapsed time.
 diff --git a/tests/nv2a_pacing/test_pacing.c b/tests/nv2a_pacing/test_pacing.c
 new file mode 100644
-index 0000000..2e01170
+index 0000000000000000000000000000000000000000..2e011701451d5c3d3c9520323310bb9e48ca3d4e
 --- /dev/null
 +++ b/tests/nv2a_pacing/test_pacing.c
 @@ -0,0 +1,219 @@
@@ -9150,7 +10620,7 @@ index 0000000..2e01170
 +}
 diff --git a/tests/nv2a_ps_prewarm/CMakeLists.txt b/tests/nv2a_ps_prewarm/CMakeLists.txt
 new file mode 100644
-index 0000000..835e79e
+index 0000000000000000000000000000000000000000..835e79e9a03eedd70a9377bfb5c729495bac83b2
 --- /dev/null
 +++ b/tests/nv2a_ps_prewarm/CMakeLists.txt
 @@ -0,0 +1,9 @@
@@ -9165,7 +10635,7 @@ index 0000000..835e79e
 +endforeach()
 diff --git a/tests/nv2a_ps_prewarm/README.md b/tests/nv2a_ps_prewarm/README.md
 new file mode 100644
-index 0000000..bef5a46
+index 0000000000000000000000000000000000000000..bef5a46e6cea7169d9bc247ae12b364d674c266a
 --- /dev/null
 +++ b/tests/nv2a_ps_prewarm/README.md
 @@ -0,0 +1,59 @@
@@ -9230,7 +10700,7 @@ index 0000000..bef5a46
 +through `RECOMP_HITCH_TRACE`.
 diff --git a/tests/nv2a_ps_prewarm/test_main.c b/tests/nv2a_ps_prewarm/test_main.c
 new file mode 100644
-index 0000000..31fa09b
+index 0000000000000000000000000000000000000000..31fa09b59ae828166ef5c36d48106352ac211e7f
 --- /dev/null
 +++ b/tests/nv2a_ps_prewarm/test_main.c
 @@ -0,0 +1,557 @@
@@ -9793,7 +11263,7 @@ index 0000000..31fa09b
 +}
 diff --git a/tests/nv2a_readback/CMakeLists.txt b/tests/nv2a_readback/CMakeLists.txt
 new file mode 100644
-index 0000000..32604a1
+index 0000000000000000000000000000000000000000..32604a1d00f31002421a9ff3b928228b9de30b12
 --- /dev/null
 +++ b/tests/nv2a_readback/CMakeLists.txt
 @@ -0,0 +1,12 @@
@@ -9811,7 +11281,7 @@ index 0000000..32604a1
 +endforeach()
 diff --git a/tests/nv2a_readback/README.md b/tests/nv2a_readback/README.md
 new file mode 100644
-index 0000000..c4a7b57
+index 0000000000000000000000000000000000000000..c4a7b57afa43f6284d0d148eb0899ae6bbb14b41
 --- /dev/null
 +++ b/tests/nv2a_readback/README.md
 @@ -0,0 +1,44 @@
@@ -9861,7 +11331,7 @@ index 0000000..c4a7b57
 +claim needs a clean gameplay comparison without concurrent tests or builds.
 diff --git a/tests/nv2a_readback/test_main.c b/tests/nv2a_readback/test_main.c
 new file mode 100644
-index 0000000..de5c51f
+index 0000000000000000000000000000000000000000..de5c51fa3867d92997dbfe9d57dd3671f1d9281a
 --- /dev/null
 +++ b/tests/nv2a_readback/test_main.c
 @@ -0,0 +1,310 @@
@@ -10177,7 +11647,7 @@ index 0000000..de5c51f
 +}
 diff --git a/tests/nv2a_samplers/CMakeLists.txt b/tests/nv2a_samplers/CMakeLists.txt
 new file mode 100644
-index 0000000..25c669f
+index 0000000000000000000000000000000000000000..25c669f8c1defcc8f7dc630cb359281418ae3ec4
 --- /dev/null
 +++ b/tests/nv2a_samplers/CMakeLists.txt
 @@ -0,0 +1,9 @@
@@ -10192,7 +11662,7 @@ index 0000000..25c669f
 +endforeach()
 diff --git a/tests/nv2a_samplers/README.md b/tests/nv2a_samplers/README.md
 new file mode 100644
-index 0000000..561f5a6
+index 0000000000000000000000000000000000000000..561f5a635186a91a79d99e2444a8414a6974380c
 --- /dev/null
 +++ b/tests/nv2a_samplers/README.md
 @@ -0,0 +1,47 @@
@@ -10245,7 +11715,7 @@ index 0000000..561f5a6
 +Full content hashing and per-kick validation are preserved.
 diff --git a/tests/nv2a_samplers/test_samplers.c b/tests/nv2a_samplers/test_samplers.c
 new file mode 100644
-index 0000000..afbc509
+index 0000000000000000000000000000000000000000..afbc5098e2a82775dc65eed9d0aada00809af918
 --- /dev/null
 +++ b/tests/nv2a_samplers/test_samplers.c
 @@ -0,0 +1,311 @@
@@ -10562,7 +12032,7 @@ index 0000000..afbc509
 +}
 diff --git a/tests/nv2a_shader_cache/CMakeLists.txt b/tests/nv2a_shader_cache/CMakeLists.txt
 new file mode 100644
-index 0000000..006a5c7
+index 0000000000000000000000000000000000000000..006a5c7682314da726f434900e6a1a1d04c6a835
 --- /dev/null
 +++ b/tests/nv2a_shader_cache/CMakeLists.txt
 @@ -0,0 +1,8 @@
@@ -10576,7 +12046,7 @@ index 0000000..006a5c7
 +add_test(NAME nv2a_shader_cache COMMAND nv2a_shader_cache)
 diff --git a/tests/nv2a_shader_cache/test_main.c b/tests/nv2a_shader_cache/test_main.c
 new file mode 100644
-index 0000000..2ca96d1
+index 0000000000000000000000000000000000000000..2ca96d1a474b10648ad1c6fb8a310221a0ab864d
 --- /dev/null
 +++ b/tests/nv2a_shader_cache/test_main.c
 @@ -0,0 +1,168 @@
@@ -10750,7 +12220,7 @@ index 0000000..2ca96d1
 +}
 diff --git a/tests/nv2a_shader_lookup/CMakeLists.txt b/tests/nv2a_shader_lookup/CMakeLists.txt
 new file mode 100644
-index 0000000..cf555c0
+index 0000000000000000000000000000000000000000..cf555c03bed0d910807b16033bb79809e408cae0
 --- /dev/null
 +++ b/tests/nv2a_shader_lookup/CMakeLists.txt
 @@ -0,0 +1,14 @@
@@ -10770,7 +12240,7 @@ index 0000000..cf555c0
 +endforeach()
 diff --git a/tests/nv2a_shader_lookup/README.md b/tests/nv2a_shader_lookup/README.md
 new file mode 100644
-index 0000000..11cb680
+index 0000000000000000000000000000000000000000..11cb680066d8ab6dc81753be8dc55e399d8f8d78
 --- /dev/null
 +++ b/tests/nv2a_shader_lookup/README.md
 @@ -0,0 +1,52 @@
@@ -10828,7 +12298,7 @@ index 0000000..11cb680
 +key comparison resolves collisions and the front cache rereads published state.
 diff --git a/tests/nv2a_shader_lookup/test_shader_lookup.c b/tests/nv2a_shader_lookup/test_shader_lookup.c
 new file mode 100644
-index 0000000..a1b5353
+index 0000000000000000000000000000000000000000..a1b53531d38d379eab21b6f5e1ef11d923035111
 --- /dev/null
 +++ b/tests/nv2a_shader_lookup/test_shader_lookup.c
 @@ -0,0 +1,177 @@
@@ -11011,7 +12481,7 @@ index 0000000..a1b5353
 +}
 diff --git a/tests/nv2a_shader_lookup/test_vertex_retry.c b/tests/nv2a_shader_lookup/test_vertex_retry.c
 new file mode 100644
-index 0000000..510b04e
+index 0000000000000000000000000000000000000000..510b04ee116b32b5ec6be8611f8536bad4eb6565
 --- /dev/null
 +++ b/tests/nv2a_shader_lookup/test_vertex_retry.c
 @@ -0,0 +1,161 @@
@@ -11178,7 +12648,7 @@ index 0000000..510b04e
 +}
 diff --git a/tests/nv2a_textures/CMakeLists.txt b/tests/nv2a_textures/CMakeLists.txt
 new file mode 100644
-index 0000000..3529a60
+index 0000000000000000000000000000000000000000..3529a60b4d8e36ba325e909b493094c23b2a3b6a
 --- /dev/null
 +++ b/tests/nv2a_textures/CMakeLists.txt
 @@ -0,0 +1,13 @@
@@ -11197,7 +12667,7 @@ index 0000000..3529a60
 +endforeach()
 diff --git a/tests/nv2a_textures/README.md b/tests/nv2a_textures/README.md
 new file mode 100644
-index 0000000..168759e
+index 0000000000000000000000000000000000000000..168759e365296bd73a2e73672caf62f7040624d8
 --- /dev/null
 +++ b/tests/nv2a_textures/README.md
 @@ -0,0 +1,66 @@
@@ -11269,7 +12739,7 @@ index 0000000..168759e
 +test project.
 diff --git a/tests/nv2a_textures/native_bc_tests.h b/tests/nv2a_textures/native_bc_tests.h
 new file mode 100644
-index 0000000..4e2a775
+index 0000000000000000000000000000000000000000..4e2a7755a24e8e67bbfa75b77a1c22611fd0a56c
 --- /dev/null
 +++ b/tests/nv2a_textures/native_bc_tests.h
 @@ -0,0 +1,473 @@
@@ -11748,7 +13218,7 @@ index 0000000..4e2a775
 +}
 diff --git a/tests/nv2a_textures/test_textures.c b/tests/nv2a_textures/test_textures.c
 new file mode 100644
-index 0000000..6883393
+index 0000000000000000000000000000000000000000..68833934f72b9bc74cfb342b1cb30436227305de
 --- /dev/null
 +++ b/tests/nv2a_textures/test_textures.c
 @@ -0,0 +1,337 @@
@@ -12088,195 +13558,4 @@ index 0000000..6883393
 +    if (!strcmp(argv[1], "native_bc")) return test_native_bc();
 +    if (!strcmp(argv[1], "benchmark_native_bc")) return benchmark_native_bc();
 +    CHECK(0);
-+}
-diff --git a/tests/kernel_save_paths/CMakeLists.txt b/tests/kernel_save_paths/CMakeLists.txt
-new file mode 100644
-index 0000000..944865e
---- /dev/null
-+++ b/tests/kernel_save_paths/CMakeLists.txt
-@@ -0,0 +1,11 @@
-+cmake_minimum_required(VERSION 3.20)
-+project(kernel_save_paths_test C)
-+set(CMAKE_C_STANDARD 11)
-+if(NOT WIN32)
-+    message(FATAL_ERROR "This temporary-files regression requires the Win32 path backend")
-+endif()
-+add_executable(kernel_save_paths_test test_main.c)
-+target_include_directories(kernel_save_paths_test PRIVATE ../../src ../../src/kernel)
-+target_link_libraries(kernel_save_paths_test PRIVATE shell32)
-+enable_testing()
-+add_test(NAME kernel_save_paths_test COMMAND kernel_save_paths_test)
-diff --git a/tests/kernel_save_paths/README.md b/tests/kernel_save_paths/README.md
-new file mode 100644
-index 0000000..77044eb
---- /dev/null
-+++ b/tests/kernel_save_paths/README.md
-@@ -0,0 +1,18 @@
-+# Explicit save-directory routing
-+
-+Windows regression that compiles the real `kernel_path.c` backend and uses
-+temporary directories. XAPI's mounted U:/T: drives resolve to Partition1 UDATA
-+and TDATA paths. These paths must use a supplied save root rather than bypassing
-+it and writing to the extracted game directory. With no supplied root the
-+existing game-directory layout remains available.
-+
-+The test covers mounted and direct paths, case-insensitive components, similarly
-+named asset directories, missing metadata, and an isolated write that preserves
-+a legacy profile. It substitutes only the symbolic-link table and default
-+app-data directory; it never opens game assets or user saves.
-+
-+```powershell
-+cmake -S tools/xboxrecomp/tests/kernel_save_paths -B build/save-paths
-+cmake --build build/save-paths --config Release
-+ctest --test-dir build/save-paths -C Release --output-on-failure
-+```
-diff --git a/tests/kernel_save_paths/test_main.c b/tests/kernel_save_paths/test_main.c
-new file mode 100644
-index 0000000..2c49799
---- /dev/null
-+++ b/tests/kernel_save_paths/test_main.c
-@@ -0,0 +1,144 @@
-+/* Compile the actual path backend. Only the symbolic-link table and default
-+ * app-data location are substituted, keeping every test write in our own
-+ * temporary directory and avoiding any game or existing save files. */
-+#include "kernel.h"
-+#include <shlobj.h>
-+#include <stdio.h>
-+#include <string.h>
-+#include <wchar.h>
-+
-+static WCHAR default_folder[MAX_PATH];
-+static int mounted;
-+
-+static HRESULT test_default_folder(HWND window, int folder, HANDLE token,
-+                                   DWORD flags, LPWSTR path)
-+{
-+    (void)window; (void)folder; (void)token; (void)flags;
-+    wcscpy_s(path, MAX_PATH, default_folder);
-+    return S_OK;
-+}
-+
-+void xbox_log(int level, const char *subsystem, const char *fmt, ...)
-+{
-+    (void)level; (void)subsystem; (void)fmt;
-+}
-+
-+const char *xbox_LookupSymbolicLink(const char *link)
-+{
-+    if (!mounted) return NULL;
-+    if (strcmp(link, "\\??\\U:") == 0)
-+        return "\\Device\\Harddisk0\\Partition1\\UDATA\\4d53002a";
-+    if (strcmp(link, "\\??\\T:") == 0)
-+        return "\\Device\\Harddisk0\\Partition1\\TDATA\\4d53002a";
-+    return NULL;
-+}
-+
-+#define SHGetFolderPathW test_default_folder
-+#include "../../src/kernel/kernel_path.c"
-+#undef SHGetFolderPathW
-+
-+static int failures;
-+
-+static void check_path(const char *guest, const WCHAR *base, const WCHAR *tail)
-+{
-+    WCHAR actual[MAX_PATH], expected[MAX_PATH];
-+    if (tail[0]) swprintf_s(expected, MAX_PATH, L"%s\\%s", base, tail);
-+    else wcscpy_s(expected, MAX_PATH, base);
-+    if (!xbox_translate_path(guest, actual, MAX_PATH) ||
-+        _wcsicmp(actual, expected) != 0) {
-+        fprintf(stderr, "FAIL %s: got %ls, expected %ls\n", guest, actual, expected);
-+        failures++;
-+    }
-+}
-+
-+static void clean_save_root(const WCHAR *base)
-+{
-+    static const WCHAR *dirs[] = { L"TitleData", L"UserData", L"Cache",
-+                                    L"SystemData", L"UDATA", L"TDATA" };
-+    WCHAR path[MAX_PATH];
-+    for (int i = 0; i < 6; i++) {
-+        swprintf_s(path, MAX_PATH, L"%s\\Partition%d.img", base, i);
-+        DeleteFileW(path);
-+        swprintf_s(path, MAX_PATH, L"%s\\%s", base, dirs[i]);
-+        RemoveDirectoryW(path);
-+    }
-+    RemoveDirectoryW(base);
-+}
-+
-+int main(void)
-+{
-+    WCHAR temp[MAX_PATH], root[MAX_PATH], game[MAX_PATH], save[MAX_PATH];
-+    WCHAR path[MAX_PATH], original[MAX_PATH], isolated[MAX_PATH];
-+    char game_utf8[MAX_PATH], save_utf8[MAX_PATH];
-+    DWORD bytes;
-+    HANDLE file;
-+    char value[8] = {0};
-+    GetTempPathW(MAX_PATH, temp);
-+    swprintf_s(root, MAX_PATH, L"%smm3-save-paths-%lu-%llu", temp,
-+        GetCurrentProcessId(), (unsigned long long)GetTickCount64());
-+    if (!CreateDirectoryW(root, NULL)) return 10;
-+    swprintf_s(game, MAX_PATH, L"%s\\game", root);
-+    swprintf_s(save, MAX_PATH, L"%s\\isolated", root);
-+    swprintf_s(default_folder, MAX_PATH, L"%s\\default", root);
-+    CreateDirectoryW(game, NULL);
-+    WideCharToMultiByte(CP_UTF8, 0, game, -1, game_utf8, MAX_PATH, NULL, NULL);
-+    WideCharToMultiByte(CP_UTF8, 0, save, -1, save_utf8, MAX_PATH, NULL, NULL);
-+    xbox_path_init(game_utf8, save_utf8);
-+
-+    check_path("\\Device\\Harddisk0\\Partition1\\UDATA\\4d53002a\\profile", save,
-+               L"UDATA\\4d53002a\\profile");
-+    check_path("\\device\\harddisk0\\partition1\\tdata\\4d53002a\\$C", save,
-+               L"TDATA\\4d53002a\\$C");
-+    check_path("\\Device\\Harddisk0\\Partition1\\UDATA", save, L"UDATA");
-+    check_path("\\Device\\Harddisk0\\Partition1\\TDATA\\", save, L"TDATA");
-+    check_path("\\Device\\Harddisk0\\Partition1\\UDATA_backup\\profile", game,
-+               L"UDATA_backup\\profile");
-+    check_path("\\Device\\Harddisk0\\Partition1\\TDATA2\\asset", game, L"TDATA2\\asset");
-+    check_path("\\Device\\Harddisk0\\Partition1\\Data\\Shared\\Cars\\VRace\\body.cmp", game,
-+               L"Data\\Shared\\Cars\\VRace\\body.cmp");
-+    check_path("D:\\Data\\Data_hd.zip", game, L"Data\\Data_hd.zip");
-+    check_path("U:\\profile", save, L"UserData\\profile");
-+    mounted = 1;
-+    check_path("U:\\194916D15BE4\\profile", save, L"UDATA\\4d53002a\\194916D15BE4\\profile");
-+    check_path("\\??\\T:\\$u\\contentmeta.xbx", save, L"TDATA\\4d53002a\\$u\\contentmeta.xbx");
-+
-+    /* Translation does not manufacture a missing save slot or metadata. */
-+    xbox_translate_path("U:\\96734455B22F\\SaveMeta.xbx", path, MAX_PATH);
-+    if (GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES) failures++;
-+    swprintf_s(path, MAX_PATH, L"%s\\UDATA\\4d53002a\\96734455B22F", save);
-+    if (GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES) failures++;
-+
-+    /* A write using the mounted drive cannot change the legacy profile. */
-+    swprintf_s(path, MAX_PATH, L"%s\\UDATA", game); CreateDirectoryW(path, NULL);
-+    swprintf_s(original, MAX_PATH, L"%s\\UDATA\\profile", game);
-+    file = CreateFileW(original, GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
-+    if (file == INVALID_HANDLE_VALUE || !WriteFile(file, "legacy", 6, &bytes, NULL)) return 11;
-+    CloseHandle(file);
-+    swprintf_s(path, MAX_PATH, L"%s\\UDATA\\4d53002a", save); CreateDirectoryW(path, NULL);
-+    xbox_translate_path("U:\\profile", isolated, MAX_PATH);
-+    file = CreateFileW(isolated, GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
-+    if (file == INVALID_HANDLE_VALUE || !WriteFile(file, "test", 4, &bytes, NULL)) return 12;
-+    CloseHandle(file);
-+    file = CreateFileW(original, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL);
-+    if (file == INVALID_HANDLE_VALUE || !ReadFile(file, value, sizeof(value), &bytes, NULL) ||
-+        bytes != 6 || memcmp(value, "legacy", 6) != 0) failures++;
-+    CloseHandle(file);
-+
-+    /* NULL and empty save roots retain the existing game_dir save layout. */
-+    xbox_path_init(game_utf8, NULL);
-+    check_path("U:\\profile", game, L"UDATA\\4d53002a\\profile");
-+    check_path("T:\\$C", game, L"TDATA\\4d53002a\\$C");
-+    xbox_path_init(game_utf8, "");
-+    check_path("\\Device\\Harddisk0\\Partition1\\UDATA\\profile", game, L"UDATA\\profile");
-+
-+    DeleteFileW(isolated);
-+    swprintf_s(path, MAX_PATH, L"%s\\UDATA\\4d53002a", save); RemoveDirectoryW(path);
-+    DeleteFileW(original);
-+    swprintf_s(path, MAX_PATH, L"%s\\UDATA", game); RemoveDirectoryW(path);
-+    clean_save_root(save);
-+    swprintf_s(path, MAX_PATH, L"%s\\xboxrecomp", default_folder); clean_save_root(path);
-+    RemoveDirectoryW(default_folder); RemoveDirectoryW(game); RemoveDirectoryW(root);
-+    if (failures) return 1;
-+    puts("PASS: explicit and default save routing, mounted U:/T:, asset paths, and legacy profile preservation");
-+    return 0;
 +}

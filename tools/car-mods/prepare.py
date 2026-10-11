@@ -23,10 +23,27 @@ import tempfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def default_config_path(directory: Path | None = None) -> Path:
+    """Prefer machine-local settings without shipping model asset paths."""
+    folder = Path(directory) if directory is not None else Path(__file__).resolve().parent
+    local = folder / "cars.local.json"
+    return local if local.is_file() else folder / "cars.json"
+
+
 ARCHIVES = ("Data/Data_hd.zip", "Data/Data_dvd.zip")
 STATE_DIR = ".mm3-car-mods"
 RATINGS = {"TOPSPEED", "ACCELERATION", "MASS", "HANDLING", "DURABILITY"}
 SPEEDOMETER = {"max_kmh": (100, 1200), "max_mph": (60, 750)}
+SPEEDOMETER_FILE = "Data/mm3_speedometers.ini"
+ORIGINAL_SPEEDOMETERS = {
+    "AudiTT": "Audi TT", "Avalanche": "Chevrolet Avalanche", "Avant": "Audi RS 6 Avant",
+    "ChevySSR": "Chevrolet SSR", "Corvette": "Chevrolet Corvette", "Crossfire": "Chrysler Crossfire",
+    "Koenigsegg": "Koenigsegg", "Lotus": "Lotus", "MFastBack": "Mustang Fastback",
+    "NewBeetle": "Volkswagen New Beetle", "Saab93": "Saab 9-3",
+    "SerpentMk2": "Serpent Mk II", "Viper": "Dodge Viper",
+}
 PHYSICS = {
     "Mass": (100, 10000), "TorqueScale": (1, 5000),
     "TorqueScaleFactor": (0.1, 5), "WheelDrive": (0, 2),
@@ -57,6 +74,11 @@ IDENTITIES = {
     9007: ("BChiron_GT", "Koenigsegg", "Bugatti Chiron"),
     9008: ("BBolide_GT", "Koenigsegg", "Bugatti Bolide"),
     9009: ("Ford_GTcar", "Koenigsegg", "Ford GT"),
+    9010: ("Senna_Road", "Koenigsegg", "McLaren Senna"),
+    9011: ("Senna_GTR1", "Koenigsegg", "McLaren Senna GTR"),
+    9012: ("FXXK_Racer", "Koenigsegg", "Ferrari FXX K"),
+    9013: ("Regera_GT1", "Koenigsegg", "Koenigsegg Regera"),
+    9014: ("AventadorX", "Koenigsegg", "Lamborghini Aventador"),
 }
 
 
@@ -74,13 +96,17 @@ def exact_keys(obj: dict, allowed: set[str], description: str) -> None:
 
 def load_config(path: Path) -> dict:
     config = json.loads(path.read_text(encoding="utf-8"))
-    exact_keys(config, {"version", "cars"}, "manifest")
+    exact_keys(config, {"version", "cars", "original_speedometers"}, "manifest")
     if config.get("version") != 1 or not isinstance(config.get("cars"), list):
         raise ValueError("Manifest requires version 1 and a cars array")
+    originals = config.get("original_speedometers", {})
+    exact_keys(originals, set(ORIGINAL_SPEEDOMETERS), "original speedometer")
+    for settings in originals.values():
+        validate_speedometer(settings)
     seen_ids, seen_aliases = set(), set()
     for car in config["cars"]:
         required = {"id", "alias", "donor", "display_name", "ratings", "physics", "colors"}
-        exact_keys(car, required | {"speedometer"}, "car")
+        exact_keys(car, required | {"speedometer", "model_package"}, "car")
         if not required <= set(car):
             raise ValueError("Each car requires id, alias, donor, display_name, ratings, physics, colors")
         ident = car["id"]
@@ -88,7 +114,7 @@ def load_config(path: Path) -> dict:
             raise ValueError("Car IDs must be unique integers from 1 to 32767")
         seen_ids.add(ident)
         if IDENTITIES.get(ident) != (car["alias"], car["donor"], car["display_name"]):
-            raise ValueError("Car id, alias, donor and display_name are fixed identities; edit ratings, physics, colors and speedometer")
+            raise ValueError("Car id, alias, donor and display_name are fixed identities; edit ratings, physics, colors, speedometer and model_package")
         for key in ("alias", "donor"):
             if not isinstance(car[key], str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{1,31}", car[key]):
                 raise ValueError(f"Invalid car {key}")
@@ -141,16 +167,111 @@ def load_config(path: Path) -> dict:
         if not isinstance(car["colors"], list) or not 1 <= len(car["colors"]) <= 3 or any(not isinstance(c, str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", c) for c in car["colors"]):
             raise ValueError("Each car requires 1 to 3 colors in #rrggbb form")
         if "speedometer" in car:
-            exact_keys(car["speedometer"], set(SPEEDOMETER), "speedometer")
-            if set(car["speedometer"]) != set(SPEEDOMETER):
-                raise ValueError("Speedometer requires both max_kmh and max_mph")
-            for key, (low, high) in SPEEDOMETER.items():
-                value = car["speedometer"][key]
-                if type(value) not in (int, float) or not math.isfinite(value) or not low <= value <= high:
-                    raise ValueError(f"Speedometer {key} must be a finite number from {low} to {high}")
+            validate_speedometer(car["speedometer"])
+        if "model_package" in car:
+            value = car["model_package"]
+            if not isinstance(value, str) or "\x00" in value or len(value) > 4096:
+                raise ValueError("model_package must be a prepared model folder path, or blank to reuse the donor")
     if not config["cars"]:
         raise ValueError("At least one car is required; use --restore to remove installed variants")
     return config
+
+
+def validate_speedometer(settings: dict) -> None:
+    exact_keys(settings, set(SPEEDOMETER), "speedometer")
+    if set(settings) != set(SPEEDOMETER):
+        raise ValueError("Speedometer requires both max_kmh and max_mph")
+    for key, (low, high) in SPEEDOMETER.items():
+        value = settings[key]
+        if type(value) not in (int, float) or not math.isfinite(value) or not low <= value <= high:
+            raise ValueError(f"Speedometer {key} must be a finite number from {low} to {high}")
+
+
+def speedometer_settings(config: dict) -> bytes:
+    """Write only explicit overrides; absent aliases use the retail HUD."""
+    lines = ["# MM3 speedometer maxima: alias max_kmh max_mph"]
+    entries = list(config.get("original_speedometers", {}).items())
+    entries += [(car["alias"], car["speedometer"]) for car in config["cars"] if "speedometer" in car]
+    for alias, limits in entries:
+        lines.append(f"{alias} {limits['max_kmh']:g} {limits['max_mph']:g}")
+    return ("\n".join(lines) + "\n").encode("ascii")
+
+
+def package_source(root: Path, relative: str) -> Path:
+    """Accept only ordinary files below the selected package, without links."""
+    if not isinstance(relative, str) or not relative or "\\" in relative or ":" in relative:
+        raise ValueError("Model source must be a relative path using forward slashes")
+    parts = relative.split("/")
+    if any(part in ("", ".", "..") for part in parts):
+        raise ValueError("Model source must remain inside its package folder")
+    current = root
+    for part in (None, *parts):
+        if part is not None:
+            current /= part
+        info = current.lstat()
+        # Junctions and other Windows reparse points are links too.
+        if current.is_symlink() or getattr(info, "st_file_attributes", 0) & 0x400:
+            raise ValueError("Model packages cannot contain symbolic links or junctions")
+    if not current.is_file() or not current.resolve().is_relative_to(root.resolve()):
+        raise ValueError("Model source must be a file inside its package folder")
+    return current
+
+
+def load_model_package(car: dict, config_dir: Path) -> list[tuple[str, str, bytes]]:
+    """Read prepared MM3 visual assets; raw MM2 archives are not model packages."""
+    folder = car.get("model_package", "")
+    if not isinstance(folder, str):
+        raise ValueError("model_package must be a prepared model folder path")
+    folder = folder.strip()
+    if not folder:
+        return []
+    root = Path(folder)
+    if not root.is_absolute():
+        root = config_dir / root
+    for ancestor in (root, *root.parents):
+        info = ancestor.lstat()
+        if ancestor.is_symlink() or getattr(info, "st_file_attributes", 0) & 0x400:
+            raise ValueError("Model package folder cannot be reached through symbolic links or junctions")
+    manifest = package_source(root, "package.json")
+    package = json.loads(manifest.read_text(encoding="utf-8"))
+    exact_keys(package, {"format", "alias", "car_id", "files"}, "model package")
+    if package.get("format") != "mm3-car-model-v1":
+        raise ValueError("Expected a prepared mm3-car-model-v1 package")
+    if "alias" not in package and "car_id" not in package:
+        raise ValueError("Model package requires its target alias or car_id")
+    if "alias" in package and package["alias"] != car["alias"]:
+        raise ValueError("Model package alias does not match the selected car")
+    if "car_id" in package and (type(package["car_id"]) is not int or package["car_id"] != car["id"]):
+        raise ValueError("Model package car_id does not match the selected car")
+    files = package.get("files")
+    if not isinstance(files, list) or not files:
+        raise ValueError("Model package requires a nonempty files array")
+    assets, seen = [], set()
+    alias = re.escape(car["alias"])
+    for item in files:
+        exact_keys(item, {"archive", "path", "source"}, "model package file")
+        if set(item) != {"archive", "path", "source"}:
+            raise ValueError("Each model package file requires archive, path and source")
+        archive, target = item["archive"], item["path"]
+        if archive not in ("loose", "Data_hd.zip", "Data_dvd.zip") or not isinstance(target, str):
+            raise ValueError("Model package archive must be loose, Data_hd.zip or Data_dvd.zip")
+        prefix = "Data/Shared/" if archive == "loose" else ""
+        pattern = prefix + r"Cars/" + alias + r"(?:_lod[1-9][0-9]*)?/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+\.(cmp|omb|cdds)"
+        match = re.fullmatch(pattern, target)
+        thumbnail = archive != "loose" and re.fullmatch(r"Menu/Gfx/Vehicles/" + alias + r"(?:_Small)?\.cdds", target)
+        loading = archive != "loose" and re.fullmatch(r"LoadingScreens/Default_" + alias + r"\.tga", target)
+        if not (match or thumbnail or loading):
+            raise ValueError("Model destination must be a visual asset in this car's own folder, thumbnail or loading screen")
+        extension = match.group(1) if match else ("cdds" if thumbnail else "tga")
+        if (archive == "loose") != (extension == "cmp"):
+            raise ValueError("Model CMP files must be loose; OMB materials and CDDS textures must be archived")
+        destination = (archive, target.casefold())
+        if destination in seen:
+            raise ValueError("Duplicate model package destination")
+        seen.add(destination)
+        source = package_source(root, item["source"])
+        assets.append((archive, target, source.read_bytes()))
+    return assets
 
 
 def update_section(text: str, section: str, values: dict, remove: set[str] = frozenset()) -> str:
@@ -280,8 +401,11 @@ def find_info(archive: zipfile.ZipFile, name: str) -> zipfile.ZipInfo:
     return matches[0]
 
 
-def build_plan(game_dir: Path, originals: dict[str, bytes], config: dict) -> tuple[dict[str, bytes], dict[str, int]]:
+def build_plan(game_dir: Path, originals: dict[str, bytes], config: dict,
+               config_dir: Path | None = None) -> tuple[dict[str, bytes], dict[str, int]]:
     output, counts = {}, {"cars": len(config["cars"]), "archive_entries": 0, "loose_files": 0}
+    packages = [asset for car in config["cars"]
+                for asset in load_model_package(car, config_dir or Path(__file__).parent)]
     hd = zipfile.ZipFile(io.BytesIO(originals[ARCHIVES[0]]))
     installed_ids = set()
     for info in hd.infolist():
@@ -331,6 +455,14 @@ def build_plan(game_dir: Path, originals: dict[str, bytes], config: dict) -> tup
             current = archive.read(info).rstrip(b"\r\n")
             current += b"\r\n" + b"\r\n".join(str(c["id"]).encode() for c in config["cars"]) + b"\r\n"
             updates[info.filename] = (current, info)
+        # Prepared visuals win after donor cloning on every apply. Physics,
+        # collision, sounds and the catalog continue to come from the donor.
+        for destination, name, data in packages:
+            if destination != Path(relative).name:
+                continue
+            old = next((key for key in updates if key.casefold() == name.casefold()), None)
+            template = updates.pop(old)[1] if old else zipfile.ZipInfo(name)
+            updates[name] = (data, template)
         existing = {i.filename.lower() for i in archive.infolist()}
         for name in updates:
             if name.lower() in existing and name.lower() != "cars/tweak/sortorder":
@@ -353,6 +485,16 @@ def build_plan(game_dir: Path, originals: dict[str, bytes], config: dict) -> tup
                     relative = f"Data/Shared/Cars/{car['alias']}{suffix}/{source.name}"
                     output[relative] = alias_paths(source.read_bytes(), car["donor"], car["alias"])
                     counts["loose_files"] += 1
+    for destination, relative, data in packages:
+        if destination == "loose":
+            old = next((key for key in output if key.casefold() == relative.casefold()), None)
+            if old is None:
+                counts["loose_files"] += 1
+            elif old != relative:
+                output.pop(old)
+            output[relative] = data
+    output[SPEEDOMETER_FILE] = speedometer_settings(config)
+    counts["loose_files"] += 1
     return output, counts
 
 
@@ -450,14 +592,19 @@ def restore(game_dir: Path, state: dict | None, originals: dict[str, bytes]) -> 
     # Backups remain available after restoration; user profiles are never read.
 
 
-def main() -> int:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--game-dir", type=Path, default=ROOT / "game_files")
-    parser.add_argument("--config", type=Path, default=Path(__file__).with_name("cars.json"))
+    parser.add_argument("--config", type=Path, default=default_config_path(),
+                        help="Manifest path (default: cars.local.json when present, otherwise cars.json)")
     actions = parser.add_mutually_exclusive_group()
     actions.add_argument("--apply", action="store_true")
     actions.add_argument("--restore", action="store_true")
-    args = parser.parse_args()
+    return parser.parse_args(argv)
+
+
+def main() -> int:
+    args = parse_args()
     try:
         game_dir = args.game_dir.resolve()
         state, originals = read_install(game_dir)
@@ -466,15 +613,16 @@ def main() -> int:
             print("Restored both original archives and removed installed variant assets. Backups retained.")
             return 0
         config = load_config(args.config)
-        output, counts = build_plan(game_dir, originals, config)
+        output, counts = build_plan(game_dir, originals, config, args.config.resolve().parent)
         for car in config["cars"]:
-            print(f"{car['id']}: {car['display_name']} ({car['donor']} model), ratings {car['ratings']}")
+            body = "prepared custom model" if car.get("model_package", "").strip() else car["donor"] + " model"
+            print(f"{car['id']}: {car['display_name']} ({body}), ratings {car['ratings']}")
         print(f"Prepared {counts['archive_entries']} archive entries and {counts['loose_files']} loose assets.")
         if args.apply:
             changed = apply_plan(game_dir, state, originals, output, config)
             print(f"Installed; {changed} files changed. Restart the game to load the catalog.")
         else:
-            print("Preview only. Use --apply to install, then edit cars.json and --apply again to change stats.")
+            print(f"Preview only. Use --apply to install, then edit {args.config} and --apply again to change stats.")
         return 0
     except (ValueError, OSError, KeyError, zipfile.BadZipFile, UnicodeError) as error:
         print(f"Car mods: {error}", file=sys.stderr)
