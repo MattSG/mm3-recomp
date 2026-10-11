@@ -35,6 +35,7 @@ def default_config_path(directory: Path | None = None) -> Path:
 ARCHIVES = ("Data/Data_hd.zip", "Data/Data_dvd.zip")
 STATE_DIR = ".mm3-car-mods"
 RATINGS = {"TOPSPEED", "ACCELERATION", "MASS", "HANDLING", "DURABILITY"}
+OVERALL_RATINGS = ("TOPSPEED", "ACCELERATION", "HANDLING", "DURABILITY")
 SPEEDOMETER = {"max_kmh": (100, 1200), "max_mph": (60, 750)}
 SPEEDOMETER_FILE = "Data/mm3_speedometers.ini"
 ORIGINAL_SPEEDOMETERS = {
@@ -397,12 +398,56 @@ def find_info(archive: zipfile.ZipFile, name: str) -> zipfile.ZipInfo:
     return matches[0]
 
 
+def catalog_ranking(archive: zipfile.ZipFile, config: dict) -> list[dict]:
+    """Rank the complete catalog without changing ratings or unlock rules.
+
+    The four comparable 0..9 menu ratings have equal weight; mass is not a
+    measure of quality. Stable sorting preserves retail SortOrder among stock
+    ties, then manifest order among custom ties. Unlisted stock entries follow
+    the listed originals before custom entries.
+    """
+    stock = {}
+    for info in archive.infolist():
+        if not re.fullmatch(r"Cars/Tweak/[^/]+\.txt", info.filename, re.I):
+            continue
+        text = archive.read(info).decode("ascii")
+        section = re.search(r"Begin\(CarInfo\)(.*?)End\(CarInfo\)", text, re.S)
+        if not section:
+            raise ValueError(f"Missing CarInfo in catalog tweak: {info.filename}")
+        values = {}
+        for key in ("ID", *OVERALL_RATINGS):
+            matches = re.findall(r"^[ \t]*" + key + r"[ \t]+(\d+)[ \t]*\r?$", section[1], re.M)
+            if len(matches) != 1:
+                raise ValueError(f"Expected one numeric {key} in {info.filename}")
+            values[key] = int(matches[0])
+        ident = values.pop("ID")
+        if ident in stock or any(not 0 <= value <= 9 for value in values.values()):
+            raise ValueError(f"Duplicate ID or invalid catalog rating in {info.filename}")
+        stock[ident] = {"id": ident, "alias": Path(info.filename).stem,
+                        "ratings": values, "score": sum(values.values())}
+    order = [int(line) for line in archive.read(find_info(archive, "Cars/Tweak/SortOrder")).splitlines() if line.strip()]
+    if len(order) != len(set(order)) or any(ident not in stock for ident in order):
+        raise ValueError("Original SortOrder contains duplicate or unknown car IDs")
+    listed = set(order)
+    ranked = [stock[ident] for ident in order]
+    ranked.extend(car for ident, car in stock.items() if ident not in listed)
+    for car in config["cars"]:
+        if car["id"] in stock:
+            raise ValueError(f"Car ID already exists: {car['id']}")
+        values = {key: car["ratings"][key] for key in OVERALL_RATINGS}
+        ranked.append({"id": car["id"], "alias": car["alias"],
+                       "display_name": car["display_name"], "ratings": values,
+                       "score": sum(values.values())})
+    return sorted(ranked, key=lambda car: -car["score"])
+
+
 def build_plan(game_dir: Path, originals: dict[str, bytes], config: dict,
                config_dir: Path | None = None) -> tuple[dict[str, bytes], dict[str, int]]:
     output, counts = {}, {"cars": len(config["cars"]), "archive_entries": 0, "loose_files": 0}
     packages = [asset for car in config["cars"]
                 for asset in load_model_package(car, config_dir or Path(__file__).parent)]
     hd = zipfile.ZipFile(io.BytesIO(originals[ARCHIVES[0]]))
+    ranking = catalog_ranking(hd, config)
     installed_ids = set()
     for info in hd.infolist():
         if re.fullmatch(r"Cars/Tweak/[^/]+\.txt", info.filename, re.I):
@@ -448,9 +493,8 @@ def build_plan(game_dir: Path, originals: dict[str, bytes], config: dict,
                 updates[f"Cars/Tweak/{alias}.txt"] = (tweak_variant(archive.read(info), car), info)
         if relative == ARCHIVES[0]:
             info = find_info(archive, "Cars/Tweak/SortOrder")
-            current = archive.read(info).rstrip(b"\r\n")
-            current += b"\r\n" + b"\r\n".join(str(c["id"]).encode() for c in config["cars"]) + b"\r\n"
-            updates[info.filename] = (current, info)
+            order = b"\r\n".join(str(car["id"]).encode() for car in ranking) + b"\r\n"
+            updates[info.filename] = (order, info)
         # Prepared visuals win after donor cloning on every apply. Physics,
         # collision, sounds and the catalog continue to come from the donor.
         for destination, name, data in packages:
@@ -613,6 +657,12 @@ def main() -> int:
         for car in config["cars"]:
             body = "prepared custom model" if car.get("model_package", "").strip() else car["donor"] + " model"
             print(f"{car['id']}: {car['display_name']} ({body}), ratings {car['ratings']}")
+        with zipfile.ZipFile(io.BytesIO(originals[ARCHIVES[0]])) as archive:
+            ranking = catalog_ranking(archive, config)
+        print("Overall order: speed + acceleration + handling + durability (0-36); mass excluded.")
+        for place, car in enumerate(ranking, 1):
+            print(f"{place:2}. {car['display_name'] if 'display_name' in car else car['alias']} "
+                  f"[{car['id']}] {car['score']}/36")
         print(f"Prepared {counts['archive_entries']} archive entries and {counts['loose_files']} loose assets.")
         if args.apply:
             changed = apply_plan(game_dir, state, originals, output, config)

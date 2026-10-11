@@ -2559,7 +2559,7 @@ index b9de8d0b3a0f84f6579d5bf9a00db42e125de3e4..ac83ecc692ad1c4944576130f68c1818
 +    return completed;
  }
 diff --git a/src/kernel/xbox_memory_layout.c b/src/kernel/xbox_memory_layout.c
-index a2e99fb9bcc3fab36a90f955167eec99000e6473..a78f9c0740ca044a1f1e0f4ccdb52fbdf0281ca9 100644
+index a2e99fb9bcc3fab36a90f955167eec99000e6473..dc9df7c691bbbe5da951f5f37f1b5ad9f8a1cfcd 100644
 --- a/src/kernel/xbox_memory_layout.c
 +++ b/src/kernel/xbox_memory_layout.c
 @@ -15,6 +15,7 @@
@@ -2721,7 +2721,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..a78f9c0740ca044a1f1e0f4ccdb52fbd
          if (!fence_readable(g_fence_mirrors[i].device_ptr_va, 4))
              continue;
          dev = *(volatile uint32_t *)((uintptr_t)g_fence_mirrors[i].device_ptr_va
-@@ -831,9 +893,113 @@ static void fence_mirrors_tick(int publish)
+@@ -831,11 +893,115 @@ static void fence_mirrors_tick(int publish)
                  s_fence_snap_ok[i] = 1;
              } else if (s_fence_snap_ok[i] && *fence != s_fence_snap[i]) {
                  *fence = s_fence_snap[i];
@@ -2784,13 +2784,13 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..a78f9c0740ca044a1f1e0f4ccdb52fbd
 +            else g_fence_mirrors[i].command_head = next;
 +            g_fence_mirrors[i].command_tail = next;
 +            continue;
-+        }
+         }
 +        g_fence_mirrors[i].command_value = value;
 +        g_fence_mirrors[i].command_fence_va = target;
 +        g_fence_mirrors[i].command_pending = 1;
-+    }
-+}
-+
+     }
+ }
+ 
 +static int command_fences_pending(void)
 +{
 +    for (int i = 0; i < g_fence_mirror_count; i++)
@@ -2827,14 +2827,16 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..a78f9c0740ca044a1f1e0f4ccdb52fbd
 +            next = next->next;
 +            if (done->native_heap) HeapFree(GetProcessHeap(), 0, done);
 +            else free(done);
-         }
++        }
 +        g_fence_mirrors[i].command_head = g_fence_mirrors[i].command_tail = NULL;
 +        g_fence_mirrors[i].command_pending = 0;
-     }
++    }
 +    if (changed) xbox_nv2a_wake_publish(&g_nv2a_wake);
- }
- 
++}
++
  /*
+  * The GPU-notify event the title's D3D blocks on when the push buffer is far
+  * ahead of the GPU: it patches a NOP in the submitted stream to raise the
 @@ -849,6 +1015,9 @@ static void fence_mirrors_tick(int publish)
   */
  static uint32_t g_notify_device_ptr, g_notify_event_off, g_notify_param;
@@ -3565,6 +3567,17 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..a78f9c0740ca044a1f1e0f4ccdb52fbd
      if (getenv("RECOMP_CONTIG_TRACE"))
          fprintf(stderr, "[CONTIG_NEW] address=%08X size=%u esp=%08X ret=%08X\n", result, size,
                  g_esp, *(const uint32_t *)((uintptr_t)g_esp + g_memory_offset));
+@@ -3444,8 +3894,8 @@ uint32_t xbox_ContiguousBlockSize(uint32_t xbox_va)
+     return r;
+ }
+ 
+-/* Heap splitting and NT release/decommit remain opt-in. Contiguous pages
+- * are always reused, independently of this switch. */
++/* NT release/decommit remains opt-in. Ordinary heap blocks are always split
++ * on reuse, independently of this switch. */
+ int xbox_HeapReclaimEnabled(void)
+ {
+     static int enabled = -1;
 @@ -3453,14 +3903,22 @@ int xbox_HeapReclaimEnabled(void)
      return enabled;
  }
@@ -3646,7 +3659,22 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..a78f9c0740ca044a1f1e0f4ccdb52fbd
  
  /* RECOMP_HEAP_WATCH=<hex address>: report heap blocks handed out over it. */
  static void heap_watch(const char *how, uint32_t addr, uint32_t size)
-@@ -3510,9 +4001,11 @@ static void heap_watch(const char *how, uint32_t addr, uint32_t size)
+@@ -3507,12 +3998,26 @@ static void heap_watch(const char *how, uint32_t addr, uint32_t size)
+                 addr + size, g_esp, *(const uint32_t *)((uintptr_t)g_esp + g_memory_offset));
+ }
+ 
++/* Keep the heap ownership table sorted, including alignment fragments.
++ * Caller holds g_allocator_lock and has checked the required table slots. */
++static void heap_insert(int at, uint32_t addr, uint32_t size, int is_free)
++{
++    memmove(&g_heap_blocks[at + 1], &g_heap_blocks[at],
++            (size_t)(g_heap_block_count - at) * sizeof g_heap_blocks[0]);
++    g_heap_blocks[at].addr = addr;
++    g_heap_blocks[at].size = size;
++    g_heap_blocks[at].free = is_free;
++    ++g_heap_block_count;
++}
++
  uint32_t xbox_HeapAlloc(uint32_t size, uint32_t alignment)
  {
      uint32_t result;
@@ -3659,7 +3687,72 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..a78f9c0740ca044a1f1e0f4ccdb52fbd
      if (size >= 16u * 1024u * 1024u) {
          static unsigned large_reports;
          if (large_reports++ < 24) {
-@@ -3569,21 +4062,13 @@ uint32_t xbox_HeapAlloc(uint32_t size, uint32_t alignment)
+@@ -3535,7 +4040,7 @@ uint32_t xbox_HeapAlloc(uint32_t size, uint32_t alignment)
+      * capabilities that return 0 (since we don't have real NV2A hardware),
+      * resulting in zero-size allocations. With a bump allocator, these all
+      * return the same address, causing overlapping structures. Enforce a
+-     * minimum of 4096 bytes so each allocation gets its own memory. */
++     * minimum of 16 bytes so each allocation gets its own memory. */
+     if (size < 16) size = 16;
+ 
+     /* Reuse a freed block first. Without this the heap only ever grows: Halo's
+@@ -3544,46 +4049,57 @@ uint32_t xbox_HeapAlloc(uint32_t size, uint32_t alignment)
+      * with E_OUTOFMEMORY -- which the title reports by clearing
+      * global_d3d_device, so the rasterizer asserts and startup stops. */
+     for (int i = 0; i < g_heap_block_count; i++) {
++        uint32_t addr, span, head, tail;
++        int extra;
+         if (!g_heap_blocks[i].free || g_heap_blocks[i].size < size) {
+             continue;
+         }
+-        if (g_heap_blocks[i].addr & (alignment - 1)) {
+-            continue;   /* wrong alignment for this request */
++        addr = g_heap_blocks[i].addr;
++        span = g_heap_blocks[i].size;
++        candidate = ((uint64_t)addr + alignment - 1u) &
++                    ~((uint64_t)alignment - 1u);
++        if (candidate + size > (uint64_t)addr + span) {
++            continue;
+         }
+-        if (xbox_HeapReclaimEnabled() && g_heap_blocks[i].size > size) {
+-            if (g_heap_block_count == XBOX_HEAP_MAX_BLOCKS)
++        result = (uint32_t)candidate;
++        head = result - addr;
++        tail = span - head - size;
++        extra = (head != 0) + (tail != 0);
++        if (g_heap_block_count + extra > XBOX_HEAP_MAX_BLOCKS) {
++            /* A full metadata table must not reject a usable aligned block.
++             * If only one slot remains, retain the head and absorb the tail;
++             * with no head, consuming the whole span requires no new slot. */
++            if (head && g_heap_block_count == XBOX_HEAP_MAX_BLOCKS)
+                 continue;
+-            memmove(&g_heap_blocks[i + 2], &g_heap_blocks[i + 1],
+-                    (g_heap_block_count - i - 1) * sizeof g_heap_blocks[0]);
+-            g_heap_blocks[i + 1].addr = g_heap_blocks[i].addr + size;
+-            g_heap_blocks[i + 1].size = g_heap_blocks[i].size - size;
+-            g_heap_blocks[i + 1].free = 1;
++            tail = 0;
++        }
++        /* A small persistent allocation must not pin an entire freed model
++         * buffer. Preserve both unused ends, including an unaligned prefix,
++         * so later requests can reuse and eventually coalesce them. */
++        if (head) {
++            g_heap_blocks[i].size = head;
++            heap_insert(++i, result, span - head - tail, 0);
++        } else {
++            g_heap_blocks[i].size = span - tail;
++            g_heap_blocks[i].free = 0;
++        }
++        if (tail) {
+             g_heap_blocks[i].size = size;
+-            g_heap_block_count++;
++            heap_insert(i + 1, result + size, tail, 1);
+         }
+-        g_heap_blocks[i].free = 0;
+-        result = g_heap_blocks[i].addr;
+         memset((void *)((uintptr_t)result + g_memory_offset), 0, size);
+         heap_watch("reuse", result, size);
+         LeaveCriticalSection(&g_allocator_lock);
          return result;
      }
  
@@ -3685,7 +3778,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..a78f9c0740ca044a1f1e0f4ccdb52fbd
          fprintf(stderr, "xbox_HeapAlloc: out of memory (requested %u, used %u/%u)\n",
                  size, g_heap_next - XBOX_HEAP_BASE,
                  (unsigned)(XBOX_HEAP_TOP - XBOX_HEAP_BASE));
-@@ -3618,7 +4103,14 @@ uint32_t xbox_HeapAlloc(uint32_t size, uint32_t alignment)
+@@ -3618,7 +4134,14 @@ uint32_t xbox_HeapAlloc(uint32_t size, uint32_t alignment)
          LeaveCriticalSection(&g_allocator_lock);
          return 0;
      }
@@ -3701,7 +3794,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..a78f9c0740ca044a1f1e0f4ccdb52fbd
  
      /* Zero-fill the allocated block (Xbox memory is always zeroed) */
 diff --git a/src/kernel/xbox_memory_layout.h b/src/kernel/xbox_memory_layout.h
-index 69f1bf65ce430454de6aed19113e0be09c7c9489..f595231baf88431c34a8ed98dedd7bd73ff869d1 100644
+index 69f1bf65ce430454de6aed19113e0be09c7c9489..5250ae81c1a0123ac8ba6fb907174bb0756c397f 100644
 --- a/src/kernel/xbox_memory_layout.h
 +++ b/src/kernel/xbox_memory_layout.h
 @@ -195,16 +195,56 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size);
@@ -3775,6 +3868,28 @@ index 69f1bf65ce430454de6aed19113e0be09c7c9489..f595231baf88431c34a8ed98dedd7bd7
  #define XBOX_TIB_MAIN       0x00004000
  extern RECOMP_TLS uint32_t g_fs_base;
  #define XBOX_FS_BASE        g_fs_base
+@@ -458,7 +503,7 @@ extern RECOMP_TLS uint32_t g_fs_base;
+ uint32_t xbox_HeapAlloc(uint32_t size, uint32_t alignment);
+ 
+ /**
+- * Free a block from the Xbox heap. Currently a no-op (bump allocator).
++ * Free a block from the Xbox heap and coalesce adjacent free blocks.
+  */
+ void xbox_HeapFree(uint32_t xbox_va);
+ 
+@@ -471,9 +516,9 @@ void xbox_HeapFree(uint32_t xbox_va);
+ uint32_t xbox_HeapBlockSize(uint32_t xbox_va);
+ 
+ /**
+- * True when RECOMP_HEAP_RECLAIM is set: freed heap blocks are split rather than
+- * handed over whole, and NtFreeVirtualMemory returns heap memory to the heap.
+- * Off by default; it changes which address later allocations get.
++ * True when RECOMP_HEAP_RECLAIM is set: NtFreeVirtualMemory returns heap memory
++ * to the heap and zeroes decommitted pages. Off by default. Ordinary heap
++ * allocation always splits reused blocks, independently of this switch.
+  */
+ int xbox_HeapReclaimEnabled(void);
+ 
 diff --git a/src/usb/usb_gamepad.c b/src/usb/usb_gamepad.c
 index bd00f3fc02f3bac594c79acae4f0bbd61bcc2b5d..575b5f32ea729ab4474f91ce9aaf673c7e0fb6eb 100644
 --- a/src/usb/usb_gamepad.c
@@ -6090,27 +6205,51 @@ index dd7efb097e3ddeaa79263075e946c06982fc3ee0..a79a75829959bfa44e5be4c470575a6a
 +Build all targets before running CTest so the timer, DPC and thread-layout
 +regressions are included.
 diff --git a/tests/memory_regressions/CMakeLists.txt b/tests/memory_regressions/CMakeLists.txt
-index e7e9b9e9cce069648496595e9c37216be4c129a5..4e7a35fd8e883e8726162b00aeda080458c14253 100644
+index e7e9b9e9cce069648496595e9c37216be4c129a5..fb776e2d57b315db42336a309fe00ac416771a62 100644
 --- a/tests/memory_regressions/CMakeLists.txt
 +++ b/tests/memory_regressions/CMakeLists.txt
-@@ -16,3 +16,4 @@ add_test(NAME memory_regressions_default COMMAND memory_regressions_test default
+@@ -13,6 +13,8 @@ set(XBE ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/conformance/test.xbe)
+ # One process per mode: the switches are read once and cached, so they cannot be
+ # flipped inside a run.
+ add_test(NAME memory_regressions_default COMMAND memory_regressions_test default ${XBE})
++add_test(NAME memory_regressions_car_churn COMMAND memory_regressions_test car-churn ${XBE})
  add_test(NAME memory_regressions_heap_reclaim COMMAND memory_regressions_test heap-reclaim ${XBE})
  add_test(NAME memory_regressions_ext_vma COMMAND memory_regressions_test ext-vma ${XBE})
  add_test(NAME memory_regressions_ext_vma_128 COMMAND memory_regressions_test ext-vma-128 ${XBE})
 +add_test(NAME memory_regressions_reserve_heap COMMAND memory_regressions_test reserve-heap ${XBE})
 diff --git a/tests/memory_regressions/README.md b/tests/memory_regressions/README.md
-index da463248602e49a9505823958d12bd8ac902811a..7a8644eb1802461e14cfbf7b0bbfe849c9653913 100644
+index da463248602e49a9505823958d12bd8ac902811a..9a9f5d8589b4f39d5ff0606521923cf65fe4a21a 100644
 --- a/tests/memory_regressions/README.md
 +++ b/tests/memory_regressions/README.md
-@@ -19,6 +19,7 @@ One test per mode, one process each, because the switches are read once and cach
+@@ -15,12 +15,17 @@ One test per mode, one process each, because the switches are read once and cach
+ 
+ | Test | What it checks |
+ |---|---|
+-| `memory_regressions_default` | No switch set. Pins what every title gets today: reuse hands a freed block over whole, contiguous memory is reused, an explicit high base is not honoured. A change to the default fails here. |
++| `memory_regressions_default` | No switch set. Freed heap blocks are split on reuse, contiguous memory is reused, and an explicit high base is not honoured. |
++| `memory_regressions_car_churn` | No switch set. Reuses an unaligned free tail for a page-aligned request, coalesces its fragments, and runs 200 model-sized temporary allocations interspersed with small persistent objects without exhausting the heap or corrupting those objects. |
  | `memory_regressions_heap_reclaim` | `RECOMP_HEAP_RECLAIM=1`. The first table below. |
  | `memory_regressions_ext_vma` | `RECOMP_EXT_VMA=1`. The second table. |
  | `memory_regressions_ext_vma_128` | `RECOMP_EXT_VMA=1` on a 128 MB map. The tracker stays off. |
 +| `memory_regressions_reserve_heap` | Retail RAM on a 128 MB map. Heap growth preserves above-RAM reservations, partial commit retains its address, and the existing reserve release/decommit no-ops retain ownership. Later reservations skip issued heap blocks. |
  
- ## `RECOMP_HEAP_RECLAIM`
+-## `RECOMP_HEAP_RECLAIM`
++## Heap reuse and `RECOMP_HEAP_RECLAIM`
++
++Splitting reused blocks, coalescing neighbours and contiguous reuse are always
++enabled. `RECOMP_HEAP_RECLAIM` additionally enables NT release/decommit behavior.
  
-@@ -70,4 +71,6 @@ particular title runs better with them. Which titles free enough for the switch
+ Each check fails without the change and passes with it.
+ 
+@@ -64,10 +69,11 @@ loader does not place modules in the low 2 GB.
+ 
+ ## What it does not cover
+ 
+-Titles. It shows the allocator and the tracker do what they should when the
+-switch is set and what they did before when it is not; it does not show any
+-particular title runs better with them. Which titles free enough for the switch to matter, and
++Titles. It shows the allocator and the tracker contracts in each mode; it does
++not show any particular title runs better with them. Which titles free enough for the switch to matter, and
  whether a title's addresses matter to it, is a per-title question.
  
  The block table's lock is not exercised: nothing here allocates from two
@@ -6119,10 +6258,22 @@ index da463248602e49a9505823958d12bd8ac902811a..7a8644eb1802461e14cfbf7b0bbfe849
 +both allocation orders, exact alignment gaps, arithmetic overflow, and eight
 +simultaneous reservation/heap allocation threads.
 diff --git a/tests/memory_regressions/test_main.c b/tests/memory_regressions/test_main.c
-index 35659cc82638caaf3f4119ab0aee4647890c5759..2e6a2e034be2e790b339a3785667a8c4fda3d036 100644
+index 35659cc82638caaf3f4119ab0aee4647890c5759..78fdc698721a61d18a3631e5a17fd95a825fdb3a 100644
 --- a/tests/memory_regressions/test_main.c
 +++ b/tests/memory_regressions/test_main.c
-@@ -32,6 +32,9 @@
+@@ -10,7 +10,10 @@
+  *
+  *   default       No switch set. Pins what every title gets today, so a change
+  *                 that alters the default shows up here.
+- *   heap-reclaim  RECOMP_HEAP_RECLAIM=1. Each check fails without the fix:
++ *   car-churn     No switch set. Model-sized temporary buffers mixed with
++ *                 small retained objects must not consume the entire heap.
++ *   heap-reclaim  RECOMP_HEAP_RECLAIM=1 additionally enables NT release and
++ *                 decommit. Reuse/splitting and contiguous frees are default.
+  *
+  *   1. A small request after a large free takes only what it needs. Reuse used
+  *      to hand over the whole block, so a 16-byte request could take 2 MB.
+@@ -32,6 +35,9 @@
   *   ext-vma-128   The same switch on a 128 MB map, where the mirrors already
   *                 reach past user space. The tracker must stay out of the way
   *                 rather than reserve a range of negative size.
@@ -6132,11 +6283,12 @@ index 35659cc82638caaf3f4119ab0aee4647890c5759..2e6a2e034be2e790b339a3785667a8c4
   */
  #include "kernel.h"
  #include "xbox_memory_layout.h"
-@@ -180,22 +183,25 @@ int main(int argc, char **argv)
+@@ -180,22 +186,26 @@ int main(int argc, char **argv)
      int reclaim = !strcmp(mode, "heap-reclaim");
      int ext128 = !strcmp(mode, "ext-vma-128");
      int ext = ext128 || !strcmp(mode, "ext-vma");
 +    int reserve_heap = !strcmp(mode, "reserve-heap");
++    int car_churn = !strcmp(mode, "car-churn");
      size_t xbe_len = 0;
      unsigned char *xbe;
      char d[160];
@@ -6144,7 +6296,7 @@ index 35659cc82638caaf3f4119ab0aee4647890c5759..2e6a2e034be2e790b339a3785667a8c4
  
      setvbuf(stdout, NULL, _IONBF, 0);
 -    if (!reclaim && !ext && strcmp(mode, "default")) {
-+    if (!reclaim && !ext && !reserve_heap && strcmp(mode, "default")) {
++    if (!reclaim && !ext && !reserve_heap && !car_churn && strcmp(mode, "default")) {
          printf("unknown mode '%s'\n", mode);
          return 2;
      }
@@ -6160,10 +6312,61 @@ index 35659cc82638caaf3f4119ab0aee4647890c5759..2e6a2e034be2e790b339a3785667a8c4
  
      xbe = load_file(path, &xbe_len);
      if (!xbe) {
-@@ -220,6 +226,51 @@ int main(int argc, char **argv)
+@@ -220,6 +230,102 @@ int main(int argc, char **argv)
          }
      }
      printf("mode: %s\n", mode);
++    if (car_churn) {
++        const uint32_t big = 2u * 1024u * 1024u;
++        const uint32_t models[] = {2818096u, 2441264u, 1638448u, 1720368u};
++        uint32_t retained[200] = {0};
++        uint32_t a = xbox_HeapAlloc(big, 4096);
++        uint32_t guard = xbox_HeapAlloc(4096, 16);
++        uint32_t small, page, merged;
++        unsigned completed = 0;
++        int intact = 1;
++        *G(guard) = 0x12345678u;
++        xbox_HeapFree(a);
++        small = xbox_HeapAlloc(40, 16);
++        page = xbox_HeapAlloc(4096, 4096);
++        check(small == a && xbox_HeapBlockSize(small) == 40,
++              "a 40-byte request does not retain a freed 2 MB block", NULL);
++        check(page == a + 4096 && xbox_HeapBlockSize(page) == 4096,
++              "page-aligned reuse carves the unaligned free tail", NULL);
++        check(*G(guard) == 0x12345678u,
++              "splitting preserves the live neighbouring allocation", NULL);
++        xbox_HeapFree(small);
++        xbox_HeapFree(page);
++        merged = xbox_HeapAlloc(big, 4096);
++        check(merged == a, "aligned head and tail coalesce after both frees", NULL);
++        xbox_HeapFree(merged);
++
++        /* Model-sized temporary buffers followed by persistent small objects
++         * reproduce whole-block internal fragmentation without a title leak.
++         * Live requested bytes stay below one model plus 12 KB throughout. */
++        for (unsigned n = 0; n < 200; ++n) {
++            uint32_t size = models[n % 4];
++            uint32_t model = xbox_HeapAlloc(size, 16);
++            uint32_t tiny_size = 40u + (n % 3u) * 8u;
++            if (!model) break;
++            *G(model) = 0xA5A50000u + n;
++            *G(model + size - 4) = 0x5A5A0000u + n;
++            xbox_HeapFree(model);
++            retained[n] = xbox_HeapAlloc(tiny_size, 16);
++            if (!retained[n]) break;
++            if (xbox_HeapBlockSize(retained[n]) != tiny_size) intact = 0;
++            *G(retained[n]) = 0xC0FF0000u + n;
++            ++completed;
++        }
++        for (unsigned n = 0; n < completed; ++n) {
++            if (*G(retained[n]) != 0xC0FF0000u + n) intact = 0;
++            xbox_HeapFree(retained[n]);
++        }
++        snprintf(d, sizeof d, "completed %u of 200 bounded-live-memory cycles", completed);
++        check(completed == 200, "200 model loads with small retained objects avoid OOM", d);
++        check(intact, "retained small objects keep exact size and live contents", NULL);
++        goto shutdown;
++    }
 +    if (reserve_heap) {
 +        const uint32_t ram_end = XBOX_TOTAL_RAM;
 +        uint32_t reserve = 0, size = 0x100000, st, base, heap, later, args[3];
@@ -6212,7 +6415,30 @@ index 35659cc82638caaf3f4119ab0aee4647890c5759..2e6a2e034be2e790b339a3785667a8c4
      *G(0x00070000u) = 0x12345678u;
      *G(0x80070000u) = 0x87654321u;
      check(*G(0x00070000u) == 0x12345678u &&
-@@ -391,6 +442,7 @@ int main(int argc, char **argv)
+@@ -238,18 +344,10 @@ int main(int argc, char **argv)
+         s1 = xbox_HeapAlloc(16, 16);
+         s2 = xbox_HeapAlloc(16, 16);
+ 
+-        if (reclaim) {
+-            snprintf(d, sizeof d, "block is %u bytes, expected 16", xbox_HeapBlockSize(s1));
+-            check(xbox_HeapBlockSize(s1) == 16, "16-byte request takes 16 bytes of a freed 2 MB", d);
+-            snprintf(d, sizeof d, "second request at 0x%08X, outside 0x%08X", s2, a);
+-            check(s2 >= a && s2 < a + big, "the rest of the block is still available", d);
+-        } else {
+-            snprintf(d, sizeof d, "block is %u bytes", xbox_HeapBlockSize(s1));
+-            check(s1 == a && xbox_HeapBlockSize(s1) == big,
+-                  "default: reuse hands over the whole freed block", d);
+-            check(s2 < a || s2 >= a + big,
+-                  "default: the second request cannot share it", NULL);
+-        }
++        snprintf(d, sizeof d, "block is %u bytes, expected 16", xbox_HeapBlockSize(s1));
++        check(xbox_HeapBlockSize(s1) == 16, "16-byte request takes 16 bytes of a freed 2 MB", d);
++        snprintf(d, sizeof d, "second request at 0x%08X, outside 0x%08X", s2, a);
++        check(s2 >= a && s2 < a + big, "the rest of the block is still available", d);
+     }
+ 
+     /* 2. Three neighbours freed so that the third meets an empty slot. */
+@@ -391,6 +489,7 @@ int main(int argc, char **argv)
          }
      }
  

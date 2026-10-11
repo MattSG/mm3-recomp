@@ -10,7 +10,7 @@ set(RECOMP_GEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/recomp/gen" CACHE PATH
 option(MM3_RECOMP_ABI_CHECK "Check guest callee-saved register contracts" OFF)
 option(MM3_MOVIE_INPUT_TRACE "Observe movie completion and skip input" OFF)
 option(MM3_OFFLINE_XNET "Bypass MM3 network readiness for offline startup" ON)
-option(MM3_UNLOCK_ALL_CARS "Make every installed car selectable" ON)
+option(MM3_UNLOCK_ALL_CARS "Include the optional all-car unlock override" ON)
 option(MM3_FRONTEND_WATCH "Trace writes to the RootLevel child pointer" OFF)
 option(MM3_TRACY "Profile the host rendering pipeline with Tracy" OFF)
 option(MM3_NATIVE_FENCE_WAIT "Wait on native GPU notifications in the direct guest fence loop" ON)

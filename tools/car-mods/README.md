@@ -21,6 +21,28 @@ real-world specifications.
 | Koenigsegg Regera | Koenigsegg |
 | Lamborghini Aventador | Koenigsegg |
 
+## Overall order and story progression
+
+The installer orders the full catalog from best to worst by the sum of four
+menu ratings: **top speed + acceleration + handling + durability**, each from
+0 to 9. The maximum overall score is 36. Mass is excluded because more weight
+is not consistently better. Original ratings come from the pristine packaged
+car data; custom ratings come from the selected manifest. This is a comparison
+of the game's ratings, not a measured lap-time or real-world performance claim.
+
+Equal scores keep the originals' relative retail order, followed by custom
+cars in manifest order. Every apply recalculates `Cars/Tweak/SortOrder` for all
+45 cars without changing physics, ratings, IDs, or model selections. The preview
+prints each car's position and score; original cars use their archive aliases.
+Changing a custom menu rating can therefore change its position on the next
+apply, while editing physics alone does not change its rank.
+
+The original 35 cars retain their original `LOCKED`, `HIDDEN`, and `ADMITTANCE`
+requirements byte for byte. With normal story progression enabled, the menu
+keeps its retail availability groups: available cars first, then visible locked
+cars, each in overall rating order. Hidden locked cars stay hidden. Custom cars
+remain available. Reapplying the pack does not reset saved progress.
+
 ## Visual editor
 
 Double-click [editor.cmd](editor.cmd), or run it from the repository root:

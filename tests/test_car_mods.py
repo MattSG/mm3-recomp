@@ -330,8 +330,9 @@ class CarModsTest(unittest.TestCase):
                     self.assertEqual(output[name][payload:payload + info.file_size], after.read(info))
                 self.assertTrue(all(len(i.extra) == 36 for i in before.infolist()))
         with zipfile.ZipFile(io.BytesIO(output[MOD.ARCHIVES[0]])) as hd:
-            added_ids = b"".join(str(car["id"]).encode() + b"\r\n" for car in self.config["cars"])
-            self.assertEqual(hd.read("Cars/Tweak/SortOrder"), b"12\r\n8\r\n11\r\n" + added_ids)
+            expected = [9009, 9004, 9005, 9010, 9011, 9012, 9013, 9014,
+                        9006, 9001, 12, 8, 11, 15, 18]
+            self.assertEqual([int(line) for line in hd.read("Cars/Tweak/SortOrder").splitlines()], expected)
             text = hd.read("Cars/Tweak/MRly.txt").decode()
             self.assertIn("ID\t\t9001", text)
             self.assertIn("Mass\t\t980", text)
@@ -374,6 +375,59 @@ class CarModsTest(unittest.TestCase):
                     self.assertIn(f"Cars\\{alias}{suffix}\\materialSet00.oms".encode(), mesh)
                     self.assertEqual(len(mesh), len((self.game / f"Data/Shared/Cars/{car['donor']}{suffix}/body.cmp").read_bytes()))
             self.assertNotEqual(hd.read("Cars/McLaren_F1/materialSet00.omb"), hd.read("Cars/Ford_GTcar/materialSet00.omb"))
+
+    def test_catalog_ranking_uses_four_equal_weights_and_preserves_ties_and_unlocks(self):
+        # Each single high rating must contribute equally; a balanced original
+        # beats those four. The original order resolves ties, including stock
+        # cars missing from this fixture's deliberately partial SortOrder.
+        ratings = {"mini": (9, 0, 0, 0), "MFastBack": (0, 9, 0, 0),
+                   "Viper": (0, 0, 9, 0), "Koenigsegg": (0, 0, 0, 9),
+                   "Lotus": (3, 3, 3, 3)}
+        with zipfile.ZipFile(io.BytesIO(self.originals[MOD.ARCHIVES[0]])) as archive:
+            files = {name: archive.read(name) for name in archive.namelist()}
+        for donor, values in ratings.items():
+            path = f"Cars/Tweak/{donor}.txt"
+            files[path] = MOD.update_section(files[path].decode(), "CarInfo",
+                dict(zip(MOD.OVERALL_RATINGS, values))).encode()
+        originals = {**self.originals, MOD.ARCHIVES[0]: zip_bytes(files)}
+        config = copy.deepcopy(self.config)
+        before = copy.deepcopy(config)
+        with zipfile.ZipFile(io.BytesIO(originals[MOD.ARCHIVES[0]])) as archive:
+            ranked = MOD.catalog_ranking(archive, config)
+            self.assertEqual([car["id"] for car in ranked[-5:]], [18, 12, 8, 11, 15])
+            self.assertEqual([car["score"] for car in ranked[-5:]], [12, 9, 9, 9, 9])
+            for car in config["cars"]:
+                car["ratings"]["MASS"] = 9 - car["ratings"]["MASS"]
+                car["physics"]["TorqueScale"] = 1
+            self.assertEqual(MOD.catalog_ranking(archive, config), ranked)
+        output, _ = MOD.build_plan(self.game, originals, before)
+        self.assertEqual(before, self.config)
+        with zipfile.ZipFile(io.BytesIO(output[MOD.ARCHIVES[0]])) as archive:
+            self.assertEqual([int(line) for line in archive.read("Cars/Tweak/SortOrder").splitlines()],
+                             [car["id"] for car in ranked])
+            for donor in ratings:
+                path = f"Cars/Tweak/{donor}.txt"
+                self.assertEqual(archive.read(path), files[path])
+                for rule in (b"LOCKED", b"HIDDEN", b"ADMITTANCE\t0 0 2"):
+                    self.assertIn(rule, archive.read(path))
+            for car in before["cars"]:
+                text = archive.read(f"Cars/Tweak/{car['alias']}.txt")
+                for rule in (b"LOCKED", b"HIDDEN", b"ADMITTANCE"):
+                    self.assertNotIn(rule, text)
+
+    def test_catalog_ranking_rejects_unknown_order_ids_and_missing_ratings(self):
+        with zipfile.ZipFile(io.BytesIO(self.originals[MOD.ARCHIVES[0]])) as archive:
+            original = {name: archive.read(name) for name in archive.namelist()}
+        for order in (b"12\n12\n", b"12\n999\n"):
+            files = {**original, "Cars/Tweak/SortOrder": order}
+            with zipfile.ZipFile(io.BytesIO(zip_bytes(files))) as archive:
+                with self.assertRaisesRegex(ValueError, "duplicate or unknown"):
+                    MOD.catalog_ranking(archive, self.config)
+        files = dict(original)
+        files["Cars/Tweak/mini.txt"] = files["Cars/Tweak/mini.txt"].replace(b"\tHANDLING\t1\r\n", b"")
+        with zipfile.ZipFile(io.BytesIO(zip_bytes(files))) as archive:
+            with self.assertRaisesRegex(ValueError, "numeric HANDLING"):
+                MOD.catalog_ranking(archive, self.config)
 
     def test_expanded_catalog_installs_all_ten_without_changing_old_settings(self):
         config = copy.deepcopy(self.config)

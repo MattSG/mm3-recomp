@@ -97,7 +97,7 @@ static void check_vehicle(int enabled, unsigned char before_locked,
 static int run_mode(const char *mode)
 {
     const char *setting = getenv("MM3_UNLOCK_ALL_CARS");
-    int enabled = strcmp(mode, "0") != 0;
+    int enabled = !strcmp(mode, "1");
     if (!strcmp(mode, "default"))
         assert(setting == NULL);
     else
@@ -114,7 +114,7 @@ static int run_mode(const char *mode)
 
 int main(int argc, char **argv)
 {
-    static const char *modes[] = {"default", "1", "0"};
+    static const char *modes[] = {"default", "0", "1", "invalid", "true", "01"};
     size_t i;
     _set_error_mode(_OUT_TO_STDERR);
     if (argc == 3 && !strcmp(argv[1], "--case"))

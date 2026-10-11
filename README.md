@@ -199,10 +199,12 @@ Choose **Manual** transmission in car setup, then tap **R** to shift up and **F*
 (the default Xbox B/X gear controls). These aliases operate only while driving.
 Set `RECOMP_KEYBOARD_LAYOUT=legacy` to use only the original runtime bindings.
 
-All 35 car models included on the supported disc are selectable, including the hidden bonus
-cars. Event-specific vehicle classes still apply. Bonus paints and career statistics continue
-to follow profile progress. Set `MM3_UNLOCK_ALL_CARS=0` to restore the original car locks;
-the availability change does not write unlock keys to your save.
+The 35 original cars follow the game's earned availability rules, including hidden bonus
+cars. Optional custom cars remain available as configured by their installer.
+Set `MM3_UNLOCK_ALL_CARS=1` to make every installed car selectable; unset, `0` and
+other values preserve the original rules. Event-specific vehicle classes, bonus paints
+and career statistics still follow the game and profile. The override does not write
+unlock keys to your save.
 
 ## Added cars and editing stats
 
@@ -360,7 +362,7 @@ tools\venv\Scripts\python.exe tools\car-mods\prepare.py --restore
 | `RECOMP_SHADER_CACHE` | `1` | Save compiled shaders between launches; `0` disables the cache. |
 | `RECOMP_SHADER_CACHE_DIR` | built-in | Shader cache folder; defaults to `%LOCALAPPDATA%\xboxrecomp\ShaderCache`. |
 | `MM3_SAVE_DIR` | built-in | Explicit save root for UDATA/TDATA, including mounted U:/T: and direct HDD paths. |
-| `MM3_UNLOCK_ALL_CARS` | `1` | Make every installed car selectable; `0` restores earned car availability. |
+| `MM3_UNLOCK_ALL_CARS` | off | Exactly `1` makes every installed car selectable; otherwise earned availability applies to original cars. |
 | `MM3_DEBUG_TELEPORT` | off | Enable the teleport pipe (`tools\powershell\Send-MM3Teleport.ps1`). |
 
 ### Automation and measurement
