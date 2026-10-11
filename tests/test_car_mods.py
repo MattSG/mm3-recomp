@@ -330,13 +330,15 @@ class CarModsTest(unittest.TestCase):
                     self.assertEqual(output[name][payload:payload + info.file_size], after.read(info))
                 self.assertTrue(all(len(i.extra) == 36 for i in before.infolist()))
         with zipfile.ZipFile(io.BytesIO(output[MOD.ARCHIVES[0]])) as hd:
-            expected = [9009, 9004, 9005, 9010, 9011, 9012, 9013, 9014,
-                        9006, 9001, 12, 8, 11, 15, 18]
+            expected = [car["id"] for car in sorted(self.config["cars"],
+                key=lambda car: -sum(car["ratings"][key] for key in MOD.OVERALL_RATINGS))]
+            expected += [12, 8, 11, 15, 18]  # Every stock fixture has four one-point ratings.
             self.assertEqual([int(line) for line in hd.read("Cars/Tweak/SortOrder").splitlines()], expected)
             text = hd.read("Cars/Tweak/MRly.txt").decode()
             self.assertIn("ID\t\t9001", text)
-            self.assertIn("Mass\t\t980", text)
-            self.assertIn("HANDLING\t\t9", text)
+            mini = next(car for car in self.config["cars"] if car["alias"] == "MRly")
+            self.assertIn(f"Mass\t\t{mini['physics']['Mass']}", text)
+            self.assertIn(f"HANDLING\t\t{mini['ratings']['HANDLING']}", text)
             self.assertIn("\tMass\t9\r\nEnd(CarWheel0)", text)
             self.assertNotIn("LOCKED", text)
             self.assertNotIn("SKIN", text)
@@ -439,6 +441,7 @@ class CarModsTest(unittest.TestCase):
             self.assertEqual(len(alias), len(donor))
             car = copy.deepcopy(template)
             car.update(id=ident, alias=alias, donor=donor, display_name=name)
+            car.pop("engine_profile", None)  # This tests legacy cloned tuning, not factory presets.
             config["cars"].append(car)
         path = self.game / "ten-cars.json"
         path.write_text(json.dumps(config))
@@ -467,8 +470,9 @@ class CarModsTest(unittest.TestCase):
         output = self.plan()
         with zipfile.ZipFile(io.BytesIO(output[MOD.ARCHIVES[0]])) as hd:
             tweak = hd.read("Cars/Tweak/Senna_Road.txt").decode()
-            self.assertEqual(tweak.count("SpeedometerMaxKmh\t\t800\r\n"), 2)
-            self.assertEqual(tweak.count("SpeedometerMaxMph\t\t500\r\n"), 2)
+            gauges = next(car for car in self.config["cars"] if car["alias"] == "Senna_Road")["speedometer"]
+            self.assertEqual(tweak.count(f"SpeedometerMaxKmh\t\t{gauges['max_kmh']}\r\n"), 2)
+            self.assertEqual(tweak.count(f"SpeedometerMaxMph\t\t{gauges['max_mph']}\r\n"), 2)
             self.assertIn("SPEEDOMETERTYPE\t\t1\r\n", tweak)
             self.assertIn("HoodPos\t0 1 2", tweak)
             self.assertIn("OutFarStartZ\t6", tweak)
@@ -576,6 +580,7 @@ class CarModsTest(unittest.TestCase):
         for ident, (alias, donor, name) in retired.items():
             car = copy.deepcopy(self.config["cars"][0])
             car.update(id=ident, alias=alias, donor=donor, display_name=name)
+            car.pop("engine_profile", None)  # Retired variants predate explicit factory profiles.
             legacy["cars"].append(car)
             manifest = self.game / "retired.json"
             manifest.write_text(json.dumps({"version": 1, "cars": [car]}))
@@ -664,8 +669,8 @@ class CarModsTest(unittest.TestCase):
             self.assertIn(b"GearRatioVector\t\t-3.3 2.5 1.5 0.8\r\n", tweak)
             self.assertLess(tweak.index(b"NGears"), tweak.index(b"GearRatioVector"))
         for key, invalid in [("GearRatioVector", [3.3, 2, 1]), ("GearRatioVector", [-3.3, 2, 2]),
-                             ("GearRatioVector", [-3.3, 2]), ("GearRatioVector", [-3.3, 2, float("inf")]),
-                             ("GearRatioVector", [-3.3, 4, 3, 2, 1.7, 1.4, 1.1, 0.8]),
+                             ("GearRatioVector", [-3.3]), ("GearRatioVector", [-3.3, 2, float("inf")]),
+                             ("GearRatioVector", [-3.3, 4, 3, 2, 1.7, 1.4, 1.1, 0.8, 0.6]),
                              ("GearRatioVector", [-3.3, 2, True]), ("NGears", 6),
                              ("WheelRatio", 0), ("MinRPMGearChange", 9000),
                              ("CutRPM", 11000), ("GearStatusDownGearFactor", 1)]:
@@ -674,6 +679,29 @@ class CarModsTest(unittest.TestCase):
             path.write_text(json.dumps(rejected))
             with self.subTest(key=key, invalid=invalid), self.assertRaises(ValueError):
                 MOD.load_config(path)
+
+    def test_factory_profile_sidecar_opt_in_reapply_and_exact_restore(self):
+        config = MOD.factory_specs.apply_presets(self.config)
+        output = self.plan(config)
+        profile_path = self.game / MOD.FACTORY_PHYSICS_FILE
+        self.assertIn(b"Form1 18500 ", output[MOD.FACTORY_PHYSICS_FILE])
+        self.assertIn(b"Regera_GT1 8000 ", output[MOD.FACTORY_PHYSICS_FILE])
+        MOD.apply_plan(self.game, None, self.originals, output, config)
+        state, originals = MOD.read_install(self.game)
+        self.assertIn(MOD.FACTORY_PHYSICS_FILE, state["installed"])
+        del config["cars"][0]["engine_profile"]
+        changed = self.plan(config)
+        self.assertNotIn(b"\nMRly ", changed[MOD.FACTORY_PHYSICS_FILE])
+        # The opt-in is metadata for the runtime hook, not a native tweak key.
+        for archive in MOD.ARCHIVES:
+            self.assertEqual(output[archive], changed[archive])
+        MOD.apply_plan(self.game, state, originals, changed, config)
+        self.assertEqual(profile_path.read_bytes(), changed[MOD.FACTORY_PHYSICS_FILE])
+        state, originals = MOD.read_install(self.game)
+        MOD.restore(self.game, state, originals)
+        self.assertFalse(profile_path.exists())
+        for name, data in self.originals.items():
+            self.assertEqual((self.game / name).read_bytes(), data)
 
     def test_failed_write_rolls_back_existing_archives_and_new_assets(self):
         output = self.plan()
@@ -697,18 +725,22 @@ class CarModsTest(unittest.TestCase):
 
     def test_automatic_shifts_cannot_require_rpm_beyond_cutoff_or_native_torque_table(self):
         path = self.game / "rpm.json"
+        retail = copy.deepcopy(self.config)
+        retail["cars"][2].pop("engine_profile", None)
+        retail["cars"][2]["physics"].update({"MinRPM": 1000, "MaxTorqueRPM": 6500,
+            "MaxTurboTorqueRPM": 6750, "CutRPM": 8000, "MaxRPM": 10000})
         for key, value in (("CutRPM", 6000), ("MaxTorqueRPM", 8000),
                            ("MaxTurboTorqueRPM", 8000), ("MaxTorqueRPM", 8500),
                            ("MaxTurboTorqueRPM", 8500), ("MaxTurboTorqueRPM", 10500),
                            ("MaxTorqueRPM", 1000)):
-            rejected = copy.deepcopy(self.config)
+            rejected = copy.deepcopy(retail)
             rejected["cars"][2]["physics"][key] = value
             path.write_text(json.dumps(rejected))
             with self.subTest(key=key, value=value), self.assertRaises(ValueError):
                 MOD.load_config(path)
         # A lower cutoff remains available when both automatic shift peaks are
         # lowered with it, rather than silently inheriting unusable donor peaks.
-        valid = copy.deepcopy(self.config)
+        valid = copy.deepcopy(retail)
         valid["cars"][2]["physics"].update({"MaxTorqueRPM": 5500, "MaxTurboTorqueRPM": 5700, "CutRPM": 6000})
         path.write_text(json.dumps(valid))
         MOD.load_config(path)

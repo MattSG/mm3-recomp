@@ -121,6 +121,24 @@ void sub_001661D0(void)
         MEMF(g_esp + 8) *= distance_scale();
     }
     sub_001661D0_original();
+    {
+        float scale = distance_scale();
+        float near_distance = MEMF(0x003C04E0u);
+        /* The native facade-detail fade uses squared camera distance and
+         * fixed offsets of 10 m / 1 m below the near zone. Scaling only the
+         * zone left its blend just 9 m wide: 150..159 m at the default 2x,
+         * instead of the corresponding 140..158 m. Scale those offsets too.
+         * Rebuild from the validated effective zone after every setter call,
+         * including temporary-pass install/restore; never scale saved values
+         * again. Leave unusual small zones and the Xbox baseline untouched. */
+        if (scale > 1.0f && isfinite(near_distance) && near_distance > 10.0f * scale) {
+            double fade_start = (double)near_distance - 10.0 * scale;
+            double fade_end = (double)near_distance - scale;
+            double slope = 1.0 / (fade_start * fade_start - fade_end * fade_end);
+            MEMF(0x003B8134u) = (float)(-fade_end * fade_end * slope);
+            MEMF(0x003B8138u) = (float)slope;
+        }
+    }
 }
 
 extern void sub_000F4AC3_original(void);

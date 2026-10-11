@@ -1,8 +1,11 @@
-"""Compile retail automatic-shift consumers against the six new car configs.
+"""Compile retail gearbox consumers against every active factory preset.
 
 Run after scripts/enter-env.ps1. No game process, save, GPU or driving input
 is required. Controlled velocity tests gearbox decisions, not road top speed.
+The factory engine hook has its own integration contract; this suite verifies
+the retail consumers still support the full one-to-seven-gear preset range.
 """
+import importlib.util
 import json
 from pathlib import Path
 import re
@@ -11,6 +14,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+ACTIVE_IDS = {9001, 9004, 9005, 9006, 9009, 9010, 9011, 9012, 9013, 9014}
 
 
 def generated_function(name):
@@ -24,28 +28,39 @@ def generated_function(name):
 
 def case_definitions():
     config = json.loads((ROOT / "tools/car-mods/cars.json").read_text())
+    spec = importlib.util.spec_from_file_location(
+        "factory_specs", ROOT / "tools/car-mods/factory_specs.py")
+    factory_specs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(factory_specs)
+    config = factory_specs.apply_presets(config)
+    ids = [car["id"] for car in config["cars"]]
+    if len(ids) != len(ACTIVE_IDS) or set(ids) != ACTIVE_IDS:
+        raise ValueError("Expected each of the ten active custom cars exactly once")
     definitions = []
-    # These three retail donors share WheelRadius=.34 and the idle/shift RPM
-    # defaults; TurboSize is inherited and selects the native peak-RPM field.
-    turbo_sizes = {"Viper": 0.0, "Lotus": 0.5, "Koenigsegg": 1.0}
+    gear_counts = set()
+    # TurboSize selects the native peak-RPM field. Explicit preset overrides
+    # win; otherwise these values come from the retail donor tweak files.
+    turbo_sizes = {"mini": 0.0, "Viper": 0.0, "Lotus": 0.5, "Koenigsegg": 1.0}
     def float_literal(value):
         return repr(float(value)) + "f"
     for car in config["cars"]:
-        if not 9004 <= car["id"] <= 9009:
-            continue
         physics = car["physics"]
         ratios = physics["GearRatioVector"]
+        gear_counts.add(len(ratios) - 1)
+        if not 2 <= len(ratios) <= 8:
+            raise ValueError(f"{car['alias']} requires reverse plus one to seven gears")
         values = [len(ratios) - 1, "{" + ",".join(float_literal(v) for v in ratios) + "}",
                   physics.get("WheelRadius", 0.34), physics.get("WheelRatio", 4.0),
                   physics.get("MaxTorqueRPM", 6500), physics.get("MaxTurboTorqueRPM", 6750),
-                  turbo_sizes[car["donor"]], physics.get("CutRPM", 8000),
+                  physics.get("TurboSize", turbo_sizes[car["donor"]]),
+                  physics.get("CutRPM", 8000),
                   physics.get("MinRPMGearChange", 4000),
                   physics.get("GearStatusDownGearFactor", 0.75), physics["TimeChangeGear"]]
         definitions.append("    {" + json.dumps(car["display_name"]) + "," +
                            str(values[0]) + "," + values[1] + "," +
                            ",".join(float_literal(v) for v in values[2:]) + "}")
-    if len(definitions) != 6:
-        raise ValueError("Expected all six requested custom cars in cars.json")
+    if not {1, 7} <= gear_counts:
+        raise ValueError("Factory cases must exercise both single-speed and seven-speed cars")
     return "static const CarCase cars[] = {\n" + ",\n".join(definitions) + "\n};\n"
 
 

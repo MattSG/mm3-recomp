@@ -5,7 +5,7 @@ Build a playable Midtown Madness 3 from a fresh clone and your own disc image.
 .DESCRIPTION
   pwsh scripts\setup.ps1 -Iso "D:\Midtown Madness 3 (USA).iso"
 
-1. checks for Visual Studio or local MSVC tools, and Python 3.11+
+1. checks for Visual Studio or local MSVC tools, and Python 3.11.4+
 2. makes tools\venv with the pinned generator dependency (capstone)
 3. verifies the disc's code and extracts it to game_files\
 4. generates the translated C into src\recomp\gen\ (about 6 minutes)
@@ -47,10 +47,10 @@ if ($portableMsvc -and -not (Get-Command ninja -ErrorAction SilentlyContinue)) {
 }
 $py = Get-Command py -ErrorAction SilentlyContinue
 $basePython = if ($py) { $py.Source } else { (Get-Command python -ErrorAction SilentlyContinue).Source }
-if (-not $basePython) { throw 'Python 3.11+ is required (py or python on PATH).' }
+if (-not $basePython) { throw 'Python 3.11.4+ is required (py or python on PATH; 3.12+ recommended).' }
 [string[]]$pythonArgs = if ($py) { @('-3') } else { @() }
-& $basePython @pythonArgs -c 'import sys; sys.exit(sys.version_info < (3, 11))'
-if ($LASTEXITCODE -ne 0) { throw 'Python 3.11 or newer is required.' }
+& $basePython @pythonArgs -c 'import sys; sys.exit(sys.version_info < (3, 11, 4))'
+if ($LASTEXITCODE -ne 0) { throw 'Python 3.11.4 or newer is required (3.12+ recommended).' }
 if (-not (Test-Path 'tools\xboxrecomp\CMakeLists.txt')) {
     git submodule update --init --recursive; Check 'git submodule update'
 }

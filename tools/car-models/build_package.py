@@ -1,7 +1,7 @@
 """Build a prepared MM3 exterior package from an extracted neutral source car.
 
 This creates files for Car Workshop's Model tab; it does not install anything.
-Run with the system Python that has numpy and Pillow installed.
+Run with the system Python that has NumPy, SciPy and Pillow installed.
 """
 from __future__ import annotations
 

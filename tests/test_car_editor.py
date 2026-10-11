@@ -7,7 +7,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("mm3_editor_test", ROOT / "tools/car-mods/editor.py")
@@ -203,6 +203,52 @@ class CarEditorTest(unittest.TestCase):
         cleared = editor.edited_car(self.model.config["cars"][1], **form(self.model.config["cars"][1]), model_package=" ")
         self.assertNotIn("model_package", cleared)
 
+    def test_restore_realistic_preserves_selected_model_and_paint(self):
+        car = copy.deepcopy(self.model.config["cars"][1])
+        car["model_package"] = "prepared models/Panoz"
+        car["colors"] = ["#123456"]
+        car["physics"]["TorqueScale"] = 1234
+        self.model.replace_car(1, car)
+        self.model.restore_realistic(1)
+        restored = self.model.config["cars"][1]
+        self.assertEqual(restored["model_package"], car["model_package"])
+        self.assertEqual(restored["colors"], car["colors"])
+        self.assertEqual(restored["id"], car["id"])
+        self.assertEqual(restored["engine_profile"], "factory")
+        self.assertEqual(restored["physics"], editor.factory.load_specs()[car["alias"]]["physics"])
+        self.model.save()
+        self.model.reload()
+        self.assertEqual(self.model.config["cars"][1], restored)
+
+    def test_factory_engine_form_switch_is_explicit_and_preserved(self):
+        car = editor.factory.apply_preset(self.model.config["cars"][0])
+        self.assertEqual(editor.edited_car(car, **form(car))["engine_profile"], "factory")
+        disabled = editor.edited_car(car, **form(car), factory_engine=False)
+        self.assertNotIn("engine_profile", disabled)
+        enabled = editor.edited_car(disabled, **form(disabled), factory_engine=True)
+        self.assertEqual(enabled, car)
+
+    def test_restore_button_recovers_invalid_tuning_and_keeps_draft_art(self):
+        app = editor.CarEditor.__new__(editor.CarEditor)
+        app.model, app.current = self.model, 0
+        app.model.config["cars"][0]["physics"]["TorqueScale"] = float("nan")
+        app.color_vars = [Mock(get=Mock(return_value="#ABCDEF"))]
+        app.model_var = Mock(get=Mock(return_value="models with spaces/Mini"))
+        app.status, app._load_car, app._error = Mock(), Mock(), Mock()
+        app._collect = Mock(side_effect=ValueError("Invalid in-progress gear edit"))
+        app.restore_realistic()
+        app._collect.assert_not_called()
+        app._error.assert_not_called()
+        restored = app.model.config["cars"][0]
+        self.assertEqual(restored["physics"], editor.factory.load_specs()["MRly"]["physics"])
+        self.assertEqual(restored["colors"], ["#abcdef"])
+        self.assertEqual(restored["model_package"], "models with spaces/Mini")
+        app._load_car.assert_called_once_with(0)
+
+    def test_specifications_tab_can_be_selected_on_launch(self):
+        self.assertEqual(editor.parse_args([]).tab, "specs")
+        self.assertEqual(editor.parse_args(["--car-id", "9006", "--tab", "specs"]).car_id, 9006)
+
     def test_five_new_identities_roundtrip_without_changing_existing_user_tuning(self):
         config = copy.deepcopy(self.model.config)
         config["cars"] = [car for car in config["cars"] if car["id"] <= 9009]
@@ -214,6 +260,9 @@ class CarEditorTest(unittest.TestCase):
             alias, donor, name = editor.prepare.IDENTITIES[ident]
             car = copy.deepcopy(template)
             car.update(id=ident, alias=alias, donor=donor, display_name=name)
+            # This regression exercises adding legacy donor-based entries,
+            # not cloning another car's explicitly selected factory curve.
+            car.pop("engine_profile", None)
             car["model_package"] = f"models/{alias}"
             config["cars"].append(car)
         self.path.write_text(json.dumps(config))

@@ -30,7 +30,9 @@ reference workflow uses a bare XDVDFS XISO rather than a two-part redump image.
 
 - **Visuals:** fixed refreshing of streamed textures and CPU-written swizzled
   surfaces, and prevented stale vertex programs/constants after failed GPU
-  uploads. Balanced renders at 1536×960 and Quality at 2304×1440, both at 16:10, with
+  uploads. Building-detail fades scale with extended draw distance, and the car
+  converter builds closed body and animated-wheel shadow proxies. Balanced renders
+  at 1536×960 and Quality at 2304×1440, both at 16:10, with
   configurable aspect, resolution, MSAA, anisotropic filtering and draw distance.
 - **Efficiency:** persistent shader caching and startup prewarming, less repeated
   texture/shader lookup work, optimized texture conversion and audio processing,
@@ -39,13 +41,16 @@ reference workflow uses a bare XDVDFS XISO rather than a two-part redump image.
   Present, command/fence ordering repairs, safer guest-handle access, and save-root
   handling. Graphics memory is reused across scene loads without treating skipped
   heap addresses as occupied. Extended-distance particle overlap is bounded to
-  reduce effects load.
+  reduce effects load. CPU-drawn loading prompts continue updating after a race,
+  so choosing Next Race displays the A/Start prompt instead of a black screen.
 - **Driving and selection:** arrow-key driving, camera and manual-shift controls,
   focus-aware keyboard input, and selection of all 35 supported-disc car models.
 - **Car workshop:** ten extra tuned variants, optional prepared model
-  packages, editable paint and driving stats, validated gearing/RPM settings,
-  larger HUD and interior speedometer ranges and numeric
-  speed readouts for the sport and Koenigsegg HUDs.
+  packages, editable paint and driving stats, sourced specification references
+  and a **Restore realistic setup** action. Factory engine profiles support
+  one through seven forward gears, the F2007's 19,000 RPM limit and Regera's
+  single-ratio Direct Drive. Each extra car has its own HUD/interior speedometer
+  range; sport and Koenigsegg HUDs also show numeric speed.
 
 The detailed settings and runtime notes below describe these changes and their
 limits. See the [car-pack guide](tools/car-mods/README.md) for further tuning examples.
@@ -53,7 +58,10 @@ limits. See the [car-pack guide](tools/car-mods/README.md) for further tuning ex
 ## Building from a fresh clone
 
 You need Windows 10/11 x64, Visual Studio 2022 or newer with **Desktop development with C++**
-(it includes CMake), Python 3.11+ (the `py` launcher), git, and your own Midtown Madness 3 disc.
+(it includes CMake), Python 3.12+ recommended (3.11.4+ supported), git,
+and your own Midtown Madness 3 disc.
+Most examples use PowerShell 7 (`pwsh`); the pinned-version commands below use
+Windows' built-in `powershell` and also work with `pwsh`.
 
 ```powershell
 git clone --recurse-submodules https://github.com/lakshya16157/mm3-recomp.git
@@ -86,6 +94,82 @@ and MSVC/Windows SDK at `tools\bin\msvc` (via `setup_x64.bat`). With local MSVC,
 install CMake and Ninja in the venv (`python -m pip install "cmake>=3.20,<4" ninja`);
 setup uses Ninja Multi-Config and keeps the same `build\<Config>` output paths.
 Run these commands from the repository directory, not its parent folder.
+
+### Reproduce the improved version (`v2026.10.12`)
+
+The tag **[v2026.10.12](https://github.com/lakshya16157/mm3-recomp/tree/v2026.10.12)**
+pins this fork's current improvements: race/menu loading and heap fixes, building
+detail fades, visibility and rendering work, corrected imported-car shadow
+generation, and the ten researched car presets with their gearing and gauges.
+Use this tag to reproduce that source and settings version after `main` moves on.
+
+If you have already extracted or recompiled the game with upstream, the generated
+Xbox C alone does not contain this fork's native hooks, runtime patch or car data.
+Build this checkout in a separate directory, using your own supported disc image:
+
+```powershell
+git clone --branch v2026.10.12 --recurse-submodules https://github.com/lakshya16157/mm3-recomp.git mm3-improved
+cd mm3-improved
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\setup.ps1 -Iso "D:\Games\Midtown Madness 3 (USA).iso"
+tools\venv\Scripts\python.exe tools\car-mods\prepare.py --config tools\car-mods\cars.json --apply
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\play.ps1 -Profile Balanced -Keyboard
+```
+
+Setup applies the committed runtime patch to the pinned submodule, generates the
+supported translation, configures all native hooks and builds the game. Installing
+the car preset is a separate step: setup alone does not install the ten extras.
+The explicit `--config` selects the published settings even if a machine has a
+different `cars.local.json`. `git describe --tags --exact-match` should report
+`v2026.10.12`; `git submodule status` should show the pinned toolkit, without a
+leading `+`. A dirty runtime submodule is expected after applying this fork's patch.
+
+**To reproduce the imported car bodies and repaired shadows**, obtain the nine
+original model archives listed in the [model guide](tools/car-models/README.md),
+install its conversion dependencies and follow its import/preview/package recipes.
+Then close the game and select the portable imported-model preset:
+
+```powershell
+tools\venv\Scripts\python.exe tools\car-mods\prepare.py --config tools\car-mods\cars.imported.json --apply
+tools\car-mods\editor.cmd --config tools\car-mods\cars.imported.json
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\play.ps1 -Profile Balanced -Keyboard
+```
+
+The preset points at `out/car-models/packages/<alias>` for each imported car and
+uses the same tuning as `cars.json`. Mini Rally keeps its native Mini body. Game
+files, source-model downloads and prepared packages are not bundled in the tag;
+without building those packages, use `cars.json` for the same car slots and tuning
+with donor visuals. Keep the source authors' readmes and applicable usage terms.
+
+For an existing checkout of **this tag** with extracted game files, run setup
+again without `-Iso` to rebuild, then reapply your chosen preset. Setup always
+reconfigures CMake; manual rebuilds should also configure before building:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\setup.ps1
+tools\venv\Scripts\python.exe tools\car-mods\prepare.py --config tools\car-mods\cars.json --apply
+```
+
+To regenerate just the translated code without re-extracting your game data,
+run these commands in the existing build environment, then reapply the preset:
+
+```powershell
+. .\scripts\enter-env.ps1
+python scripts\generate_mm3.py
+cmake -S . -B build
+cmake --build build --config RelWithDebInfo --target mm3_recomp --parallel
+```
+
+Use a fresh checkout when moving from an older fork version whose runtime patch
+is already applied. A plain pull does not replace that dirty runtime with the
+new patch, and the patch helper intentionally rejects mixed versions. Keep old
+local work and saves in the previous directory. `-Force -Iso <path>` re-extracts
+and regenerates the game; reapply the car preset afterward.
+
+The tag reproduces the published source, presets and conversion recipes. It does
+not promise a byte-identical executable across compiler versions, identical
+historical model-package packing, saved progression or identical FPS on another
+computer. Unpublished race-car values and MM3's hybrid/handling approximations
+remain identified in Workshop's **Car specs** tab and the specification catalog.
 
 ### Which disc
 
@@ -223,13 +307,17 @@ documents the verified Panoz, F1 GTR, Ferrari F2007, Ford GT, Senna, Senna GTR,
 FXX K, Regera and Aventador conversions. Downloaded models and generated packages
 are not distributed in this repository. Imported initial liveries remain fixed,
 glass is opaque, and interior, sounds and collision remain based on the donor.
-Driving settings are game-tuned interpretations rather than measured specifications.
+Defaults use sourced specifications for the imported variants. Unpublished
+race-car figures, operating-weight allowances, handling and hybrid behaviour
+remain documented game approximations rather than measured performance.
 
 ### Visual editor
 
 1. Close the game, then double-click [tools/car-mods/editor.cmd](tools/car-mods/editor.cmd)
    or run `tools\car-mods\editor.cmd` from the repository root.
-2. Select an added car and edit its paint, menu ratings, physics, gearing, RPM
+2. Select an added car. **Car specs** shows its reference variant, source links
+   and calibration notes; **Restore realistic setup** restores the researched
+   preset while retaining paint and model choices. Edit its paint, menu ratings, physics, gearing, RPM
    settings and interior speedometer ranges. Blank optional physics fields inherit
    the stock donor's settings.
 3. Choose **Save** to write the selected manifest, or **Save & Apply**
@@ -278,7 +366,7 @@ paint colors in `#rrggbb` format.
 
 | Physics setting | Effect |
 |---|---|
-| `TorqueScale`, `TorqueScaleFactor` | Engine torque and its multiplier. |
+| `TorqueScale`, `TorqueScaleFactor` | Peak torque in Nm with a factory profile, or donor torque scale; its multiplier. |
 | `Mass` | Physical weight. |
 | `BrakeTorque`, `HandBrakeTorque` | Braking and handbrake strength. |
 | `LatFrictionFactor` | Cornering grip. |
@@ -286,14 +374,14 @@ paint colors in `#rrggbb` format.
 | `WheelDrive` | 0: front wheels; 1: rear wheels; 2: all wheels. |
 | `SteeringEndSpeed` | Speed-dependent steering setting. |
 | `WheelRadius` | Wheel radius, also used in automatic shift-speed calculations. |
-| `GearRatioVector` | Reverse ratio followed by two through six forward ratios. |
+| `GearRatioVector` | Reverse ratio followed by one through seven forward ratios. |
 | `WheelRatio` | Final drive multiplier; a smaller value makes gears longer. |
 | `TimeChangeGear`, `TimeChangeGearFR` | Forward shifting and forward/reverse transition times, in seconds. |
 | `MinRPM`, `MinRPMGearChange`, `CutRPM`, `MaxRPM` | Idle, minimum shift, cutoff and redline settings. |
-| `MaxTorqueRPM`, `MaxTurboTorqueRPM` | Peak torque RPM used to calculate automatic upshift speeds. |
+| `MaxTorqueRPM`, `MaxTurboTorqueRPM` | Peak torque RPM references; automatic shift target in donor mode. |
 | `GearStatusDownGearFactor` | Automatic downshift factor. |
 
-For example, changing Mini Rally's `physics.TorqueScale` from `440` to `500`
+For example, changing Mini Rally's `physics.TorqueScale` from `149.14` to `160`
 increases engine torque. Changing `ratings.ACCELERATION` changes only its menu bar.
 The installer validates supported value ranges before applying changes.
 
@@ -303,12 +391,16 @@ Use a negative reverse ratio followed by positive, decreasing forward ratios,
 for example `[-3.3, 2.5, 1.72, 1.28, 1.0, 0.82, 0.7]`. Gear count is derived
 from this array; do not add `NGears`. Keep
 `MinRPM < MinRPMGearChange < CutRPM <= MaxRPM`, and keep both peak-torque RPM
-settings above idle and below cutoff. The supported stock torque curve requires
-`MaxTorqueRPM` and `MaxTurboTorqueRPM` to be at most 8000 RPM; Formula 1 therefore
-uses stock-compatible RPM values rather than a modern F1 engine's RPM range.
+settings above idle and below cutoff. Donor mode retains the stock torque curve's
+8,000 RPM peak limit. The supplied presets explicitly enable
+`engine_profile: "factory"`, using bounded per-car curves and a separate shift
+target. This supports the imported Ferrari F2007's 19,000 RPM limit safely.
+Regera uses one forward ratio and a 2.73:1 final reduction, with approximated
+electric launch assistance rather than conventional gear changes.
 
 Automatic upshifts depend on road speed calculated from gear ratios, final drive,
-wheel radius and peak torque RPM (the turbo peak for a turbo-equipped donor).
+wheel radius and the factory profile's shift target, or peak torque RPM in donor
+mode (the turbo peak for a turbo-equipped donor).
 Wheelspin can raise RPM before the car reaches its shift speed. Lowering
 `MinRPMGearChange` alone does not make automatic upshifts happen earlier.
 The pack's ratios and RPM settings address the earlier missed-shift issue, and
@@ -317,8 +409,9 @@ in the game's car setup; Manual uses **R/F** on the MM3 keyboard layout or Xbox
 **B/X** to shift up/down while driving.
 
 The optional `speedometer.max_kmh` and `speedometer.max_mph` values set the
-HUD dial and interior dashboard needle range. Fast variants use **800 km/h / 500 mph**;
-Mini Rally uses 500 km/h / 311 mph. Enter both limits, or leave both blank in the
+HUD dial and interior dashboard needle range. Extra-car ranges provide rounded
+headroom for each preset: **220 km/h / 140 mph** for Mini Rally through
+**440 km/h / 280 mph** for Regera. Enter both limits, or leave both blank in the
 editor to inherit the donor gauge. These limits change the gauge, not engine
 power, actual top speed or the `TOPSPEED` menu rating. In the workshop, use
 **Original car speedometers…** to change original sport and Koenigsegg HUDs.
@@ -466,6 +559,16 @@ Guest CRT reservations and ordinary heap blocks now retain exact,
 non-overlapping ownership, including addresses above Xbox RAM. Allocations
 skip occupied ranges without claiming alignment gaps or overwriting another
 allocator's data.
+MM3 enables NT heap reclamation before startup so scene destruction returns
+large car-model buffers to the guest heap. Repeated race/menu changes reuse
+those buffers instead of exhausting the heap. Facade detail fades also retain
+their retail proportions when draw distance is extended.
+The hot city visibility test uses native scratch variables while preserving
+the original floating-point operations and guest state. Its differential
+regression compares 200,000 complete state and memory cases with the generated
+Xbox function: `python tests/mm3_visibility_regression.py` after entering the
+build environment. The facade fade contract is checked with
+`python tests/mm3_facade_fade_regression.py`.
 
 At startup, the game cache helper compares `Data_hd.zip` contents and retail
 creation-time metadata with the disc source. A mismatch invalidates the cached

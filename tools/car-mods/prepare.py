@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import copy
 import hashlib
+import importlib.util
 import io
 import json
 import math
@@ -23,6 +24,10 @@ import tempfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
+_factory_spec = importlib.util.spec_from_file_location(
+    "mm3_factory_specs", Path(__file__).with_name("factory_specs.py"))
+factory_specs = importlib.util.module_from_spec(_factory_spec)
+_factory_spec.loader.exec_module(factory_specs)
 
 
 def default_config_path(directory: Path | None = None) -> Path:
@@ -38,6 +43,7 @@ RATINGS = {"TOPSPEED", "ACCELERATION", "MASS", "HANDLING", "DURABILITY"}
 OVERALL_RATINGS = ("TOPSPEED", "ACCELERATION", "HANDLING", "DURABILITY")
 SPEEDOMETER = {"max_kmh": (100, 1200), "max_mph": (60, 750)}
 SPEEDOMETER_FILE = "Data/mm3_speedometers.ini"
+FACTORY_PHYSICS_FILE = "Data/mm3_factory_physics.ini"
 ORIGINAL_SPEEDOMETERS = {
     "AudiTT": "Audi TT", "Avalanche": "Chevrolet Avalanche", "Avant": "Audi RS 6 Avant",
     "ChevySSR": "Chevrolet SSR", "Corvette": "Chevrolet Corvette", "Crossfire": "Chrysler Crossfire",
@@ -47,14 +53,14 @@ ORIGINAL_SPEEDOMETERS = {
 }
 PHYSICS = {
     "Mass": (100, 10000), "TorqueScale": (1, 5000),
-    "TorqueScaleFactor": (0.1, 5), "WheelDrive": (0, 2),
+    "TorqueScaleFactor": (0.1, 5), "TurboSize": (0, 5), "WheelDrive": (0, 2),
     "BrakeTorque": (100, 30000), "HandBrakeTorque": (100, 30000),
     "LatFrictionFactor": (0.1, 5), "AirKZZ": (0.001, 10),
-    "AirKZY": (0.001, 10), "MaxTorqueRPM": (500, 8000),
+    "AirKZY": (0.001, 10), "MaxTorqueRPM": (500, 20000),
     "MaxRPM": (500, 20000), "CutRPM": (500, 20000),
     "MinRPM": (100, 10000), "TimeChangeGear": (0.05, 5),
     "TimeChangeGearFR": (0.05, 5), "WheelRatio": (0.5, 10),
-    "MinRPMGearChange": (500, 20000), "MaxTurboTorqueRPM": (500, 8000),
+    "MinRPMGearChange": (500, 20000), "MaxTurboTorqueRPM": (500, 20000),
     "GearStatusDownGearFactor": (0.1, 0.95),
     "SteeringEndSpeed": (20, 1000), "WheelRadius": (0.1, 2),
 }
@@ -103,7 +109,7 @@ def load_config(path: Path) -> dict:
     seen_ids, seen_aliases = set(), set()
     for car in config["cars"]:
         required = {"id", "alias", "donor", "display_name", "ratings", "physics", "colors"}
-        exact_keys(car, required | {"speedometer", "model_package"}, "car")
+        exact_keys(car, required | {"speedometer", "model_package", "engine_profile"}, "car")
         if not required <= set(car):
             raise ValueError("Each car requires id, alias, donor, display_name, ratings, physics, colors")
         ident = car["id"]
@@ -127,11 +133,12 @@ def load_config(path: Path) -> dict:
         exact_keys(car["ratings"], RATINGS, "rating")
         if set(car["ratings"]) != RATINGS or any(type(v) is not int or not 0 <= v <= 9 for v in car["ratings"].values()):
             raise ValueError("All five ratings must be integers from 0 to 9")
+        profile = factory_specs.profile_for(car)
         exact_keys(car["physics"], set(PHYSICS) | {"GearRatioVector"}, "physics")
         for key, value in car["physics"].items():
             if key == "GearRatioVector":
-                if not isinstance(value, list) or not 3 <= len(value) <= 7:
-                    raise ValueError("GearRatioVector requires a reverse ratio followed by 2 to 6 forward gears")
+                if not isinstance(value, list) or not 2 <= len(value) <= 8:
+                    raise ValueError("GearRatioVector requires a reverse ratio followed by 1 to 7 forward gears")
                 if any(type(ratio) not in (int, float) or not math.isfinite(ratio) for ratio in value):
                     raise ValueError("Gear ratios must be finite numbers")
                 if not -10 <= value[0] <= -0.1 or any(not 0.1 <= ratio <= 10 for ratio in value[1:]):
@@ -140,7 +147,7 @@ def load_config(path: Path) -> dict:
                     raise ValueError("Forward gear ratios must decrease as gears increase")
                 continue
             low, high = PHYSICS[key]
-            if key in {"MaxTorqueRPM", "MaxTurboTorqueRPM"} and type(value) in (int, float) and math.isfinite(value) and value > high:
+            if profile is None and key in {"MaxTorqueRPM", "MaxTurboTorqueRPM"} and type(value) in (int, float) and math.isfinite(value) and value > 8000:
                 raise ValueError("Supported stock torque curve ends near 8500 RPM; automatic peak must be <= 8000 RPM")
             if type(value) not in (int, float) or not math.isfinite(value) or not low <= value <= high:
                 raise ValueError(f"{key} must be a finite number from {low} to {high}")
@@ -161,6 +168,8 @@ def load_config(path: Path) -> dict:
         for key, default in (("MaxTorqueRPM", 6500), ("MaxTurboTorqueRPM", 6750)):
             if not idle < physics.get(key, default) < cutoff:
                 raise ValueError(f"{key} must be above MinRPM and below CutRPM for automatic gear changes")
+        if profile is not None:
+            validate_factory_profile(profile, physics)
         if not isinstance(car["colors"], list) or not 1 <= len(car["colors"]) <= 3 or any(not isinstance(c, str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", c) for c in car["colors"]):
             raise ValueError("Each car requires 1 to 3 colors in #rrggbb form")
         if "speedometer" in car:
@@ -172,6 +181,35 @@ def load_config(path: Path) -> dict:
     if not config["cars"]:
         raise ValueError("At least one car is required; use --restore to remove installed variants")
     return config
+
+
+def validate_factory_profile(profile: dict, physics: dict) -> None:
+    """Keep the sidecar inside the native parser's bounded curve contract."""
+    shift = profile["shift_rpm"]
+    radius = profile["reference_wheel_radius_m"]
+    curve = profile["torque_curve"]
+    if type(shift) not in (int, float) or not math.isfinite(shift) or not 100 <= shift <= 22000:
+        raise ValueError("Factory shift RPM must be a finite number from 100 to 22000")
+    if not physics.get("MinRPM", 1000) < shift < physics.get("CutRPM", 8000):
+        raise ValueError("Factory shift RPM must remain between MinRPM and CutRPM; restore the preset or disable its engine profile")
+    if type(radius) not in (int, float) or not math.isfinite(radius) or not 0.1 <= radius <= 2:
+        raise ValueError("Factory reference wheel radius must be from 0.1 to 2 metres")
+    if not isinstance(curve, list) or not 2 <= len(curve) <= 16:
+        raise ValueError("Factory torque curve requires 2 to 16 points")
+    previous = -1
+    for point in curve:
+        if not isinstance(point, list) or len(point) != 2:
+            raise ValueError("Factory torque points require RPM and normalized torque")
+        rpm, fraction = point
+        if any(type(value) not in (int, float) or not math.isfinite(value) for value in point):
+            raise ValueError("Factory torque points must be finite numbers")
+        if previous == -1 and rpm != 0:
+            raise ValueError("Factory torque curve must begin at zero RPM")
+        if not previous < rpm <= 22000 or not 0 <= fraction <= 1:
+            raise ValueError("Factory torque RPM must increase within 0..22000 and torque fractions must be in 0..1")
+        previous = rpm
+    if max(point[1] for point in curve) != 1:
+        raise ValueError("Factory torque curve must contain its normalized peak of 1")
 
 
 def validate_speedometer(settings: dict) -> None:
@@ -534,6 +572,10 @@ def build_plan(game_dir: Path, originals: dict[str, bytes], config: dict,
                 output.pop(old)
             output[relative] = data
     output[SPEEDOMETER_FILE] = speedometer_settings(config)
+    counts["loose_files"] += 1
+    # An empty profile file deliberately clears a previous opt-in on reapply.
+    # It participates in the same backup/ownership/rollback path as gauges.
+    output[FACTORY_PHYSICS_FILE] = factory_specs.factory_physics_settings(config)
     counts["loose_files"] += 1
     return output, counts
 

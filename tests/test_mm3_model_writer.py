@@ -1,5 +1,6 @@
 """Packed CMP compatibility and geometry-preservation tests (no game process)."""
 import importlib.util
+from collections import Counter
 from pathlib import Path
 import struct
 import sys
@@ -10,9 +11,10 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools" / "car-models"))
-from mm3_model import (MeshBlock, Model, Node, convert_exterior, encode_mesh,
+from mm3_model import (FormatError, MeshBlock, Model, Node, convert_exterior,
+                       encode_mesh, encode_shadow_mesh, is_shadow_mesh, mesh_metadata,
                        normalize_repeat_uv, read_model, remap_mesh_materials,
-                       write_omb)
+                       shadow_volume_geometry, write_omb)
 sys.path.insert(0, str(ROOT / "tools" / "mm3view"))
 from mm3view import read_cmp, mesh_triangles, read_omb
 
@@ -47,6 +49,22 @@ def model_for(version, block):
                 meshes=[block], terminator=b"\0")
     node.children.append(mesh)
     return Model(version, node).write()
+
+
+def packed_words(block, version=115):
+    meta = mesh_metadata(block, version)
+    return np.frombuffer(block.payload, dtype="<u4", count=meta["vertex_count"] * 6,
+                         offset=meta["vertex_offset"]).reshape(-1, 6)
+
+
+def shadow_template():
+    template = template_block(115)
+    payload = bytearray(template.payload)
+    meta = mesh_metadata(template, 115)
+    words = np.frombuffer(payload, dtype="<u4", count=18,
+                         offset=meta["vertex_offset"]).reshape(-1, 6)
+    words[:, 2:] = [0, 0x09000401, 0, 255]
+    return MeshBlock("bodyshapeshadow.dob", bytes(payload))
 
 
 class MM3ModelWriterTest(unittest.TestCase):
@@ -157,6 +175,129 @@ class MM3ModelWriterTest(unittest.TestCase):
         for illumination in (0, .5, 1):
             self.assertTrue((channels[:, 2] + (1 - illumination) >= 1).all())
 
+    def test_shadow_caps_and_collapsed_walls_form_closed_extruded_volumes(self):
+        p = np.array([[-1, -.5, -2], [1, -.5, -2], [-1, 1, -2], [1, 1, -2],
+                      [-1, -.5, 2], [1, -.5, 2], [-.6, .7, 2], [.6, .7, 2]])
+        template = shadow_template()
+        block = encode_shadow_mesh("import_shadow.dob", p, np.zeros_like(p),
+            [[0, 1, 2, 4], [3, 4, 5, 22]], template, 115, flip_winding=True)
+        words = packed_words(block)
+        np.testing.assert_array_equal(words[:, 2:],
+                                     np.tile(packed_words(template)[0, 2:], (len(words), 1)))
+        mesh = read_cmp(model_for(115, block))[0][1]
+        self.assertEqual(list(mesh_triangles(mesh, [], {})), [0])
+        rows = mesh_triangles(mesh, [], {})[0].reshape(-1, 3, 12).astype(float)
+        cross = np.cross(rows[:, 1, :3] - rows[:, 0, :3], rows[:, 2, :3] - rows[:, 0, :3])
+        cap = np.linalg.norm(cross, axis=1) > 1e-9
+        self.assertEqual(np.count_nonzero(~cap), np.count_nonzero(cap) * 3)
+        self.assertTrue(np.all(np.einsum("ij,ij->i", cross[cap], rows[cap, 0, 3:6]) < 0))
+        np.testing.assert_array_equal(rows[cap, 0, 3:6], rows[cap, 1, 3:6])
+        np.testing.assert_array_equal(rows[cap, 0, 3:6], rows[cap, 2, 3:6])
+        np.testing.assert_allclose(rows[:, :, :3].min((0, 1)), p.min(0), atol=.005)
+        np.testing.assert_allclose(rows[:, :, :3].max((0, 1)), p.max(0), atol=.005)
+
+        # Match the native shader's facet-facing decision in multiple lighting
+        # directions. Verify actual packed geometry, including its collapsed
+        # quads, remains closed and has nonzero, consistently oriented winding.
+        for light in ([1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0],
+                      [0, 0, 1], [0, 0, -1], [.3, -.8, .5]):
+            with self.subTest(light=light):
+                light = np.asarray(light, dtype=float)
+                light /= np.linalg.norm(light)
+                extruded = rows[:, :, :3] + ((rows[:, :, 3:6] @ light >= 0)[..., None]
+                                             * light * 10)
+                cross = np.cross(extruded[:, 1] - extruded[:, 0], extruded[:, 2] - extruded[:, 0])
+                surface = extruded[np.linalg.norm(cross, axis=1) > 1e-9]
+                points, inverse = np.unique(np.round(surface.reshape(-1, 3), 8),
+                                             axis=0, return_inverse=True)
+                edges = Counter()
+                for face in inverse.reshape(-1, 3):
+                    for a, b in zip(face, np.roll(face, -1)):
+                        edges[int(a), int(b)] += 1
+                self.assertTrue(all(count == edges[b, a] for (a, b), count in edges.items()))
+                volume = np.einsum("ij,ij->i", surface[:, 0],
+                                  np.cross(surface[:, 1], surface[:, 2])).sum() / 6
+                self.assertLess(volume, -1)
+                for sample, expected in ((p.mean(0), -1), (p.max(0) + 30, 0)):
+                    vectors = surface - sample
+                    a, b, c = (vectors[:, i] for i in range(3))
+                    la, lb, lc = (np.linalg.norm(v, axis=1) for v in (a, b, c))
+                    numerator = np.einsum("ij,ij->i", a, np.cross(b, c))
+                    denominator = (la * lb * lc + np.einsum("ij,ij->i", a, b) * lc
+                                   + np.einsum("ij,ij->i", b, c) * la
+                                   + np.einsum("ij,ij->i", c, a) * lb)
+                    winding = (2 * np.arctan2(numerator, denominator)).sum() / (4 * np.pi)
+                    self.assertAlmostEqual(winding, expected, places=6)
+
+    def test_shadow_proxy_is_deterministic_bounded_and_preserves_extrema(self):
+        p = np.random.default_rng(174).normal(size=(5000, 3))
+        p /= np.linalg.norm(p, axis=1, keepdims=True)
+        p = p * [1, .5, 2] + [.3, .8, -.4]
+        a = shadow_volume_geometry(p)
+        b = shadow_volume_geometry(p[::-1])
+        for x, y in zip(a, b):
+            np.testing.assert_array_equal(x, y)
+        self.assertLessEqual(len(a[0]), 960 * 3)
+        self.assertLessEqual(len(a[2]), 3840)
+        np.testing.assert_array_equal(a[0].min(0), p.min(0))
+        np.testing.assert_array_equal(a[0].max(0), p.max(0))
+
+    def test_flat_source_shadow_has_closed_proxy_and_empty_split_shadow_is_disabled(self):
+        for points in ([[0, 0, 0]], [[0, 0, 0], [1, 1, 1]],
+                       [[0, 0, 0], [1, 0, 0], [0, 1, 0]]):
+            p, normals, faces = shadow_volume_geometry(points)
+            self.assertGreater(len(faces), 3)
+            self.assertTrue(np.isfinite(p).all())
+        block = encode_shadow_mesh("empty_shadow.dob", [], [], [], shadow_template(), 115)
+        words = packed_words(block)
+        np.testing.assert_array_equal(words[:, 0], 0)
+        self.assertEqual(struct.unpack_from("<I", block.payload, 32)[0], 3)
+
+    def test_unrecognized_shadow_vertex_attributes_fail_instead_of_corrupting_them(self):
+        template = shadow_template()
+        payload = bytearray(template.payload)
+        offset = mesh_metadata(template, 115)["vertex_offset"]
+        struct.pack_into("<I", payload, offset + 24 + 12, 0x09000402)
+        with self.assertRaisesRegex(FormatError, "varying shadow attributes"):
+            encode_shadow_mesh("import_shadow.dob", [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
+                [[0, 0, 1]] * 3, [[0, 1, 2, 0]], MeshBlock(template.name, bytes(payload)), 115)
+
+    def test_all_supported_donors_encode_shadows_separately_in_near_and_far_models(self):
+        folder = ROOT / "game_files/Data/Shared/Cars"
+        if not folder.is_dir():
+            self.skipTest("Retail model files are not present")
+        source = dict(meshes=[dict(name=name,
+            positions=[[-.5, -.2, -1], [.5, -.2, -1], [-.5, .5, 1]],
+            normals=[[0, 1, 0]] * 3, uvs=[[0, 0], [.8, 0], [0, .8]],
+            triangles=[[0, 1, 2, 17]]) for name in
+            ("BODY_H", "WHL0_H", "WHL1_H", "WHL2_H", "WHL3_H")])
+        for donor in ("Viper", "Koenigsegg", "Lotus"):
+            for suffix in ("", "_lod1"):
+                alias = donor + suffix
+                with self.subTest(alias=alias):
+                    template = (folder / alias / "body.cmp").read_bytes()
+                    native = read_model(template)
+                    shadows = [b for _, node in native.root.walk() for b in node.meshes if is_shadow_mesh(b)]
+                    self.assertEqual(len(shadows), 1)
+                    converted, report = convert_exterior(template, source, keep_interior=False)
+                    after = read_model(converted)
+                    body = next(node for path, node in after.root.walk() if "/body/" in path and node.meshes)
+                    self.assertEqual(len(body.meshes), 2)
+                    self.assertFalse(is_shadow_mesh(body.meshes[0]))
+                    self.assertTrue(is_shadow_mesh(body.meshes[1]))
+                    self.assertEqual(len(report["shadows"]), 5)
+                    self.assertTrue(all(s["slot"] == 1 for s in report["shadows"]))
+                    self.assertTrue(all(s["template"] == shadows[0].name for s in report["shadows"]))
+                    self.assertEqual(sum(s["added_slot"] for s in report["shadows"]), 4)
+                    np.testing.assert_array_equal(packed_words(body.meshes[1])[:, 2:],
+                        np.tile(packed_words(shadows[0])[0, 2:], (len(packed_words(body.meshes[1])), 1)))
+                    self.assertTrue(np.all((packed_words(body.meshes[0])[:, 3] & 255) == 17 * 11 + 2))
+                    for path, node in after.root.walk():
+                        if '/tire' in path and node.meshes:
+                            self.assertEqual(len(node.meshes), 2)
+                            self.assertEqual(node.terminator, b'')
+                            self.assertTrue(is_shadow_mesh(node.meshes[1]))
+
     def test_retail_templates_roundtrip(self):
         folder = ROOT / "game_files" / "Data" / "Shared" / "Cars"
         if not folder.is_dir():
@@ -169,7 +310,7 @@ class MM3ModelWriterTest(unittest.TestCase):
             blob = path.read_bytes()
             self.assertEqual(read_model(blob).write(), blob, alias)
 
-    def test_large_body_parts_all_draw_at_every_lod(self):
+    def test_large_body_parts_all_draw_in_visible_and_shadow_passes(self):
         file = ROOT / "game_files/Data/Shared/Cars/Koenigsegg/body.cmp"
         if not file.is_file():
             self.skipTest("Retail Koenigsegg donor is not present")
@@ -206,14 +347,25 @@ class MM3ModelWriterTest(unittest.TestCase):
         self.assertEqual(nodes[0].prefix, body_template.prefix)
         self.assertEqual(nodes[1].prefix[4 + len(nodes[1].name) + 1:],
                          body_template.prefix[4 + len(body_template.name) + 1:])
-        for lod in range(len(body_template.meshes)):
-            self.assertEqual(sum(struct.unpack_from("<I", node.meshes[lod].payload, 32)[0] // 3
-                                 for node in nodes), faces)
+        self.assertEqual(sum(struct.unpack_from("<I", node.meshes[0].payload, 32)[0] // 3
+                             for node in nodes), faces)
+        for slot in range(len(body_template.meshes)):
             for node in nodes:
                 self.assertEqual(len(node.meshes), len(body_template.meshes))
-                vertex_count, index_count = struct.unpack_from("<2I", node.meshes[lod].payload, 28)
+                vertex_count, index_count = struct.unpack_from("<2I", node.meshes[slot].payload, 28)
                 self.assertLessEqual(vertex_count, 65535)
                 self.assertLessEqual(index_count, 65535)
+        self.assertEqual(len(report["shadows"]), 6)
+        self.assertEqual(struct.unpack_from("<I", nodes[1].meshes[1].payload, 32)[0], 3)
+        self.assertEqual(sum(s["proxy"] == "empty_split_sibling" for s in report["shadows"]), 1)
+        proxy_rows = mesh_triangles(read_cmp(model_for(115, nodes[0].meshes[1]))[0][1], [], {})[0]
+        # The first proxy includes vertices belonging only to the last split.
+        self.assertGreater(proxy_rows[:, 1].max(), 1.14)
+        for node in nodes:
+            self.assertTrue(is_shadow_mesh(node.meshes[1]))
+            words = packed_words(node.meshes[1])
+            np.testing.assert_array_equal(words[:, 2:],
+                np.tile(packed_words(body_template.meshes[1])[0, 2:], (len(words), 1)))
         decoded = [(m, x, matrices) for path, m, x, matrices in read_cmp(blob) if "/body/" in path]
         self.assertEqual(sum(sum(len(rows) // 3 for rows in mesh_triangles(m, x, matrices).values())
                              for m, x, matrices in decoded), faces)
@@ -222,7 +374,7 @@ class MM3ModelWriterTest(unittest.TestCase):
         bounds = struct.unpack_from("<6f", car.prefix, car.bounds_offset)
         self.assertGreater(bounds[3], 1.9)
 
-    def test_exterior_replaces_all_lods_and_preserves_gameplay_nodes(self):
+    def test_exterior_replaces_mesh_slots_and_preserves_gameplay_nodes(self):
         model = read_model(model_for(115, template_block(115)))
 
         def group(name, child):
@@ -237,6 +389,7 @@ class MM3ModelWriterTest(unittest.TestCase):
                         meshes=[template_block(115), MeshBlock("template", b"")])
 
         body = group("body", mesh("bodyShape"))
+        body.children[0].meshes[1] = shadow_template()
         wheels = [group(name, mesh(name + "Shape")) for name in
                   ("tireFrontLeft", "tireFrontRight", "tireBackLeft", "tireBackRight")]
         hidden = group("hood", mesh("hoodShape"))

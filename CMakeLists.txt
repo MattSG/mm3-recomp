@@ -77,6 +77,11 @@ list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0011C194)
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001DDFC5)
 # The CRT MMX probe must preserve the stack effects of PUSHFD/POPFD.
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_00093770)
+# The hot visibility leaf keeps its balanced x87 scratch stack in native locals.
+list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001C793A)
+# Factory profiles bind the real constructed controller and leave retail cars
+# on their original torque and gearbox paths, including same-chunk calls.
+list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0021ED64 sub_001D0E2D sub_001CB7E8 sub_001CB881 sub_001CB9A5 sub_001CF7B4)
 if(MM3_UNLOCK_ALL_CARS)
     list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001DEA30)
 endif()
@@ -116,13 +121,6 @@ foreach(hooked IN LISTS MM3_RENAMED_FUNCTIONS)
     set_property(SOURCE "${owner_${hooked}}" APPEND PROPERTY
         COMPILE_DEFINITIONS "${hooked}=${hooked}_original")
 endforeach()
-foreach(seam IN LISTS MM3_SEAM_FUNCTIONS)
-    # A regenerated owner must regenerate the copied seam too, even when the
-    # generated filenames stay the same or the function moves to another chunk.
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-        "${owner_${seam}}")
-endforeach()
-
 if(MM3_FRONTEND_WATCH)
     if(MSVC)
         set(watch_include "/FI${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
@@ -160,6 +158,9 @@ foreach(hooked IN LISTS MM3_SEAM_FUNCTIONS)
     list(APPEND distance_owners "${owner_${hooked}}")
 endforeach()
 list(REMOVE_DUPLICATES distance_owners)
+# Regeneration must refresh every transformed copy, including definition-only
+# hooks, even when the generated filenames stay the same or owners move chunks.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${distance_owners})
 foreach(distance_input IN LISTS distance_owners)
     get_filename_component(distance_name "${distance_input}" NAME)
     set(distance_output "${CMAKE_CURRENT_BINARY_DIR}/render_distance/${distance_name}")
@@ -209,10 +210,12 @@ add_executable(${PROJECT_NAME}
  src/recomp_manual.c
  src/mm3_widescreen.c
  src/mm3_render_distance.c
+ src/mm3_visibility.c
  src/mm3_debug_teleport.c
  src/mm3_custom_car_names.c
  src/mm3_car_selection_compat.c
  src/mm3_speedometer.c
+ src/mm3_factory_physics.c
  src/mm3_cpu_compat.c
  src/recomp_trace_probe.c
  ${RECOMP_GEN_SOURCES})

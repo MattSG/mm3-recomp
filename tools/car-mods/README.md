@@ -5,8 +5,9 @@ The original 35 cars remain in the catalog. Each variant has its own name,
 ratings and driving setup, with an original MM3 donor providing physics,
 interior, sound and collision. A selected prepared model package supplies its
 custom body, wheels, textures and livery; a blank package selection uses the
-donor visuals. These are game-tuned interpretations, rather than measured
-real-world specifications.
+donor visuals. Defaults use researched specifications for the actual imported
+variants. Missing race-car figures, operating-weight allowances and hybrid
+behaviour remain explicitly documented game approximations.
 
 | Added car | Original MM3 donor |
 |---|---|
@@ -57,7 +58,7 @@ To open a specific car and tab directly, for example Panoz's model package:
 tools\car-mods\editor.cmd --car-id 9004 --tab model
 ```
 
-Tabs are `driving`, `gears`, `advanced` and `model`. The added car IDs are
+Tabs are `specs`, `driving`, `gears`, `advanced` and `model`. The added car IDs are
 9001, 9004–9006 and 9009–9014. Removed IDs 9002, 9003, 9007 and 9008 remain
 unused, so the remaining cars keep their existing identities. Older manifests
 containing a removed car must have that entry removed before applying.
@@ -69,6 +70,14 @@ local settings on a fresh checkout, copy `cars.json` to `cars.local.json`
 before opening Workshop. An explicit `--config <path>` always selects that
 manifest. The tracked ten-car defaults contain no imported model paths;
 downloaded sources and prepared model packages are kept outside the release.
+
+The **Car specs** tab opens first and identifies the actual model: the F1
+import is a **1995 McLaren F1 GTR**, the Formula 1 import is a **Ferrari F2007**,
+the Ford GT is the **2017 model**, and the Aventador is the **LP700-4**. It shows
+manufacturer figures with their weight basis and source links. Unknown figures
+stay unknown; calibration notes explain the estimates used by the game.
+**Restore realistic setup** resets that car's tuning, menu bars and both dial
+limits while preserving its model package and paint. Save & Apply installs it.
 
 Choose a car on the left. Edit its paint colors, menu ratings, physics, gearing,
 RPM thresholds and **Speedometer maximum** values. The maximum km/h and mph
@@ -89,7 +98,8 @@ textures. **Use donor model** clears the package selection. Raw MM2 `.ar` and
 `.pkg` models require conversion first. A prepared package supplies its own
 materials and textures; the schematic paint preview does not show those
 materials or guarantee that changing its paint colors recolors the imported
-body. Donor physics, collision and sounds are retained.
+body. The title's contact, suspension, collision and sound systems are retained;
+explicit factory profiles supply the extra cars' engine curves and gearing.
 
 The optional per-car `model_package` setting is a folder path relative to
 the selected manifest, or an absolute folder path. Existing manifests without this field
@@ -150,13 +160,13 @@ settings are:
 
 | Setting | Changes |
 |---|---|
-| `TorqueScale` | Engine power and acceleration. |
+| `TorqueScale` | Peak engine torque in Nm with a factory profile; MM3 torque scale in donor mode. |
 | `Mass` | Physical weight. |
 | `BrakeTorque` | Braking strength. |
 | `LatFrictionFactor` | Cornering grip. |
 | `AirKZZ` | Drag, affecting speed at high engine power. |
 | `WheelDrive` | 0: front wheels; 1: rear wheels; 2: all wheels. |
-| `GearRatioVector` | Reverse ratio, then the ratios for gears 1 through 6. |
+| `GearRatioVector` | Reverse ratio, then one through seven forward ratios. |
 | `WheelRatio` | Final drive multiplier: a smaller value makes the gears longer. |
 | `TimeChangeGear` | Time spent shifting between forward gears, in seconds. |
 | `TimeChangeGearFR` | Time spent changing between forward and reverse, in seconds. |
@@ -165,36 +175,55 @@ settings are:
 `[-3.3, 2.5, 1.72, 1.28, 1.0, 0.82, 0.7]`. The first value must be negative;
 the forward ratios must be positive and decrease with each gear. The installer
 sets the gear count from the array, so do not add a separate `NGears` field.
-Two through six forward gears are supported. A smaller first-gear ratio reduces
+One through seven forward gears are supported. A smaller first-gear ratio reduces
 the torque sent to the wheels at launch; closer neighboring ratios reduce the
 RPM drop during an upshift.
 
 RPM settings can also be edited with `MinRPM`, `MinRPMGearChange`, `CutRPM` and
 `MaxRPM`. Keep them in that order from lowest to highest; `CutRPM` can equal
 `MaxRPM`. The installer rejects invalid ratios and conflicting RPM thresholds.
-Both peak torque RPM values must also stay below the cutoff, including inherited
-donor values, and cannot exceed 8000 RPM with the supported stock torque curve.
-MM3's stock torque curve does not support a modern Formula 1 RPM
-range, so the Formula 1 variant uses RPM values that the native engine can drive
-through its automatic shift points.
+Both peak torque RPM values must stay below the cutoff. Donor mode retains the
+stock curve's 8,000 RPM peak limit. Explicit `engine_profile: "factory"` uses a
+bounded per-car curve and its own automatic shift target, allowing the F2007's
+19,000 RPM limit safely. In Workshop, peak RPM fields are read-only references
+while that profile is enabled. Cutoff, torque scale, mass and gearing remain
+editable. Disabling the profile restores the donor engine and its validation.
+
+The sourced reference and calibration catalog is [factory_specs.json](factory_specs.json).
+The installer writes opted-in curves to `Data/mm3_factory_physics.ini`; cars
+without an explicit profile keep the retail engine. Factory curves include
+forced induction or approximated hybrid assistance, so `TurboSize` is zero to
+avoid adding the donor's turbo again. Runtime gearing compensates for the
+imported wheel mesh's radius using the reference rolling radius. This keeps the
+real gear ratios meaningful when a converted model's visual wheels differ.
+
+The Regera has **one forward gear** and the published **2.73:1 Direct Drive
+reduction**. MM3 approximates its electric launch assistance and hydraulic
+coupling with a combined torque curve; it does not simulate battery charge or
+individual motors. Mini Rally uses a documented 2002 Cooper reference because
+there is no identified factory rally variant. Race final drives and unpublished
+performance figures are calibration assumptions, not certified specifications.
+Menu ratings and grip/drag/braking settings are game calibration.
 
 Select the transmission in the game's car setup. Automatic shifts for you;
 Manual requires gear changes. With the MM3 keyboard layout, tap **R** to shift
 up and **F** to shift down while driving (Xbox **B** and **X** on a controller).
-Automatic calculates its upshift speeds from the gearing, wheel radius and
-`MaxTorqueRPM` (`MaxTurboTorqueRPM` for a turbo-equipped donor); it checks road speed
+Automatic calculates its upshift speeds from gearing, wheel radius and the
+factory shift target, or `MaxTorqueRPM` (`MaxTurboTorqueRPM` for a turbo-equipped
+donor) in donor mode; it checks road speed
 to change gear. Wheelspin can therefore raise engine RPM before the car reaches
 its upshift speed. Changing `MinRPMGearChange` alone does not change these
 automatic upshift speeds.
 
-For example, change Mini Rally's `physics.TorqueScale` from `440` to `500`
+For example, change Mini Rally's `physics.TorqueScale` from `149.14` to `160`
 for more engine torque, then reapply the pack. Its acceleration menu bar is
 controlled separately by `ratings.ACCELERATION`.
 
 The optional `speedometer` object contains `max_kmh` and `max_mph`, controlling
 the on-screen dial maximum and the interior dashboard needle range separately
-from driving performance. The fast variants use 800 km/h and 500 mph; Mini Rally
-uses 500 km/h and 311 mph. The dial labels and needle use the selected maximum
+from driving performance. The extra-car defaults range from 220 km/h / 140 mph
+for Mini Rally to 440 km/h / 280 mph for Regera, with rounded headroom for each
+car's expected performance. The dial labels and needle use the selected maximum
 in the game's current units. Numeric speed below the dial continues above that
 maximum. Raising the range does not add engine power or change the menu's
 `TOPSPEED` rating. Allowed ranges are 100–1200 km/h and 60–750 mph; both values

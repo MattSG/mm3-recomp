@@ -15,7 +15,7 @@ RECOMP_TLS uint16_t g_fp_cc, g_fp_control_word;
 typedef struct CarCase {
     const char *name;
     unsigned gears;
-    float ratios[7];
+    float ratios[8]; /* reverse plus all seven forward gears */
     float radius, final_drive, peak, turbo_peak, turbo_size;
     float cutoff, minimum_shift_rpm, down_factor, shift_time;
 } CarCase;
@@ -25,6 +25,7 @@ static unsigned char memory[0x400000];
 static const uint32_t controller = 0x1000, sim = 0x2000;
 static const uint32_t engine = 0x3000, body = 0x4000, input = 0x5000;
 static const uint32_t ratios = 0x6000, thresholds = 0x7000, stack = 0xD000;
+static const uint32_t guard = 0x7FA55AA5u;
 
 /* Only the unrelated driver-input randomizer is outside the extracted body.
  * Automatic tests use input flags=0; reaching it would be a fixture error. */
@@ -42,6 +43,7 @@ static void sub_001CAF3E(void) { assert(!"Unexpected randomized driver input"); 
 static void build_thresholds(const CarCase *car)
 {
     unsigned i;
+    unsigned char sim_before[0x200];
     double previous = 0.0;
     double peak = car->turbo_size == 0.0f ? car->peak : car->turbo_peak;
     assert(peak < car->cutoff); /* Shift is reachable before engine cutoff. */
@@ -76,12 +78,19 @@ static void build_thresholds(const CarCase *car)
     MEMF(sim + 0xF4) = car->shift_time;
     for (i = 0; i <= car->gears; ++i)
         MEMF(ratios + i * 4) = car->ratios[i];
+    /* Native allocations are exactly N+1 ratios and N thresholds. Guard both
+     * ends so the seventh gear and the single-speed path cannot hide an
+     * off-by-one write in this deliberately spacious guest memory fixture. */
+    MEM32(ratios - 4) = MEM32(ratios + (car->gears + 1) * 4) = guard;
+    MEM32(thresholds - 4) = MEM32(thresholds + car->gears * 4) = guard;
+    memcpy(sim_before, memory + sim, sizeof sim_before);
     g_ebx = controller; g_esi = 0xBEEF; g_edi = 0xCAFE; g_esp = stack;
     MEM32(stack) = 0x12345678;
     MEM32(stack + 4) = 0;
     contract_build_thresholds();
     assert(g_esp == stack + 8 && g_fp_top == 0);
     assert(g_ebx == controller && g_esi == 0xBEEF && g_edi == 0xCAFE);
+    assert(!memcmp(sim_before, memory + sim, sizeof sim_before));
     for (i = 0; i < car->gears; ++i) {
         double expected = car->radius * 6.283185307179586 * 3.6 /
             (car->final_drive * 60.0) * (peak - 50.0) / car->ratios[i + 1];
@@ -92,7 +101,20 @@ static void build_thresholds(const CarCase *car)
     }
 }
 
-static void shift_step(float velocity_kmh, float rpm, float dt)
+static void assert_tables(const CarCase *car)
+{
+    unsigned i;
+    assert(MEM32(ratios - 4) == guard);
+    assert(MEM32(ratios + (car->gears + 1) * 4) == guard);
+    assert(MEM32(thresholds - 4) == guard);
+    assert(MEM32(thresholds + car->gears * 4) == guard);
+    for (i = 0; i <= car->gears; ++i)
+        assert(MEMF(ratios + i * 4) == car->ratios[i]);
+    assert(MEMF(sim + 0xCC) == car->peak);
+    assert(MEMF(sim + 0xD0) == car->turbo_peak);
+}
+
+static void shift_command(float velocity_kmh, float rpm, float dt, unsigned command)
 {
     MEMF(body + 0x20) = velocity_kmh / 3.6f;
     MEMF(body + 0x24) = MEMF(body + 0x28) = 0.0f;
@@ -102,17 +124,23 @@ static void shift_step(float velocity_kmh, float rpm, float dt)
     g_ecx = controller; g_esp = stack;
     g_ebx = 0xABCDEF01; g_esi = 0x23456789; g_edi = 0x456789AB;
     MEM32(stack) = 0x001CC188;
-    MEMF(stack + 4) = 0.0f;
+    MEM32(stack + 4) = command;
     MEMF(stack + 8) = dt;
     sub_001CC5D1();
     assert(g_esp == stack + 12 && g_fp_top == 0);
     assert(g_ebx == 0xABCDEF01 && g_esi == 0x23456789 && g_edi == 0x456789AB);
 }
 
+static void shift_step(float velocity_kmh, float rpm, float dt)
+{
+    shift_command(velocity_kmh, rpm, dt, 0);
+}
+
 static void test_car(const CarCase *car)
 {
     unsigned gear;
     float peak = car->turbo_size == 0.0f ? car->peak : car->turbo_peak;
+    assert(car->gears >= 1 && car->gears <= 7);
     build_thresholds(car);
     for (gear = 1; gear <= car->gears; ++gear) {
         float boundary = MEMF(thresholds + (gear - 1) * 4);
@@ -135,9 +163,52 @@ static void test_car(const CarCase *car)
             shift_step(boundary + 100.0f, peak, car->shift_time);
             assert(MEM32(sim + 0x2C) == gear + 1 && MEM32(engine + 0x10) == 0);
         }
+        assert_tables(car);
+    }
+    /* Every adjacent automatic downshift boundary, including the last gear,
+     * is reachable and has hysteresis rather than immediately shifting back. */
+    for (gear = 2; gear <= car->gears; ++gear) {
+        float boundary = MEMF(thresholds + (gear - 2) * 4) * car->down_factor;
+        MEM32(sim + 0x2C) = gear;
+        MEM32(engine) = MEM32(engine + 0x10) = 0;
+        shift_step(boundary + 0.1f, peak, 0.01f);
+        assert(MEM32(sim + 0x2C) == gear);
+        shift_step(boundary - 0.1f, peak, 0.01f);
+        assert(MEM32(sim + 0x2C) == gear - 1);
+        assert_tables(car);
+    }
+    /* A sudden stop may skip down several ratios, but never below first.
+     * The one-speed Regera has neither an upshift nor a downshift to invent. */
+    MEM32(sim + 0x2C) = car->gears;
+    MEM32(engine) = MEM32(engine + 0x10) = 0;
+    shift_step(0.0f, 1000.0f, 0.01f);
+    assert(MEM32(sim + 0x2C) == 1);
+    MEM32(engine) = MEM32(engine + 0x10) = 0;
+    shift_step(0.0f, 1000.0f, 0.01f);
+    assert(MEM32(sim + 0x2C) == 1);
+    if (car->gears == 1) {
+        shift_step(1000.0f, car->cutoff, 0.01f);
+        assert(MEM32(sim + 0x2C) == 1 && MEM32(engine + 0x10) == 0);
+    }
+    /* Manual upper bounds must use N as well: seventh is reachable and an
+     * extra upshift cannot read an eighth forward ratio. */
+    MEM32(sim + 0x5C) = 1;
+    for (gear = 1; gear <= car->gears; ++gear) {
+        MEM32(sim + 0x2C) = gear;
+        MEM32(engine) = MEM32(engine + 0x10) = 0;
+        shift_command(100.0f, peak, 0.01f, 2);
+        assert(MEM32(sim + 0x2C) == (gear < car->gears ? gear + 1 : gear));
+        if (gear > 1) {
+            MEM32(sim + 0x2C) = gear;
+            MEM32(engine) = MEM32(engine + 0x10) = 0;
+            shift_command(100.0f, peak, 0.01f, 4);
+            assert(MEM32(sim + 0x2C) == gear - 1);
+        }
+        assert_tables(car);
     }
     printf("PASS: %s; gears 1 through %u, native threshold boundaries, "
-           "shift timing, top gear and ABI\n", car->name, car->gears);
+           "up/down shifts, shift timing, manual bounds, guarded arrays and ABI\n",
+           car->name, car->gears);
 }
 
 int main(void)

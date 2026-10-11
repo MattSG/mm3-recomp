@@ -1,0 +1,1246 @@
+{
+  "version": 1,
+  "cars": {
+    "MRly": {
+      "variant": "2002 MINI Cooper reference (the game slot is a fictional Mini Rally)",
+      "specification": {
+        "power_kw": 85,
+        "power_label": "115 hp (BMW US); 85 kW (BMW UK)",
+        "torque_nm": 149.1396,
+        "mass_kg": 1144.822,
+        "mass_basis": "BMW US unladen, 2,524 lb",
+        "top_speed_kmh": 200,
+        "zero_to_100_s": 9.2,
+        "gear_count": 5,
+        "power_rpm": 6000,
+        "torque_rpm": 4500,
+        "drivetrain": "Front-wheel drive",
+        "redline_rpm": null
+      },
+      "notes": [
+        "MRly is not a real production rally variant. This preset restores a documented 2002 Cooper reference: front-wheel drive and five gears.",
+        "6,500 rpm cutoff and 175/65 R15 reference tyre radius are calibration assumptions; factory redline was not verified.",
+        "The 85 kW and 115 hp figures come from different market releases and are preserved as published rather than treated as exact unit equivalents."
+      ],
+      "sources": [
+        {
+          "title": "BMW 2002 MINI Cooper press kit and technical specifications",
+          "url": "https://www.press.bmwgroup.com/usa/article/attachment/T0018261EN_US/35964"
+        },
+        {
+          "title": "BMW MINI at Geneva 2002: Cooper performance",
+          "url": "https://www.press.bmwgroup.com/united-kingdom/article/detail/T0020447EN_GB/mini-at-the-2002-international-motor-show-in-geneva?language=en_GB"
+        }
+      ],
+      "calibration": {
+        "status": "Initial physics calibration; performance targets require in-game measurement",
+        "target_top_speed_kmh": 200,
+        "target_zero_to_100_s": 9.2,
+        "mass_kg": 1145,
+        "peak_torque_nm": 149.14,
+        "shift_rpm": 6200,
+        "reference_wheel_radius_m": 0.30425,
+        "torque_curve": [
+          [
+            0,
+            0.3
+          ],
+          [
+            800,
+            0.55
+          ],
+          [
+            2500,
+            0.86
+          ],
+          [
+            4500,
+            1
+          ],
+          [
+            6000,
+            0.907077687719
+          ],
+          [
+            6500,
+            0.8
+          ]
+        ],
+        "drag_coefficient_native": 0.37,
+        "assumptions": "Piecewise torque fractions, drag, tyre grip, brakes, shift timing, reverse ratio where unavailable, and menu ratings are game calibration, not manufacturer specifications. Runtime compensates geometry wheel radius in final drive; native TorqueScale uses Nm only with engine_profile=factory."
+      },
+      "physics": {
+        "Mass": 1145,
+        "TorqueScale": 149.14,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 0,
+        "BrakeTorque": 3800,
+        "HandBrakeTorque": 2090,
+        "LatFrictionFactor": 1.05,
+        "AirKZZ": 0.37,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 4500,
+        "MaxTurboTorqueRPM": 4500,
+        "MinRPM": 800,
+        "MinRPMGearChange": 2000,
+        "CutRPM": 6500,
+        "MaxRPM": 6500,
+        "TimeChangeGear": 0.35,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 3.94,
+        "WheelRadius": 0.30425,
+        "GearRatioVector": [
+          -3.58,
+          3.417,
+          1.947,
+          1.333,
+          1.054,
+          0.846
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 140
+      },
+      "ratings": {
+        "TOPSPEED": 5,
+        "ACCELERATION": 4,
+        "MASS": 4,
+        "HANDLING": 5,
+        "DURABILITY": 5
+      },
+      "speedometer": {
+        "max_kmh": 220,
+        "max_mph": 140
+      }
+    },
+    "Panoz": {
+      "variant": "Panoz GTR-1 race car (Visteon livery; exact year unconfirmed)",
+      "specification": {
+        "power_kw": null,
+        "power_label": null,
+        "torque_nm": null,
+        "mass_kg": null,
+        "mass_basis": "Not published in the verified source",
+        "top_speed_kmh": null,
+        "zero_to_100_s": null,
+        "gear_count": 6,
+        "drivetrain": "Rear-wheel drive",
+        "engine": "6.0-litre Ford-based V8",
+        "gear_ratios": [
+          2.7333333333333334,
+          2.0625,
+          1.6842105263157894,
+          1.4285714285714286,
+          1.2173913043478262,
+          1.0454545454545454
+        ],
+        "final_drive": 2.8
+      },
+      "notes": [
+        "Factory race power, torque, mass basis, redline, acceleration and top speed were not verified. Preset estimates are 980 kg, 680 Nm, about 441 kW at 7,200 rpm, 8,000 rpm cutoff and 330 km/h.",
+        "The official 898 kg / 600+ hp street homologation special is a different configuration and is not copied as race-car fact.",
+        "FIA prints inverse gear-speed ratios; the preset uses reduction ratios from its tooth counts. Final drive is 28/10."
+      ],
+      "sources": [
+        {
+          "title": "FIA Panoz GTR homologation GT1-004, pages 5-6",
+          "url": "https://historicdb.fia.com/sites/default/files/car_attachment/1601073601/homologation_form_number_4_group_g.pdf"
+        },
+        {
+          "title": "Panoz: racing GTR-1 and separate road homologation special",
+          "url": "https://panoz.com/panoz/11-09-15/"
+        }
+      ],
+      "calibration": {
+        "status": "Initial physics calibration; performance targets require in-game measurement",
+        "target_top_speed_kmh": 330,
+        "target_zero_to_100_s": 3.1,
+        "mass_kg": 980,
+        "peak_torque_nm": 680,
+        "shift_rpm": 7600,
+        "reference_wheel_radius_m": 0.34,
+        "torque_curve": [
+          [
+            0,
+            0.35
+          ],
+          [
+            1500,
+            0.6
+          ],
+          [
+            3000,
+            0.85
+          ],
+          [
+            5000,
+            1
+          ],
+          [
+            6500,
+            0.94
+          ],
+          [
+            7200,
+            0.86
+          ],
+          [
+            8000,
+            0.7
+          ]
+        ],
+        "drag_coefficient_native": 0.52,
+        "assumptions": "Piecewise torque fractions, drag, tyre grip, brakes, shift timing, reverse ratio where unavailable, and menu ratings are game calibration, not manufacturer specifications. Runtime compensates geometry wheel radius in final drive; native TorqueScale uses Nm only with engine_profile=factory."
+      },
+      "physics": {
+        "Mass": 980,
+        "TorqueScale": 680,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 1,
+        "BrakeTorque": 7000,
+        "HandBrakeTorque": 3850,
+        "LatFrictionFactor": 1.7,
+        "AirKZZ": 0.52,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 5000,
+        "MaxTurboTorqueRPM": 5000,
+        "MinRPM": 1500,
+        "MinRPMGearChange": 3000,
+        "CutRPM": 8000,
+        "MaxRPM": 8000,
+        "TimeChangeGear": 0.12,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 2.8,
+        "WheelRadius": 0.34,
+        "GearRatioVector": [
+          -2.111111111111111,
+          2.7333333333333334,
+          2.0625,
+          1.6842105263157894,
+          1.4285714285714286,
+          1.2173913043478262,
+          1.0454545454545454
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 231
+      },
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 8,
+        "MASS": 4,
+        "HANDLING": 8,
+        "DURABILITY": 3
+      },
+      "speedometer": {
+        "max_kmh": 360,
+        "max_mph": 240
+      }
+    },
+    "McLaren_F1": {
+      "variant": "1995 McLaren F1 GTR",
+      "specification": {
+        "power_kw": 441,
+        "power_label": "600 PS / 441 kW",
+        "torque_nm": null,
+        "mass_kg": 1050,
+        "mass_basis": "Manufacturer listed weight; dry/operating basis unspecified",
+        "top_speed_kmh": null,
+        "zero_to_100_s": null,
+        "gear_count": 6,
+        "power_rpm": 7500,
+        "drivetrain": "Rear-wheel drive",
+        "engine": "6,064 cc V12",
+        "gear_ratios": [
+          3.230769230769231,
+          2.1875,
+          1.7142857142857142,
+          1.391304347826087,
+          1.16,
+          0.9285714285714286
+        ],
+        "final_drive": 2.3684210526315788,
+        "constant_drive": 1.2857142857142858
+      },
+      "notes": [
+        "Source readme explicitly identifies the 1995 GTR race car, not the 627 bhp road F1 or 1997 Longtail.",
+        "Manufacturer sheets publish an inconsistent 527 Nm maximum while 441 kW at 7,500 rpm requires 562 Nm; their torque rpm also conflicts (4,500/5,600). Preset 650 Nm is an explicit estimate preserving the published power.",
+        "FIA base gearing includes a separate 27/21 constant stage, folded into the game final drive. Race final drives varied by circuit.",
+        "8,000 rpm cutoff, 0.335 m rolling radius, 330 km/h and 3.1 s are calibration targets, not verified factory performance figures."
+      ],
+      "sources": [
+        {
+          "title": "McLaren F1 GTR 95 manufacturer specification (preserved PDF)",
+          "url": "https://www.allcarcentral.com/McLaren_pdf/McLAREN_F1_GTR_95_RACECAR-SPECIFICATION.pdf"
+        },
+        {
+          "title": "McLaren F1 GTR 95 manufacturer website capture (conflicting torque rpm)",
+          "url": "https://www.allcarcentral.com/McLaren_pdf/McLaren_F1_GTR_2009.pdf"
+        },
+        {
+          "title": "FIA McLaren F1 homologation GT1-001, pages 5-6",
+          "url": "https://historicdb.fia.com/sites/default/files/car_attachment/1601080801/homologation_form_number_1_group_gt1__0.pdf"
+        }
+      ],
+      "calibration": {
+        "status": "Initial physics calibration; performance targets require in-game measurement",
+        "target_top_speed_kmh": 330,
+        "target_zero_to_100_s": 3.1,
+        "mass_kg": 1050,
+        "peak_torque_nm": 650,
+        "shift_rpm": 7600,
+        "reference_wheel_radius_m": 0.335,
+        "torque_curve": [
+          [
+            0,
+            0.3
+          ],
+          [
+            1200,
+            0.55
+          ],
+          [
+            3000,
+            0.82
+          ],
+          [
+            5600,
+            1
+          ],
+          [
+            6500,
+            0.975
+          ],
+          [
+            7500,
+            0.863843196507
+          ],
+          [
+            8000,
+            0.76
+          ]
+        ],
+        "drag_coefficient_native": 0.52,
+        "assumptions": "Piecewise torque fractions, drag, tyre grip, brakes, shift timing, reverse ratio where unavailable, and menu ratings are game calibration, not manufacturer specifications. Runtime compensates geometry wheel radius in final drive; native TorqueScale uses Nm only with engine_profile=factory."
+      },
+      "physics": {
+        "Mass": 1050,
+        "TorqueScale": 650,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 1,
+        "BrakeTorque": 6800,
+        "HandBrakeTorque": 3740,
+        "LatFrictionFactor": 1.65,
+        "AirKZZ": 0.52,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 5600,
+        "MaxTurboTorqueRPM": 5600,
+        "MinRPM": 1200,
+        "MinRPMGearChange": 3000,
+        "CutRPM": 8000,
+        "MaxRPM": 8000,
+        "TimeChangeGear": 0.22,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 3.045112781954887,
+        "WheelRadius": 0.335,
+        "GearRatioVector": [
+          -2.3846153846153846,
+          3.230769230769231,
+          2.1875,
+          1.7142857142857142,
+          1.391304347826087,
+          1.16,
+          0.9285714285714286
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 231
+      },
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 8,
+        "MASS": 4,
+        "HANDLING": 8,
+        "DURABILITY": 3
+      },
+      "speedometer": {
+        "max_kmh": 360,
+        "max_mph": 240
+      }
+    },
+    "Form1": {
+      "variant": "Ferrari F2007",
+      "specification": {
+        "power_kw": null,
+        "power_label": null,
+        "torque_nm": null,
+        "mass_kg": 600,
+        "mass_basis": "Ferrari: including liquids and driver",
+        "top_speed_kmh": null,
+        "zero_to_100_s": null,
+        "gear_count": 7,
+        "drivetrain": "Rear-wheel drive",
+        "engine": "2,398 cc naturally aspirated V8",
+        "redline_rpm": 19000
+      },
+      "notes": [
+        "Ferrari's public archive omits power, torque, ratios and fixed performance figures. The preset estimates 315 Nm and approximately 582 kW / 780 hp at 19,000 rpm.",
+        "The 19,000 rpm limit is a verified 2007 Formula One rule. Seven selected close ratios, final drive, tyre radius and 350 km/h target are circuit-setup approximations.",
+        "Driver mass is already included in the published 600 kg; no extra driver allowance is added."
+      ],
+      "sources": [
+        {
+          "title": "Ferrari F2007 manufacturer archive",
+          "url": "https://www.ferrari.com/en-CA/formula1/f2007"
+        },
+        {
+          "title": "Honda technical review: 2007 Formula One 19,000 rpm rule",
+          "url": "https://www.jstage.jst.go.jp/article/hondatechnicalreview/F1/SP/F1_2009_F1_SP_2/_supplement/_download/F1_2009_F1_SP_2_1.pdf"
+        }
+      ],
+      "calibration": {
+        "status": "Initial physics calibration; performance targets require in-game measurement",
+        "target_top_speed_kmh": 350,
+        "target_zero_to_100_s": 2.5,
+        "mass_kg": 600,
+        "peak_torque_nm": 315,
+        "shift_rpm": 18500,
+        "reference_wheel_radius_m": 0.33,
+        "torque_curve": [
+          [
+            0,
+            0.15
+          ],
+          [
+            4000,
+            0.35
+          ],
+          [
+            8000,
+            0.6
+          ],
+          [
+            12000,
+            0.85
+          ],
+          [
+            16500,
+            1
+          ],
+          [
+            18500,
+            0.96
+          ],
+          [
+            19000,
+            0.928
+          ]
+        ],
+        "drag_coefficient_native": 0.78,
+        "assumptions": "Piecewise torque fractions, drag, tyre grip, brakes, shift timing, reverse ratio where unavailable, and menu ratings are game calibration, not manufacturer specifications. Runtime compensates geometry wheel radius in final drive; native TorqueScale uses Nm only with engine_profile=factory."
+      },
+      "physics": {
+        "Mass": 600,
+        "TorqueScale": 315,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 1,
+        "BrakeTorque": 9000,
+        "HandBrakeTorque": 4950,
+        "LatFrictionFactor": 2.1,
+        "AirKZZ": 0.78,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 16500,
+        "MaxTurboTorqueRPM": 16500,
+        "MinRPM": 4000,
+        "MinRPMGearChange": 8000,
+        "CutRPM": 19000,
+        "MaxRPM": 19000,
+        "TimeChangeGear": 0.05,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 4.9,
+        "WheelRadius": 0.33,
+        "GearRatioVector": [
+          -3,
+          4.2,
+          3.2,
+          2.55,
+          2.1,
+          1.78,
+          1.55,
+          1.37
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 245
+      },
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 9,
+        "MASS": 2,
+        "HANDLING": 9,
+        "DURABILITY": 1
+      },
+      "speedometer": {
+        "max_kmh": 380,
+        "max_mph": 240
+      }
+    },
+    "Ford_GTcar": {
+      "variant": "2017 Ford GT",
+      "specification": {
+        "power_kw": 482.467817184,
+        "power_label": "647 SAE hp",
+        "torque_nm": 745.6998714,
+        "mass_kg": 1385,
+        "mass_basis": "Dry",
+        "top_speed_kmh": 347,
+        "zero_to_100_s": null,
+        "gear_count": 7,
+        "power_rpm": 6250,
+        "torque_rpm": 5900,
+        "zero_to_60_mph_s": "less than 3",
+        "redline_rpm": 7000,
+        "drivetrain": "Rear-wheel drive",
+        "engine": "3.5-litre twin-turbo V6",
+        "gear_ratios": [
+          3.397,
+          2.186,
+          1.626,
+          1.285,
+          1.029,
+          0.839,
+          0.634
+        ],
+        "final_drive": 3.667
+      },
+      "notes": [
+        "Imported source is explicitly the 2017 GT, not the earlier supercharged V8 model.",
+        "1,520 kg operating mass is a calibration allowance over the published 1,385 kg dry figure, not a certified curb weight.",
+        "Ford claims under three seconds to 97 km/h / 60 mph, not 0-100 km/h; 3.0 s to 100 is only a game target.",
+        "7,000 rpm is verified in the November 2017 same-generation owner manual (2018 model year). Net torque already includes turbo contribution; native TurboSize is zero."
+      ],
+      "sources": [
+        {
+          "title": "Ford GT May 2017 technical specifications",
+          "url": "https://media.ford.com/content/dam/fordmedia/Europe/documents/productReleases/FordGT/FordGT_2017_WEC_tech_specs_EU.pdf"
+        },
+        {
+          "title": "Ford GT owner manual, November 2017 edition, page 204",
+          "url": "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2018-Ford-GT-Owners-Manual-version-1_om-EN-US_12_2017.pdf"
+        }
+      ],
+      "calibration": {
+        "status": "Initial physics calibration; performance targets require in-game measurement",
+        "target_top_speed_kmh": 347,
+        "target_zero_to_100_s": 3,
+        "mass_kg": 1520,
+        "peak_torque_nm": 745.7,
+        "shift_rpm": 6700,
+        "reference_wheel_radius_m": 0.3515,
+        "torque_curve": [
+          [
+            0,
+            0.25
+          ],
+          [
+            800,
+            0.42
+          ],
+          [
+            2000,
+            0.66
+          ],
+          [
+            3500,
+            0.9
+          ],
+          [
+            5900,
+            1
+          ],
+          [
+            6250,
+            0.988542024305
+          ],
+          [
+            7000,
+            0.82
+          ]
+        ],
+        "drag_coefficient_native": 0.46,
+        "assumptions": "Piecewise torque fractions, drag, tyre grip, brakes, shift timing, reverse ratio where unavailable, and menu ratings are game calibration, not manufacturer specifications. Runtime compensates geometry wheel radius in final drive; native TorqueScale uses Nm only with engine_profile=factory."
+      },
+      "physics": {
+        "Mass": 1520,
+        "TorqueScale": 745.7,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 1,
+        "BrakeTorque": 6500,
+        "HandBrakeTorque": 3575,
+        "LatFrictionFactor": 1.5,
+        "AirKZZ": 0.46,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 5900,
+        "MaxTurboTorqueRPM": 5900,
+        "MinRPM": 800,
+        "MinRPMGearChange": 2200,
+        "CutRPM": 7000,
+        "MaxRPM": 7000,
+        "TimeChangeGear": 0.08,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 3.667,
+        "WheelRadius": 0.3515,
+        "GearRatioVector": [
+          -3.5,
+          3.397,
+          2.186,
+          1.626,
+          1.285,
+          1.029,
+          0.839,
+          0.634
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 243
+      },
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 8,
+        "MASS": 6,
+        "HANDLING": 7,
+        "DURABILITY": 4
+      },
+      "speedometer": {
+        "max_kmh": 380,
+        "max_mph": 240
+      }
+    },
+    "Senna_Road": {
+      "variant": "2019 McLaren Senna",
+      "specification": {
+        "power_kw": 588,
+        "power_label": "800 PS / 588 kW",
+        "torque_nm": 800,
+        "mass_kg": 1309,
+        "mass_basis": "Fluids and 90% fuel; dry mass 1,198 kg",
+        "top_speed_kmh": 335,
+        "zero_to_100_s": 2.8,
+        "gear_count": 7,
+        "power_rpm": 7500,
+        "torque_rpm": "5500-6500",
+        "dry_mass_kg": 1198,
+        "redline_rpm": 8415,
+        "drivetrain": "Rear-wheel drive",
+        "gear_ratios": [
+          3.982,
+          2.612,
+          1.905,
+          1.479,
+          1.16,
+          0.906,
+          0.686
+        ],
+        "final_drive": 3.308
+      },
+      "notes": [
+        "The owner's portal lists maximum engine speed 8,415 rpm; this is retained rather than silently replacing it with an 8,250 rpm figure.",
+        "Full-load torque shape between published endpoints, shift rpm, reverse gear, drag and tyre grip are game calibration."
+      ],
+      "sources": [
+        {
+          "title": "McLaren Senna manufacturer specification",
+          "url": "https://www.mclaren.com/cars/gl_en/ultimate-models/mclaren-senna"
+        },
+        {
+          "title": "McLaren Owners Handbook: Senna technical data",
+          "url": "https://owners.mclaren.com/"
+        }
+      ],
+      "calibration": {
+        "status": "Initial physics calibration; performance targets require in-game measurement",
+        "target_top_speed_kmh": 335,
+        "target_zero_to_100_s": 2.8,
+        "mass_kg": 1309,
+        "peak_torque_nm": 800,
+        "shift_rpm": 8000,
+        "reference_wheel_radius_m": 0.3485,
+        "torque_curve": [
+          [
+            0,
+            0.25
+          ],
+          [
+            850,
+            0.4
+          ],
+          [
+            2500,
+            0.72
+          ],
+          [
+            5500,
+            1
+          ],
+          [
+            6500,
+            1
+          ],
+          [
+            7500,
+            0.935830129549
+          ],
+          [
+            8415,
+            0.78
+          ]
+        ],
+        "drag_coefficient_native": 0.58,
+        "assumptions": "Piecewise torque fractions, drag, tyre grip, brakes, shift timing, reverse ratio where unavailable, and menu ratings are game calibration, not manufacturer specifications. Runtime compensates geometry wheel radius in final drive; native TorqueScale uses Nm only with engine_profile=factory."
+      },
+      "physics": {
+        "Mass": 1309,
+        "TorqueScale": 800,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 1,
+        "BrakeTorque": 7600,
+        "HandBrakeTorque": 4180,
+        "LatFrictionFactor": 1.7,
+        "AirKZZ": 0.58,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 6000,
+        "MaxTurboTorqueRPM": 6000,
+        "MinRPM": 850,
+        "MinRPMGearChange": 2500,
+        "CutRPM": 8415,
+        "MaxRPM": 8415,
+        "TimeChangeGear": 0.08,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 3.308,
+        "WheelRadius": 0.3485,
+        "GearRatioVector": [
+          -3.9,
+          3.982,
+          2.612,
+          1.905,
+          1.479,
+          1.16,
+          0.906,
+          0.686
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 234
+      },
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 9,
+        "MASS": 5,
+        "HANDLING": 8,
+        "DURABILITY": 3
+      },
+      "speedometer": {
+        "max_kmh": 360,
+        "max_mph": 240
+      }
+    },
+    "Senna_GTR1": {
+      "variant": "2020 McLaren Senna GTR",
+      "specification": {
+        "power_kw": 607,
+        "power_label": "825 PS / 607 kW",
+        "torque_nm": 800,
+        "mass_kg": 1188,
+        "mass_basis": "Dry; running mass not published",
+        "top_speed_kmh": null,
+        "zero_to_100_s": null,
+        "gear_count": 7,
+        "power_rpm": 7500,
+        "torque_rpm": "5500-6500",
+        "redline_rpm": 8250,
+        "drivetrain": "Rear-wheel drive",
+        "gear_ratios": [
+          3.982,
+          2.612,
+          1.905,
+          1.479,
+          1.16,
+          0.906,
+          0.686
+        ]
+      },
+      "notes": [
+        "The handbook specifies seven ratios but does not verify a final drive; 3.308 is inferred from the road Senna and remains a calibration assumption.",
+        "1,270 kg operating mass is estimated from 1,188 kg dry. Reference tyre radius 0.3525 m is a calibration assumption.",
+        "No factory 0-100 or top speed was found. 2.7 s and 325 km/h are provisional targets for a high-downforce setup, not published facts."
+      ],
+      "sources": [
+        {
+          "title": "McLaren Senna GTR owner manual, pages 82-84",
+          "url": "https://mclaren-web.s3.eu-west-2.amazonaws.com/files/Owner%20Manual%20-%20P15R%20-%20English.pdf"
+        }
+      ],
+      "calibration": {
+        "status": "Initial physics calibration; performance targets require in-game measurement",
+        "target_top_speed_kmh": 325,
+        "target_zero_to_100_s": 2.7,
+        "mass_kg": 1270,
+        "peak_torque_nm": 800,
+        "shift_rpm": 7900,
+        "reference_wheel_radius_m": 0.3525,
+        "torque_curve": [
+          [
+            0,
+            0.25
+          ],
+          [
+            1000,
+            0.42
+          ],
+          [
+            2500,
+            0.73
+          ],
+          [
+            5500,
+            1
+          ],
+          [
+            6500,
+            1
+          ],
+          [
+            7500,
+            0.966069538497
+          ],
+          [
+            8250,
+            0.84
+          ]
+        ],
+        "drag_coefficient_native": 0.67,
+        "assumptions": "Piecewise torque fractions, drag, tyre grip, brakes, shift timing, reverse ratio where unavailable, and menu ratings are game calibration, not manufacturer specifications. Runtime compensates geometry wheel radius in final drive; native TorqueScale uses Nm only with engine_profile=factory."
+      },
+      "physics": {
+        "Mass": 1270,
+        "TorqueScale": 800,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 1,
+        "BrakeTorque": 8200,
+        "HandBrakeTorque": 4510,
+        "LatFrictionFactor": 1.95,
+        "AirKZZ": 0.67,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 6000,
+        "MaxTurboTorqueRPM": 6000,
+        "MinRPM": 1000,
+        "MinRPMGearChange": 2500,
+        "CutRPM": 8250,
+        "MaxRPM": 8250,
+        "TimeChangeGear": 0.08,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 3.308,
+        "WheelRadius": 0.3525,
+        "GearRatioVector": [
+          -3.9,
+          3.982,
+          2.612,
+          1.905,
+          1.479,
+          1.16,
+          0.906,
+          0.686
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 227
+      },
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 9,
+        "MASS": 5,
+        "HANDLING": 9,
+        "DURABILITY": 2
+      },
+      "speedometer": {
+        "max_kmh": 360,
+        "max_mph": 240
+      }
+    },
+    "FXXK_Racer": {
+      "variant": "2015 Ferrari FXX K",
+      "specification": {
+        "power_kw": 772.2736874999999,
+        "power_label": "1,050 CV combined; 860 CV combustion + 190 CV electric",
+        "torque_nm": null,
+        "mass_kg": null,
+        "mass_basis": "Not published in the verified source",
+        "top_speed_kmh": null,
+        "zero_to_100_s": null,
+        "gear_count": 7,
+        "ice_power_kw": 632.528925,
+        "ice_power_rpm": 9200,
+        "electric_power_kw": 139.7447625,
+        "torque_label": "more than 900 Nm combined; 750 Nm combustion at 6,500 rpm",
+        "redline_rpm": 9250,
+        "drivetrain": "Rear-wheel drive"
+      },
+      "notes": [
+        "Factory total mass, ratios, final drive, 0-100 and maximum speed were not verified; 1,590 kg, selected seven ratios, 4.375 final drive, 2.8 s and 350 km/h are explicit calibration estimates.",
+        "The single normalized curve approximates combined combustion/electric output with a 950 Nm peak. It does not model battery charge, regeneration or deploy-duration limits.",
+        "Combined power is 1,050 CV, not 1,050 SAE hp. 9,250 rpm maximum is from the Ferrari brochure."
+      ],
+      "sources": [
+        {
+          "title": "Ferrari XX Programme and F1 Clienti brochure, page 8",
+          "url": "https://cdn.ferrari.com/cms/network/media/pdf/XXPROGRAMME_F1CLIENTI_Brochure_Ferrari.pdf"
+        },
+        {
+          "title": "Ferrari-issued FXX K launch release (preserved copy)",
+          "url": "https://www.allcarindex.com/blog/2014-ferrari-fxx-k"
+        }
+      ],
+      "calibration": {
+        "status": "Initial physics calibration; performance targets require in-game measurement",
+        "target_top_speed_kmh": 350,
+        "target_zero_to_100_s": 2.8,
+        "mass_kg": 1590,
+        "peak_torque_nm": 950,
+        "shift_rpm": 9000,
+        "reference_wheel_radius_m": 0.3575,
+        "torque_curve": [
+          [
+            0,
+            0.35
+          ],
+          [
+            1000,
+            0.55
+          ],
+          [
+            3500,
+            0.8
+          ],
+          [
+            6500,
+            1
+          ],
+          [
+            8000,
+            0.95
+          ],
+          [
+            9200,
+            0.843782964812
+          ],
+          [
+            9250,
+            0.835
+          ]
+        ],
+        "drag_coefficient_native": 0.74,
+        "assumptions": "Piecewise torque fractions, drag, tyre grip, brakes, shift timing, reverse ratio where unavailable, and menu ratings are game calibration, not manufacturer specifications. Runtime compensates geometry wheel radius in final drive; native TorqueScale uses Nm only with engine_profile=factory."
+      },
+      "physics": {
+        "Mass": 1590,
+        "TorqueScale": 950,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 1,
+        "BrakeTorque": 8500,
+        "HandBrakeTorque": 4675,
+        "LatFrictionFactor": 1.95,
+        "AirKZZ": 0.74,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 6500,
+        "MaxTurboTorqueRPM": 6500,
+        "MinRPM": 1000,
+        "MinRPMGearChange": 3500,
+        "CutRPM": 9250,
+        "MaxRPM": 9250,
+        "TimeChangeGear": 0.08,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 4.375,
+        "WheelRadius": 0.3575,
+        "GearRatioVector": [
+          -3.5,
+          3.08,
+          2.19,
+          1.626,
+          1.286,
+          1.028,
+          0.839,
+          0.693
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 245
+      },
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 9,
+        "MASS": 6,
+        "HANDLING": 9,
+        "DURABILITY": 2
+      },
+      "speedometer": {
+        "max_kmh": 400,
+        "max_mph": 260
+      }
+    },
+    "Regera_GT1": {
+      "variant": "Koenigsegg Regera",
+      "specification": {
+        "power_kw": null,
+        "power_label": "more than 1,500 hp combined",
+        "torque_nm": null,
+        "mass_kg": 1590,
+        "mass_basis": "Curb: all fluids and full fuel tank",
+        "top_speed_kmh": null,
+        "zero_to_100_s": null,
+        "gear_count": 1,
+        "torque_label": "more than 2,000 Nm combined",
+        "ice_power_hp": 1100,
+        "ice_power_rpm": 7800,
+        "ice_torque_nm": 1280,
+        "ice_torque_rpm": 4100,
+        "dry_mass_kg": 1420,
+        "redline_rpm": 8250,
+        "drivetrain": "Rear-wheel drive; Koenigsegg Direct Drive",
+        "gear_ratios": [
+          1
+        ],
+        "final_drive": 2.73
+      },
+      "notes": [
+        "KDD has one forward ratio, not a conventional seven-speed gearbox. Native automatic gears are set to one.",
+        "2,000 Nm peak and a roughly 1,500 hp power cap are conservative calibration anchors for published greater-than figures; the single curve cannot model three electric motors, battery state or the hydraulic coupling.",
+        "0-100 in 2.8 s and 400 km/h are game targets, not verified fixed factory maximum/acceleration claims. Reference tyre radius is a calibration assumption."
+      ],
+      "sources": [
+        {
+          "title": "Koenigsegg Regera technical specifications",
+          "url": "https://www.koenigsegg.com/technical-specifications-regera"
+        },
+        {
+          "title": "Koenigsegg Direct Drive: single gear and 2.73 final drive",
+          "url": "https://www.koenigsegg.com/koenigsegg-direct-drive"
+        }
+      ],
+      "calibration": {
+        "status": "Initial physics calibration; performance targets require in-game measurement",
+        "target_top_speed_kmh": 400,
+        "target_zero_to_100_s": 2.8,
+        "mass_kg": 1590,
+        "peak_torque_nm": 2000,
+        "shift_rpm": 8000,
+        "reference_wheel_radius_m": 0.3575,
+        "torque_curve": [
+          [
+            0,
+            0.72
+          ],
+          [
+            800,
+            0.75
+          ],
+          [
+            2000,
+            0.9
+          ],
+          [
+            4100,
+            1
+          ],
+          [
+            5500,
+            0.965
+          ],
+          [
+            6500,
+            0.82
+          ],
+          [
+            7800,
+            0.684
+          ],
+          [
+            8250,
+            0.64
+          ]
+        ],
+        "drag_coefficient_native": 0.68,
+        "assumptions": "Piecewise torque fractions, drag, tyre grip, brakes, shift timing, reverse ratio where unavailable, and menu ratings are game calibration, not manufacturer specifications. Runtime compensates geometry wheel radius in final drive; native TorqueScale uses Nm only with engine_profile=factory."
+      },
+      "physics": {
+        "Mass": 1590,
+        "TorqueScale": 2000,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 1,
+        "BrakeTorque": 7800,
+        "HandBrakeTorque": 4290,
+        "LatFrictionFactor": 1.55,
+        "AirKZZ": 0.68,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 4100,
+        "MaxTurboTorqueRPM": 4100,
+        "MinRPM": 800,
+        "MinRPMGearChange": 1500,
+        "CutRPM": 8250,
+        "MaxRPM": 8250,
+        "TimeChangeGear": 0.08,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 2.73,
+        "WheelRadius": 0.3575,
+        "GearRatioVector": [
+          -1,
+          1
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 280
+      },
+      "ratings": {
+        "TOPSPEED": 9,
+        "ACCELERATION": 9,
+        "MASS": 6,
+        "HANDLING": 7,
+        "DURABILITY": 4
+      },
+      "speedometer": {
+        "max_kmh": 440,
+        "max_mph": 280
+      }
+    },
+    "AventadorX": {
+      "variant": "Lamborghini Aventador LP 700-4 (original model)",
+      "specification": {
+        "power_kw": 515,
+        "power_label": "700 CV / 515 kW",
+        "torque_nm": 690,
+        "mass_kg": 1575,
+        "mass_basis": "Dry",
+        "top_speed_kmh": 350,
+        "zero_to_100_s": 2.9,
+        "gear_count": 7,
+        "power_rpm": 8250,
+        "torque_rpm": 5500,
+        "drivetrain": "All-wheel drive; seven-speed ISR automated manual",
+        "gear_ratios": [
+          3.909090909090909,
+          2.4375,
+          1.8095238095238095,
+          1.4583333333333333,
+          1.1851851851851851,
+          0.9666666666666667,
+          0.84375
+        ],
+        "reverse_ratio": 2.9285714285714284,
+        "rear_axle_ratio": 2.8666666666666667,
+        "transfer_ratio": 1.236842105263158,
+        "effective_final_drive": 3.5456140350877194
+      },
+      "notes": [
+        "The import is explicitly LP 700-4, not Aventador S, SV or SVJ.",
+        "1,675 kg running mass estimates fluids over the published 1,575 kg dry mass. The 8,500 rpm cutoff remains a calibration value; it was not verified in the manufacturer launch specification.",
+        "Dana/Graziano publishes the seven forward gear and reverse tooth counts for the 700 hp Aventador. The game final reduction combines the 47/38 drop gear and 43/15 rear differential: 3.545614035. The separate 36/11 front differential is not an additional rear reduction.",
+        "AWD is native game all-wheel drive; variable factory torque distribution and ISR shift details are approximated."
+      ],
+      "sources": [
+        {
+          "title": "Lamborghini Aventador LP 700-4 manufacturer launch specification, March 2011",
+          "url": "https://www.ausmotive.com/downloads/Lamborghini/Aventador-full-release-Mar2011.pdf"
+        },
+        {
+          "title": "Dana/Graziano Aventador 700 hp longitudinal transmission specification, page 2",
+          "url": "https://dml.dana.com/assetbank-dana/assetfile/63606.pdf"
+        }
+      ],
+      "calibration": {
+        "status": "Initial physics calibration; performance targets require in-game measurement",
+        "target_top_speed_kmh": 350,
+        "target_zero_to_100_s": 2.9,
+        "mass_kg": 1675,
+        "peak_torque_nm": 690,
+        "shift_rpm": 8300,
+        "reference_wheel_radius_m": 0.3545,
+        "torque_curve": [
+          [
+            0,
+            0.25
+          ],
+          [
+            850,
+            0.45
+          ],
+          [
+            2500,
+            0.72
+          ],
+          [
+            5500,
+            1
+          ],
+          [
+            7000,
+            0.96
+          ],
+          [
+            8250,
+            0.863923201344
+          ],
+          [
+            8500,
+            0.8
+          ]
+        ],
+        "drag_coefficient_native": 0.47,
+        "assumptions": "Piecewise torque fractions, drag, tyre grip, brakes, shift timing and menu ratings are game calibration, not manufacturer specifications. Gear and reverse ratios follow Dana/Graziano tooth counts; WheelRatio combines the rear drop gear and rear differential. Runtime compensates geometry wheel radius in final drive; native TorqueScale uses Nm only with engine_profile=factory."
+      },
+      "physics": {
+        "Mass": 1675,
+        "TorqueScale": 690,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 2,
+        "BrakeTorque": 6900,
+        "HandBrakeTorque": 3795,
+        "LatFrictionFactor": 1.5,
+        "AirKZZ": 0.47,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 5500,
+        "MaxTurboTorqueRPM": 5500,
+        "MinRPM": 850,
+        "MinRPMGearChange": 3000,
+        "CutRPM": 8500,
+        "MaxRPM": 8500,
+        "TimeChangeGear": 0.08,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 3.5456140350877194,
+        "WheelRadius": 0.3545,
+        "GearRatioVector": [
+          -2.9285714285714284,
+          3.909090909090909,
+          2.4375,
+          1.8095238095238095,
+          1.4583333333333333,
+          1.1851851851851851,
+          0.9666666666666667,
+          0.84375
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 245
+      },
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 9,
+        "MASS": 7,
+        "HANDLING": 7,
+        "DURABILITY": 4
+      },
+      "speedometer": {
+        "max_kmh": 380,
+        "max_mph": 240
+      }
+    }
+  }
+}

@@ -2,9 +2,10 @@
 
 Neutral geometry is measured in metres, Y up, forward -Z, matching mm3view.
 Source transforms are conventional column-vector 4x4 matrices. CMP's packed
-positions and translations reflect Z. Unknown donor metadata, nodes and LOD
-layout are retained byte-for-byte; only explicitly changed geometry, bounds
-and wheel translations are rewritten. No game files are installed here.
+positions and translations reflect Z. Unknown donor metadata and nodes are
+retained; imported wheels receive a dedicated shadow slot. Only explicitly
+changed geometry, bounds and wheel translations are rewritten. No game files
+are installed here.
 
 Format reference: Daniel Stien's gameformats/mm3/cmpviewer, revision
 48b78d1676e4c39eaa2584544533efdf3a4a18ba.
@@ -160,7 +161,7 @@ class Model:
 
 
 def read_model(data: bytes) -> Model:
-    """Lossless structural parse, including all LODs and reference-only blocks."""
+    """Lossless structural parse, including shadow and reference-only blocks."""
     r = Reader(data)
     if r.unpack("I") != 0:
         raise FormatError("Not a CMP root")
@@ -335,8 +336,8 @@ def split_mesh_geometry(positions, normals, uvs, triangles):
 
     Split after UV seam clipping, because clipping can increase the index
     count. Each independent part has at most 65535 indices and material-split
-    vertices. Parts become sibling mesh nodes, with every part present at each
-    LOD; placing independent parts in alternative LOD slots would lose faces.
+    vertices. Parts become sibling mesh nodes. A body's second mesh slot is
+    its shadow pass, so putting visible parts in successive slots loses faces.
     """
     p, n, uv, tris = normalize_repeat_uv(positions, normals, uvs, triangles)
     if len(tris) * 3 <= MAX_MESH_INDICES:
@@ -515,6 +516,108 @@ def _neutral_world(mesh: dict, source_transform: np.ndarray):
             np.asarray(mesh["triangles"], dtype=np.int64), matrix[:3, 3])
 
 
+def is_shadow_mesh(block: MeshBlock) -> bool:
+    """Recognize the dedicated shadow slot in the supported retail donors."""
+    return block.name.replace("/", "\\").rsplit("\\", 1)[-1].lower().endswith("shadow.dob")
+
+
+def shadow_volume_geometry(positions):
+    """Build a closed, bounded stencil proxy from the imported point cloud.
+
+    ObjectStencil.cvsx extrudes vertices according to their facet normal's
+    light-facing sign. Surface triangles alone leave holes: the retail meshes
+    also join adjacent facets with collapsed edge quads that open into walls.
+    Use a convex proxy to avoid open/nonmanifold imported bodywork. At most 482
+    deterministic support samples produce 960 caps plus 2,880 wall triangles.
+    Concave recesses are approximated; the six coordinate extrema survive.
+
+    Returned faces have native MM3 winding (cross product opposite the outward
+    normal), independent of the source's face ordering or smoothed normals.
+    """
+    from scipy.spatial import ConvexHull
+
+    p = np.asarray(positions, dtype=float).reshape(-1, 3)
+    if not len(p) or not np.isfinite(p).all():
+        raise ValueError("Shadow positions must be nonempty and finite")
+    p = np.unique(p, axis=0)
+    # Flat or line-like helper geometry still needs a closed proxy. Add only a
+    # sub-millimetre thickness along missing dimensions, not a car-sized box.
+    _, singular, basis = np.linalg.svd(p - p.mean(0), full_matrices=len(p) < 3)
+    rank = np.count_nonzero(singular > max(np.ptp(p, axis=0).max(), 1) * 1e-9)
+    if rank < 3:
+        thickness = max(np.ptp(p, axis=0).max() * 1e-5, 1e-4)
+        for axis in basis[rank:]:
+            p = np.concatenate((p + axis * thickness, p - axis * thickness))
+    directions = [[0., -1., 0.], [0., 1., 0.]]
+    for latitude in range(1, 16):
+        polar = math.pi * latitude / 16
+        for longitude in range(32):
+            azimuth = 2 * math.pi * longitude / 32
+            directions.append([math.sin(polar) * math.cos(azimuth),
+                               math.cos(polar), math.sin(polar) * math.sin(azimuth)])
+    # Set axis directions exactly, avoiding tie-breaking noise at cos(pi/2).
+    directions = np.asarray(directions)
+    directions[np.abs(directions) < 1e-14] = 0
+    selected = np.unique(np.concatenate([np.argmax(p @ batch.T, axis=0)
+                                        for batch in np.array_split(directions, 16)]))
+    p = p[selected]
+    hull = ConvexHull(p)
+    caps = hull.simplices.copy()
+    normals = hull.equations[:, :3]
+    cross = np.cross(p[caps[:, 1]] - p[caps[:, 0]], p[caps[:, 2]] - p[caps[:, 0]])
+    outward = np.einsum("ij,ij->i", cross, normals) > 0
+    caps[outward] = caps[outward, ::-1]
+    # A distinct vertex for each facet keeps every cap rigid under extrusion.
+    points = p[caps].reshape(-1, 3)
+    vertex_normals = np.repeat(normals, 3, axis=0)
+    faces = np.arange(len(points)).reshape(-1, 3).tolist()
+    edges = {}
+    for face, cap in enumerate(caps):
+        for corner in range(3):
+            a, b = int(cap[corner]), int(cap[(corner + 1) % 3])
+            local = (face * 3 + corner, face * 3 + (corner + 1) % 3)
+            key = (min(a, b), max(a, b))
+            edges.setdefault(key, []).append((a, b, *local))
+    for adjacent in edges.values():
+        if len(adjacent) != 2 or adjacent[0][:2] != adjacent[1][1::-1]:
+            raise FormatError("Convex shadow proxy has an unpaired or inconsistent edge")
+        (_, _, a, b), (_, _, c, d) = adjacent
+        # b and c coincide; a and d coincide. After different facet extrusions
+        # this quad closes the gap, with its boundary opposite both caps.
+        faces.extend(((b, a, d), (b, d, c)))
+    tris = np.column_stack((np.asarray(faces), np.zeros(len(faces), dtype=int)))
+    return points, vertex_normals, tris
+
+
+def encode_shadow_mesh(name: str, positions, normals, triangles,
+                       template: MeshBlock, version: int, *, flip_winding=False) -> MeshBlock:
+    """Encode a closed convex stencil proxy with exact native attributes.
+
+    The API retains source normals/winding arguments for callers, but a hull
+    computes its own outward facet normals and native winding. An empty point
+    cloud emits a zero-area placeholder for additional visible split siblings;
+    their first sibling owns the complete body/wheel proxy.
+    """
+    meta = mesh_metadata(template, version)
+    offset, count = meta["vertex_offset"], meta["vertex_count"]
+    donor_words = np.frombuffer(template.payload, dtype="<u4", count=count * 6,
+                               offset=offset).reshape(-1, 6)
+    if not count or not np.all(donor_words[:, 2:] == donor_words[0, 2:]):
+        raise FormatError(f"Unsupported varying shadow attributes in {template.name}")
+    attributes = donor_words[0, 2:].copy()
+    if len(positions):
+        p, n, tris = shadow_volume_geometry(positions)
+    else:
+        p, n, tris = np.zeros((3, 3)), np.tile((0, 1, 0), (3, 1)), [[0, 1, 2, 0]]
+    encoded = encode_mesh(name, p, n, np.zeros((len(p), 2)), tris, {}, template, version)
+    result = bytearray(encoded.payload)
+    encoded_meta = mesh_metadata(encoded, version)
+    words = np.frombuffer(result, dtype="<u4", count=encoded_meta["vertex_count"] * 6,
+                          offset=encoded_meta["vertex_offset"]).reshape(-1, 6)
+    words[:, 2:] = attributes
+    return MeshBlock(name, bytes(result))
+
+
 def convert_exterior(template: bytes, source: dict, *, body_names=("BODY_H",),
                      wheel_names: Mapping[str, str] | None = None,
                      material_map: Mapping[int, int] | None = None,
@@ -524,12 +627,12 @@ def convert_exterior(template: bytes, source: dict, *, body_names=("BODY_H",),
                      material_palette_offsets=None) -> tuple[bytes, dict]:
     """Replace body/wheels in a donor. Returns bytes and a conversion report.
 
-    Every existing internal LOD receives the replacement, avoiding a return to
-    the donor body at distance. Geometry exceeding a native 16-bit buffer is
-    split into additional sibling mesh nodes under the same animated parent;
-    every sibling retains the original internal LOD layout. Other exterior
-    mesh nodes receive one valid
-    zero-area triangle so their native gameplay references remain intact.
+    Visible meshes receive the imported geometry; a closed convex stencil proxy
+    follows each complete body and wheel. Geometry exceeding a native 16-bit
+    buffer is split into additional sibling mesh nodes under the same animated
+    parent; only the first sibling casts the complete component shadow. Other exterior
+    mesh nodes receive one valid zero-area triangle so their native gameplay
+    references remain intact.
     Source wheel transform origins become the donor's animated wheel pivots.
     A separate call with the far donor handles the game's *_lod1 model.
     Neutral source faces follow their normals (CCW); native MM3 faces require
@@ -565,13 +668,17 @@ def convert_exterior(template: bytes, source: dict, *, body_names=("BODY_H",),
     geometry_parts.update({name: split_mesh_geometry(*global_meshes[source_name][:4])
                            for name, source_name in wheel_names.items()})
     all_positions = np.concatenate([body[0]] + [global_meshes[n][0] for n in wheel_names.values()])
-    report = dict(version=model.version, replaced=[], hidden=[], retained=[],
+    report = dict(version=model.version, replaced=[], hidden=[], retained=[], shadows=[],
                   split_meshes=[], wheel_pivots={}, bounds_min=all_positions.min(0).tolist(),
                   bounds_max=all_positions.max(0).tolist())
     found_body, found_wheels = False, set()
     fallback = next((block for _, node in model.root.walk() for block in node.meshes if block.payload), None)
     if fallback is None:
         raise FormatError("Donor has no mesh template")
+    shadow_template = next((b for _, node in model.root.walk() for b in node.meshes
+                            if b.payload and is_shadow_mesh(b)), None)
+    if shadow_template is None:
+        raise FormatError("Donor has no native stencil shadow template")
 
     def visit(node: Node, parent_matrix: np.ndarray, path: str, wheel=None):
         nonlocal found_body
@@ -615,7 +722,11 @@ def convert_exterior(template: bytes, source: dict, *, body_names=("BODY_H",),
                 if wheel or "/body/" in path.lower():
                     report["replaced"].append(path)
                 donor_block = next((b for b in node.meshes if b.payload), fallback)
-                lod_count, original_prefix = len(node.meshes), node.prefix
+                original_meshes, original_prefix = list(node.meshes), node.prefix
+                added_shadow = bool(wheel and len(original_meshes) == 1)
+                if added_shadow:
+                    original_meshes.append(shadow_template)
+                    node.terminator = b"" if node.kind == 2 else b"\0"
                 if len(parts) > 1:
                     report["split_meshes"].append(dict(node=path, parts=len(parts),
                         triangles=[int(len(part[3])) for part in parts]))
@@ -635,15 +746,31 @@ def convert_exterior(template: bytes, source: dict, *, body_names=("BODY_H",),
                     localn = n @ current_matrix[:3, :3]
                     target.set_bounds(np.array([localp.min(0), localp.max(0)]))
                     new_meshes = []
-                    for lod in range(lod_count):
+                    for slot, original_mesh in enumerate(original_meshes):
                         directory = donor_block.name.rsplit("\\", 1)[0] if "\\" in donor_block.name else ""
-                        name = f"mm3import_{target.name}_{wheel or 'body'}_{lod}.dob"
+                        shadow = is_shadow_mesh(original_mesh)
+                        suffix = "shadow" if shadow else str(slot)
+                        name = f"mm3import_{target.name}_{wheel or 'body'}_{suffix}.dob"
                         if directory:
                             name = directory + "\\" + name
-                        new_meshes.append(encode_mesh(name, localp, localn, uv, tri,
-                            material_map, donor_block, model.version,
-                            specular=specular, flip_winding=flip_winding,
-                            material_palette_offsets=material_palette_offsets))
+                        if shadow:
+                            complete = (global_meshes[wheel_names[wheel]][0] if wheel else body[0])
+                            shadowp = ((complete - current_matrix[:3, 3]) @
+                                       np.linalg.inv(current_matrix[:3, :3]).T) if part_index == 0 else []
+                            block = encode_shadow_mesh(name, shadowp, localn, tri,
+                                original_mesh, model.version, flip_winding=flip_winding)
+                            new_meshes.append(block)
+                            report["shadows"].append(dict(node=path.rsplit("/", 1)[0] + "/" + target.name,
+                                slot=slot, template=original_mesh.name,
+                                proxy="convex_stencil" if part_index == 0 else "empty_split_sibling",
+                                added_slot=added_shadow,
+                                triangles=struct.unpack_from("<I", block.payload, 32)[0] // 3,
+                                vertices=mesh_metadata(block, model.version)["vertex_count"]))
+                        else:
+                            new_meshes.append(encode_mesh(name, localp, localn, uv, tri,
+                                material_map, donor_block, model.version,
+                                specular=specular, flip_winding=flip_winding,
+                                material_palette_offsets=material_palette_offsets))
                     target.meshes = new_meshes
         children = []
         for child in node.children:
@@ -658,7 +785,7 @@ def convert_exterior(template: bytes, source: dict, *, body_names=("BODY_H",),
         raise FormatError(f"Donor body/wheel nodes missing: body={found_body}, wheels={sorted(found_wheels)}")
     model.root.set_bounds(np.array([all_positions.min(0), all_positions.max(0)]))
     result = model.write()
-    # A lossless structural parse validates offsets and all internal LODs.
+    # A lossless structural parse validates offsets and all mesh slots.
     if read_model(result).write() != result:
         raise AssertionError("CMP structural round-trip failed")
     report["bytes"] = len(result)

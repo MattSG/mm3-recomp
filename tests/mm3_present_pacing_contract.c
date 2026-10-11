@@ -10,11 +10,13 @@ typedef uint32_t DWORD;
 typedef int32_t HRESULT;
 typedef struct LARGE_INTEGER { int64_t QuadPart; } LARGE_INTEGER;
 typedef int ID3D11Texture2D, ID3D11RenderTargetView, ID3D11Resource;
-typedef struct Surface { UINT iw, ih; } Surface;
+typedef struct Surface { UINT iw, ih; uint32_t gen; int cpu_present_pending; } Surface;
 typedef struct PresentConsts { int unused; } PresentConsts;
 typedef struct XboxOverlay { int unused; } XboxOverlay;
 #define SUCCEEDED(hr) ((HRESULT)(hr) >= 0)
 #define FAILED(hr) ((HRESULT)(hr) < 0)
+#define S_OK ((HRESULT)0)
+#define DXGI_STATUS_OCCLUDED ((HRESULT)0x087A0001)
 #define DXGI_FORMAT_B8G8R8A8_UNORM 0
 #define D3D11_BIND_RENDER_TARGET 0
 #define RECOMP_PROFILE_BEGIN(name) ((void)0)
@@ -23,7 +25,7 @@ typedef struct XboxOverlay { int unused; } XboxOverlay;
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL line %d: %s (events=%s)\n", __LINE__, #x, events); exit(1); } } while (0)
 
 enum { PROF_PACE, PROF_WRITEBACK, PROF_PRESENT };
-static int s_prof_on, s_init_state, s_frame_bg_tex, s_frame_tag_window;
+static int s_prof_on, s_init_state, s_frame_bg_tex, s_frame_tag_window, s_wb_pending;
 static int64_t s_prof[3];
 static Surface *s_shown;
 static DWORD s_last_present, s_last_flip;
@@ -37,11 +39,13 @@ static ID3D11RenderTargetView *s_cap_rtv;
 static UINT s_cap_w, s_cap_h, s_swap_w = 640, s_swap_h = 480;
 static int s_swap, s_dev, IID_ID3D11Texture2D;
 
-static Surface surface = {640, 480};
+static Surface surface = {640, 480, 0, 0};
 static int native_texture, native_view;
 static char events[64];
 static size_t event_count;
 static unsigned pace_calls, present_calls, csv_calls, scans, texture_releases, view_releases;
+static unsigned cpu_syncs, cpu_uploads;
+static int cpu_write;
 static int64_t clock_ticks, csv_ticks;
 static DWORD test_now;
 static int init_ok, surface_ok, scan_ok, swap_ok, buffer_ok, view_ok, overlay_ok;
@@ -64,6 +68,9 @@ static char *test_getenv(const char *name)
 }
 
 static int64_t qpc(void) { return clock_ticks; }
+static int64_t hitch_trace_begin(void) { return 0; }
+static void hitch_trace_report(const char *phase, int64_t begin)
+{ (void)phase; CHECK(begin == 0); }
 static DWORD GetTickCount(void) { return test_now; }
 static void pace_vblank(void) { event('W'); pace_calls++; clock_ticks += 7; }
 static int nv2a_d3d_init(void) { return init_ok; }
@@ -71,6 +78,12 @@ static uint32_t phys(uint32_t address) { return address; }
 static Surface *surface_find(uint32_t address) { (void)address; return surface_ok ? &surface : NULL; }
 static Surface *scan_surface(uint32_t address, uint32_t pitch)
 { (void)address; (void)pitch; scans++; return scan_ok ? &surface : NULL; }
+static void surface_sync(Surface *image, int force)
+{
+    CHECK(image == &surface && force == 1);
+    cpu_syncs++;
+    if (cpu_write) { image->gen++; cpu_uploads++; cpu_write = 0; }
+}
 static void writeback_surfaces(void) { event('B'); clock_ticks += 2; }
 static int ensure_swapchain(void) { return swap_ok; }
 static void prepare_overlay(PresentConsts *pc) { (void)pc; }
@@ -122,6 +135,8 @@ static void reset(void)
     memset(s_prof, 0, sizeof(s_prof)); s_prof_on = 1;
     pace_calls = present_calls = csv_calls = scans = s_frame = 0;
     texture_releases = view_releases = 0;
+    cpu_syncs = cpu_uploads = 0; cpu_write = s_wb_pending = 0;
+    surface.gen = 1; surface.cpu_present_pending = 0;
     clock_ticks = 1000; csv_ticks = -1; test_now = 10000;
     init_ok = surface_ok = scan_ok = swap_ok = buffer_ok = view_ok = overlay_ok = 1;
     cpu_scanout = capture_surface = 0; present_result = 0;
@@ -203,6 +218,67 @@ static void tick_cases(void)
     nv2a_d3d_tick(); CHECK(!events[0] && !pace_calls);
 }
 
+static void idle_cpu_cases(void)
+{
+    int failure;
+    reset(); overlay_ok = 0; cpu_write = 1;
+    nv2a_d3d_tick();
+    CHECK(cpu_syncs == 1 && cpu_uploads == 1 && present_calls == 1);
+    CHECK(!surface.cpu_present_pending && strcmp(events, "CKP") == 0);
+    CHECK(!s_frame && !pace_calls && !csv_calls && !scans);
+    CHECK(!s_frame_csv_present && !s_frame_csv_present_prev);
+    CHECK(s_prof[PROF_PACE] == 0);
+
+    /* Same submission epoch, same surface: a later CPU animation frame is
+     * checked again; an unchanged frame produces neither upload nor Present. */
+    test_now += 16; nv2a_d3d_tick();
+    CHECK(cpu_syncs == 2 && cpu_uploads == 1 && present_calls == 1);
+    cpu_write = 1; test_now += 16; nv2a_d3d_tick();
+    CHECK(cpu_syncs == 3 && cpu_uploads == 2 && present_calls == 2);
+    CHECK(!surface.cpu_present_pending && !pace_calls && !csv_calls && !s_frame);
+
+    /* Uploading the guest bytes must wait until queued GPU writeback has
+     * finished using the old shadow to protect those very CPU writes. */
+    reset(); overlay_ok = 0; cpu_write = s_wb_pending = 1;
+    nv2a_d3d_tick();
+    CHECK(!cpu_syncs && !cpu_uploads && !present_calls && cpu_write);
+    s_wb_pending = 0; test_now += 16; nv2a_d3d_tick();
+    CHECK(cpu_syncs == 1 && cpu_uploads == 1 && present_calls == 1);
+    CHECK(!surface.cpu_present_pending && !pace_calls && !csv_calls);
+
+    reset(); overlay_ok = 0; cpu_write = 1; s_last_flip = test_now - 50;
+    nv2a_d3d_tick(); CHECK(!cpu_syncs && !cpu_uploads && !present_calls && cpu_write);
+    test_now++; nv2a_d3d_tick();
+    CHECK(cpu_syncs == 1 && cpu_uploads == 1 && present_calls == 1);
+    reset(); overlay_ok = 0; cpu_write = 1; s_last_present = test_now - 15;
+    nv2a_d3d_tick(); CHECK(!cpu_syncs && !cpu_uploads && !present_calls && cpu_write);
+
+    /* An upload is not proof that the image reached the window. Retry missing
+     * swap-chain/resources, failed Present and occlusion without another write. */
+    for (failure = 0; failure < 5; failure++) {
+        unsigned failed_attempts;
+        reset(); overlay_ok = 0; cpu_write = 1;
+        if (failure == 0) swap_ok = 0;
+        if (failure == 1) buffer_ok = 0;
+        if (failure == 2) view_ok = 0;
+        if (failure == 3) present_result = -1;
+        if (failure == 4) present_result = DXGI_STATUS_OCCLUDED;
+        nv2a_d3d_tick();
+        CHECK(cpu_syncs == 1 && cpu_uploads == 1 && surface.cpu_present_pending);
+        failed_attempts = present_calls;
+        CHECK(failed_attempts == (failure >= 3 ? 1u : 0u));
+        swap_ok = buffer_ok = view_ok = 1; present_result = S_OK;
+        test_now += 16; nv2a_d3d_tick();
+        CHECK(cpu_syncs == 2 && cpu_uploads == 1);
+        CHECK(present_calls == failed_attempts + 1 && !surface.cpu_present_pending);
+        test_now += 16; nv2a_d3d_tick();
+        CHECK(cpu_uploads == 1 && present_calls == failed_attempts + 1);
+        CHECK(!pace_calls && !csv_calls && !s_frame && !scans);
+        CHECK(!s_frame_csv_present && !s_frame_csv_present_prev);
+        CHECK(s_prof[PROF_PACE] == 0);
+    }
+}
+
 static void csv_cases(void)
 {
     int failure;
@@ -246,9 +322,9 @@ int main(int argc, char **argv)
 {
     CHECK(argc == 2);
     after_policy = strcmp(argv[1], "after") == 0;
-    flip_cases(); tick_cases(); csv_cases();
+    flip_cases(); tick_cases(); idle_cpu_cases(); csv_cases();
     fclose(s_frame_csv_file);
-    printf("PASS: %s-present pacing; successful/failed/captured flips, missing resources/RTV failure, once-per-flip fallback, unpaced movie ticks, guest-only CSV state and profiler accounting\n",
+    printf("PASS: %s-present pacing; successful/failed/captured flips, missing resources/RTV failure, once-per-flip fallback, unpaced movie/idle CPU ticks, writeback ordering, failed/occluded display retries, guest-only CSV state and profiler accounting\n",
            after_policy ? "after" : "before");
     return 0;
 }

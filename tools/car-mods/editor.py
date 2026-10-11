@@ -18,25 +18,29 @@ import sys
 import tempfile
 import threading
 import tkinter as tk
+import webbrowser
 from tkinter import colorchooser, filedialog, messagebox, ttk
 
 HERE = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location("mm3_car_prepare", HERE / "prepare.py")
 prepare = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(prepare)
+FACTORY_SPEC = importlib.util.spec_from_file_location("mm3_factory_specs", HERE / "factory_specs.py")
+factory = importlib.util.module_from_spec(FACTORY_SPEC)
+FACTORY_SPEC.loader.exec_module(factory)
 
 RATING_ORDER = ("TOPSPEED", "ACCELERATION", "MASS", "HANDLING", "DURABILITY")
 DRIVING = ("TorqueScale", "Mass", "BrakeTorque", "LatFrictionFactor", "AirKZZ", "WheelDrive")
 TRANSMISSION = ("WheelRatio", "TimeChangeGear", "TimeChangeGearFR", "MinRPM", "MinRPMGearChange", "CutRPM", "MaxRPM", "MaxTorqueRPM", "MaxTurboTorqueRPM")
 LABELS = {
-    "TorqueScale": "Engine torque", "Mass": "Weight", "BrakeTorque": "Braking strength",
+    "TorqueScale": "Engine torque scale", "Mass": "Mass (kg)", "BrakeTorque": "Braking strength",
     "LatFrictionFactor": "Cornering grip", "AirKZZ": "Air drag", "WheelDrive": "Driven wheels",
     "WheelRatio": "Final drive", "TimeChangeGear": "Shift time (seconds)",
     "TimeChangeGearFR": "Reverse shift time", "MinRPM": "Idle RPM",
     "MinRPMGearChange": "Minimum shift RPM", "CutRPM": "Cutoff RPM", "MaxRPM": "Redline RPM",
     "MaxTorqueRPM": "Peak torque RPM", "MaxTurboTorqueRPM": "Turbo peak torque RPM",
     "TorqueScaleFactor": "Torque multiplier", "HandBrakeTorque": "Handbrake strength",
-    "AirKZY": "Vertical drag", "GearStatusDownGearFactor": "Downshift factor",
+    "AirKZY": "Downforce scale", "TurboSize": "Donor turbo boost", "GearStatusDownGearFactor": "Downshift factor",
     "SteeringEndSpeed": "Steering end speed", "WheelRadius": "Wheel radius",
 }
 DRIVE_OPTIONS = ("", "0 - Front", "1 - Rear", "2 - All wheels")
@@ -62,9 +66,13 @@ def number(text: str, label: str, integer: bool = False) -> int | float:
 
 def edited_car(car: dict, ratings: dict[str, str], physics: dict[str, str],
                gears: str, colors: list[str], speedometer: dict[str, str],
-               model_package: str | None = None) -> dict:
+               model_package: str | None = None, factory_engine: bool | None = None) -> dict:
     """Translate the form into config data; blank physics fields inherit the donor."""
     result = copy.deepcopy(car)
+    if factory_engine is not None:
+        result.pop("engine_profile", None)
+        if factory_engine:
+            result["engine_profile"] = "factory"
     result["ratings"] = {key: number(ratings[key], key.title(), True) for key in RATING_ORDER}
     result["physics"] = {}
     for key, text in physics.items():
@@ -109,6 +117,9 @@ class EditorModel:
         candidate = copy.deepcopy(self.config)
         candidate["cars"][index] = car
         self.config = validated(candidate)
+
+    def restore_realistic(self, index: int) -> None:
+        self.replace_car(index, factory.apply_preset(self.config["cars"][index]))
 
     def replace_original_speedometers(self, settings: dict) -> None:
         candidate = copy.deepcopy(self.config)
@@ -229,7 +240,11 @@ class CarEditor:
         self.applying = False
         self.events = queue.Queue()
         self.rating_vars, self.physics_vars = {}, {}
+        self.physics_fields = {}
         self.gear_var = tk.StringVar()
+        self.factory_engine = tk.BooleanVar()
+        self.factory_engine.trace_add("write", self._factory_changed)
+        self.factory_specs = factory.load_specs()
         self.speed_vars = {key: tk.StringVar() for key in ("max_kmh", "max_mph")}
         self.model_var = tk.StringVar()
         self.model_status = tk.StringVar()
@@ -259,7 +274,7 @@ class CarEditor:
         outer = ttk.Frame(self.root, padding=18)
         outer.pack(fill="both", expand=True)
         ttk.Label(outer, text="Car Workshop", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(outer, text="Tune the added cars and preview their paint colors.", style="Sub.TLabel").pack(anchor="w", pady=(3, 15))
+        ttk.Label(outer, text="Real-world car specifications, driving settings and speedometer ranges.", style="Sub.TLabel").pack(anchor="w", pady=(3, 15))
         # Reserve the actions before the expanding editor panes, so a smaller
         # window never pushes Save/Apply below its visible client area.
         footer = ttk.Frame(outer)
@@ -290,11 +305,29 @@ class CarEditor:
         transmission = ttk.Frame(notebook, padding=14)
         advanced = ttk.Frame(notebook, padding=14)
         models = ttk.Frame(notebook, padding=14)
-        self.tabs = {"driving": driving, "gears": transmission, "advanced": advanced, "model": models}
+        specs = ttk.Frame(notebook, padding=14)
+        self.tabs = {"specs": specs, "driving": driving, "gears": transmission, "advanced": advanced, "model": models}
+        notebook.add(specs, text=" Car specs ")
         notebook.add(driving, text=" Driving ")
         notebook.add(transmission, text=" Gears & RPM ")
         notebook.add(advanced, text=" More settings ")
         notebook.add(models, text=" Model ")
+        self.spec_title = ttk.Label(specs, font=("Segoe UI", 12, "bold"), wraplength=390)
+        self.spec_title.pack(anchor="w", pady=(0, 10))
+        spec_body = ttk.Frame(specs)
+        spec_body.pack(fill="both", expand=True)
+        self.spec_text = tk.Text(spec_body, wrap="word", height=20, width=42, borderwidth=0,
+                                 background="#f3f5f8", foreground="#28384b", font=("Segoe UI", 10),
+                                 padx=0, pady=0, cursor="arrow")
+        spec_scroll = ttk.Scrollbar(spec_body, orient="vertical", command=self.spec_text.yview)
+        spec_scroll.pack(side="right", fill="y")
+        self.spec_text.configure(yscrollcommand=spec_scroll.set)
+        self.spec_text.pack(side="left", fill="both", expand=True)
+        self.spec_text.tag_configure("source", foreground="#2066ba", underline=True)
+        self.restore_button = ttk.Button(specs, text="Restore realistic setup", command=self.restore_realistic)
+        self.restore_button.pack(anchor="w", pady=(12, 5))
+        ttk.Label(specs, text="Restores driving settings, ratings and both dial limits. Save & Apply installs the changes.",
+                  style="Sub.TLabel", wraplength=390).pack(anchor="w")
         ttk.Label(models, text="Prepared MM3 model package", font=("Segoe UI", 11, "bold")).pack(anchor="w")
         ttk.Label(models, text="Choose a converted model folder containing package.json. The package replaces this car's visuals and survives future Save & Apply changes.",
                   style="Sub.TLabel", wraplength=390).pack(anchor="w", pady=(8, 12))
@@ -321,9 +354,11 @@ class CarEditor:
         self._physics_fields(transmission, TRANSMISSION, 0)
         ttk.Label(transmission, text="Gear ratios").grid(row=9, column=0, sticky="w", pady=(7, 3))
         ttk.Entry(transmission, textvariable=self.gear_var, width=37).grid(row=10, column=0, columnspan=3, sticky="ew")
-        ttk.Label(transmission, text="Reverse first; 2–6 decreasing forward ratios.", style="Sub.TLabel").grid(row=11, column=0, columnspan=3, sticky="w", pady=4)
+        ttk.Label(transmission, text="Reverse first; 1–7 decreasing forward ratios.", style="Sub.TLabel").grid(row=11, column=0, columnspan=3, sticky="w", pady=4)
         ttk.Label(transmission, text="RPM order: idle < shift < cutoff ≤ redline", style="Sub.TLabel").grid(row=12, column=0, columnspan=3, sticky="w", pady=4)
-        ttk.Label(transmission, text="Automatic upshift speeds use gear ratios, wheel radius and peak torque RPM (turbo peak torque RPM for turbo-equipped donors). Lowering minimum shift RPM alone will not make automatic shift earlier.", style="Sub.TLabel", wraplength=390).grid(row=13, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        ttk.Label(transmission, text="Factory mode uses a fixed torque-curve shape and shift target; peak torque RPM is a reference. Donor mode uses the editable peak RPM fields. Wheel geometry determines rolling radius.", style="Sub.TLabel", wraplength=390).grid(row=13, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        ttk.Checkbutton(transmission, text="Use factory engine profile", variable=self.factory_engine).grid(row=14, column=0, columnspan=3, sticky="w", pady=(12, 0))
+        ttk.Label(transmission, text="Factory mode: engine torque scale is in Nm. Donor mode: it is an MM3 tuning value.", style="Sub.TLabel", wraplength=390).grid(row=15, column=0, columnspan=3, sticky="w", pady=(4, 0))
         remaining = [key for key in prepare.PHYSICS if key not in DRIVING + TRANSMISSION]
         self._physics_fields(advanced, remaining, 0)
         preview = ttk.Frame(body, width=245)
@@ -378,8 +413,14 @@ class CarEditor:
             else:
                 field = ttk.Entry(parent, textvariable=variable, width=19)
             field.grid(row=row, column=1, padx=(10, 6), sticky="w")
+            self.physics_fields[key] = field
             low, high = prepare.PHYSICS[key]
             ttk.Label(parent, text=f"{low:g}–{high:g}", style="Sub.TLabel").grid(row=row, column=2, sticky="w")
+
+    def _factory_changed(self, *_args) -> None:
+        for key in ("MaxTorqueRPM", "MaxTurboTorqueRPM", "TurboSize"):
+            if key in self.physics_fields:
+                self.physics_fields[key].configure(state="readonly" if self.factory_engine.get() else "normal")
 
     def _load_car(self, index: int) -> None:
         self.loading = True
@@ -387,6 +428,8 @@ class CarEditor:
         car = self.model.config["cars"][index]
         self.name_label.configure(text=car["display_name"])
         self.identity_label.configure(text=f"ID {car['id']} · {car['donor']} donor setup")
+        self.factory_engine.set(car.get("engine_profile") == "factory")
+        self._show_specs(car)
         self.model_var.set(car.get("model_package", ""))
         for key, variable in self.rating_vars.items():
             variable.set(str(car["ratings"][key]))
@@ -402,6 +445,47 @@ class CarEditor:
         self.listbox.see(index)
         self.loading = False
         self._draw()
+
+    def _show_specs(self, car: dict) -> None:
+        reference = self.factory_specs[car["alias"]]
+        spec = reference["specification"]
+        self.spec_title.configure(text=reference["variant"])
+        self.spec_text.configure(state="normal")
+        self.spec_text.delete("1.0", "end")
+        lines = [f"Power: {spec.get('power_label') or 'Not published'}"]
+        torque = spec.get("torque_nm")
+        lines.append(f"Torque: {torque:g} Nm" if torque is not None else f"Torque: {spec.get('torque_label') or 'not published / unresolved'}")
+        mass = spec.get("mass_kg")
+        lines.append(f"Mass: {mass:g} kg ({spec.get('mass_basis', 'reference')})" if mass is not None else "Mass: not published")
+        speed = spec.get("top_speed_kmh")
+        lines.append(f"Top speed: {speed:g} km/h ({speed / 1.609344:.0f} mph)" if speed is not None else "Top speed: not published; circuit dependent")
+        acceleration = spec.get("zero_to_100_s")
+        lines.append(f"0–100 km/h: {acceleration:g} seconds" if acceleration is not None else "0–100 km/h: not published")
+        lines.append(f"Transmission: {spec['gear_count']} forward gear(s)")
+        lines.append(spec.get("drivetrain", ""))
+        self.spec_text.insert("end", "\n".join(lines) + "\n\n")
+        self.spec_text.insert("end", "Game calibration\n" + "\n".join(reference.get("notes", [])) + "\n\nSources\n")
+        for index, source in enumerate(reference.get("sources", [])):
+            tag = f"source_{index}"
+            self.spec_text.insert("end", source["title"] + "\n", ("source", tag))
+            self.spec_text.tag_bind(tag, "<Button-1>", lambda _event, url=source["url"]: webbrowser.open(url))
+        self.spec_text.configure(state="disabled")
+
+    def restore_realistic(self) -> None:
+        try:
+            # Tuning may be invalid while typing; the preset replaces it.
+            # Preserve only the current art selections before validation.
+            car = copy.deepcopy(self.model.config["cars"][self.current])
+            car["colors"] = [variable.get().strip().lower() for variable in self.color_vars]
+            car.pop("model_package", None)
+            if self.model_var.get().strip():
+                car["model_package"] = self.model_var.get().strip()
+            self.model.replace_car(self.current, factory.apply_preset(car))
+            self._load_car(self.current)
+        except (ValueError, OSError) as error:
+            self._error(error)
+            return
+        self.status.set("Realistic setup restored for this car. Save & Apply to install it.")
 
     def select_initial(self, car_id: int | None, tab: str) -> None:
         """Optional launch selection; ordinary launches still start at car one."""
@@ -528,7 +612,8 @@ class CarEditor:
                          {key: variable.get() for key, variable in self.rating_vars.items()},
                          {key: variable.get() for key, variable in self.physics_vars.items()},
                          self.gear_var.get(), [variable.get() for variable in self.color_vars],
-                         {key: variable.get() for key, variable in self.speed_vars.items()}, self.model_var.get())
+                         {key: variable.get() for key, variable in self.speed_vars.items()}, self.model_var.get(),
+                         factory_engine=self.factory_engine.get())
         self.model.replace_car(self.current, car)
 
     def _error(self, error) -> None:
@@ -582,7 +667,7 @@ class CarEditor:
             self._error(f"Unable to check whether the game is closed: {error}")
             return
         self.applying = True
-        for button in (self.save_button, self.apply_button, self.reload_button, self.original_speed_button,
+        for button in (self.save_button, self.apply_button, self.reload_button, self.original_speed_button, self.restore_button,
                        self.model_browse_button, self.model_clear_button, self.model_entry):
             button.configure(state="disabled")
         self.status.set("Applying settings… Original game-data backups are preserved by the installer.")
@@ -605,7 +690,7 @@ class CarEditor:
             pass
         else:
             self.applying = False
-            for button in (self.save_button, self.apply_button, self.reload_button, self.original_speed_button,
+            for button in (self.save_button, self.apply_button, self.reload_button, self.original_speed_button, self.restore_button,
                            self.model_browse_button, self.model_clear_button, self.model_entry):
                 button.configure(state="normal")
             if code:
@@ -636,8 +721,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="Manifest path (default: cars.local.json when present, otherwise cars.json)")
     parser.add_argument("--game-dir", type=Path, default=prepare.ROOT / "game_files")
     parser.add_argument("--car-id", type=int, choices=tuple(prepare.IDENTITIES), help="Select this car when opening the workshop")
-    parser.add_argument("--tab", choices=("driving", "gears", "advanced", "model"), default="driving",
-                        help="Open this settings tab (default: driving)")
+    parser.add_argument("--tab", choices=("specs", "driving", "gears", "advanced", "model"), default="specs",
+                        help="Open this settings tab (default: specs)")
     parser.add_argument("--smoke-test", action="store_true", help="Open, verify and close the UI without saving or applying")
     return parser.parse_args(argv)
 

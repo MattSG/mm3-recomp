@@ -1,0 +1,588 @@
+{
+  "version": 1,
+  "original_speedometers": {
+    "Koenigsegg": {
+      "max_kmh": 800,
+      "max_mph": 500
+    },
+    "Viper": {
+      "max_kmh": 800,
+      "max_mph": 500
+    },
+    "Lotus": {
+      "max_kmh": 800,
+      "max_mph": 500
+    }
+  },
+  "cars": [
+    {
+      "id": 9001,
+      "alias": "MRly",
+      "donor": "mini",
+      "display_name": "Mini Rally",
+      "ratings": {
+        "TOPSPEED": 5,
+        "ACCELERATION": 4,
+        "MASS": 4,
+        "HANDLING": 5,
+        "DURABILITY": 5
+      },
+      "physics": {
+        "Mass": 1145,
+        "TorqueScale": 149.14,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 0,
+        "BrakeTorque": 3800,
+        "HandBrakeTorque": 2090,
+        "LatFrictionFactor": 1.05,
+        "AirKZZ": 0.37,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 4500,
+        "MaxTurboTorqueRPM": 4500,
+        "MinRPM": 800,
+        "MinRPMGearChange": 2000,
+        "CutRPM": 6500,
+        "MaxRPM": 6500,
+        "TimeChangeGear": 0.35,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 3.94,
+        "WheelRadius": 0.30425,
+        "GearRatioVector": [
+          -3.58,
+          3.417,
+          1.947,
+          1.333,
+          1.054,
+          0.846
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 140
+      },
+      "colors": [
+        "#f28c28",
+        "#f2f2f2",
+        "#174c28"
+      ],
+      "speedometer": {
+        "max_kmh": 220,
+        "max_mph": 140
+      },
+      "engine_profile": "factory"
+    },
+    {
+      "id": 9004,
+      "alias": "Panoz",
+      "donor": "Viper",
+      "display_name": "Panoz GTR-1",
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 8,
+        "MASS": 4,
+        "HANDLING": 8,
+        "DURABILITY": 3
+      },
+      "physics": {
+        "Mass": 980,
+        "TorqueScale": 680,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 1,
+        "BrakeTorque": 7000,
+        "HandBrakeTorque": 3850,
+        "LatFrictionFactor": 1.7,
+        "AirKZZ": 0.52,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 5000,
+        "MaxTurboTorqueRPM": 5000,
+        "MinRPM": 1500,
+        "MinRPMGearChange": 3000,
+        "CutRPM": 8000,
+        "MaxRPM": 8000,
+        "TimeChangeGear": 0.12,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 2.8,
+        "WheelRadius": 0.34,
+        "GearRatioVector": [
+          -2.111111111111111,
+          2.7333333333333334,
+          2.0625,
+          1.6842105263157894,
+          1.4285714285714286,
+          1.2173913043478262,
+          1.0454545454545454
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 231
+      },
+      "colors": [
+        "#c7a52b",
+        "#efefeb",
+        "#961e28"
+      ],
+      "speedometer": {
+        "max_kmh": 360,
+        "max_mph": 240
+      },
+      "engine_profile": "factory",
+      "model_package": "../../out/car-models/packages/Panoz"
+    },
+    {
+      "id": 9005,
+      "alias": "McLaren_F1",
+      "donor": "Koenigsegg",
+      "display_name": "McLaren F1",
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 8,
+        "MASS": 4,
+        "HANDLING": 8,
+        "DURABILITY": 3
+      },
+      "physics": {
+        "Mass": 1050,
+        "TorqueScale": 650,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 1,
+        "BrakeTorque": 6800,
+        "HandBrakeTorque": 3740,
+        "LatFrictionFactor": 1.65,
+        "AirKZZ": 0.52,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 5600,
+        "MaxTurboTorqueRPM": 5600,
+        "MinRPM": 1200,
+        "MinRPMGearChange": 3000,
+        "CutRPM": 8000,
+        "MaxRPM": 8000,
+        "TimeChangeGear": 0.22,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 3.045112781954887,
+        "WheelRadius": 0.335,
+        "GearRatioVector": [
+          -2.3846153846153846,
+          3.230769230769231,
+          2.1875,
+          1.7142857142857142,
+          1.391304347826087,
+          1.16,
+          0.9285714285714286
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 231
+      },
+      "colors": [
+        "#b9c2cc",
+        "#ef8a21",
+        "#243a64"
+      ],
+      "speedometer": {
+        "max_kmh": 360,
+        "max_mph": 240
+      },
+      "engine_profile": "factory",
+      "model_package": "../../out/car-models/packages/McLaren_F1"
+    },
+    {
+      "id": 9006,
+      "alias": "Form1",
+      "donor": "Lotus",
+      "display_name": "Formula 1",
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 9,
+        "MASS": 2,
+        "HANDLING": 9,
+        "DURABILITY": 1
+      },
+      "physics": {
+        "Mass": 600,
+        "TorqueScale": 315,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 1,
+        "BrakeTorque": 9000,
+        "HandBrakeTorque": 4950,
+        "LatFrictionFactor": 2.1,
+        "AirKZZ": 0.78,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 16500,
+        "MaxTurboTorqueRPM": 16500,
+        "MinRPM": 4000,
+        "MinRPMGearChange": 8000,
+        "CutRPM": 19000,
+        "MaxRPM": 19000,
+        "TimeChangeGear": 0.05,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 4.9,
+        "WheelRadius": 0.33,
+        "GearRatioVector": [
+          -3,
+          4.2,
+          3.2,
+          2.55,
+          2.1,
+          1.78,
+          1.55,
+          1.37
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 245
+      },
+      "colors": [
+        "#dc202a",
+        "#28b8af",
+        "#18325e"
+      ],
+      "speedometer": {
+        "max_kmh": 380,
+        "max_mph": 240
+      },
+      "engine_profile": "factory",
+      "model_package": "../../out/car-models/packages/Form1"
+    },
+    {
+      "id": 9009,
+      "alias": "Ford_GTcar",
+      "donor": "Koenigsegg",
+      "display_name": "Ford GT",
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 8,
+        "MASS": 6,
+        "HANDLING": 7,
+        "DURABILITY": 4
+      },
+      "physics": {
+        "Mass": 1520,
+        "TorqueScale": 745.7,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 1,
+        "BrakeTorque": 6500,
+        "HandBrakeTorque": 3575,
+        "LatFrictionFactor": 1.5,
+        "AirKZZ": 0.46,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 5900,
+        "MaxTurboTorqueRPM": 5900,
+        "MinRPM": 800,
+        "MinRPMGearChange": 2200,
+        "CutRPM": 7000,
+        "MaxRPM": 7000,
+        "TimeChangeGear": 0.08,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 3.667,
+        "WheelRadius": 0.3515,
+        "GearRatioVector": [
+          -3.5,
+          3.397,
+          2.186,
+          1.626,
+          1.285,
+          1.029,
+          0.839,
+          0.634
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 243
+      },
+      "colors": [
+        "#68b7d1",
+        "#f0ece4",
+        "#ad1828"
+      ],
+      "speedometer": {
+        "max_kmh": 380,
+        "max_mph": 240
+      },
+      "engine_profile": "factory",
+      "model_package": "../../out/car-models/packages/Ford_GTcar"
+    },
+    {
+      "id": 9010,
+      "alias": "Senna_Road",
+      "donor": "Koenigsegg",
+      "display_name": "McLaren Senna",
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 9,
+        "MASS": 5,
+        "HANDLING": 8,
+        "DURABILITY": 3
+      },
+      "physics": {
+        "Mass": 1309,
+        "TorqueScale": 800,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 1,
+        "BrakeTorque": 7600,
+        "HandBrakeTorque": 4180,
+        "LatFrictionFactor": 1.7,
+        "AirKZZ": 0.58,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 6000,
+        "MaxTurboTorqueRPM": 6000,
+        "MinRPM": 850,
+        "MinRPMGearChange": 2500,
+        "CutRPM": 8415,
+        "MaxRPM": 8415,
+        "TimeChangeGear": 0.08,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 3.308,
+        "WheelRadius": 0.3485,
+        "GearRatioVector": [
+          -3.9,
+          3.982,
+          2.612,
+          1.905,
+          1.479,
+          1.16,
+          0.906,
+          0.686
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 234
+      },
+      "colors": [
+        "#ff8526",
+        "#2b4057",
+        "#d9e2e9"
+      ],
+      "speedometer": {
+        "max_kmh": 360,
+        "max_mph": 240
+      },
+      "engine_profile": "factory",
+      "model_package": "../../out/car-models/packages/Senna_Road"
+    },
+    {
+      "id": 9011,
+      "alias": "Senna_GTR1",
+      "donor": "Koenigsegg",
+      "display_name": "McLaren Senna GTR",
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 9,
+        "MASS": 5,
+        "HANDLING": 9,
+        "DURABILITY": 2
+      },
+      "physics": {
+        "Mass": 1270,
+        "TorqueScale": 800,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 1,
+        "BrakeTorque": 8200,
+        "HandBrakeTorque": 4510,
+        "LatFrictionFactor": 1.95,
+        "AirKZZ": 0.67,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 6000,
+        "MaxTurboTorqueRPM": 6000,
+        "MinRPM": 1000,
+        "MinRPMGearChange": 2500,
+        "CutRPM": 8250,
+        "MaxRPM": 8250,
+        "TimeChangeGear": 0.08,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 3.308,
+        "WheelRadius": 0.3525,
+        "GearRatioVector": [
+          -3.9,
+          3.982,
+          2.612,
+          1.905,
+          1.479,
+          1.16,
+          0.906,
+          0.686
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 227
+      },
+      "colors": [
+        "#efeff2",
+        "#2e6896",
+        "#b32431"
+      ],
+      "speedometer": {
+        "max_kmh": 360,
+        "max_mph": 240
+      },
+      "engine_profile": "factory",
+      "model_package": "../../out/car-models/packages/Senna_GTR1"
+    },
+    {
+      "id": 9012,
+      "alias": "FXXK_Racer",
+      "donor": "Koenigsegg",
+      "display_name": "Ferrari FXX K",
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 9,
+        "MASS": 6,
+        "HANDLING": 9,
+        "DURABILITY": 2
+      },
+      "physics": {
+        "Mass": 1590,
+        "TorqueScale": 950,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 1,
+        "BrakeTorque": 8500,
+        "HandBrakeTorque": 4675,
+        "LatFrictionFactor": 1.95,
+        "AirKZZ": 0.74,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 6500,
+        "MaxTurboTorqueRPM": 6500,
+        "MinRPM": 1000,
+        "MinRPMGearChange": 3500,
+        "CutRPM": 9250,
+        "MaxRPM": 9250,
+        "TimeChangeGear": 0.08,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 4.375,
+        "WheelRadius": 0.3575,
+        "GearRatioVector": [
+          -3.5,
+          3.08,
+          2.19,
+          1.626,
+          1.286,
+          1.028,
+          0.839,
+          0.693
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 245
+      },
+      "colors": [
+        "#d2202c",
+        "#252c34",
+        "#e7e8ea"
+      ],
+      "speedometer": {
+        "max_kmh": 400,
+        "max_mph": 260
+      },
+      "engine_profile": "factory",
+      "model_package": "../../out/car-models/packages/FXXK_Racer"
+    },
+    {
+      "id": 9013,
+      "alias": "Regera_GT1",
+      "donor": "Koenigsegg",
+      "display_name": "Koenigsegg Regera",
+      "ratings": {
+        "TOPSPEED": 9,
+        "ACCELERATION": 9,
+        "MASS": 6,
+        "HANDLING": 7,
+        "DURABILITY": 4
+      },
+      "physics": {
+        "Mass": 1590,
+        "TorqueScale": 2000,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 1,
+        "BrakeTorque": 7800,
+        "HandBrakeTorque": 4290,
+        "LatFrictionFactor": 1.55,
+        "AirKZZ": 0.68,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 4100,
+        "MaxTurboTorqueRPM": 4100,
+        "MinRPM": 800,
+        "MinRPMGearChange": 1500,
+        "CutRPM": 8250,
+        "MaxRPM": 8250,
+        "TimeChangeGear": 0.08,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 2.73,
+        "WheelRadius": 0.3575,
+        "GearRatioVector": [
+          -1,
+          1
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 280
+      },
+      "colors": [
+        "#62abde",
+        "#161f29",
+        "#e8e8e4"
+      ],
+      "speedometer": {
+        "max_kmh": 440,
+        "max_mph": 280
+      },
+      "engine_profile": "factory",
+      "model_package": "../../out/car-models/packages/Regera_GT1"
+    },
+    {
+      "id": 9014,
+      "alias": "AventadorX",
+      "donor": "Koenigsegg",
+      "display_name": "Lamborghini Aventador",
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 9,
+        "MASS": 7,
+        "HANDLING": 7,
+        "DURABILITY": 4
+      },
+      "physics": {
+        "Mass": 1675,
+        "TorqueScale": 690,
+        "TorqueScaleFactor": 1,
+        "TurboSize": 0,
+        "WheelDrive": 2,
+        "BrakeTorque": 6900,
+        "HandBrakeTorque": 3795,
+        "LatFrictionFactor": 1.5,
+        "AirKZZ": 0.47,
+        "AirKZY": 0.05,
+        "MaxTorqueRPM": 5500,
+        "MaxTurboTorqueRPM": 5500,
+        "MinRPM": 850,
+        "MinRPMGearChange": 3000,
+        "CutRPM": 8500,
+        "MaxRPM": 8500,
+        "TimeChangeGear": 0.08,
+        "TimeChangeGearFR": 0.3,
+        "WheelRatio": 3.5456140350877194,
+        "WheelRadius": 0.3545,
+        "GearRatioVector": [
+          -2.9285714285714284,
+          3.909090909090909,
+          2.4375,
+          1.8095238095238095,
+          1.4583333333333333,
+          1.1851851851851851,
+          0.9666666666666667,
+          0.84375
+        ],
+        "GearStatusDownGearFactor": 0.72,
+        "SteeringEndSpeed": 245
+      },
+      "colors": [
+        "#e29d16",
+        "#eff0eb",
+        "#31567a"
+      ],
+      "speedometer": {
+        "max_kmh": 380,
+        "max_mph": 240
+      },
+      "engine_profile": "factory",
+      "model_package": "../../out/car-models/packages/AventadorX"
+    }
+  ]
+}

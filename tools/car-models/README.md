@@ -1,5 +1,16 @@
 # Imported car visuals
 
+The current converter generates corrected closed stencil shadows for all nine
+imported exteriors. For a fresh checkout, use the complete source recipe and
+optional imported preset below. It carries the same ten-car tuning as the
+default preset, including Mini Rally's native visuals.
+
+## Historical import verification
+
+The observations in this section describe the initial imports, before the
+current factory engine profiles and later shadow repairs. They are retained
+as investigation history, not measurements of the current tuning.
+
 These tools turn downloaded MM1/MM2 car resources into inspectable geometry,
 then build prepared MM3 visual packages for Car Workshop. The first prepared
 port is **Panoz GTR-1**, replacing the exterior of the existing Panoz slot
@@ -9,16 +20,19 @@ Reapplying the Workshop pack changed zero files and preserved the model.
 Screenshots and telemetry are saved in `out/car-models/verification`.
 
 The expanded import roster adds the eight sources listed below. **All eight
-additional imports passed native showroom checks**, and the live catalog
-contains all **49 car IDs** (35 original plus 14 extra slots). The rebuilt
-runtime includes manufacturer, model and short names for all fourteen added
-cars; its 42-label native contract passed. The Senna GTR header was also
-confirmed in the current binary. Screenshots are collected in
+additional imports passed native showroom checks**. At that verification the
+catalog contained 49 car IDs (35 original plus 14 extra slots), and its
+42-label native contract passed. The current catalog contains **45 car IDs**:
+35 originals and 10 extras, comprising these nine imported cars and Mini Rally.
+The Mustang GT, Viper Race, Chiron and Bolide extra slots have since been
+retired. The Senna GTR header was also confirmed during the original checks.
+Screenshots are collected in
 `out/car-models/verification/remaining/index.html`.
 
-Car Workshop supports all fourteen extra-car slots;
-the original Mini/Mustang/Viper Race and Bugatti variants retain their own
-settings and donor visuals unless given a package.
+Car Workshop supports the ten active extra-car slots. Mini Rally retains its
+native Mini body and shadow geometry in both near and far models; only their
+asset paths are aliased. The nine imported cars receive generated body and
+wheel shadow proxies when rebuilt. Retired IDs remain unused.
 
 Cruise telemetry recorded the Senna GTR accelerating from **17.2 to 114.8
 km/h** and the Ferrari F2007 from **8.0 to 90.5 km/h**. Runtime stat comparisons
@@ -48,22 +62,153 @@ MM3's opaque material pass. The windows are opaque. The donor's low dashboard
 mesh is hidden from the exterior because it protrudes through the Panoz roof;
 the separate Viper dashboard asset remains available for the interior camera.
 
+## Conversion requirements
+
 Run the commands below from the repository root. These model tools require
-**NumPy and Pillow**, separately from Workshop's standard-library GUI. The
-system Python on this computer has both; the Workshop's smaller `tools/venv`
+**NumPy, SciPy and Pillow**, separately from Workshop's standard-library GUI. The
+system Python on this computer has all three; the Workshop's smaller `tools/venv`
 environment does not include Pillow. Check your selected interpreter with:
 
 ```powershell
-python -c "import numpy, PIL; print('Model tools ready')"
+python -c "import numpy, scipy, PIL; print('Model tools ready')"
 ```
 
 On a fresh machine, install missing model-tool dependencies into your selected
-Python environment with `python -m pip install numpy Pillow`. The normal
+Python environment with `python -m pip install numpy scipy Pillow`. SciPy builds
+the closed convex shadow proxies; it is a conversion dependency, not a game
+runtime dependency. The normal
 game-build setup installs the recompilation dependency, not these optional
 conversion tools. Downloaded car sources, exported models, generated packages
 and verification images remain local under ignored folders. Workshop prefers
 the ignored `tools/car-mods/cars.local.json` when it exists; the tracked
 `cars.json` contains donor-compatible defaults without local model paths.
+
+## Reproduce the nine imported exteriors
+
+Use the same source revision as your game build, such as the `v2026.10.12` tag,
+and first complete the [repository build and game-data setup](../../README.md).
+The converter reads the original Viper, Koenigsegg and Lotus models from your
+extracted `game_files/Data`; a compiled executable alone is insufficient.
+Neither the game data nor downloaded car meshes/textures are distributed here.
+
+Download these eight packs from their original MM2X listings. Download forms
+may require a browser and a security challenge. Retain each original readme
+and its terms; these links and conversion tools grant no additional rights to
+redistribute the source models, textures or derived packages.
+
+Under `out/car-models/downloads`, create the input folders shown below and put
+the listed `.ar` file and the original readme directly inside each folder.
+Panoz also requires its included `!!GTR-1_Paintjobs.ar` overlay. The Senna pack
+supplies both Senna models from one archive. These names are independent of
+the outer ZIP filename or the folder name chosen by the download website.
+
+| Source listing | Input folder / archive | Export basename | Source folder / package alias | Car ID |
+|---|---|---|---|---|
+| [Panoz GTR-1](https://www.mm2x.com/download-1336-panoz-gtr-1#1336) | `panoz/!GTR-1.ar` + `panoz/!!GTR-1_Paintjobs.ar` | `pgtr1` | `panoz` / `Panoz` | 9004 |
+| [1995 McLaren F1 GTR](https://www.mm2x.com/download-2214-1995-mclaren-f1-gtr#2214) | `mclaren-f1/!mcl_f1gtr.ar` | `mcl_f1gtr` | `mclaren-f1` / `McLaren_F1` | 9005 |
+| [Ferrari F2007 F1](https://www.mm2x.com/download-1220-ferrari-f2007-f1#1220) | `ferrari-f2007/!F2007.ar` | `f2007` | `ferrari-f2007` / `Form1` | 9006 |
+| [2017 Ford GT](https://www.mm2x.com/download-2049-2017-ford-gt#2049) | `ford-gt/vpfgt17.ar` | `vpfgt17` | `ford-gt` / `Ford_GTcar` | 9009 |
+| [McLaren Senna 2-Pack](https://www.mm2x.com/download-2221-mclaren-senna-2-pack#2221) | `senna/!mcl_senna.ar` | `mcl_senna` | `senna` / `Senna_Road` | 9010 |
+| [McLaren Senna 2-Pack](https://www.mm2x.com/download-2221-mclaren-senna-2-pack#2221) | `senna/!mcl_senna.ar` | `mcl_sennagtr` | `senna-gtr` / `Senna_GTR1` | 9011 |
+| [2015 Ferrari FXX K](https://www.mm2x.com/download-1806-2015-ferrari-fxx-k#1806) | `fxx-k/!FXX_K.ar` | `fxxk` | `fxx-k` / `FXXK_Racer` | 9012 |
+| [2015 Koenigsegg Regera](https://www.mm2x.com/download-1715-2015-koenigsegg-regera#1715) | `regera/!Regera.ar` | `regera` | `regera` / `Regera_GT1` | 9013 |
+| [Lamborghini Aventador LP700-4](https://www.mm2x.com/download-1465-lamborghini-aventador-lp700-4#1465) | `aventador/!lamboaven.ar` | `lamboaven` | `aventador` / `AventadorX` | 9014 |
+
+These SHA-256 values identify the actual input archives used for this roster,
+after unpacking the downloads. They are provenance checks, not a license.
+Use `Get-FileHash -Algorithm SHA256 <archive-path>` to compare an input.
+
+| Archive | SHA-256 |
+|---|---|
+| `!GTR-1.ar` | `f547db98b55cd99815d8a5506a543c943addd6c82b74f91986087fbc55a9c072` |
+| `!!GTR-1_Paintjobs.ar` | `9680a6907f95a694a1149f25ed02bfbad1ce496c2db7440c0c4574f05074adb4` |
+| `!mcl_f1gtr.ar` | `6db5d57a770aa0b46fa71b8e65e20c8bd0e3e180248bb2aaa233809f521ea82a` |
+| `!F2007.ar` | `c1f77d7e4988e88262158371cb9a053ce0971cd6c0d68b1d80e91e604cad346c` |
+| `vpfgt17.ar` | `ccb468d2eaf0bcf58563cc109c14b528fcfd1257a131aaafd7330d65377cb603` |
+| `!mcl_senna.ar` | `3669ba132ed524a567fb331742614297e57d7f0972b7d1ae37df0ad112ee824d` |
+| `!FXX_K.ar` | `c19aa6bb2b125e6007e288c85faa9433a83a574ae2eb545911dc2418c1819315` |
+| `!Regera.ar` | `808d1ae149cccbaf8e2597a1c273fee60192baceb1861fb71a9aafd0c107e8f0` |
+| `!lamboaven.ar` | `3dfe8f0a4230660ea25cf772c8eb5612ee79cf4319ddc6f0c7bf738c13bae764` |
+
+Run this PowerShell recipe from the repository root with a Python interpreter
+containing NumPy, SciPy and Pillow. Every export uses paint job **0** and source
+LOD **H**. The preview and package include the complete static `BODY`, `BREAK`
+and `FNDR` exterior plus four separately animated wheels. Panoz uses the
+recorded **-0.36 m** vertical offset; the other eight use automatic wheel-pivot
+alignment. Only F2007 enables averaged minified repeats. Texture size is
+explicitly capped at 1024 pixels. Existing output folders are regenerated.
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$downloads = 'out/car-models/downloads'
+$recipes = @(
+    @{Id=9004; Source='panoz'; Alias='Panoz'; Archive='panoz/!GTR-1.ar'; Model='pgtr1'},
+    @{Id=9005; Source='mclaren-f1'; Alias='McLaren_F1'; Archive='mclaren-f1/!mcl_f1gtr.ar'; Model='mcl_f1gtr'},
+    @{Id=9006; Source='ferrari-f2007'; Alias='Form1'; Archive='ferrari-f2007/!F2007.ar'; Model='f2007'},
+    @{Id=9009; Source='ford-gt'; Alias='Ford_GTcar'; Archive='ford-gt/vpfgt17.ar'; Model='vpfgt17'},
+    @{Id=9010; Source='senna'; Alias='Senna_Road'; Archive='senna/!mcl_senna.ar'; Model='mcl_senna'},
+    @{Id=9011; Source='senna-gtr'; Alias='Senna_GTR1'; Archive='senna/!mcl_senna.ar'; Model='mcl_sennagtr'},
+    @{Id=9012; Source='fxx-k'; Alias='FXXK_Racer'; Archive='fxx-k/!FXX_K.ar'; Model='fxxk'},
+    @{Id=9013; Source='regera'; Alias='Regera_GT1'; Archive='regera/!Regera.ar'; Model='regera'},
+    @{Id=9014; Source='aventador'; Alias='AventadorX'; Archive='aventador/!lamboaven.ar'; Model='lamboaven'}
+)
+foreach ($recipe in $recipes) {
+    $archive = Join-Path $downloads $recipe.Archive
+    $source = "out/car-models/source/$($recipe.Source)"
+    $preview = "out/car-models/previews/$($recipe.Source)"
+    $package = "out/car-models/packages/$($recipe.Alias)"
+    $importArgs = @('tools/car-models/mm2_source.py', 'import', $archive,
+        '--model', $recipe.Model, '--paintjob', '0', '--lod', 'H', '--out', $source)
+    if ($recipe.Id -eq 9004) {
+        $importArgs += @('--overlay', (Join-Path $downloads 'panoz/!!GTR-1_Paintjobs.ar'))
+    }
+    python @importArgs
+    if ($LASTEXITCODE -ne 0) { throw "Import failed: $($recipe.Alias)" }
+    Get-ChildItem -LiteralPath (Split-Path -Parent $archive) -Filter '*readme*.txt' -File |
+        Copy-Item -Destination $source
+    python tools/car-models/preview.py "$source/model.json" --out $preview `
+        --name $recipe.Alias --include '(?:BODY|BREAK\d+|FNDR[01]|WHL[0-3])_H' `
+        --icons --icon-prefix Car
+    if ($LASTEXITCODE -ne 0) { throw "Preview failed: $($recipe.Alias)" }
+    Copy-Item -LiteralPath (Join-Path $preview 'Car_Menu.png') -Destination (Join-Path $preview 'Menu.png')
+    Copy-Item -LiteralPath (Join-Path $preview 'Car_Small.png') -Destination (Join-Path $preview 'Small.png')
+    $buildArgs = @('tools/car-models/build_package.py', "$source/model.json", $package,
+        '--car-id', $recipe.Id, '--icons', $preview, '--max-texture-size', '1024')
+    if ($recipe.Id -eq 9004) { $buildArgs += @('--y-offset', '-0.36') }
+    if ($recipe.Id -eq 9006) { $buildArgs += '--average-minified-repeats' }
+    python @buildArgs
+    if ($LASTEXITCODE -ne 0) { throw "Package failed: $($recipe.Alias)" }
+}
+```
+
+The resulting nine folders match the relative paths in
+[`cars.imported.json`](../car-mods/cars.imported.json). This optional tracked
+preset is identical to `cars.json` in tuning, paint, ratings, factory profiles
+and speedometer ranges; only the nine `model_package` selections differ.
+Mini Rally keeps its native Mini model and requires no download. Close the
+game, preview the installation, then apply this explicit preset:
+
+```powershell
+python tools/car-mods/prepare.py --config tools/car-mods/cars.imported.json
+python tools/car-mods/prepare.py --config tools/car-mods/cars.imported.json --apply
+tools\car-mods\editor.cmd --config tools/car-mods/cars.imported.json --car-id 9004 --tab model
+```
+
+The explicit `--config` avoids an existing `cars.local.json` silently selecting
+a different setup. To use the same ten-car tuning with donor visuals instead,
+apply `tools/car-mods/cars.json` explicitly. For personal edits without modifying
+the tracked imported preset, copy it to `cars.local.json` and then select that
+file explicitly. Rebuild and reapply both near/far models to receive shadow
+writer updates; recompiling the game does not rewrite prepared packages.
+
+This reproduces the tagged code, tuning, chosen source liveries and current
+conversion behavior, including closed body/wheel shadow proxies. It does not
+promise byte-identical historical packages: the development installation had
+its existing visible geometry preserved while shadows were repaired, whereas
+this recipe converts the original sources afresh. In particular, Panoz's older
+visible packing can differ. Generated reports also contain local source paths.
+Keep previews and verify the result in-game; fixed liveries, opaque glass,
+convex shadow approximations and donor collision/interiors remain the limits.
 
 ## 1. Import the source car
 
@@ -147,7 +292,7 @@ names expected by the package builder, as above.
 ```powershell
 python tools/car-models/build_package.py `
     out/car-models/source/panoz/model.json out/car-models/packages/Panoz `
-    --car-id 9004 --icons out/car-models/previews/panoz
+    --car-id 9004 --y-offset -0.36 --icons out/car-models/previews/panoz
 ```
 
 This creates a package folder; it does not install it. The builder supports
@@ -171,10 +316,18 @@ The package contains:
 - `conversion-report.json`, recording material mapping, mesh replacements and
   alignment settings, plus source readmes copied from the source directory.
 
-The source's high-detail exterior is repeated across the donor's internal LODs
-so the old donor body does not return at distance. Large meshes are split into
-sibling chunks beneath the same native transform, preserving the animation of
-each wheel assembly. Dedicated low-detail imported meshes can be added later.
+The imported exterior replaces both the near model and the separate `_lod1`
+distance model. The second mesh slot is a dedicated stencil shadow pass. Each
+body and wheel gets a simplified convex proxy built from its own imported
+positions, with native attributes and material 0. Facet caps and collapsed
+edge quads form a closed volume when the native shader extrudes it. Wheel
+shadows use the same animated parent as their visible geometry. Convex proxies
+approximate concave openings and recesses; they are not exact body surfaces.
+At most 482 support vertices give 960 caps and 2,880 side-wall triangles per
+proxy, and the six coordinate extrema are preserved. Large visible meshes are
+split into sibling chunks beneath the same native transform; the first sibling
+casts the complete component shadow, and other siblings have empty shadow
+placeholders. Dedicated low-detail visible meshes can be added later.
 The retained native car shader supports at most 23 material
 slots; sources exceeding that limit need materials merged before packaging.
 
@@ -183,13 +336,14 @@ slots; sources exceeding that limit need materials merged before packaging.
 Close MM3, then open Workshop directly on the Panoz Model tab:
 
 ```powershell
-tools\car-mods\editor.cmd --car-id 9004 --tab model
+tools\car-mods\editor.cmd --config tools/car-mods/cars.imported.json --car-id 9004 --tab model
 ```
 
 Choose the prepared `out/car-models/packages/Panoz` folder, which contains
 `package.json`, then click **Save & Apply to game**. Restart MM3 and select
 **Panoz GTR-1**. The selection is stored as the car's `model_package` path in
-`tools/car-mods/cars.json`; relative paths resolve beside that manifest.
+the selected manifest; relative paths resolve beside that manifest. The command
+above explicitly selects `cars.imported.json`, regardless of local defaults.
 Keep the prepared package folder available. Later stat or speedometer changes
 reapply its visuals after donor cloning, preserving the imported body.
 
@@ -231,7 +385,7 @@ Copy-Item out/car-models/previews/senna/Senna_Small.png out/car-models/previews/
 python tools/car-models/build_package.py `
     out/car-models/source/senna/model.json out/car-models/packages/Senna_Road `
     --car-id 9010 --icons out/car-models/previews/senna
-tools\car-mods\editor.cmd --car-id 9010 --tab model
+tools\car-mods\editor.cmd --config tools/car-mods/cars.imported.json --car-id 9010 --tab model
 ```
 
 Select `out/car-models/packages/Senna_Road` in the Model tab. The other cars
@@ -264,12 +418,17 @@ python tools/car-models/build_package.py `
 A successful neutral export or prepared package alone does not establish MM3
 shader compatibility, correct native winding, wheel animation or runtime
 appearance. Keep the source previews as references when rebuilding. The
-current eight packages have native showroom evidence, with Cruise driving
+initial eight additional packages had native showroom evidence, with Cruise driving
 evidence for Senna GTR and Ferrari F2007. Separate donor collision, dashboard
 and effects remain in use; fixed initial liveries and opaque windows are still
 the limits of this first visual port.
-Some imported Koenigsegg-donor packages, including Senna and Regera, show jagged
-ground shadows. This predates the runtime optimizations and remains unresolved.
+The exporter previously treated dedicated shadow slots as visible LODs and
+wrote ordinary textured surfaces into them. The native shadow shader requires
+closed stencil volumes with facet normals and collapsed edge walls; ordinary
+surface geometry leaves gaps when extruded. Changing vertex attributes alone
+does not repair that topology. Rebuilding now generates closed body and wheel
+proxies. Existing packages need their near and `_lod1` models regenerated
+and reapplied through Workshop to receive this correction.
 
 ## Preserve source credits
 

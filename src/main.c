@@ -174,6 +174,16 @@ int main(void)
         return 1;
     }
 
+    /* MM3 releases large model buffers through NtFreeVirtualMemory when a
+     * scene is destroyed. The shared runtime leaves NT heap reclamation
+     * opt-in; without it each race/menu round trip retains those buffers
+     * until the guest heap is exhausted. Enable before its first allocation,
+     * including direct executable launches. */
+    if (_putenv_s("RECOMP_HEAP_RECLAIM", "1") != 0) {
+        fprintf(stderr, "cannot enable MM3 guest memory reclamation\n");
+        return 1;
+    }
+
     /* MM3 reads the triggers and left stick for driving. Keep the runtime's
      * legacy keys available, with arrows also driving this title. */
     if (!getenv("RECOMP_KEYBOARD_LAYOUT") &&
