@@ -182,6 +182,9 @@ GPU flushes.
 Draws retain fixed vertex resources and update vertex shader bindings only when
 the pass changes. Repeated texture stages reuse validated sampler-table entries
 and use the mip count already computed during texture lookup.
+Large texture-content buffers use native vector integer arithmetic when both
+the CPU and Windows support it. Hash values and byte coverage match the scalar
+implementation exactly; small shader keys retain their scalar path.
 Specialized shader lookup reuses the previous exact key and hashes changing keys
 in four lanes; full key comparisons still resolve collisions and pending shaders
 keep their compilation priority. Vertex program and constant versions advance
@@ -201,6 +204,9 @@ Both queue-pointer views follow actual command consumption. GPU notifications
 become visible after their matching consumed position and readbacks, so a ring
 wrap cannot wake the producer with a read pointer from the previous lap.
 Native waits retain the game's final queue and GPU-idle checks.
+Concurrent guest workers publish and remove native handle tokens under a short
+table lock, with pointer-sized acquire/release access for resolution. Native
+file operations and waits run outside that lock.
 Collision-call fallbacks preserve the argument block reused by the following
 helper, preventing a second stack cleanup from consuming saved registers.
 Supported DXT textures upload their original compressed blocks for GPU decoding,

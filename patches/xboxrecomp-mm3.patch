@@ -260,7 +260,7 @@ index b9a02bc..3028a35 100644
  
  ULONG   __stdcall xbox_RtlNtStatusToDosError(NTSTATUS Status);
 diff --git a/src/kernel/kernel_bridge.c b/src/kernel/kernel_bridge.c
-index ed7682a..4b24da5 100644
+index ed7682a..05db79d 100644
 --- a/src/kernel/kernel_bridge.c
 +++ b/src/kernel/kernel_bridge.c
 @@ -365,15 +365,17 @@ static void kernel_data_init(void)
@@ -404,7 +404,107 @@ index ed7682a..4b24da5 100644
      case 0xC0000017: g_eax = 8; break;          /* STATUS_NO_MEMORY → ERROR_NOT_ENOUGH_MEMORY */
      case 0xC000000D: g_eax = 87; break;         /* STATUS_INVALID_PARAMETER → ERROR_INVALID_PARAMETER */
      /* The informational and warning codes, which are not failures and must
-@@ -2965,8 +3025,9 @@ static NTSTATUS bridge_create_file_impl(
+@@ -2825,20 +2885,61 @@ static void bridge_write_iostatus(uint32_t ios_va, NTSTATUS status, uint32_t inf
+ #define BRIDGE_HANDLE_MASK 0x00FFFFFFu
+ #define BRIDGE_HANDLE_MAX  16384
+ static HANDLE s_handle_table[BRIDGE_HANDLE_MAX];
++static SRWLOCK s_handle_table_lock = SRWLOCK_INIT;
++
++/* Registration and removal share one short writer lock. Resolution must not
++ * hold it across a native wait or file operation; atomic pointer-sized loads
++ * pair with the publications below and preserve 64-bit host handles. As with
++ * native handles, callers must not close a handle while another thread uses it.
++ */
++static HANDLE bridge_handle_load(uint32_t i)
++{
++#if defined(_WIN32) && defined(_MSC_VER)
++    return (HANDLE)ReadPointerAcquire((PVOID const volatile *)&s_handle_table[i]);
++#elif defined(__GNUC__) || defined(__clang__)
++    return __atomic_load_n(&s_handle_table[i], __ATOMIC_ACQUIRE);
++#else
++    return (HANDLE)InterlockedCompareExchangePointer(
++        (PVOID volatile *)&s_handle_table[i], NULL, NULL);
++#endif
++}
++
++/* Only the exclusive writer changes a slot. Native acquire/release pointer
++ * accesses keep the normal resolution path a load rather than an atomic RMW.
++ */
++static void bridge_handle_store(uint32_t i, HANDLE h)
++{
++#if defined(_WIN32) && defined(_MSC_VER)
++    WritePointerRelease((PVOID volatile *)&s_handle_table[i], h);
++#elif defined(__GNUC__) || defined(__clang__)
++    __atomic_store_n(&s_handle_table[i], h, __ATOMIC_RELEASE);
++#else
++    HANDLE before = bridge_handle_load(i);
++    InterlockedCompareExchangePointer((PVOID volatile *)&s_handle_table[i], h, before);
++#endif
++}
+ 
+ static uint32_t bridge_handle_token(HANDLE h)
+ {
+     int i;
++    uint32_t token = 0;
+     if (!h || h == INVALID_HANDLE_VALUE) return 0;
++    AcquireSRWLockExclusive(&s_handle_table_lock);
+     for (i = 1; i < BRIDGE_HANDLE_MAX; i++)
+-        if (s_handle_table[i] == h) return BRIDGE_HANDLE_TAG | (uint32_t)i;
++        if (bridge_handle_load((uint32_t)i) == h) {
++            token = BRIDGE_HANDLE_TAG | (uint32_t)i;
++            goto done;
++        }
+     for (i = 1; i < BRIDGE_HANDLE_MAX; i++)
+-        if (s_handle_table[i] == NULL) {
+-            s_handle_table[i] = h;
+-            return BRIDGE_HANDLE_TAG | (uint32_t)i;
++        if (bridge_handle_load((uint32_t)i) == NULL) {
++            bridge_handle_store((uint32_t)i, h);
++            token = BRIDGE_HANDLE_TAG | (uint32_t)i;
++            break;
+         }
+-    fprintf(stderr, "  [BRIDGE] handle table full\n");
+-    return 0;
++done:
++    ReleaseSRWLockExclusive(&s_handle_table_lock);
++    if (!token) fprintf(stderr, "  [BRIDGE] handle table full\n");
++    return token;
+ }
+ 
+ /* Store a native HANDLE into a 32-bit Xbox memory slot (as a token). */
+@@ -2854,7 +2955,7 @@ static HANDLE bridge_read_handle(uint32_t va)
+     uint32_t token = BRIDGE_MEM32(va);
+     if ((token & 0xFF000000u) == BRIDGE_HANDLE_TAG) {
+         uint32_t i = token & BRIDGE_HANDLE_MASK;
+-        return (i > 0 && i < BRIDGE_HANDLE_MAX) ? s_handle_table[i] : NULL;
++        return (i > 0 && i < BRIDGE_HANDLE_MAX) ? bridge_handle_load(i) : NULL;
+     }
+     /* Untagged value: synthetic/dummy handle -- pass through unchanged. */
+     return (HANDLE)(uintptr_t)token;
+@@ -2877,7 +2978,7 @@ static HANDLE bridge_resolve_handle(uint32_t token)
+ {
+     if ((token & 0xFF000000u) == BRIDGE_HANDLE_TAG) {
+         uint32_t i = token & BRIDGE_HANDLE_MASK;
+-        return (i > 0 && i < BRIDGE_HANDLE_MAX) ? s_handle_table[i] : NULL;
++        return (i > 0 && i < BRIDGE_HANDLE_MAX) ? bridge_handle_load(i) : NULL;
+     }
+     /* Pseudo-handles (NtCurrentProcess() = -1, NtCurrentThread() = -2) are
+      * negative. Zero-extending them on a 64-bit host yields 0x00000000FFFFFFFE,
+@@ -2894,8 +2995,11 @@ static HANDLE bridge_take_handle(uint32_t token)
+     if ((token & 0xFF000000u) == BRIDGE_HANDLE_TAG) {
+         uint32_t i = token & BRIDGE_HANDLE_MASK;
+         if (i > 0 && i < BRIDGE_HANDLE_MAX) {
+-            HANDLE h = s_handle_table[i];
+-            s_handle_table[i] = NULL;
++            HANDLE h;
++            AcquireSRWLockExclusive(&s_handle_table_lock);
++            h = bridge_handle_load(i);
++            bridge_handle_store(i, NULL);
++            ReleaseSRWLockExclusive(&s_handle_table_lock);
+             return h;
+         }
+     }
+@@ -2965,8 +3069,9 @@ static NTSTATUS bridge_create_file_impl(
      }
  
      if (bridge_is_cdrom_device(name.Buffer)) {
@@ -416,7 +516,7 @@ index ed7682a..4b24da5 100644
          if (handle_va)
              BRIDGE_MEM32(handle_va) = BRIDGE_CDROM_HANDLE;
          bridge_write_iostatus(iostatus_va, 0, 1 /* FILE_OPENED */);
-@@ -3122,11 +3183,11 @@ static void bridge_NtCreateFile(void)
+@@ -3122,11 +3227,11 @@ static void bridge_NtCreateFile(void)
              xbox_VideoPlayFile(host);
      }
  
@@ -431,7 +531,7 @@ index ed7682a..4b24da5 100644
          extern uint32_t xbox_LastFileError(void);
          uint32_t _e = g_eax ? xbox_LastFileError() : 0u;
          if (g_eax)
-@@ -3137,8 +3198,8 @@ static void bridge_NtCreateFile(void)
+@@ -3137,8 +3242,8 @@ static void bridge_NtCreateFile(void)
                    : _e ==  3u ? " ERROR_PATH_NOT_FOUND" : "");
          else
              fprintf(stderr, "  [FILE] -> 0x%08X\n", g_eax);
@@ -441,7 +541,7 @@ index ed7682a..4b24da5 100644
  }
  
  /* ── NtOpenFile (ordinal 202, 6 args = 24 bytes) ──────── */
-@@ -3448,8 +3509,10 @@ static void bridge_NtReadFile(void)
+@@ -3448,8 +3553,10 @@ static void bridge_NtReadFile(void)
  
      /* What a read actually delivered. A decoder that rejects its input cannot
       * say whether the bytes were wrong or the read was, and the two look
@@ -454,7 +554,7 @@ index ed7682a..4b24da5 100644
          const uint8_t *p = (const uint8_t *)XBOX_TO_NATIVE(buffer_va);
          uint32_t got = (uint32_t)ios.Information;
          /* The offset matters as much as the length. A title streaming a pack
-@@ -3796,8 +3859,9 @@ static void bridge_NtDeviceIoControlFile(void)
+@@ -3796,8 +3903,9 @@ static void bridge_NtDeviceIoControlFile(void)
              uint32_t data_len = BRIDGE_MEM32(in_va + 12);
              uint32_t page     = BRIDGE_MEM8(in_va + 30) & 0x3F;
  
@@ -466,7 +566,7 @@ index ed7682a..4b24da5 100644
  
              if (data_va && data_len) {
                  uint32_t i;
-@@ -3831,8 +3895,9 @@ static void bridge_NtDeviceIoControlFile(void)
+@@ -3831,8 +3939,9 @@ static void bridge_NtDeviceIoControlFile(void)
              return;
          }
  
@@ -478,7 +578,7 @@ index ed7682a..4b24da5 100644
          if (out_va && out_len) {
              uint32_t i;
              for (i = 0; i < out_len; i++)
-@@ -5977,60 +6042,9 @@ static void bridge_RtlUshortByteSwap(void)
+@@ -5977,60 +6086,9 @@ static void bridge_RtlUshortByteSwap(void)
  /* ── Rtl Critical sections (ordinals 278, 295, 306) ─────────
   * 277/294 (plain Enter/Leave) are routed via the xbox_Rtl* wrappers already.
   *
@@ -542,7 +642,7 @@ index ed7682a..4b24da5 100644
  
  /* 278: VOID RtlEnterCriticalSectionAndRegion(PRTL_CRITICAL_SECTION) */
  static void bridge_RtlEnterCriticalSectionAndRegion(void)
-@@ -6049,9 +6063,8 @@ static void bridge_RtlLeaveCriticalSectionAndRegion(void)
+@@ -6049,9 +6107,8 @@ static void bridge_RtlLeaveCriticalSectionAndRegion(void)
  /* 306: BOOLEAN RtlTryEnterCriticalSection(PRTL_CRITICAL_SECTION) */
  static void bridge_RtlTryEnterCriticalSection(void)
  {
@@ -554,7 +654,7 @@ index ed7682a..4b24da5 100644
  }
  
  /* ── Rtl Misc stubs (ordinals 288, 297, 319, 321) ─────────── */
-@@ -9477,9 +9490,7 @@ static void kernel_thunk_dispatch_body(void)
+@@ -9477,9 +9534,7 @@ static void kernel_thunk_dispatch_body(void)
      ordinal = g_slot_ordinals[slot];
      bridge = g_slot_bridges[slot];
  
@@ -565,7 +665,7 @@ index ed7682a..4b24da5 100644
  
      if (KERNEL_LOG_ON()) {
          /* The guest return address sits at the top of the guest stack: the
-@@ -9488,46 +9499,11 @@ static void kernel_thunk_dispatch_body(void)
+@@ -9488,46 +9543,11 @@ static void kernel_thunk_dispatch_body(void)
           * difference between guessing and knowing when a title recurses. */
          fprintf(stderr,
                  "  [KERNEL] #%lld: ordinal %u (slot %d) esp=0x%08X ret=0x%08X\n",
@@ -613,7 +713,7 @@ index ed7682a..4b24da5 100644
      /* Pop the dummy return address that PUSH32(esp, 0) pushed before RECOMP_ICALL.
       * On real x86, "call [thunk]" pushes a real return address and "ret" pops it.
       * In our model, the bridge is called directly (not via the simulated stack),
-@@ -9559,10 +9535,8 @@ static void kernel_thunk_dispatch_body(void)
+@@ -9559,10 +9579,8 @@ static void kernel_thunk_dispatch_body(void)
              static uint32_t seen = 0xDEADBEEFu;
              if (_watch_before != seen) {
                  seen = _watch_before;
@@ -626,7 +726,7 @@ index ed7682a..4b24da5 100644
                  fflush(stderr);
              }
          }
-@@ -9572,7 +9546,7 @@ static void kernel_thunk_dispatch_body(void)
+@@ -9572,7 +9590,7 @@ static void kernel_thunk_dispatch_body(void)
          bridge();
      } else {
          /* No specific bridge - return 0. Warn once per ordinal rather than
@@ -635,7 +735,7 @@ index ed7682a..4b24da5 100644
           * usually the reason a game misbehaves, so it must not be swallowed
           * by the general call-trace throttle. Bounded to one line per slot. */
          static uint8_t warned[XBOX_KERNEL_THUNK_TABLE_SIZE];
-@@ -9713,6 +9687,7 @@ void xbox_kernel_bridge_init(void)
+@@ -9713,6 +9731,7 @@ void xbox_kernel_bridge_init(void)
      int unbridged = 0;
      DWORD old_protect;
  
@@ -2436,7 +2536,7 @@ index bd00f3f..575b5f3 100644
              }
          }
 diff --git a/src/video/nv2a_d3d11.c b/src/video/nv2a_d3d11.c
-index b9f3fa2..40ccd85 100644
+index b9f3fa2..fecd06d 100644
 --- a/src/video/nv2a_d3d11.c
 +++ b/src/video/nv2a_d3d11.c
 @@ -29,6 +29,8 @@
@@ -2577,7 +2677,33 @@ index b9f3fa2..40ccd85 100644
  static void fail(const char *what, HRESULT hr)
  {
      fprintf(stderr, "[D3D11] %s failed: 0x%08lX\n", what, (unsigned long)hr);
-@@ -868,12 +964,13 @@ typedef struct {
+@@ -346,24 +442,7 @@ static uint32_t phys(uint32_t va)
+     return va >= CONTIG_BASE ? va - CONTIG_BASE : va;
+ }
+ 
+-/* Four independent lanes so the multiply chain does not serialise. */
+-static uint64_t hash_mem(const uint8_t *p, size_t n)
+-{
+-    uint64_t a = 0x9E3779B97F4A7C15ull, b = 0xC2B2AE3D27D4EB4Full,
+-             c = 0x165667B19E3779F9ull, d = 0x27D4EB2F165667C5ull ^ n;
+-    size_t i = 0;
+-    for (; i + 32 <= n; i += 32) {
+-        uint64_t w[4];
+-        memcpy(w, p + i, 32);
+-        a = (a ^ w[0]) * 0x100000001B3ull; a ^= a >> 31;
+-        b = (b ^ w[1]) * 0x100000001B3ull; b ^= b >> 31;
+-        c = (c ^ w[2]) * 0x100000001B3ull; c ^= c >> 31;
+-        d = (d ^ w[3]) * 0x100000001B3ull; d ^= d >> 31;
+-    }
+-    for (; i < n; i++)
+-        a = (a ^ p[i]) * 0x100000001B3ull;
+-    return a ^ (b * 3) ^ (c * 5) ^ (d * 7);
+-}
++#include "nv2a_texture_hash.h"
+ 
+ /* ---------------------------------------------------------------- shaders */
+ 
+@@ -868,12 +947,13 @@ typedef struct {
  
  static void display_config(int now);
  
@@ -2594,7 +2720,7 @@ index b9f3fa2..40ccd85 100644
      if (FAILED(hr)) {
          fprintf(stderr, "[D3D11] shader %s: %s\n", entry,
                  err ? (const char *)ID3D10Blob_GetBufferPointer(err) : "?");
-@@ -883,6 +980,11 @@ static ID3DBlob *compile_def(const char *entry, const char *target, const D3D_SH
+@@ -883,6 +963,11 @@ static ID3DBlob *compile_def(const char *entry, const char *target, const D3D_SH
      return SUCCEEDED(hr) ? code : NULL;
  }
  
@@ -2606,7 +2732,7 @@ index b9f3fa2..40ccd85 100644
  static ID3DBlob *compile(const char *entry, const char *target)
  {
      return compile_def(entry, target, NULL);
-@@ -903,10 +1005,14 @@ typedef struct {
+@@ -903,10 +988,14 @@ typedef struct {
      uint32_t tex_info[4][3];
  } PsKey;
  
@@ -2622,7 +2748,7 @@ index b9f3fa2..40ccd85 100644
  } PsSpec;
  
  #define PS_SPEC_SLOTS 4096          /* power of two */
-@@ -914,9 +1020,162 @@ typedef struct {
+@@ -914,9 +1003,162 @@ typedef struct {
  static PsSpec *s_spec;
  static PsSpec *s_spec_q[PS_SPEC_QUEUE];
  static unsigned s_spec_head, s_spec_tail;  /* guarded by s_spec_cs */
@@ -2785,7 +2911,7 @@ index b9f3fa2..40ccd85 100644
  
  static DWORD WINAPI spec_worker(LPVOID arg)
  {
-@@ -926,12 +1185,19 @@ static DWORD WINAPI spec_worker(LPVOID arg)
+@@ -926,12 +1168,19 @@ static DWORD WINAPI spec_worker(LPVOID arg)
          const PsKey *k;
          char decl[2048];
          ID3DBlob *b;
@@ -2809,7 +2935,7 @@ index b9f3fa2..40ccd85 100644
          LeaveCriticalSection(&s_spec_cs);
          k = &e->key;
          snprintf(decl, sizeof decl,
-@@ -965,45 +1231,87 @@ static DWORD WINAPI spec_worker(LPVOID arg)
+@@ -965,45 +1214,87 @@ static DWORD WINAPI spec_worker(LPVOID arg)
          m[1].Name = "SPEC_DECL"; m[1].Definition = decl;
          m[2].Name = flat ? "FLATQ" : NULL; m[2].Definition = flat ? "nointerpolation" : NULL;
          m[3].Name = NULL; m[3].Definition = NULL;
@@ -2920,7 +3046,7 @@ index b9f3fa2..40ccd85 100644
      memset(&k, 0, sizeof k);
      memcpy(k.c_icw, pc->c_icw, sizeof k.c_icw);
      memcpy(k.a_icw, pc->a_icw, sizeof k.a_icw);
-@@ -1017,23 +1325,7 @@ static ID3D11PixelShader *spec_ps(const PSConsts *pc, uint32_t variant)
+@@ -1017,23 +1308,7 @@ static ID3D11PixelShader *spec_ps(const PSConsts *pc, uint32_t variant)
          k.tex_info[i][0] = pc->tex_info[i][0]; k.tex_info[i][1] = pc->tex_info[i][1];
          k.tex_info[i][2] = pc->tex_info[i][2];
      }
@@ -2945,7 +3071,7 @@ index b9f3fa2..40ccd85 100644
  }
  
  static ID3D11Buffer *make_buffer(UINT bytes, UINT bind)
-@@ -1050,13 +1342,34 @@ static ID3D11Buffer *make_buffer(UINT bytes, UINT bind)
+@@ -1050,13 +1325,34 @@ static ID3D11Buffer *make_buffer(UINT bytes, UINT bind)
      return b;
  }
  
@@ -2981,7 +3107,7 @@ index b9f3fa2..40ccd85 100644
      }
  }
  
-@@ -1217,6 +1530,8 @@ int nv2a_d3d_init(void)
+@@ -1217,6 +1513,8 @@ int nv2a_d3d_init(void)
          if (qc && qd) break;
      }
      if (s_msaa < 1) s_msaa = 1;
@@ -2990,7 +3116,7 @@ index b9f3fa2..40ccd85 100644
      s_init_state = 1;
      fprintf(stderr, "[D3D11] renderer ready: %ux%u internal, display aspect %.3f, %ux MSAA, %ux AF\n",
              (uint32_t)(GUEST_W * s_scale * widen() + 0.5f), (uint32_t)(GUEST_H * s_scale + 0.5f),
-@@ -1379,9 +1694,8 @@ static void blit_span(ID3D11ShaderResourceView *srv, ID3D11ShaderResourceView *m
+@@ -1379,9 +1677,8 @@ static void blit_span(ID3D11ShaderResourceView *srv, ID3D11ShaderResourceView *m
      ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
      ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
      ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -3002,7 +3128,7 @@ index b9f3fa2..40ccd85 100644
      ID3D11DeviceContext_PSSetShader(s_ctx, s_present_ps, NULL, 0);
      ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 0, 1, &s_cb_present);
      {
-@@ -1413,13 +1727,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
+@@ -1413,13 +1710,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
  }
  
  /* Guest rows of a surface as BGRA, with the format's fixed alpha. */
@@ -3019,7 +3145,7 @@ index b9f3fa2..40ccd85 100644
          uint32_t *dst = out + (size_t)y * s->w;
          if (s->bpp == 4) {
              memcpy(dst, row, (size_t)s->w * 4);
-@@ -1454,6 +1768,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
+@@ -1454,6 +1751,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
  static UINT s_up_w[2], s_up_h[2];
  static uint32_t *s_up_pixels, *s_mask_pixels;
  static size_t s_up_cap, s_mask_cap;
@@ -3028,7 +3154,7 @@ index b9f3fa2..40ccd85 100644
  
  /* slot 0: image, slot 1: change mask */
  static ID3D11ShaderResourceView *upload_slot(int k, const uint32_t *pixels, UINT w, UINT h)
-@@ -1489,6 +1805,25 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1489,6 +1788,25 @@ static uint32_t *scratch_pixels(size_t count)
      return s_up_pixels;
  }
  
@@ -3054,7 +3180,7 @@ index b9f3fa2..40ccd85 100644
  /* Guest memory is the authority for what the CPU writes. A shadow copy of
   * each surface's guest bytes says which pixels the CPU changed since the last
   * look; only those replace what the GPU drew. A loading screen drawn by the
-@@ -1496,22 +1831,24 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1496,22 +1814,24 @@ static uint32_t *scratch_pixels(size_t count)
  static void surface_sync_impl(Surface *s, int force)
  {
      uint32_t rowb = s->w * s->bpp, y, x, x0 = 0xFFFFFFFFu, x1 = 0, y0 = 0xFFFFFFFFu, y1 = 0;
@@ -3083,7 +3209,7 @@ index b9f3fa2..40ccd85 100644
          {
              ID3D11ShaderResourceView *srv = upload_image(px, s->w, s->h);
              float x0, x1;
-@@ -1522,7 +1859,7 @@ static void surface_sync_impl(Surface *s, int force)
+@@ -1522,7 +1842,7 @@ static void surface_sync_impl(Surface *s, int force)
          return;
      }
      for (y = 0; y < s->h; y++) {
@@ -3092,7 +3218,7 @@ index b9f3fa2..40ccd85 100644
          uint8_t *sh = s->shadow + (size_t)y * rowb;
          if (!memcmp(row, sh, rowb)) continue;
          if (y0 == 0xFFFFFFFFu) {
-@@ -1552,7 +1889,7 @@ static void surface_sync_impl(Surface *s, int force)
+@@ -1552,7 +1872,7 @@ static void surface_sync_impl(Surface *s, int force)
                  s->phys, s_frame, x0, y0, x1, y1);
      px = scratch_pixels((size_t)s->w * s->h);
      if (!px) return;
@@ -3101,7 +3227,7 @@ index b9f3fa2..40ccd85 100644
      {
          ID3D11ShaderResourceView *srv = upload_slot(0, px, s->w, s->h);
          ID3D11ShaderResourceView *msk = upload_slot(1, s_mask_pixels, s->w, s->h);
-@@ -1572,8 +1909,11 @@ static void surface_sync(Surface *s, int force)
+@@ -1572,8 +1892,11 @@ static void surface_sync(Surface *s, int force)
      if (s_prof_on > 0) s_prof[PROF_SYNC] += qpc() - t0;
  }
  
@@ -3113,7 +3239,7 @@ index b9f3fa2..40ccd85 100644
      if (s_cur_rt == s) unbind_targets();
      if (s->srv) ID3D11ShaderResourceView_Release(s->srv);
      if (s->rtv) ID3D11RenderTargetView_Release(s->rtv);
-@@ -1635,9 +1975,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
+@@ -1635,9 +1958,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
      } else {
          for (i = 0; i < MAX_SURFACES && !victim; i++)
              if (!s_surf[i].tex) victim = &s_surf[i];
@@ -3127,7 +3253,7 @@ index b9f3fa2..40ccd85 100644
          if (!victim) victim = &s_surf[0];
      }
      surface_release(victim);
-@@ -1901,9 +2242,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
+@@ -1901,9 +2225,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
  }
  
  typedef struct TexEntry {
@@ -3139,7 +3265,7 @@ index b9f3fa2..40ccd85 100644
      size_t bytes;
      ID3D11Texture2D *tex;
      ID3D11ShaderResourceView *srv;
-@@ -1954,12 +2295,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
+@@ -1954,12 +2278,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
      return 1;
  }
  
@@ -3195,7 +3321,7 @@ index b9f3fa2..40ccd85 100644
          for (by = 0; by < bh; by++)
              for (bx = 0; bx < bw; bx++) {
                  d3d8_dxt_decode_block(src + ((size_t)by * bw + bx) * L->bpp, t->color, px);
-@@ -1969,6 +2353,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
+@@ -1969,6 +2336,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
              }
          return;
      }
@@ -3207,7 +3333,7 @@ index b9f3fa2..40ccd85 100644
      if (L->kind == K_LIN) {
          for (y = 0; y < h; y++) {
              const uint8_t *row = src + (size_t)y * t->pitch;
-@@ -2057,22 +2446,55 @@ static int host_levels(const TexLayout *L, const NvD3DTexture *t)
+@@ -2057,22 +2429,55 @@ static int host_levels(const TexLayout *L, const NvD3DTexture *t)
      return n > L->levels ? n : L->levels;
  }
  
@@ -3270,7 +3396,7 @@ index b9f3fa2..40ccd85 100644
          e->used = s_frame;
          return e->srv;
      }
-@@ -2082,21 +2504,47 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2082,21 +2487,47 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
          ph = hash_mem((const uint8_t *)pal, t->palette_len * 4);
      }
      if (e && e->hash == h && e->pal_hash == ph) {
@@ -3324,7 +3450,7 @@ index b9f3fa2..40ccd85 100644
          if (L.faces == 6) {
              sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
              sd.TextureCube.MipLevels = (UINT)hl;
-@@ -2104,36 +2552,45 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2104,36 +2535,45 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
              sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
              sd.Texture2D.MipLevels = (UINT)hl;
          }
@@ -3392,7 +3518,7 @@ index b9f3fa2..40ccd85 100644
              w = L.level_w[L.levels - 1]; h = L.level_h[L.levels - 1];
              memcpy(a, px, (size_t)w * h * 4);
              for (; lv < hl; lv++) {
-@@ -2152,23 +2609,44 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2152,23 +2592,44 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
      }
      e->hash = h;
      e->pal_hash = ph;
@@ -3440,7 +3566,7 @@ index b9f3fa2..40ccd85 100644
  /* -------------------------------------------------------- state objects */
  
  typedef struct { uint64_t key; void *obj; } StateSlot;
-@@ -2346,12 +2824,29 @@ static D3D11_TEXTURE_ADDRESS_MODE addr_mode(uint32_t m)
+@@ -2346,12 +2807,29 @@ static D3D11_TEXTURE_ADDRESS_MODE addr_mode(uint32_t m)
      }
  }
  
@@ -3471,7 +3597,7 @@ index b9f3fa2..40ccd85 100644
      if (bias13 & 0x1000) bias13 -= 0x2000;
      key = (uint64_t)minf | ((uint64_t)magf << 8) | ((uint64_t)(bias13 & 0x1FFF) << 12) |
            ((uint64_t)(levels & 15) << 25) | ((uint64_t)(reduce != 0) << 29) |
-@@ -2393,9 +2888,26 @@ static ID3D11SamplerState *sampler(const NvD3DTexture *t, int levels, int reduce
+@@ -2393,9 +2871,26 @@ static ID3D11SamplerState *sampler(const NvD3DTexture *t, int levels, int reduce
          }
          ID3D11Device_CreateSamplerState(s_dev, &d, (ID3D11SamplerState **)slot);
      }
@@ -3498,7 +3624,7 @@ index b9f3fa2..40ccd85 100644
  /* ------------------------------------------------------------------- draw */
  
  static uint32_t mode_needs_texture(uint32_t mode)
-@@ -2585,8 +3097,7 @@ static ID3D11ShaderResourceView *surface_y16(Surface *s)
+@@ -2585,8 +3080,7 @@ static ID3D11ShaderResourceView *surface_y16(Surface *s)
          ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
          ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
          ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -3508,7 +3634,7 @@ index b9f3fa2..40ccd85 100644
          ID3D11DeviceContext_PSSetShader(s_ctx, s_y16_ps[s->ms ? 1 : 0], NULL, 0);
          ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 1, &src);
          ID3D11DeviceContext_Draw(s_ctx, 3, 0);
-@@ -2622,8 +3133,7 @@ static ID3D11ShaderResourceView *depth_y16(Depth *d)
+@@ -2622,8 +3116,7 @@ static ID3D11ShaderResourceView *depth_y16(Depth *d)
          ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
          ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
          ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -3518,7 +3644,7 @@ index b9f3fa2..40ccd85 100644
          ID3D11DeviceContext_PSSetShader(s_ctx, s_y16d_ps[d->samples > 1 ? 1 : 0], NULL, 0);
          ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 1, src);
          {
-@@ -2707,7 +3217,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2707,7 +3200,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          if (!mode_needs_texture(mode) || !t->addr || !t->width || !t->height)
              continue;
          tex_format(t->color, &kind);
@@ -3531,7 +3657,7 @@ index b9f3fa2..40ccd85 100644
          s_draw_textured = 1;
          if (!s_draw_tex_addr) s_draw_tex_addr = t->addr;
          if (rt && rt->sx > rt->sy * 1.001f) s_draw_reads_wide = 1;
-@@ -2742,9 +3256,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2742,9 +3239,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
                  }
              }
          } else {
@@ -3542,7 +3668,7 @@ index b9f3fa2..40ccd85 100644
              if (kind == K_LIN) {
                  pc.tex_scale[n][0] = 1.0f / (float)t->width;
                  pc.tex_scale[n][1] = 1.0f / (float)t->height;
-@@ -2758,7 +3270,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2758,7 +3253,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          }
          if (!view) continue;
          if (t->cube && !rt) srv[4 + n] = view; else srv[n] = view;
@@ -3551,7 +3677,7 @@ index b9f3fa2..40ccd85 100644
          pc.tex_info[n][0] = (t->control0 >> 2) & 1;
          pc.tex_info[n][1] = t->filter >> 28;
          /* Point taps of an upscaled linear target average the guest pixel's
-@@ -2816,7 +3328,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2816,7 +3311,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          pc.zp1[0] = 1.0f / ((float)zm + 1.0f);
          pc.zp1[1] = (float)zm;
      }
@@ -3560,7 +3686,7 @@ index b9f3fa2..40ccd85 100644
  
      if (st->poly_offset_fill && !(st->z_perspective && d)) {
          /* The slope term multiplies the depth change per pixel. At an
-@@ -2834,7 +3346,6 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2834,7 +3329,6 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          ID3D11PixelShader *ps = spec_ps(&pc, v);
          ID3D11DeviceContext_PSSetShader(s_ctx, ps ? ps : s_psv[v], NULL, 0);
      }
@@ -3568,7 +3694,7 @@ index b9f3fa2..40ccd85 100644
      ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 8, srv);
      ID3D11DeviceContext_PSSetSamplers(s_ctx, 0, 4, smp);
      ID3D11DeviceContext_RSSetState(s_ctx, rs_state(cull == 3 ? 0 : cull,
-@@ -3025,6 +3536,7 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -3025,6 +3519,7 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
                        uint32_t lo, uint32_t hi, const float (*pos)[4])
  {
      static uint32_t s_prog_version, s_vconst_version;
@@ -3576,7 +3702,7 @@ index b9f3fa2..40ccd85 100644
      static float *dx;
      static uint32_t dx_cap;
      struct { const uint8_t *base; uint32_t stride, span; } grp[16];
-@@ -3073,9 +3585,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -3073,9 +3568,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
      RECOMP_PROFILE_BEGIN("D3D11 draw");
      t_draw = s_prof_on > 0 ? qpc() : 0;
      s_prof_draws++;
@@ -3594,7 +3720,7 @@ index b9f3fa2..40ccd85 100644
      }
      if (pos && s && s->sx > s->sy * 1.001f) {
          /* Menu artwork and controls span the display together. Only the
-@@ -3158,13 +3675,25 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -3158,13 +3658,25 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
          const uint32_t (*prog)[4] = nv2a_vsh_program(&start, &pver);
          const float (*consts)[4] = nv2a_vsh_constants(&cver);
          uc.info[0] = start;
@@ -3624,7 +3750,7 @@ index b9f3fa2..40ccd85 100644
          }
      }
      uc.map[0] = 2.0f / (float)gw;
-@@ -3177,14 +3706,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -3177,14 +3689,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
      uc.fogf[1] = st->fog_param[1];
      uc.place[0] = shift;
      uc.place[1] = yscale;
@@ -3645,7 +3771,7 @@ index b9f3fa2..40ccd85 100644
          ID3D11DeviceContext_DrawIndexed(s_ctx, ni, 0, 0);
      }
      s_raw_pos += (at + 255) & ~255u;
-@@ -3204,11 +3733,18 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3204,11 +3716,18 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
      float cc[8];
      D3D11_RECT r;
      int zclear = (flags & 1) != 0, sclear = (flags & 2) != 0;
@@ -3666,7 +3792,7 @@ index b9f3fa2..40ccd85 100644
      if (s) {
          if (flags & 0x10) mask |= D3D11_COLOR_WRITE_ENABLE_RED;
          if (flags & 0x20) mask |= D3D11_COLOR_WRITE_ENABLE_GREEN;
-@@ -3217,8 +3753,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3217,8 +3736,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
              mask |= D3D11_COLOR_WRITE_ENABLE_ALPHA;
      }
      if (!d) { zclear = sclear = 0; }
@@ -3678,7 +3804,7 @@ index b9f3fa2..40ccd85 100644
      if (s && mask) s->gpu_dirty = 1;
      zf = (st->surface_format >> 4) & 0xF;
      unpack4(color, cc);
-@@ -3234,8 +3772,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3234,8 +3755,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
      upload_cb(s_cb_clear, cc, sizeof cc);
      if (x1 >= gw) x1 = gw - 1;
      if (y1 >= gh) y1 = gh - 1;
@@ -3690,7 +3816,7 @@ index b9f3fa2..40ccd85 100644
      r.left = (LONG)(x0 * s_aa_x * s_cur_sx + 0.5f);
      r.top = (LONG)(y0 * s_aa_y * s_cur_sy + 0.5f);
      r.right = (LONG)((x1 + 1) * s_aa_x * s_cur_sx + 0.5f);
-@@ -3247,12 +3787,12 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3247,12 +3770,12 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
          ds_state(zclear, 7, zclear, sclear, 7, 0xFF, 0xFF, 0x1E01, 0x1E01, 0x1E01),
          zf == 1 ? 0 : (zstencil & 0xFF));
      ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -3706,7 +3832,7 @@ index b9f3fa2..40ccd85 100644
  }
  
  /* -------------------------------------------------------------- write-back */
-@@ -3270,6 +3810,27 @@ typedef struct {
+@@ -3270,6 +3793,27 @@ typedef struct {
      ID3D11RenderTargetView *down_rtv;
  } WbSlot;
  static WbSlot s_wb[MAX_SURFACES];
@@ -3734,7 +3860,7 @@ index b9f3fa2..40ccd85 100644
  
  static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
  {
-@@ -3289,12 +3850,14 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
+@@ -3289,12 +3833,14 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
              return 0;
          k->w = w; k->h = h;
      }
@@ -3755,7 +3881,7 @@ index b9f3fa2..40ccd85 100644
      }
      return 1;
  }
-@@ -3305,21 +3868,63 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
+@@ -3305,21 +3851,63 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
   * (nv2a_d3d_writeback_busy), holding back DMA_GET and fence releases until
   * then -- the title cannot learn the frame is finished before its pixels are
   * in guest memory. */
@@ -3821,7 +3947,7 @@ index b9f3fa2..40ccd85 100644
      for (i = 0; i < MAX_SURFACES; i++) {
          Surface *s = &s_surf[i];
          WbSlot *k = &s_wb[i];
-@@ -3328,16 +3933,18 @@ static int writeback_finish(int wait)
+@@ -3328,16 +3916,18 @@ static int writeback_finish(int wait)
          uint32_t x, y, rowb;
          int amode, r565;
          HRESULT hr;
@@ -3841,7 +3967,7 @@ index b9f3fa2..40ccd85 100644
          if (FAILED(hr))
              continue;
          dst = (uint8_t *)guest(s->va);
-@@ -3374,6 +3981,8 @@ static int writeback_finish(int wait)
+@@ -3374,6 +3964,8 @@ static int writeback_finish(int wait)
      }
      RECOMP_PROFILE_END();
      s_wb_pending = left;
@@ -3850,7 +3976,7 @@ index b9f3fa2..40ccd85 100644
      return !left;
  }
  
-@@ -3381,10 +3990,8 @@ int nv2a_d3d_writeback_busy(void)
+@@ -3381,10 +3973,8 @@ int nv2a_d3d_writeback_busy(void)
  {
      if (!s_wb_pending || writeback_finish(0))
          return 0;
@@ -3863,7 +3989,7 @@ index b9f3fa2..40ccd85 100644
      return 1;
  }
  
-@@ -3420,10 +4027,20 @@ static void writeback_surfaces(void)
+@@ -3420,10 +4010,20 @@ static void writeback_surfaces(void)
          }
          s->gpu_dirty = 0;                        /* later draws dirty it again */
          k->pending = 1;
@@ -3885,7 +4011,7 @@ index b9f3fa2..40ccd85 100644
      RECOMP_PROFILE_END();
  }
  
-@@ -3439,13 +4056,16 @@ static uint64_t s_zpass;
+@@ -3439,13 +4039,16 @@ static uint64_t s_zpass;
  static void zpass_collect(void)
  {
      UINT64 n = 0;
@@ -3902,7 +4028,7 @@ index b9f3fa2..40ccd85 100644
  }
  
  void nv2a_d3d_zpass_enable(int on)
-@@ -3657,9 +4277,8 @@ static void composite(ID3D11RenderTargetView *rtv, UINT w, UINT h, Surface *s,
+@@ -3657,9 +4260,8 @@ static void composite(ID3D11RenderTargetView *rtv, UINT w, UINT h, Surface *s,
      ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
      ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
      ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -3914,7 +4040,7 @@ index b9f3fa2..40ccd85 100644
      ID3D11DeviceContext_PSSetShader(s_ctx, s_present_ps, NULL, 0);
      ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 0, 1, &s_cb_present);
      surface_resolve(s);
-@@ -3779,38 +4398,24 @@ static void pace_vblank(void)
+@@ -3779,38 +4381,24 @@ static void pace_vblank(void)
      static LARGE_INTEGER freq;
      static int64_t next;
      static HANDLE timer;
@@ -3984,13 +4110,16 @@ index 1e4ebc0..d3e1010 100644
    target_include_directories(dsp_apu_test PRIVATE ../../src ../../src/apu)
    target_compile_definitions(dsp_apu_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
 diff --git a/tests/kernel_dispatch/CMakeLists.txt b/tests/kernel_dispatch/CMakeLists.txt
-index a8e9688..3d2e894 100644
+index a8e9688..cb6e4cd 100644
 --- a/tests/kernel_dispatch/CMakeLists.txt
 +++ b/tests/kernel_dispatch/CMakeLists.txt
-@@ -7,5 +7,47 @@ add_subdirectory(../.. xboxrecomp)
+@@ -7,5 +7,51 @@ add_subdirectory(../.. xboxrecomp)
  add_executable(kernel-dispatch-thread-test kernel_dispatch_thread_test.c)
  target_include_directories(kernel-dispatch-thread-test PRIVATE ../../src/kernel)
  target_link_libraries(kernel-dispatch-thread-test PRIVATE xboxrecomp)
++add_executable(kernel-handle-thread-test kernel_handle_thread_test.c)
++target_include_directories(kernel-handle-thread-test PRIVATE ../../src/kernel)
++target_link_libraries(kernel-handle-thread-test PRIVATE xboxrecomp)
 +add_executable(kernel-log-test kernel_log_test.c)
 +target_include_directories(kernel-log-test PRIVATE ../../src/kernel)
 +target_link_libraries(kernel-log-test PRIVATE xboxrecomp)
@@ -4017,6 +4146,7 @@ index a8e9688..3d2e894 100644
 +target_link_libraries(nv2a-dma-sync-test PRIVATE xboxrecomp)
  enable_testing()
  add_test(NAME kernel-dispatch-thread COMMAND kernel-dispatch-thread-test)
++add_test(NAME kernel-handle-thread COMMAND kernel-handle-thread-test)
 +add_test(NAME kernel-log-quiet COMMAND kernel-log-test)
 +add_test(NAME kernel-log-budget COMMAND kernel-log-test budget)
 +add_test(NAME kernel-log-summary COMMAND kernel-log-test summary)
@@ -4036,10 +4166,10 @@ index a8e9688..3d2e894 100644
 +add_test(NAME nv2a-pb-hitch-trace COMMAND nv2a-pb-hitch-test trace)
 +set_tests_properties(nv2a-pb-hitch-trace PROPERTIES PASS_REGULAR_EXPRESSION "cpu_ms=40[.]000.*max_ms=80[.]000.*method=17FC")
 diff --git a/tests/kernel_dispatch/README.md b/tests/kernel_dispatch/README.md
-index dd7efb0..5032532 100644
+index dd7efb0..5ad726b 100644
 --- a/tests/kernel_dispatch/README.md
 +++ b/tests/kernel_dispatch/README.md
-@@ -1,14 +1,134 @@
+@@ -1,14 +1,144 @@
 -# Kernel dispatch thread regression
 +# Kernel dispatch regressions
  
@@ -4048,6 +4178,16 @@ index dd7efb0..5032532 100644
  thread between the first lookup and its invocation. A shared dispatch slot
  selects the wrong service and pops an extra argument; per-thread storage passes.
  
++The handle test dispatches actual event and file imports across twelve workers
++and thirty-two synchronized cohorts. Registrations overlap removals of distinct
++objects; every live token and native handle stays unique, each event signals
++only its intended object, and each file returns its own payload. Native handle
++counts stay level and return after closure. Separate cases cover concurrent
++registration of one native handle, a single successful concurrent take, 64-bit
++handles, raw and pseudo handles, invalid tags, full-table ownership and reuse.
++Only registration and removal hold the table's writer lock; resolution uses a
++native atomic pointer load, and no native wait or I/O runs under that lock.
++
 +The log tests dispatch 20,001 calls across three threads and wait beyond the
 +summary interval. They verify that a zero budget stays quiet, a three-call
 +budget emits exactly three unique trace lines, and `RECOMP_KERNEL_SUMMARY=1`
@@ -5212,6 +5352,96 @@ index 0000000..f833590
 +}
 +
 +#endif
+diff --git a/src/video/nv2a_texture_hash.h b/src/video/nv2a_texture_hash.h
+new file mode 100644
+index 0000000..1940901
+--- /dev/null
++++ b/src/video/nv2a_texture_hash.h
+@@ -0,0 +1,84 @@
++/* Exact texture-content hash. Native integer lanes preserve the scalar hash;
++ * only CPU execution changes, never the amount or frequency of validation. */
++#ifndef NV2A_TEXTURE_HASH_H
++#define NV2A_TEXTURE_HASH_H
++#include <stdint.h>
++#include <stddef.h>
++#include <string.h>
++
++#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
++#include <intrin.h>
++#include <immintrin.h>
++#ifndef NV_HASH_CPUID
++#define NV_HASH_CPUID(result,leaf,subleaf) __cpuidex(result,leaf,subleaf)
++#endif
++#ifndef NV_HASH_XGETBV
++#define NV_HASH_XGETBV(index) _xgetbv(index)
++#endif
++static int hash_mem_cpu_native(void)
++{
++    int r[4];
++    NV_HASH_CPUID(r,0,0);
++    if(r[0]<7) return 0;
++    NV_HASH_CPUID(r,1,0);
++    /* XSAVE, OSXSAVE and AVX precede XGETBV. The OS must save XMM/YMM,
++     * opmask and both upper ZMM components, including for 256-bit EVEX. */
++    if(((uint32_t)r[2]&0x1C000000u)!=0x1C000000u) return 0;
++    if((NV_HASH_XGETBV(0)&0xE6u)!=0xE6u) return 0;
++    NV_HASH_CPUID(r,7,0);
++    /* AVX2 for the 256-bit logical shifts, AVX512F/DQ/VL for VPMULLQ. */
++    return ((uint32_t)r[1]&0x80030020u)==0x80030020u;
++}
++static volatile long s_hash_mem_native = -1;
++static int hash_mem_native_available(void)
++{
++    long available=s_hash_mem_native;
++    if(available<0) {
++        int detected=hash_mem_cpu_native();
++        _InterlockedCompareExchange(&s_hash_mem_native,detected,-1);
++        available=s_hash_mem_native;
++    }
++    return available!=0;
++}
++/* Keep feature instructions outside the generic scalar function. No global
++ * /arch option is required or used; the runtime guard owns every call here. */
++static __declspec(noinline) uint64_t hash_mem_native(const uint8_t *p,size_t n)
++{
++    __m256i lanes=_mm256_set_epi64x(0x27D4EB2F165667C5ull^n,0x165667B19E3779F9ull,
++                                   0xC2B2AE3D27D4EB4Full,0x9E3779B97F4A7C15ull);
++    __m256i prime=_mm256_set1_epi64x(0x100000001B3ull);
++    uint64_t w[4];
++    size_t i=0;
++    for(;i+32<=n;i+=32) {
++        lanes=_mm256_mullo_epi64(_mm256_xor_si256(lanes,
++                   _mm256_loadu_si256((const __m256i *)(p+i))),prime);
++        lanes=_mm256_xor_si256(lanes,_mm256_srli_epi64(lanes,31));
++    }
++    _mm256_storeu_si256((__m256i *)w,lanes);
++    for(;i<n;i++) w[0]=(w[0]^p[i])*0x100000001B3ull;
++    return w[0]^(w[1]*3)^(w[2]*5)^(w[3]*7);
++}
++#endif
++
++#ifndef NV_HASH_NATIVE_MIN
++#define NV_HASH_NATIVE_MIN 1024u
++#endif
++static uint64_t hash_mem(const uint8_t *p,size_t n)
++{
++    uint64_t a=0x9E3779B97F4A7C15ull,b=0xC2B2AE3D27D4EB4Full,
++             c=0x165667B19E3779F9ull,d=0x27D4EB2F165667C5ull^n;
++    size_t i=0;
++#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
++    if(n>=NV_HASH_NATIVE_MIN && hash_mem_native_available()) return hash_mem_native(p,n);
++#endif
++    for(;i+32<=n;i+=32) {
++        uint64_t w[4];memcpy(w,p+i,32);
++        a=(a^w[0])*0x100000001B3ull;a^=a>>31;
++        b=(b^w[1])*0x100000001B3ull;b^=b>>31;
++        c=(c^w[2])*0x100000001B3ull;c^=c>>31;
++        d=(d^w[3])*0x100000001B3ull;d^=d>>31;
++    }
++    for(;i<n;i++) a=(a^p[i])*0x100000001B3ull;
++    return a^(b*3)^(c*5)^(d*7);
++}
++#endif
 diff --git a/tests/dsp/dsp_interrupt_fastpath_test.c b/tests/dsp/dsp_interrupt_fastpath_test.c
 new file mode 100644
 index 0000000..f0adcc2
@@ -5897,6 +6127,339 @@ index 0000000..37b0f04
 +    if (*path) DeleteFileW(path);
 +    if (directory_created) RemoveDirectoryW(dir);
 +    return result;
++}
+diff --git a/tests/kernel_dispatch/kernel_handle_thread_test.c b/tests/kernel_dispatch/kernel_handle_thread_test.c
+new file mode 100644
+index 0000000..95ff65e
+--- /dev/null
++++ b/tests/kernel_dispatch/kernel_handle_thread_test.c
+@@ -0,0 +1,327 @@
++/* Real event/file imports share the bridge's actual private handle table. */
++#include "../../src/kernel/kernel_bridge.c"
++
++#define WORKERS 12
++#define ROUNDS 32
++#define CHECK(c) do { if (!(c)) { \
++    fprintf(stderr, "FAIL: line %d: %s (error %lu)\n", __LINE__, #c, GetLastError()); \
++    exit(1); \
++} } while (0)
++
++recomp_func_t recomp_lookup(uint32_t address) { (void)address; abort(); }
++recomp_func_t recomp_lookup_manual(uint32_t address) { (void)address; abort(); }
++
++enum { CLOSE, CREATE_EVENT, CREATE_FILE, READ_FILE, SET_EVENT, WAIT_EVENT, WRITE_FILE, SERVICES };
++static const uint32_t ordinals[SERVICES] = {187, 189, 190, 219, 225, 233, 236};
++static uint32_t services[SERVICES];
++static uint8_t *memory;
++static uint32_t root_token;
++static wchar_t directory[MAX_PATH];
++
++typedef struct {
++    CRITICAL_SECTION lock;
++    CONDITION_VARIABLE changed;
++    unsigned count, generation;
++} barrier_t;
++static barrier_t barrier;
++
++static void rendezvous(void)
++{
++    unsigned generation;
++    EnterCriticalSection(&barrier.lock);
++    generation = barrier.generation;
++    if (++barrier.count == WORKERS + 1) {
++        barrier.count = 0;
++        barrier.generation++;
++        WakeAllConditionVariable(&barrier.changed);
++    } else {
++        while (generation == barrier.generation)
++            CHECK(SleepConditionVariableCS(&barrier.changed, &barrier.lock, 10000));
++    }
++    LeaveCriticalSection(&barrier.lock);
++}
++
++static uint32_t invoke(unsigned service, uint32_t stack, const uint32_t *args, unsigned count)
++{
++    recomp_func_t fn;
++    uint32_t *sp = (uint32_t *)(memory + stack);
++    sp[0] = 0xBEEF0001;
++    memcpy(sp + 1, args, count * sizeof *args);
++    g_esp = stack;
++    fn = recomp_lookup_kernel(services[service]);
++    CHECK(fn != NULL);
++    fn();
++    CHECK(g_esp == stack + 4 + count * 4);
++    return g_eax;
++}
++
++static uint32_t arena(unsigned id) { return 0x20000 + id * 0x1000; }
++static uint32_t guest_word(uint32_t va) { return *(uint32_t *)(memory + va); }
++
++static void close_token(uint32_t token, uint32_t stack)
++{
++    CHECK(invoke(CLOSE, stack, &token, 1) == STATUS_SUCCESS);
++}
++
++static void file_name(unsigned id, unsigned round, char *name, size_t bytes)
++{
++    CHECK(sprintf_s(name, bytes, "worker-%02u-%02u.bin", id, round) > 0);
++}
++
++static void delete_file(unsigned id, unsigned round)
++{
++    char name[40];
++    wchar_t path[MAX_PATH];
++    file_name(id, round, name, sizeof name);
++    CHECK(swprintf_s(path, MAX_PATH, L"%s\\%hs", directory, name) > 0);
++    CHECK(DeleteFileW(path));
++}
++
++static void open_pair(unsigned id, unsigned round, uint32_t *event_token, uint32_t *file_token)
++{
++    uint32_t base = arena(id);
++    uint32_t event_args[] = {base + 0x100, 0, 0, 0};
++    uint32_t file_args[] = {base + 0x104,
++        XBOX_GENERIC_READ | XBOX_GENERIC_WRITE | XBOX_SYNCHRONIZE,
++        base + 0x160, base + 0x120, 0, 0, 0, XBOX_FILE_CREATE,
++        XBOX_FILE_SYNCHRONOUS_IO_NONALERT | XBOX_FILE_NON_DIRECTORY_FILE};
++    uint32_t io_args[] = {0, 0, 0, 0, base + 0x120, base + 0x280, 32, base + 0x300};
++    uint32_t *oa = (uint32_t *)(memory + base + 0x160);
++    uint16_t *name = (uint16_t *)(memory + base + 0x190);
++    uint32_t *payload = (uint32_t *)(memory + base + 0x280);
++    unsigned j;
++    char *filename = (char *)(memory + base + 0x200);
++    file_name(id, round, filename, 64);
++    memset(oa, 0, 12);
++    oa[0] = root_token;
++    oa[1] = base + 0x190;
++    name[0] = (uint16_t)strlen(filename);
++    name[1] = name[0] + 1;
++    *(uint32_t *)(name + 2) = base + 0x200;
++    *(uint64_t *)(memory + base + 0x300) = 0;
++    CHECK(invoke(CREATE_EVENT, base, event_args, 4) == STATUS_SUCCESS);
++    *event_token = guest_word(base + 0x100);
++    CHECK(invoke(CREATE_FILE, base, file_args, 9) == STATUS_SUCCESS);
++    *file_token = guest_word(base + 0x104);
++    CHECK(*event_token && *file_token && *event_token != *file_token);
++    for (j = 0; j < 8; ++j) payload[j] = 0xCA000000u | id << 16 | round << 8 | j;
++    io_args[0] = *file_token;
++    CHECK(invoke(WRITE_FILE, base, io_args, 8) == STATUS_SUCCESS);
++    CHECK(guest_word(base + 0x124) == 32);
++    io_args[5] = base + 0x2A0;
++    memset(memory + base + 0x2A0, 0, 32);
++    CHECK(invoke(READ_FILE, base, io_args, 8) == STATUS_SUCCESS);
++    CHECK(guest_word(base + 0x124) == 32);
++    CHECK(memcmp(memory + base + 0x280, memory + base + 0x2A0, 32) == 0);
++}
++
++static DWORD WINAPI io_worker(LPVOID parameter)
++{
++    unsigned id = (unsigned)(uintptr_t)parameter, round;
++    uint32_t event_token = 0, file_token = 0;
++    for (round = 0; round < ROUNDS; ++round) {
++        uint32_t next_event, next_file;
++        rendezvous();
++        /* Half the workers create before closing their previous pair. The
++         * other half close first, so registrations and takes overlap on
++         * distinct live objects without racing an object's own native use.
++         */
++        if (round && (id & 1)) {
++            close_token(event_token, arena(id));
++            close_token(file_token, arena(id));
++            delete_file(id, round - 1);
++        }
++        open_pair(id, round, &next_event, &next_file);
++        if (round && !(id & 1)) {
++            close_token(event_token, arena(id));
++            close_token(file_token, arena(id));
++            delete_file(id, round - 1);
++        }
++        event_token = next_event;
++        file_token = next_file;
++        rendezvous();
++        rendezvous();
++    }
++    rendezvous();
++    close_token(event_token, arena(id));
++    close_token(file_token, arena(id));
++    delete_file(id, ROUNDS - 1);
++    rendezvous();
++    return 0;
++}
++
++static void check_live_pairs(void)
++{
++    uint32_t tokens[WORKERS * 2];
++    HANDLE handles[WORKERS * 2];
++    unsigned i, j;
++    for (i = 0; i < WORKERS * 2; ++i) {
++        uint32_t va = arena(i / 2) + 0x100 + (i & 1) * 4;
++        DWORD flags;
++        tokens[i] = guest_word(va);
++        handles[i] = bridge_read_handle(va);
++        CHECK((tokens[i] & 0xFF000000u) == BRIDGE_HANDLE_TAG);
++        CHECK(handles[i] && handles[i] == bridge_resolve_handle(tokens[i]));
++        CHECK(GetHandleInformation(handles[i], &flags));
++        for (j = 0; j < i; ++j)
++            CHECK(tokens[i] != tokens[j] && handles[i] != handles[j]);
++    }
++    /* Signal one guest event at a time, and observe all events through real
++     * wait imports. A token collision cannot pass this identity check.
++     */
++    *(uint64_t *)(memory + 0x100300) = 0;
++    for (i = 0; i < WORKERS; ++i) {
++        uint32_t set_args[] = {tokens[i * 2], 0};
++        CHECK(invoke(SET_EVENT, 0x100000, set_args, 2) == STATUS_SUCCESS);
++        for (j = 0; j < WORKERS; ++j) {
++            uint32_t wait_args[] = {tokens[j * 2], 0, 0x100300};
++            CHECK(invoke(WAIT_EVENT, 0x100000, wait_args, 3) ==
++                  (j <= i ? STATUS_SUCCESS : STATUS_TIMEOUT));
++        }
++    }
++}
++
++static HANDLE shared_handle;
++static uint32_t shared_token, results[WORKERS];
++static HANDLE taken[WORKERS];
++static int take_mode;
++static DWORD WINAPI same_handle_worker(LPVOID parameter)
++{
++    unsigned id = (unsigned)(uintptr_t)parameter;
++    rendezvous();
++    if (take_mode) taken[id] = bridge_take_handle(shared_token);
++    else results[id] = bridge_handle_token(shared_handle);
++    rendezvous();
++    return 0;
++}
++
++static void same_handle_cohort(int taking)
++{
++    HANDLE threads[WORKERS];
++    unsigned i, winners = 0;
++    take_mode = taking;
++    for (i = 0; i < WORKERS; ++i) {
++        threads[i] = CreateThread(NULL, 0, same_handle_worker, (LPVOID)(uintptr_t)i, 0, NULL);
++        CHECK(threads[i]);
++    }
++    rendezvous();
++    rendezvous();
++    CHECK(WaitForMultipleObjects(WORKERS, threads, TRUE, 10000) == WAIT_OBJECT_0);
++    for (i = 0; i < WORKERS; ++i) {
++        if (taking) {
++            CHECK(taken[i] == NULL || taken[i] == shared_handle);
++            winners += taken[i] != NULL;
++        } else CHECK(results[i] == shared_token);
++        CHECK(CloseHandle(threads[i]));
++    }
++    if (taking) CHECK(winners == 1 && bridge_resolve_handle(shared_token) == NULL);
++}
++
++static void table_edges(void)
++{
++    uint32_t invalid[] = {BRIDGE_HANDLE_TAG, BRIDGE_HANDLE_TAG | BRIDGE_HANDLE_MAX,
++                          BRIDGE_HANDLE_TAG | BRIDGE_HANDLE_MASK};
++    HANDLE wide = (HANDLE)(uintptr_t)UINT64_C(0x123456780000);
++    HANDLE overflow;
++    DWORD flags;
++    unsigned i;
++    uint32_t token;
++    CHECK(bridge_handle_token(NULL) == 0 && bridge_handle_token(INVALID_HANDLE_VALUE) == 0);
++    token = bridge_handle_token(wide);
++    CHECK(token == (BRIDGE_HANDLE_TAG | 1));
++    CHECK(bridge_handle_token(wide) == token && bridge_resolve_handle(token) == wide);
++    bridge_write_handle(0x18000, wide);
++    CHECK(guest_word(0x18000) == token && bridge_read_handle(0x18000) == wide);
++    CHECK(bridge_take_handle(token) == wide && bridge_take_handle(token) == NULL);
++    CHECK(bridge_resolve_handle(0xFFFFFFFEu) == (HANDLE)(intptr_t)-2);
++    CHECK(bridge_resolve_handle(0xFFFFFFFFu) == (HANDLE)(intptr_t)-1);
++    CHECK(bridge_resolve_handle(0xDEAD0001u) == (HANDLE)(uintptr_t)0xDEAD0001u);
++    CHECK(bridge_resolve_handle(0xFE000000u) == (HANDLE)(uintptr_t)0xFE000000u);
++    CHECK(bridge_take_handle(0xDEAD0001u) == NULL);
++    for (i = 0; i < sizeof invalid / sizeof *invalid; ++i) {
++        *(uint32_t *)(memory + 0x18000) = invalid[i];
++        CHECK(bridge_read_handle(0x18000) == NULL);
++        CHECK(bridge_resolve_handle(invalid[i]) == NULL && bridge_take_handle(invalid[i]) == NULL);
++    }
++    *(uint32_t *)(memory + 0x18000) = 0xBEEF0010u;
++    CHECK(bridge_read_handle(0x18000) == (HANDLE)(uintptr_t)0xBEEF0010u);
++
++    /* Populate exact private bounds without O(N^2) registrations. Exhaustion
++     * must retain the caller's ownership and still deduplicate existing slots.
++     */
++    AcquireSRWLockExclusive(&s_handle_table_lock);
++    for (i = 1; i < BRIDGE_HANDLE_MAX; ++i)
++        bridge_handle_store(i, (HANDLE)((uintptr_t)wide + i * 16));
++    ReleaseSRWLockExclusive(&s_handle_table_lock);
++    overflow = CreateEventW(NULL, TRUE, FALSE, NULL);
++    CHECK(overflow);
++    CHECK(bridge_handle_token(overflow) == 0 && GetHandleInformation(overflow, &flags));
++    CHECK(bridge_handle_token((HANDLE)((uintptr_t)wide + (BRIDGE_HANDLE_MAX - 1) * 16)) ==
++          (BRIDGE_HANDLE_TAG | (BRIDGE_HANDLE_MAX - 1)));
++    CHECK(bridge_take_handle(BRIDGE_HANDLE_TAG | 1) == (HANDLE)((uintptr_t)wide + 16));
++    CHECK(bridge_handle_token(overflow) == (BRIDGE_HANDLE_TAG | 1));
++    CHECK(bridge_take_handle(BRIDGE_HANDLE_TAG | 1) == overflow && CloseHandle(overflow));
++    AcquireSRWLockExclusive(&s_handle_table_lock);
++    for (i = 1; i < BRIDGE_HANDLE_MAX; ++i) bridge_handle_store(i, NULL);
++    ReleaseSRWLockExclusive(&s_handle_table_lock);
++
++    shared_handle = CreateEventW(NULL, TRUE, FALSE, NULL);
++    CHECK(shared_handle);
++    shared_token = bridge_handle_token(shared_handle);
++    same_handle_cohort(0);
++    same_handle_cohort(1);
++    CHECK(CloseHandle(shared_handle));
++}
++
++int main(void)
++{
++    HANDLE root, threads[WORKERS];
++    wchar_t temporary[MAX_PATH];
++    DWORD count, live_count = 0;
++    unsigned i, round;
++    CHECK(_putenv_s("RECOMP_KERNEL_LOG_BUDGET", "0") == 0);
++    CHECK(_putenv_s("RECOMP_GUEST_LOCK", "0") == 0);
++    memory = VirtualAlloc(NULL, 16 * 1024 * 1024, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
++    CHECK(memory);
++    g_xbox_mem_offset = (ptrdiff_t)memory;
++    InitializeCriticalSection(&barrier.lock);
++    InitializeConditionVariable(&barrier.changed);
++    for (i = 0; i < SERVICES; ++i) *(uint32_t *)(memory + 0x10000 + i * 4) = 0x80000000u | ordinals[i];
++    xbox_kernel_set_thunk_address(0x10000, SERVICES);
++    xbox_kernel_bridge_init();
++    for (i = 0; i < SERVICES; ++i) services[i] = guest_word(0x10000 + i * 4);
++    table_edges();
++    CHECK(GetTempPathW(MAX_PATH, temporary));
++    CHECK(GetTempFileNameW(temporary, L"xht", 0, directory));
++    CHECK(DeleteFileW(directory) && CreateDirectoryW(directory, NULL));
++    root = CreateFileW(directory, FILE_LIST_DIRECTORY,
++        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
++        OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
++    CHECK(root != INVALID_HANDLE_VALUE);
++    root_token = bridge_handle_token(root);
++    for (i = 0; i < WORKERS; ++i) {
++        threads[i] = CreateThread(NULL, 0, io_worker, (LPVOID)(uintptr_t)i, 0, NULL);
++        CHECK(threads[i]);
++    }
++    for (round = 0; round < ROUNDS; ++round) {
++        rendezvous();
++        rendezvous();
++        check_live_pairs();
++        CHECK(GetProcessHandleCount(GetCurrentProcess(), &count));
++        if (!round) live_count = count;
++        CHECK(count == live_count);
++        rendezvous();
++    }
++    rendezvous();
++    rendezvous();
++    CHECK(GetProcessHandleCount(GetCurrentProcess(), &count) && count + WORKERS * 2 == live_count);
++    CHECK(WaitForMultipleObjects(WORKERS, threads, TRUE, 10000) == WAIT_OBJECT_0);
++    for (i = 0; i < WORKERS; ++i) CHECK(CloseHandle(threads[i]));
++    CHECK(bridge_take_handle(root_token) == root && CloseHandle(root));
++    for (i = 1; i < BRIDGE_HANDLE_MAX; ++i) CHECK(bridge_handle_load(i) == NULL);
++    CHECK(RemoveDirectoryW(directory));
++    DeleteCriticalSection(&barrier.lock);
++    CHECK(VirtualFree(memory, 0, MEM_RELEASE));
++    puts("PASS: concurrent event/file imports retain unique tokens, exact identities/data and no native-handle leaks");
++    return 0;
 +}
 diff --git a/tests/kernel_dispatch/kernel_log_test.c b/tests/kernel_dispatch/kernel_log_test.c
 new file mode 100644
@@ -7717,6 +8280,266 @@ index 0000000..b1640a7
 +    else if(!strcmp(argv[1],"failures")) test_failures();
 +    else if(!strcmp(argv[1],"resize")) test_resize();
 +    else if(!strcmp(argv[1],"benchmark")) benchmark();
++    else CHECK(0);
++    return 0;
++}
+diff --git a/tests/nv2a_hash/CMakeLists.txt b/tests/nv2a_hash/CMakeLists.txt
+new file mode 100644
+index 0000000..a40e0fd
+--- /dev/null
++++ b/tests/nv2a_hash/CMakeLists.txt
+@@ -0,0 +1,17 @@
++cmake_minimum_required(VERSION 3.20)
++project(nv2a_hash C)
++set(CMAKE_C_STANDARD 11)
++set(CMAKE_C_STANDARD_REQUIRED ON)
++enable_testing()
++add_executable(nv2a_hash test_hash.c)
++target_include_directories(nv2a_hash PRIVATE ../../src/video)
++foreach(threshold 1024 2048 4096)
++    add_library(hash_${threshold} OBJECT test_dispatch.c)
++    target_include_directories(hash_${threshold} PRIVATE ../../src/video)
++    target_compile_definitions(hash_${threshold} PRIVATE
++        NV_HASH_NATIVE_MIN=${threshold}u NV_HASH_TEST_NAME=threshold_${threshold})
++    target_sources(nv2a_hash PRIVATE $<TARGET_OBJECTS:hash_${threshold}>)
++endforeach()
++foreach(case exact pages features)
++    add_test(NAME nv2a_hash_${case} COMMAND nv2a_hash ${case})
++endforeach()
+diff --git a/tests/nv2a_hash/README.md b/tests/nv2a_hash/README.md
+new file mode 100644
+index 0000000..e985539
+--- /dev/null
++++ b/tests/nv2a_hash/README.md
+@@ -0,0 +1,58 @@
++# Exact texture hash execution
++
++The production header preserves the original four-lane 64-bit hash, including
++seeds, length, byte order, wrapping multiplication, shifts, scalar tail and
++final combination. Supported x86 Windows CPUs execute the same four independent
++lanes together with 256-bit native integer multiplication for inputs at least
++1024 bytes long. Short inputs, including 216-byte shader keys, retain the scalar
++path. Texture validation still reads all supplied bytes at the same frequency.
++
++Three CPU regressions use the actual production header and an independent copy
++of the original scalar implementation:
++
++- `exact`: all lengths 0 through 8191 at all 64 source alignments, seven larger
++  sizes up to 8 MiB at all alignments, plus all-zero and all-one patterns.
++- `pages`: all lengths 0 through 8192 ending immediately before an inaccessible
++  page, a full protected 64 KiB allocation, and unaligned starts. Every 32-byte
++  chunk and scalar tail stays inside the requested input.
++- `features`: each missing CPUID or XCR0 prerequisite forces the real dispatch
++  to the scalar path. XSAVE/OSXSAVE/AVX are checked before XGETBV; unsupported
++  dispatch is cached, and short keys perform no feature queries. The real CPU
++  selection is checked too.
++
++The exact and page cases cover 566,882 inputs. On a supported CPU each compares
++both the dispatcher and native helper against the original scalar result.
++
++From the game repository after loading `scripts/enter-env.ps1`:
++
++```powershell
++cmake -S tools/xboxrecomp/tests/nv2a_hash -B conformance_tmp/stutter-hash-shipping-test -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
++cmake --build conformance_tmp/stutter-hash-shipping-test
++ctest --test-dir conformance_tmp/stutter-hash-shipping-test --output-on-failure
++./conformance_tmp/stutter-hash-shipping-test/nv2a_hash.exe benchmark
++```
++
++The optional benchmark compiles the production header at thresholds 1024, 2048
++and 4096, including cached feature dispatch and the noinline native helper. It
++alternates five implementations over nine samples, changes a source byte and
++consumes every returned hash. It reports per-call and whole-sample medians;
++timing is not a CTest assertion. RelWithDebInfo uses the shipping renderer's
++`/Zi /O2 /Ob1 /DNDEBUG -std:c11 -MD`, with no global `/arch` option.
++
++On the Ryzen 9 PRO 7940HS, the real CPU/OS guard selected the native path. The
++shipping-flags run selected 1024 bytes: its 1 KiB median was 47.46 ns versus
++52.30 ns for the original scalar implementation. At 4 KiB, 64 KiB, 1 MiB and
++8 MiB, production medians were respectively 163.60 ns, 2483.01 ns, 39.60 us and
++343.88 us versus 192.47 ns, 2944.34 ns, 48.94 us and 406.74 us. These isolated
++hash gains are about 9% at 1 KiB and 15-19% at the larger sizes; they do not
++establish a whole-game frame-rate or hitch improvement. The scalar 216-byte
++case measured 31.65 ns versus 30.98 ns, reflecting the small size branch.
++
++The feature guard requires AVX2, AVX512F/DQ/VL, XSAVE, OSXSAVE, AVX and XCR0
++state bits `0xE6`. A noinline function contains the feature instructions; the
++rest of the translation unit keeps its ordinary compiler ISA. See the
++[Intel instruction guide](https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html),
++[Intel ISA extension reference](https://www.intel.com/content/dam/develop/external/us/en/documents/319433-024-697869.pdf)
++and Microsoft's [CPUID intrinsic documentation](https://learn.microsoft.com/en-us/cpp/intrinsics/cpuid-cpuidex?view=msvc-170)
++for the instruction features and runtime detection contract. Unsupported CPUs,
++OS state or non-MSVC targets retain the original scalar computation.
+diff --git a/tests/nv2a_hash/test_dispatch.c b/tests/nv2a_hash/test_dispatch.c
+new file mode 100644
+index 0000000..16348c1
+--- /dev/null
++++ b/tests/nv2a_hash/test_dispatch.c
+@@ -0,0 +1,7 @@
++/* Each benchmark candidate compiles the actual production dispatcher at a
++ * different minimum size; no alternate scalar or feature implementation. */
++#include "nv2a_texture_hash.h"
++__declspec(noinline) uint64_t NV_HASH_TEST_NAME(const uint8_t *p,size_t n)
++{
++    return hash_mem(p,n);
++}
+diff --git a/tests/nv2a_hash/test_hash.c b/tests/nv2a_hash/test_hash.c
+new file mode 100644
+index 0000000..46c8fb8
+--- /dev/null
++++ b/tests/nv2a_hash/test_hash.c
+@@ -0,0 +1,154 @@
++#define WIN32_LEAN_AND_MEAN
++#include <windows.h>
++#include <intrin.h>
++#include <immintrin.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++static int mock,query_count,xgetbv_count,max_leaf;
++static uint32_t cpuid1,cpuid7;
++static uint64_t xcr0;
++static void cpu_query(int result[4],int leaf,int subleaf)
++{
++    query_count++;
++    if(!mock){__cpuidex(result,leaf,subleaf);return;}
++    memset(result,0,4*sizeof(int));
++    if(leaf==0)result[0]=max_leaf;
++    if(leaf==1)result[2]=(int)cpuid1;
++    if(leaf==7)result[1]=(int)cpuid7;
++}
++static uint64_t os_state(unsigned index)
++{xgetbv_count++;return mock?xcr0:_xgetbv(index);}
++#define NV_HASH_CPUID cpu_query
++#define NV_HASH_XGETBV os_state
++#include "nv2a_texture_hash.h"
++#define CHECK(x) do {if(!(x)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#x);exit(1);}}while(0)
++
++/* Original scalar implementation, kept independent of the dispatcher. */
++static __declspec(noinline) uint64_t scalar(const uint8_t *p,size_t n)
++{
++    uint64_t a=0x9E3779B97F4A7C15ull,b=0xC2B2AE3D27D4EB4Full,
++             c=0x165667B19E3779F9ull,d=0x27D4EB2F165667C5ull^n;
++    size_t i=0;
++    for(;i+32<=n;i+=32) {uint64_t w[4];memcpy(w,p+i,32);
++        a=(a^w[0])*0x100000001B3ull;a^=a>>31;
++        b=(b^w[1])*0x100000001B3ull;b^=b>>31;
++        c=(c^w[2])*0x100000001B3ull;c^=c>>31;
++        d=(d^w[3])*0x100000001B3ull;d^=d>>31;
++    }
++    for(;i<n;i++)a=(a^p[i])*0x100000001B3ull;
++    return a^(b*3)^(c*5)^(d*7);
++}
++static int native_supported;
++static void check_hash(const uint8_t *p,size_t bytes)
++{
++    uint64_t old=scalar(p,bytes);CHECK(hash_mem(p,bytes)==old);
++    if(native_supported)CHECK(hash_mem_native(p,bytes)==old);
++}
++static void fill(uint8_t *p,size_t n)
++{
++    uint32_t x=0x12345678;size_t i;
++    for(i=0;i<n;i++){x^=x<<13;x^=x>>17;x^=x<<5;p[i]=(uint8_t)x;}
++}
++static void exact(void)
++{
++    uint8_t *data=malloc(8*1024*1024+64);unsigned i,j,pattern;
++    const size_t sizes[]={65535,65536,65537,1048575,1048576,1048577,8388608};
++    CHECK(data);fill(data,8*1024*1024+64);
++    for(j=0;j<64;j++)for(i=0;i<8192;i++)check_hash(data+j,i);
++    for(i=0;i<sizeof sizes/sizeof sizes[0];i++)for(j=0;j<64;j++)check_hash(data+j,sizes[i]);
++    for(pattern=0;pattern<2;pattern++){
++        memset(data,pattern?255:0,8192+64);
++        for(j=0;j<64;j++)for(i=0;i<8192;i+=31)check_hash(data+j,i);
++    }
++    free(data);
++    puts("PASS: 524288 exact short-length/alignment cases,448 large cases and33920 zero/ones cases; original scalar,production dispatch and supported native path");
++}
++static void pages(void)
++{
++    uint8_t *base=VirtualAlloc(NULL,65536+8192,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE);
++    uint8_t *data;DWORD old;unsigned n,i;CHECK(base);data=base+4096;
++    CHECK(VirtualProtect(base,4096,PAGE_NOACCESS,&old));
++    CHECK(VirtualProtect(data+65536,4096,PAGE_NOACCESS,&old));fill(data,65536);
++    for(n=0;n<=8192;n++)check_hash(data+65536-n,n);
++    check_hash(data,65536);
++    for(i=0;i<32;i++)check_hash(data+i,4096+i);
++    VirtualFree(base,0,MEM_RELEASE);
++    puts("PASS: 8226 exact protected-page cases, no read beyond an inaccessible following/preceding page, all tails and empty input");
++}
++static void supported_mock(void)
++{mock=1;max_leaf=7;cpuid1=0x1C000000;cpuid7=0x80030020;xcr0=0xE6;query_count=xgetbv_count=0;}
++static void features(void)
++{
++    unsigned i;const unsigned bits1[]={26,27,28},bits7[]={5,16,17,31},bitsx[]={1,2,5,6,7};
++    uint8_t data[4096];fill(data,sizeof data);supported_mock();CHECK(hash_mem_cpu_native());
++    CHECK(xgetbv_count==1);supported_mock();max_leaf=6;s_hash_mem_native=-1;
++    CHECK(hash_mem(data,sizeof data)==scalar(data,sizeof data) && s_hash_mem_native==0 && !xgetbv_count);
++    for(i=0;i<3;i++){
++        supported_mock();cpuid1&=~(1u<<bits1[i]);s_hash_mem_native=-1;
++        CHECK(hash_mem(data,sizeof data)==scalar(data,sizeof data) && s_hash_mem_native==0 && !xgetbv_count);
++    }
++    for(i=0;i<4;i++){
++        supported_mock();cpuid7&=~(1u<<bits7[i]);s_hash_mem_native=-1;
++        CHECK(hash_mem(data,sizeof data)==scalar(data,sizeof data) && s_hash_mem_native==0 && xgetbv_count==1);
++    }
++    for(i=0;i<5;i++){
++        supported_mock();xcr0&=~(1ull<<bitsx[i]);s_hash_mem_native=-1;
++        CHECK(hash_mem(data,sizeof data)==scalar(data,sizeof data) && s_hash_mem_native==0 && xgetbv_count==1);
++    }
++    /* Force real production fallback with mocked OSXSAVE absence. No XGETBV
++     * or feature instruction is allowed, even when hashing a large buffer. */
++    supported_mock();cpuid1&=~(1u<<27);s_hash_mem_native=-1;
++    CHECK(hash_mem(data,sizeof data)==scalar(data,sizeof data));
++    CHECK(s_hash_mem_native==0 && query_count==2 && xgetbv_count==0);
++    for(i=0;i<32;i++)CHECK(hash_mem(data,sizeof data)==scalar(data,sizeof data));
++    CHECK(query_count==2 && xgetbv_count==0); /* Detection is cached. */
++    supported_mock();s_hash_mem_native=-1;CHECK(hash_mem(data,216)==scalar(data,216));
++    CHECK(s_hash_mem_native==-1 && query_count==0 && xgetbv_count==0); /* Shader keys stay scalar. */
++    mock=0;s_hash_mem_native=-1;CHECK(hash_mem(data,sizeof data)==scalar(data,sizeof data));
++    CHECK(s_hash_mem_native==native_supported);
++    puts("PASS: every required CPU/OS bit absence, missing leaf, cached scalar fallback without XGETBV,216-byte short path without feature queries and real native/scalar selection");
++}
++typedef uint64_t (*Hash)(const uint8_t *,size_t);
++static volatile uint64_t sink;
++static __declspec(noinline) uint64_t production(const uint8_t *p,size_t n){return hash_mem(p,n);}
++uint64_t threshold_1024(const uint8_t *p,size_t n);
++uint64_t threshold_2048(const uint8_t *p,size_t n);
++uint64_t threshold_4096(const uint8_t *p,size_t n);
++static __declspec(noinline) double measure(Hash hash,uint8_t *p,size_t n,unsigned count)
++{
++    LARGE_INTEGER f,a,b;unsigned i;QueryPerformanceFrequency(&f);QueryPerformanceCounter(&a);
++    for(i=0;i<count;i++){p[0]++;sink^=hash(p,n);}QueryPerformanceCounter(&b);
++    return (b.QuadPart-a.QuadPart)*1e9/f.QuadPart/count;
++}
++static void benchmark(void)
++{
++    uint8_t *data=malloc(8*1024*1024+64);unsigned item,kind,sample,i,j;
++    const size_t lengths[]={216,512,1024,2048,4096,8192,65536,1048576,8388608};
++    Hash hashes[5]={scalar,threshold_1024,threshold_2048,threshold_4096,production};
++    const char *names[5]={"old scalar","dispatch>=1024","dispatch>=2048","dispatch>=4096","production"};
++    CHECK(data);fill(data,8*1024*1024+64);hash_mem(data,8192);
++    printf("HASH real native feature=%d, production threshold=%u; generic compiler ISA, cached CPUID/OS dispatch+noinline callee included\n",native_supported,NV_HASH_NATIVE_MIN);
++    for(item=0;item<sizeof lengths/sizeof lengths[0];item++){
++        size_t n=lengths[item];unsigned count=(unsigned)(32*1024*1024/n);double values[5][9];if(count<8)count=8;
++        for(sample=0;sample<9;sample++)for(i=0;i<5;i++){kind=(sample+i)%5;values[kind][sample]=measure(hashes[kind],data+1,n,count);}
++        printf("HASH %zu bytes,9x%u calls,unaligned source:\n",n,count);
++        for(kind=0;kind<5;kind++){
++            for(i=0;i<9;i++)for(j=i+1;j<9;j++)if(values[kind][j]<values[kind][i]){double t=values[kind][i];values[kind][i]=values[kind][j];values[kind][j]=t;}
++            printf("  %-17s %10.2f ns, %8.3f ms total\n",names[kind],values[kind][4],values[kind][4]*count/1e6);
++        }
++    }
++    free(data);
++}
++int main(int argc,char **argv)
++{
++    CHECK(argc==2);native_supported=hash_mem_cpu_native();
++    printf("Native feature available=%d\n",native_supported);
++    if(!strcmp(argv[1],"exact"))exact();
++    else if(!strcmp(argv[1],"pages"))pages();
++    else if(!strcmp(argv[1],"features"))features();
++    else if(!strcmp(argv[1],"benchmark"))benchmark();
 +    else CHECK(0);
 +    return 0;
 +}
