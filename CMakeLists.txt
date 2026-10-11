@@ -73,6 +73,8 @@ set(MM3_DEFINITION_ONLY_FUNCTIONS ${MM3_DISTANCE_FUNCTIONS})
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0009BC04 sub_0009BC35 sub_0009BC52)
 # Preserve same-chunk locale calls to the custom vehicle-name extension.
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0011C194)
+# Preserve same-chunk catalog calls to the retired-car selection fallback.
+list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001DDFC5)
 # The CRT MMX probe must preserve the stack effects of PUSHFD/POPFD.
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_00093770)
 if(MM3_UNLOCK_ALL_CARS)
@@ -209,6 +211,7 @@ add_executable(${PROJECT_NAME}
  src/mm3_render_distance.c
  src/mm3_debug_teleport.c
  src/mm3_custom_car_names.c
+ src/mm3_car_selection_compat.c
  src/mm3_speedometer.c
  src/mm3_cpu_compat.c
  src/recomp_trace_probe.c

@@ -42,7 +42,7 @@ reference workflow uses a bare XDVDFS XISO rather than a two-part redump image.
   reduce effects load.
 - **Driving and selection:** arrow-key driving, camera and manual-shift controls,
   focus-aware keyboard input, and selection of all 35 supported-disc car models.
-- **Car workshop:** fourteen extra tuned variants, optional prepared model
+- **Car workshop:** ten extra tuned variants, optional prepared model
   packages, editable paint and driving stats, validated gearing/RPM settings,
   larger HUD and interior speedometer ranges and numeric
   speed readouts for the sport and Koenigsegg HUDs.
@@ -191,7 +191,8 @@ window's aspect, or select another aspect explicitly.
 
 With `scripts\play.ps1 -Keyboard`, hold **Up** to accelerate, **Down** to brake/reverse,
 and **Left/Right** to steer. Arrows also navigate menus. **Z** confirms, **X** goes back,
-and **Enter/Esc** pauses/resumes. **C** changes the camera view while driving. The original
+and **Escape** also goes back. **Enter** pauses/resumes. **C** changes the camera
+view while driving. The original
 **3** accelerator, **1** brake and numpad **4/6** steering keys still work. Keyboard input
 releases when the game loses focus.
 Choose **Manual** transmission in car setup, then tap **R** to shift up and **F** to shift down
@@ -205,11 +206,13 @@ the availability change does not write unlock keys to your save.
 
 ## Added cars and editing stats
 
-The optional [extra-car pack](tools/car-mods/README.md) adds fourteen separately
-selectable slots alongside the 35 original cars: Mini Rally, Mustang GT, Viper
-Race, Panoz GTR-1, McLaren F1, Formula 1, Bugatti Chiron, Bugatti Bolide, Ford GT,
+The optional [extra-car pack](tools/car-mods/README.md) adds ten separately
+selectable slots alongside the 35 original cars: Mini Rally,
+Panoz GTR-1, McLaren F1, Formula 1, Ford GT,
 McLaren Senna, McLaren Senna GTR, Ferrari FXX K, Koenigsegg Regera and Lamborghini
 Aventador. Each has its own name, paint settings, menu ratings and driving setup.
+The remaining slots retain their IDs. Profiles that remember a removed custom
+car use its original donor vehicle, without restoring the removed menu entry.
 
 The supplied defaults use stock donor visuals. Workshop's **Model** tab can
 select prepared imported body, wheel, texture and menu-icon packages; reapplying
@@ -337,7 +340,7 @@ tools\venv\Scripts\python.exe tools\car-mods\prepare.py --restore
 | `RECOMP_FB_WINDOW` | off | Open the game window. **Required.** |
 | `RECOMP_USB` | off | Emulate the USB controller ports so pads (XInput) reach the game. **Required** for input. |
 | `RECOMP_APU_DSP_ACK` | unset | DSP acknowledgement address(es) the audio needs; use `0x80458810`. |
-| `RECOMP_KEYBOARD` | off | `1`: keyboard as a pad (arrows drive/navigate, Z X A S = A B X Y, Enter = Start, Backspace = Back). |
+| `RECOMP_KEYBOARD` | off | `1`: keyboard as a pad (arrows drive/navigate, Z X A S = A B X Y, Enter = Start, Backspace = Back; MM3 layout also maps Escape to B/menu back). |
 | `RECOMP_KEYBOARD_LAYOUT` | `mm3` | Arrow driving controls; `legacy` restores the original D-pad-only arrows and 1/3 trigger keys. |
 | `MM3_PERFORMANCE_PROFILE` | `Balanced` | Shared rendering defaults for launcher and direct executable; `Quality` restores the previous settings, `LowPower` uses 720 lines and a 30 FPS cap. Individual settings override it. |
 | `RECOMP_FPS_LIMIT` | profile: `60` or `30` | Presentation and emulated-vblank cap, 1–60. Uncapped, invalid, or higher values use 60. |

@@ -361,21 +361,32 @@ static void check_escape(HWND window, BOOL mm3)
         CHECK(IsWindow(window)); /* Esc must not close the host window. */
         for (held = 0; held < 3; ++held) {
             report(out);
-            CHECK(out[2] == (mm3 ? XBOX_GAMEPAD_START : 0));
-            for (i = 3; i < sizeof out; ++i) CHECK(out[i] == 0);
+            CHECK(out[2] == 0); /* Menu back must not pause the game. */
+            CHECK(out[5] == (mm3 ? 255 : 0)); /* Xbox B, like X. */
+            for (i = 3; i < sizeof out; ++i)
+                if (i != 5) CHECK(out[i] == 0);
         }
         key(window, VK_RETURN, TRUE);
+        report(out);
+        CHECK(out[2] == XBOX_GAMEPAD_START);
+        CHECK(out[5] == (mm3 ? 255 : 0));
         key(window, VK_ESCAPE, FALSE);
-        report(out); CHECK(out[2] == XBOX_GAMEPAD_START);
+        report(out); CHECK(out[2] == XBOX_GAMEPAD_START && out[5] == 0);
         key(window, VK_RETURN, FALSE);
         report(out); CHECK(out[2] == 0);
         key(window, VK_ESCAPE, TRUE);
-        report(out); CHECK(out[2] == (mm3 ? XBOX_GAMEPAD_START : 0));
+        report(out); CHECK(out[2] == 0 && out[5] == (mm3 ? 255 : 0));
         key(window, VK_ESCAPE, FALSE);
-        report(out); CHECK(out[2] == 0);
+        report(out); CHECK(out[2] == 0 && out[5] == 0);
+        key(window, 'X', TRUE); key(window, VK_ESCAPE, TRUE);
+        report(out); CHECK(out[5] == 255);
+        key(window, VK_ESCAPE, FALSE);
+        report(out); CHECK(out[5] == 255); /* X still holds the back action. */
+        key(window, 'X', FALSE);
+        report(out); CHECK(out[5] == 0);
         key(window, VK_ESCAPE, TRUE); key(window, VK_RETURN, TRUE);
         SendMessageA(window, WM_KILLFOCUS, 0, 0);
-        report(out); CHECK(out[2] == 0);
+        report(out); CHECK(out[2] == 0 && out[5] == 0);
         CHECK(xbox_FramebufferKeyDown(VK_ESCAPE) == 0);
         CHECK(xbox_FramebufferKeyDown(VK_RETURN) == 0);
     }

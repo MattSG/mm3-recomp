@@ -1,6 +1,6 @@
 # Extra cars and editable stats
 
-Car Workshop supports fourteen separately selectable extra-car identities.
+Car Workshop supports ten separately selectable extra-car identities.
 The original 35 cars remain in the catalog. Each variant has its own name,
 ratings and driving setup, with an original MM3 donor providing physics,
 interior, sound and collision. A selected prepared model package supplies its
@@ -11,13 +11,9 @@ real-world specifications.
 | Added car | Original MM3 donor |
 |---|---|
 | Mini Rally | Mini |
-| Mustang GT | Mustang Fastback |
-| Viper Race | Dodge Viper |
 | Panoz GTR-1 | Dodge Viper |
 | McLaren F1 | Koenigsegg |
 | Formula 1 | Lotus |
-| Bugatti Chiron | Koenigsegg |
-| Bugatti Bolide | Koenigsegg |
 | Ford GT | Koenigsegg |
 | McLaren Senna | Koenigsegg |
 | McLaren Senna GTR | Koenigsegg |
@@ -40,15 +36,16 @@ tools\car-mods\editor.cmd --car-id 9004 --tab model
 ```
 
 Tabs are `driving`, `gears`, `advanced` and `model`. The added car IDs are
-9001–9014; the five new entries use 9010 (Senna), 9011 (Senna GTR), 9012 (FXX K),
-9013 (Regera) and 9014 (Aventador). Older nine-car manifests remain valid.
+9001, 9004–9006 and 9009–9014. Removed IDs 9002, 9003, 9007 and 9008 remain
+unused, so the remaining cars keep their existing identities. Older manifests
+containing a removed car must have that entry removed before applying.
 
 The editor and installer use `cars.local.json` beside these tools when that
 file exists, otherwise [cars.json](cars.json). The local file is ignored by
 Git, so your model selections and tuning can stay on this computer. To start
 local settings on a fresh checkout, copy `cars.json` to `cars.local.json`
 before opening Workshop. An explicit `--config <path>` always selects that
-manifest. The tracked fourteen-car defaults contain no imported model paths;
+manifest. The tracked ten-car defaults contain no imported model paths;
 downloaded sources and prepared model packages are kept outside the release.
 
 Choose a car on the left. Edit its paint colors, menu ratings, physics, gearing,
@@ -168,12 +165,6 @@ to change gear. Wheelspin can therefore raise engine RPM before the car reaches
 its upshift speed. Changing `MinRPMGearChange` alone does not change these
 automatic upshift speeds.
 
-Viper Race uses a longer first gear and closer early gear ratios to suit its
-higher torque and lower weight. Its final drive is `3.8`, and forward shifts
-take `0.30` seconds, compared with the original Viper's `4.0` final drive and
-`0.42` seconds. The six forward ratios are
-`2.50 / 1.72 / 1.28 / 1.00 / 0.82 / 0.70`; reverse remains `-3.3`.
-
 For example, change Mini Rally's `physics.TorqueScale` from `440` to `500`
 for more engine torque, then reapply the pack. Its acceleration menu bar is
 controlled separately by `ratings.ACCELERATION`.
@@ -216,7 +207,9 @@ tools\venv\Scripts\python.exe tools\car-mods\prepare.py --restore
 
 `--config <path>` selects a different settings file and `--game-dir <path>`
 selects another extracted game directory. Reapplication uses the backed-up
-originals so tuning does not accumulate.
+originals so tuning does not accumulate. Removing a car from the manifest and
+reapplying also removes its installed catalog entries and owned assets; prepared
+model packages and pristine archive backups remain available.
 
 To inspect a running native instance without changing game memory:
 

@@ -91,28 +91,33 @@ static void initialize(const char *name)
 
 int main(void)
 {
-    static const char *expected_names[] = {"MINI Rally", "Mustang GT", "Viper Race",
-        "Panoz GTR-1", "McLaren F1", "Formula 1", "Bugatti Chiron", "Bugatti Bolide", "Ford GT",
+    static const unsigned expected_ids[] = {9001, 9004, 9005, 9006, 9009,
+        9010, 9011, 9012, 9013, 9014};
+    static const char *expected_names[] = {"MINI Rally", "Panoz GTR-1", "McLaren F1", "Formula 1", "Ford GT",
         "McLaren Senna", "McLaren Senna GTR", "Ferrari FXX K", "Koenigsegg Regera", "Lamborghini Aventador"};
-    static const char *expected_manufacturers[] = {"MINI", "Ford", "Dodge", "Panoz", "McLaren",
-        "Formula", "Bugatti", "Bugatti", "Ford", "McLaren", "McLaren", "Ferrari", "Koenigsegg", "Lamborghini"};
-    static const char *expected_models[] = {"Rally", "Mustang GT", "Viper Race", "GTR-1", "F1", "1",
-        "Chiron", "Bolide", "GT", "Senna", "Senna GTR", "FXX K", "Regera", "Aventador"};
+    static const char *expected_manufacturers[] = {"MINI", "Panoz", "McLaren", "Formula", "Ford",
+        "McLaren", "McLaren", "Ferrari", "Koenigsegg", "Lamborghini"};
+    static const char *expected_models[] = {"Rally", "GTR-1", "F1", "1", "GT",
+        "Senna", "Senna GTR", "FXX K", "Regera", "Aventador"};
     static const char *stock[] = {"SID_CAR_SHORT_12", "SID_CAR_MF_8",
         "SID_CAR_MODEL_11", "SID_CAR_SHORT_90010", "SID_CAR_MODEL_9003_EXTRA",
         "SID_CAR_SHORT_900", "SID_CAR_SHORT_90100", "SID_CAR_MODEL_9014_EXTRA",
-        "SID_CAR_MF_9015", "SID_CAR_SHORT_9015", "", "SID_OPTIONS"};
+        "SID_CAR_MF_9015", "SID_CAR_SHORT_9015", "", "SID_OPTIONS",
+        "SID_CAR_MF_9002", "SID_CAR_MODEL_9002", "SID_CAR_SHORT_9002",
+        "SID_CAR_MF_9003", "SID_CAR_MODEL_9003", "SID_CAR_SHORT_9003",
+        "SID_CAR_MF_9007", "SID_CAR_MODEL_9007", "SID_CAR_SHORT_9007",
+        "SID_CAR_MF_9008", "SID_CAR_MODEL_9008", "SID_CAR_SHORT_9008"};
     size_t i, j;
-    assert(sizeof car_names / sizeof car_names[0] == 42);
+    assert(sizeof car_names / sizeof car_names[0] == 30);
     for (i = 0; i < sizeof expected_names / sizeof expected_names[0]; ++i) {
         char expected_key[32];
-        snprintf(expected_key, sizeof expected_key, "SID_CAR_SHORT_%u", 9001u + (unsigned)i);
+        snprintf(expected_key, sizeof expected_key, "SID_CAR_SHORT_%u", expected_ids[i]);
         assert(strcmp(car_names[i * 3u + 2u].key, expected_key) == 0);
         assert(strcmp(car_names[i * 3u + 2u].value, expected_names[i]) == 0);
-        snprintf(expected_key, sizeof expected_key, "SID_CAR_MF_%u", 9001u + (unsigned)i);
+        snprintf(expected_key, sizeof expected_key, "SID_CAR_MF_%u", expected_ids[i]);
         assert(strcmp(car_names[i * 3u].key, expected_key) == 0);
         assert(strcmp(car_names[i * 3u].value, expected_manufacturers[i]) == 0);
-        snprintf(expected_key, sizeof expected_key, "SID_CAR_MODEL_%u", 9001u + (unsigned)i);
+        snprintf(expected_key, sizeof expected_key, "SID_CAR_MODEL_%u", expected_ids[i]);
         assert(strcmp(car_names[i * 3u + 1u].key, expected_key) == 0);
         assert(strcmp(car_names[i * 3u + 1u].value, expected_models[i]) == 0);
     }
@@ -147,6 +152,6 @@ int main(void)
         assert(g_ecx == 0xBAD && g_ebx == 0xBAD && g_fp_top == 7);
         assert(MEM32(output) == 0x12345678);
     }
-    puts("PASS: 42 custom car labels, RET 8, guest string ownership, full register state and exact stock passthrough");
+    puts("PASS: 30 custom car labels, RET 8, guest string ownership, full register state and exact stock passthrough");
     return 0;
 }

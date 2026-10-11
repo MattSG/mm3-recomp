@@ -33,7 +33,7 @@ class CarEditorTest(unittest.TestCase):
         tracked.write_text(json.dumps(baseline), encoding="utf-8")
         custom = copy.deepcopy(baseline)
         custom["cars"][0]["physics"]["TorqueScale"] = 777
-        custom["cars"][3]["model_package"] = "prepared models/Panoz"
+        custom["cars"][1]["model_package"] = "prepared models/Panoz"
         local.write_text(json.dumps(custom), encoding="utf-8")
         selector = editor.prepare.default_config_path
         with patch.object(editor.prepare, "default_config_path", lambda: selector(folder)):
@@ -183,24 +183,24 @@ class CarEditorTest(unittest.TestCase):
         self.assertNotIn("--restore", command)
 
     def test_model_package_path_survives_stats_edit_save_and_reload(self):
-        original = self.model.config["cars"][3]
+        original = self.model.config["cars"][1]
         fields = form(original)
         folder = "models with spaces/panoz"
         car = editor.edited_car(original, **fields, model_package=folder)
-        self.model.replace_car(3, car)
+        self.model.replace_car(1, car)
         self.model.save()
         self.model.reload()
-        car = self.model.config["cars"][3]
+        car = self.model.config["cars"][1]
         self.assertEqual(car["model_package"], folder)
         fields = form(car)
         fields["physics"]["TorqueScale"] = "700"
         edited = editor.edited_car(car, **fields)
         self.assertEqual(edited["model_package"], folder)
-        self.model.replace_car(3, edited)
+        self.model.replace_car(1, edited)
         self.model.save()
         self.model.reload()
-        self.assertEqual(self.model.config["cars"][3]["model_package"], folder)
-        cleared = editor.edited_car(self.model.config["cars"][3], **form(self.model.config["cars"][3]), model_package=" ")
+        self.assertEqual(self.model.config["cars"][1]["model_package"], folder)
+        cleared = editor.edited_car(self.model.config["cars"][1], **form(self.model.config["cars"][1]), model_package=" ")
         self.assertNotIn("model_package", cleared)
 
     def test_five_new_identities_roundtrip_without_changing_existing_user_tuning(self):
@@ -218,14 +218,14 @@ class CarEditorTest(unittest.TestCase):
             config["cars"].append(car)
         self.path.write_text(json.dumps(config))
         self.model.reload()
-        for index in range(9, 14):
+        for index in range(len(before), len(config["cars"])):
             car = self.model.config["cars"][index]
             self.model.replace_car(index, editor.edited_car(car, **form(car)))
         self.model.save()
         self.model.reload()
-        self.assertEqual(self.model.config["cars"][:9], before)
-        self.assertEqual(len(self.model.config["cars"]), 14)
-        for ident, car in zip(range(9010, 9015), self.model.config["cars"][9:]):
+        self.assertEqual(self.model.config["cars"][:len(before)], before)
+        self.assertEqual(len(self.model.config["cars"]), 10)
+        for ident, car in zip(range(9010, 9015), self.model.config["cars"][len(before):]):
             self.assertEqual(car["id"], ident)
             self.assertEqual(car["model_package"], f"models/{editor.prepare.IDENTITIES[ident][0]}")
 

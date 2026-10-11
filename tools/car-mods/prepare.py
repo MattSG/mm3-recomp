@@ -66,13 +66,9 @@ PAINT_MATERIALS = {
 }
 IDENTITIES = {
     9001: ("MRly", "mini", "Mini Rally"),
-    9002: ("MustangGT", "MFastBack", "Mustang GT"),
-    9003: ("VRace", "Viper", "Viper Race"),
     9004: ("Panoz", "Viper", "Panoz GTR-1"),
     9005: ("McLaren_F1", "Koenigsegg", "McLaren F1"),
     9006: ("Form1", "Lotus", "Formula 1"),
-    9007: ("BChiron_GT", "Koenigsegg", "Bugatti Chiron"),
-    9008: ("BBolide_GT", "Koenigsegg", "Bugatti Bolide"),
     9009: ("Ford_GTcar", "Koenigsegg", "Ford GT"),
     9010: ("Senna_Road", "Koenigsegg", "McLaren Senna"),
     9011: ("Senna_GTR1", "Koenigsegg", "McLaren Senna GTR"),

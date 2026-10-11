@@ -104,7 +104,7 @@ index 012a67b869c756061090a3e4c196d9a42c869c27..28dd8a019fe2a9ff243ab7762efc6565
      assert((address & 0xFF000000) == 0);
      assert(address < DSP_PRAM_SIZE);
 diff --git a/src/input/xinput_device.c b/src/input/xinput_device.c
-index a91edbe57b930c3e0f52523422dff464b2cb66d3..59c5815611572ec199aacfb2f41e23d2bfc1c8d2 100644
+index a91edbe57b930c3e0f52523422dff464b2cb66d3..73aae25b9d592129c585e9783942f7895f581f87 100644
 --- a/src/input/xinput_device.c
 +++ b/src/input/xinput_device.c
 @@ -14,6 +14,13 @@
@@ -130,8 +130,8 @@ index a91edbe57b930c3e0f52523422dff464b2cb66d3..59c5815611572ec199aacfb2f41e23d2
 + * steer. Otherwise they are only menu d-pad buttons. The numbered trigger
 + * and numpad stick keys still work in either context. While driving, R/F
 + * also alias Xbox B/X (MM3's default manual gear up/down), and C aliases
-+ * Black (change camera view). Escape aliases Start in this layout, both
-+ * while driving and in menus.
++ * Black (change camera view). Escape aliases B in this layout, matching
++ * X's menu-back action. Enter remains Start.
 + *
   * Keys come from the framebuffer window, which only receives them while it
   * has the focus, so typing in another window does not drive the game.
@@ -175,19 +175,20 @@ index a91edbe57b930c3e0f52523422dff464b2cb66d3..59c5815611572ec199aacfb2f41e23d2
 +        if (key_down(VK_LEFT))   b |= XBOX_GAMEPAD_DPAD_LEFT;
 +        if (key_down(VK_RIGHT))  b |= XBOX_GAMEPAD_DPAD_RIGHT;
 +    }
-+    if (key_down(VK_RETURN) || (mm3 && key_down(VK_ESCAPE)))
++    if (key_down(VK_RETURN))
 +        b |= XBOX_GAMEPAD_START;
      if (key_down(VK_BACK))   b |= XBOX_GAMEPAD_BACK;
      if (key_down(VK_SHIFT))  b |= XBOX_GAMEPAD_LEFT_THUMB;
      if (key_down(VK_CONTROL))b |= XBOX_GAMEPAD_RIGHT_THUMB;
-@@ -104,17 +135,26 @@ static void keyboard_state(XBOX_INPUT_STATE *pState)
+@@ -104,17 +135,27 @@ static void keyboard_state(XBOX_INPUT_STATE *pState)
      /* Analog on the console, so a key is 255 rather than a flag -- a title
       * that reads these as a pressure never sees a press if they are 1. */
      pState->Gamepad.bAnalogButtons[XBOX_BUTTON_A]        = key_down('Z') ? 255 : 0;
 -    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_B]        = key_down('X') ? 255 : 0;
 -    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_X]        = key_down('A') ? 255 : 0;
 +    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_B] =
-+        (key_down('X') || (driving && key_down('R'))) ? 255 : 0;
++        (key_down('X') || (mm3 && key_down(VK_ESCAPE)) ||
++         (driving && key_down('R'))) ? 255 : 0;
 +    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_X] =
 +        (key_down('A') || (driving && key_down('F'))) ? 255 : 0;
      pState->Gamepad.bAnalogButtons[XBOX_BUTTON_Y]        = key_down('S') ? 255 : 0;
@@ -213,7 +214,7 @@ index a91edbe57b930c3e0f52523422dff464b2cb66d3..59c5815611572ec199aacfb2f41e23d2
      pState->Gamepad.sThumbLY = axis_from_keys(VK_NUMPAD2, VK_NUMPAD8);
      pState->Gamepad.sThumbRX = axis_from_keys('J', 'L');
      pState->Gamepad.sThumbRY = axis_from_keys('K', 'I');
-@@ -167,9 +207,9 @@ DWORD xbox_InputGetState(DWORD dwPort, XBOX_INPUT_STATE *pState)
+@@ -167,9 +208,9 @@ DWORD xbox_InputGetState(DWORD dwPort, XBOX_INPUT_STATE *pState)
      pState->Gamepad.bAnalogButtons[XBOX_BUTTON_Y] =
          (xi_state.Gamepad.wButtons & XINPUT_GAMEPAD_Y) ? 255 : 0;
      pState->Gamepad.bAnalogButtons[XBOX_BUTTON_BLACK] =
@@ -225,7 +226,7 @@ index a91edbe57b930c3e0f52523422dff464b2cb66d3..59c5815611572ec199aacfb2f41e23d2
      pState->Gamepad.bAnalogButtons[XBOX_BUTTON_LTRIGGER] = xi_state.Gamepad.bLeftTrigger;
      pState->Gamepad.bAnalogButtons[XBOX_BUTTON_RTRIGGER] = xi_state.Gamepad.bRightTrigger;
  
-@@ -316,9 +356,9 @@ DWORD xbox_InputGetState(DWORD dwPort, XBOX_INPUT_STATE *pState)
+@@ -316,9 +357,9 @@ DWORD xbox_InputGetState(DWORD dwPort, XBOX_INPUT_STATE *pState)
      pState->Gamepad.bAnalogButtons[XBOX_BUTTON_Y] =
          SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_Y) ? 255 : 0;
      pState->Gamepad.bAnalogButtons[XBOX_BUTTON_BLACK] =
