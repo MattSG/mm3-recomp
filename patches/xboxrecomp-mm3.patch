@@ -31,13 +31,30 @@ index 3493ba5..ad4ac94 100644
              out[n][ch] = acc;
          }
 diff --git a/src/apu/dsp/interp/dsp_cpu.c b/src/apu/dsp/interp/dsp_cpu.c
-index 012a67b..3e44130 100644
+index 012a67b..28dd8a0 100644
 --- a/src/apu/dsp/interp/dsp_cpu.c
 +++ b/src/apu/dsp/interp/dsp_cpu.c
-@@ -52,6 +52,14 @@
+@@ -45,6 +45,15 @@
+ #define SIGN_PLUS  0
+ #define SIGN_MINUS 1
+ 
++/* The checked instruction fetch is hot even with automatic inlining enabled.
++ * Preserve its assertions and Debug call boundary; only optimized MSVC builds
++ * need an explicit request to inline this helper. */
++#if defined(_MSC_VER) && !defined(_DEBUG)
++#define DSP_PREAD_INLINE __forceinline
++#else
++#define DSP_PREAD_INLINE
++#endif
++
+ /**********************************
+  *  Functions
+  **********************************/
+@@ -52,7 +61,15 @@
  static void dsp_postexecute_update_pc(dsp_core_t* dsp);
  static void dsp_postexecute_interrupts(dsp_core_t* dsp);
  
+-static uint32_t read_memory_p(dsp_core_t* dsp, uint32_t address);
 +static inline void dsp_postexecute_interrupts_if_needed(dsp_core_t* dsp)
 +{
 +    /* With no pending interrupt or active pipeline, the full handler only
@@ -46,10 +63,11 @@ index 012a67b..3e44130 100644
 +        dsp_postexecute_interrupts(dsp);
 +}
 +
- static uint32_t read_memory_p(dsp_core_t* dsp, uint32_t address);
++static DSP_PREAD_INLINE uint32_t read_memory_p(dsp_core_t* dsp, uint32_t address);
  static uint32_t read_memory_disasm(dsp_core_t* dsp, int space, uint32_t address);
  
-@@ -705,7 +713,7 @@ void dsp56k_execute_instruction(dsp_core_t* dsp)
+ static void write_memory_raw(dsp_core_t* dsp, int space, uint32_t address, uint32_t value);
+@@ -705,7 +722,7 @@ void dsp56k_execute_instruction(dsp_core_t* dsp)
      dsp_postexecute_update_pc(dsp);
  
      /* Process Interrupts */
@@ -58,6 +76,15 @@ index 012a67b..3e44130 100644
  
  
      dsp->num_inst += dsp->instr_cycle;
+@@ -942,7 +959,7 @@ static void dsp_postexecute_interrupts(dsp_core_t* dsp)
+  *  Read/Write memory functions
+  **********************************/
+ 
+-static uint32_t read_memory_p(dsp_core_t* dsp, uint32_t address)
++static DSP_PREAD_INLINE uint32_t read_memory_p(dsp_core_t* dsp, uint32_t address)
+ {
+     assert((address & 0xFF000000) == 0);
+     assert(address < DSP_PRAM_SIZE);
 diff --git a/src/input/xinput_device.c b/src/input/xinput_device.c
 index a91edbe..59c5815 100644
 --- a/src/input/xinput_device.c
@@ -2409,18 +2436,19 @@ index bd00f3f..575b5f3 100644
              }
          }
 diff --git a/src/video/nv2a_d3d11.c b/src/video/nv2a_d3d11.c
-index b9f3fa2..593199b 100644
+index b9f3fa2..40ccd85 100644
 --- a/src/video/nv2a_d3d11.c
 +++ b/src/video/nv2a_d3d11.c
-@@ -29,6 +29,7 @@
+@@ -29,6 +29,8 @@
  #include <string.h>
  
  #include "nv2a_d3d11.h"
 +#include "nv2a_shader_cache.h"
++#include "nv2a_pacing.h"
  #include "fb_present.h"
  #include "platform/recomp_profile.h"
  #include "../d3d/d3d8_swizzle.h"
-@@ -83,6 +84,7 @@ static const char *const s_prof_name[PROF_COUNT] = {
+@@ -83,6 +85,7 @@ static const char *const s_prof_name[PROF_COUNT] = {
      "vertex", "texture", "draw", "cpu-sync", "writeback", "present", "pace", "exec(all)" };
  static int64_t s_prof[PROF_COUNT];
  static uint64_t s_prof_verts, s_prof_draws;
@@ -2428,7 +2456,7 @@ index b9f3fa2..593199b 100644
  static int s_prof_on = -1;
  
  static int64_t qpc(void)
-@@ -92,6 +94,58 @@ static int64_t qpc(void)
+@@ -92,6 +95,58 @@ static int64_t qpc(void)
      return t.QuadPart;
  }
  
@@ -2487,7 +2515,7 @@ index b9f3fa2..593199b 100644
  void nv2a_d3d_prof_add(int slot, int64_t ticks, uint32_t verts)
  {
      s_prof[slot] += ticks;
-@@ -123,11 +177,13 @@ static void prof_report(void)
+@@ -123,11 +178,13 @@ static void prof_report(void)
      for (i = 0; i < PROF_COUNT; i++)
          fprintf(stderr, " %s %.2f", s_prof_name[i],
                  s_prof[i] * 1000.0 / (double)freq.QuadPart / (double)frames);
@@ -2503,7 +2531,7 @@ index b9f3fa2..593199b 100644
      frames = 0;
      worst = 0;
      last = now;
-@@ -319,6 +375,45 @@ static ID3D11BlendState *s_blend_opaque;
+@@ -319,6 +376,45 @@ static ID3D11BlendState *s_blend_opaque;
  static ID3D11RasterizerState *s_rs_plain;
  static ID3D11DepthStencilState *s_ds_off;
  
@@ -2549,7 +2577,7 @@ index b9f3fa2..593199b 100644
  static void fail(const char *what, HRESULT hr)
  {
      fprintf(stderr, "[D3D11] %s failed: 0x%08lX\n", what, (unsigned long)hr);
-@@ -868,12 +963,13 @@ typedef struct {
+@@ -868,12 +964,13 @@ typedef struct {
  
  static void display_config(int now);
  
@@ -2566,7 +2594,7 @@ index b9f3fa2..593199b 100644
      if (FAILED(hr)) {
          fprintf(stderr, "[D3D11] shader %s: %s\n", entry,
                  err ? (const char *)ID3D10Blob_GetBufferPointer(err) : "?");
-@@ -883,6 +979,11 @@ static ID3DBlob *compile_def(const char *entry, const char *target, const D3D_SH
+@@ -883,6 +980,11 @@ static ID3DBlob *compile_def(const char *entry, const char *target, const D3D_SH
      return SUCCEEDED(hr) ? code : NULL;
  }
  
@@ -2578,7 +2606,7 @@ index b9f3fa2..593199b 100644
  static ID3DBlob *compile(const char *entry, const char *target)
  {
      return compile_def(entry, target, NULL);
-@@ -903,10 +1004,14 @@ typedef struct {
+@@ -903,10 +1005,14 @@ typedef struct {
      uint32_t tex_info[4][3];
  } PsKey;
  
@@ -2594,7 +2622,7 @@ index b9f3fa2..593199b 100644
  } PsSpec;
  
  #define PS_SPEC_SLOTS 4096          /* power of two */
-@@ -914,9 +1019,151 @@ typedef struct {
+@@ -914,9 +1020,162 @@ typedef struct {
  static PsSpec *s_spec;
  static PsSpec *s_spec_q[PS_SPEC_QUEUE];
  static unsigned s_spec_head, s_spec_tail;  /* guarded by s_spec_cs */
@@ -2632,12 +2660,23 @@ index b9f3fa2..593199b 100644
 +
 +static PsSpec *spec_find(const PsKey *k)
 +{
-+    uint32_t h = 2166136261u, i;
-+    const uint8_t *p = (const uint8_t *)k;
-+    for (i = 0; i < sizeof *k; i++) h = (h ^ p[i]) * 16777619u;
++    static PsSpec *last, *owner;
++    uint64_t hash;
++    uint32_t h, i;
++    /* Keys never change once published. Recheck state on each use so a
++     * queued/claimed shader can become ready, or still promote to live work.
++     * EMPTY slots are not cached: queue saturation must remain retryable. */
++    if (owner != s_spec) { owner = s_spec; last = NULL; }
++    if (last && InterlockedCompareExchange(&last->state, 0, 0) &&
++        !memcmp(&last->key, k, sizeof *k)) return last;
++    /* This is only a table index; complete exact-key comparisons resolve
++     * collisions. Persistent manifest and bytecode identities stay separate. */
++    hash = hash_mem((const uint8_t *)k, sizeof *k);
++    h = (uint32_t)(hash ^ (hash >> 32));
 +    for (i = 0; i < PS_SPEC_SLOTS; i++) {
 +        PsSpec *e = &s_spec[(h + i) & (PS_SPEC_SLOTS - 1)];
-+        if (!InterlockedCompareExchange(&e->state, 0, 0) || !memcmp(&e->key, k, sizeof *k)) return e;
++        if (!InterlockedCompareExchange(&e->state, 0, 0)) return e;
++        if (!memcmp(&e->key, k, sizeof *k)) { last = e; return e; }
 +    }
 +    return NULL;
 +}
@@ -2746,7 +2785,7 @@ index b9f3fa2..593199b 100644
  
  static DWORD WINAPI spec_worker(LPVOID arg)
  {
-@@ -926,12 +1173,19 @@ static DWORD WINAPI spec_worker(LPVOID arg)
+@@ -926,12 +1185,19 @@ static DWORD WINAPI spec_worker(LPVOID arg)
          const PsKey *k;
          char decl[2048];
          ID3DBlob *b;
@@ -2770,7 +2809,7 @@ index b9f3fa2..593199b 100644
          LeaveCriticalSection(&s_spec_cs);
          k = &e->key;
          snprintf(decl, sizeof decl,
-@@ -965,45 +1219,87 @@ static DWORD WINAPI spec_worker(LPVOID arg)
+@@ -965,45 +1231,87 @@ static DWORD WINAPI spec_worker(LPVOID arg)
          m[1].Name = "SPEC_DECL"; m[1].Definition = decl;
          m[2].Name = flat ? "FLATQ" : NULL; m[2].Definition = flat ? "nointerpolation" : NULL;
          m[3].Name = NULL; m[3].Definition = NULL;
@@ -2881,7 +2920,7 @@ index b9f3fa2..593199b 100644
      memset(&k, 0, sizeof k);
      memcpy(k.c_icw, pc->c_icw, sizeof k.c_icw);
      memcpy(k.a_icw, pc->a_icw, sizeof k.a_icw);
-@@ -1017,23 +1313,7 @@ static ID3D11PixelShader *spec_ps(const PSConsts *pc, uint32_t variant)
+@@ -1017,23 +1325,7 @@ static ID3D11PixelShader *spec_ps(const PSConsts *pc, uint32_t variant)
          k.tex_info[i][0] = pc->tex_info[i][0]; k.tex_info[i][1] = pc->tex_info[i][1];
          k.tex_info[i][2] = pc->tex_info[i][2];
      }
@@ -2906,7 +2945,7 @@ index b9f3fa2..593199b 100644
  }
  
  static ID3D11Buffer *make_buffer(UINT bytes, UINT bind)
-@@ -1050,13 +1330,34 @@ static ID3D11Buffer *make_buffer(UINT bytes, UINT bind)
+@@ -1050,13 +1342,34 @@ static ID3D11Buffer *make_buffer(UINT bytes, UINT bind)
      return b;
  }
  
@@ -2942,7 +2981,7 @@ index b9f3fa2..593199b 100644
      }
  }
  
-@@ -1217,6 +1518,8 @@ int nv2a_d3d_init(void)
+@@ -1217,6 +1530,8 @@ int nv2a_d3d_init(void)
          if (qc && qd) break;
      }
      if (s_msaa < 1) s_msaa = 1;
@@ -2951,7 +2990,7 @@ index b9f3fa2..593199b 100644
      s_init_state = 1;
      fprintf(stderr, "[D3D11] renderer ready: %ux%u internal, display aspect %.3f, %ux MSAA, %ux AF\n",
              (uint32_t)(GUEST_W * s_scale * widen() + 0.5f), (uint32_t)(GUEST_H * s_scale + 0.5f),
-@@ -1379,9 +1682,8 @@ static void blit_span(ID3D11ShaderResourceView *srv, ID3D11ShaderResourceView *m
+@@ -1379,9 +1694,8 @@ static void blit_span(ID3D11ShaderResourceView *srv, ID3D11ShaderResourceView *m
      ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
      ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
      ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -2963,7 +3002,7 @@ index b9f3fa2..593199b 100644
      ID3D11DeviceContext_PSSetShader(s_ctx, s_present_ps, NULL, 0);
      ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 0, 1, &s_cb_present);
      {
-@@ -1413,13 +1715,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
+@@ -1413,13 +1727,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
  }
  
  /* Guest rows of a surface as BGRA, with the format's fixed alpha. */
@@ -2980,7 +3019,7 @@ index b9f3fa2..593199b 100644
          uint32_t *dst = out + (size_t)y * s->w;
          if (s->bpp == 4) {
              memcpy(dst, row, (size_t)s->w * 4);
-@@ -1454,6 +1756,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
+@@ -1454,6 +1768,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
  static UINT s_up_w[2], s_up_h[2];
  static uint32_t *s_up_pixels, *s_mask_pixels;
  static size_t s_up_cap, s_mask_cap;
@@ -2989,7 +3028,7 @@ index b9f3fa2..593199b 100644
  
  /* slot 0: image, slot 1: change mask */
  static ID3D11ShaderResourceView *upload_slot(int k, const uint32_t *pixels, UINT w, UINT h)
-@@ -1489,6 +1793,25 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1489,6 +1805,25 @@ static uint32_t *scratch_pixels(size_t count)
      return s_up_pixels;
  }
  
@@ -3015,7 +3054,7 @@ index b9f3fa2..593199b 100644
  /* Guest memory is the authority for what the CPU writes. A shadow copy of
   * each surface's guest bytes says which pixels the CPU changed since the last
   * look; only those replace what the GPU drew. A loading screen drawn by the
-@@ -1496,22 +1819,24 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1496,22 +1831,24 @@ static uint32_t *scratch_pixels(size_t count)
  static void surface_sync_impl(Surface *s, int force)
  {
      uint32_t rowb = s->w * s->bpp, y, x, x0 = 0xFFFFFFFFu, x1 = 0, y0 = 0xFFFFFFFFu, y1 = 0;
@@ -3044,7 +3083,7 @@ index b9f3fa2..593199b 100644
          {
              ID3D11ShaderResourceView *srv = upload_image(px, s->w, s->h);
              float x0, x1;
-@@ -1522,7 +1847,7 @@ static void surface_sync_impl(Surface *s, int force)
+@@ -1522,7 +1859,7 @@ static void surface_sync_impl(Surface *s, int force)
          return;
      }
      for (y = 0; y < s->h; y++) {
@@ -3053,7 +3092,7 @@ index b9f3fa2..593199b 100644
          uint8_t *sh = s->shadow + (size_t)y * rowb;
          if (!memcmp(row, sh, rowb)) continue;
          if (y0 == 0xFFFFFFFFu) {
-@@ -1552,7 +1877,7 @@ static void surface_sync_impl(Surface *s, int force)
+@@ -1552,7 +1889,7 @@ static void surface_sync_impl(Surface *s, int force)
                  s->phys, s_frame, x0, y0, x1, y1);
      px = scratch_pixels((size_t)s->w * s->h);
      if (!px) return;
@@ -3062,7 +3101,7 @@ index b9f3fa2..593199b 100644
      {
          ID3D11ShaderResourceView *srv = upload_slot(0, px, s->w, s->h);
          ID3D11ShaderResourceView *msk = upload_slot(1, s_mask_pixels, s->w, s->h);
-@@ -1572,8 +1897,11 @@ static void surface_sync(Surface *s, int force)
+@@ -1572,8 +1909,11 @@ static void surface_sync(Surface *s, int force)
      if (s_prof_on > 0) s_prof[PROF_SYNC] += qpc() - t0;
  }
  
@@ -3074,7 +3113,7 @@ index b9f3fa2..593199b 100644
      if (s_cur_rt == s) unbind_targets();
      if (s->srv) ID3D11ShaderResourceView_Release(s->srv);
      if (s->rtv) ID3D11RenderTargetView_Release(s->rtv);
-@@ -1635,9 +1963,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
+@@ -1635,9 +1975,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
      } else {
          for (i = 0; i < MAX_SURFACES && !victim; i++)
              if (!s_surf[i].tex) victim = &s_surf[i];
@@ -3088,7 +3127,7 @@ index b9f3fa2..593199b 100644
          if (!victim) victim = &s_surf[0];
      }
      surface_release(victim);
-@@ -1901,9 +2230,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
+@@ -1901,9 +2242,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
  }
  
  typedef struct TexEntry {
@@ -3100,7 +3139,7 @@ index b9f3fa2..593199b 100644
      size_t bytes;
      ID3D11Texture2D *tex;
      ID3D11ShaderResourceView *srv;
-@@ -1954,12 +2283,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
+@@ -1954,12 +2295,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
      return 1;
  }
  
@@ -3156,7 +3195,7 @@ index b9f3fa2..593199b 100644
          for (by = 0; by < bh; by++)
              for (bx = 0; bx < bw; bx++) {
                  d3d8_dxt_decode_block(src + ((size_t)by * bw + bx) * L->bpp, t->color, px);
-@@ -1969,6 +2341,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
+@@ -1969,6 +2353,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
              }
          return;
      }
@@ -3168,7 +3207,7 @@ index b9f3fa2..593199b 100644
      if (L->kind == K_LIN) {
          for (y = 0; y < h; y++) {
              const uint8_t *row = src + (size_t)y * t->pitch;
-@@ -2057,22 +2434,55 @@ static int host_levels(const TexLayout *L, const NvD3DTexture *t)
+@@ -2057,22 +2446,55 @@ static int host_levels(const TexLayout *L, const NvD3DTexture *t)
      return n > L->levels ? n : L->levels;
  }
  
@@ -3231,7 +3270,7 @@ index b9f3fa2..593199b 100644
          e->used = s_frame;
          return e->srv;
      }
-@@ -2082,21 +2492,47 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2082,21 +2504,47 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
          ph = hash_mem((const uint8_t *)pal, t->palette_len * 4);
      }
      if (e && e->hash == h && e->pal_hash == ph) {
@@ -3285,7 +3324,7 @@ index b9f3fa2..593199b 100644
          if (L.faces == 6) {
              sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
              sd.TextureCube.MipLevels = (UINT)hl;
-@@ -2104,36 +2540,45 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2104,36 +2552,45 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
              sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
              sd.Texture2D.MipLevels = (UINT)hl;
          }
@@ -3353,7 +3392,7 @@ index b9f3fa2..593199b 100644
              w = L.level_w[L.levels - 1]; h = L.level_h[L.levels - 1];
              memcpy(a, px, (size_t)w * h * 4);
              for (; lv < hl; lv++) {
-@@ -2152,23 +2597,44 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2152,23 +2609,44 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
      }
      e->hash = h;
      e->pal_hash = ph;
@@ -3401,7 +3440,7 @@ index b9f3fa2..593199b 100644
  /* -------------------------------------------------------- state objects */
  
  typedef struct { uint64_t key; void *obj; } StateSlot;
-@@ -2346,12 +2812,29 @@ static D3D11_TEXTURE_ADDRESS_MODE addr_mode(uint32_t m)
+@@ -2346,12 +2824,29 @@ static D3D11_TEXTURE_ADDRESS_MODE addr_mode(uint32_t m)
      }
  }
  
@@ -3432,7 +3471,7 @@ index b9f3fa2..593199b 100644
      if (bias13 & 0x1000) bias13 -= 0x2000;
      key = (uint64_t)minf | ((uint64_t)magf << 8) | ((uint64_t)(bias13 & 0x1FFF) << 12) |
            ((uint64_t)(levels & 15) << 25) | ((uint64_t)(reduce != 0) << 29) |
-@@ -2393,9 +2876,26 @@ static ID3D11SamplerState *sampler(const NvD3DTexture *t, int levels, int reduce
+@@ -2393,9 +2888,26 @@ static ID3D11SamplerState *sampler(const NvD3DTexture *t, int levels, int reduce
          }
          ID3D11Device_CreateSamplerState(s_dev, &d, (ID3D11SamplerState **)slot);
      }
@@ -3459,7 +3498,7 @@ index b9f3fa2..593199b 100644
  /* ------------------------------------------------------------------- draw */
  
  static uint32_t mode_needs_texture(uint32_t mode)
-@@ -2585,8 +3085,7 @@ static ID3D11ShaderResourceView *surface_y16(Surface *s)
+@@ -2585,8 +3097,7 @@ static ID3D11ShaderResourceView *surface_y16(Surface *s)
          ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
          ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
          ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -3469,7 +3508,7 @@ index b9f3fa2..593199b 100644
          ID3D11DeviceContext_PSSetShader(s_ctx, s_y16_ps[s->ms ? 1 : 0], NULL, 0);
          ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 1, &src);
          ID3D11DeviceContext_Draw(s_ctx, 3, 0);
-@@ -2622,8 +3121,7 @@ static ID3D11ShaderResourceView *depth_y16(Depth *d)
+@@ -2622,8 +3133,7 @@ static ID3D11ShaderResourceView *depth_y16(Depth *d)
          ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
          ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
          ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -3479,7 +3518,7 @@ index b9f3fa2..593199b 100644
          ID3D11DeviceContext_PSSetShader(s_ctx, s_y16d_ps[d->samples > 1 ? 1 : 0], NULL, 0);
          ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 1, src);
          {
-@@ -2707,7 +3205,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2707,7 +3217,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          if (!mode_needs_texture(mode) || !t->addr || !t->width || !t->height)
              continue;
          tex_format(t->color, &kind);
@@ -3492,7 +3531,7 @@ index b9f3fa2..593199b 100644
          s_draw_textured = 1;
          if (!s_draw_tex_addr) s_draw_tex_addr = t->addr;
          if (rt && rt->sx > rt->sy * 1.001f) s_draw_reads_wide = 1;
-@@ -2742,9 +3244,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2742,9 +3256,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
                  }
              }
          } else {
@@ -3503,7 +3542,7 @@ index b9f3fa2..593199b 100644
              if (kind == K_LIN) {
                  pc.tex_scale[n][0] = 1.0f / (float)t->width;
                  pc.tex_scale[n][1] = 1.0f / (float)t->height;
-@@ -2758,7 +3258,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2758,7 +3270,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          }
          if (!view) continue;
          if (t->cube && !rt) srv[4 + n] = view; else srv[n] = view;
@@ -3512,7 +3551,7 @@ index b9f3fa2..593199b 100644
          pc.tex_info[n][0] = (t->control0 >> 2) & 1;
          pc.tex_info[n][1] = t->filter >> 28;
          /* Point taps of an upscaled linear target average the guest pixel's
-@@ -2816,7 +3316,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2816,7 +3328,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          pc.zp1[0] = 1.0f / ((float)zm + 1.0f);
          pc.zp1[1] = (float)zm;
      }
@@ -3521,7 +3560,7 @@ index b9f3fa2..593199b 100644
  
      if (st->poly_offset_fill && !(st->z_perspective && d)) {
          /* The slope term multiplies the depth change per pixel. At an
-@@ -2834,7 +3334,6 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2834,7 +3346,6 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          ID3D11PixelShader *ps = spec_ps(&pc, v);
          ID3D11DeviceContext_PSSetShader(s_ctx, ps ? ps : s_psv[v], NULL, 0);
      }
@@ -3529,7 +3568,15 @@ index b9f3fa2..593199b 100644
      ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 8, srv);
      ID3D11DeviceContext_PSSetSamplers(s_ctx, 0, 4, smp);
      ID3D11DeviceContext_RSSetState(s_ctx, rs_state(cull == 3 ? 0 : cull,
-@@ -3073,9 +3572,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -3025,6 +3536,7 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+                       uint32_t lo, uint32_t hi, const float (*pos)[4])
+ {
+     static uint32_t s_prog_version, s_vconst_version;
++    static int s_prog_valid, s_vconst_valid;
+     static float *dx;
+     static uint32_t dx_cap;
+     struct { const uint8_t *base; uint32_t stride, span; } grp[16];
+@@ -3073,9 +3585,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
      RECOMP_PROFILE_BEGIN("D3D11 draw");
      t_draw = s_prof_on > 0 ? qpc() : 0;
      s_prof_draws++;
@@ -3547,9 +3594,45 @@ index b9f3fa2..593199b 100644
      }
      if (pos && s && s->sx > s->sy * 1.001f) {
          /* Menu artwork and controls span the display together. Only the
-@@ -3179,12 +3683,9 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -3158,13 +3675,25 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+         const uint32_t (*prog)[4] = nv2a_vsh_program(&start, &pver);
+         const float (*consts)[4] = nv2a_vsh_constants(&cver);
+         uc.info[0] = start;
+-        if (pver != s_prog_version) {
+-            upload_cb(s_cb_prog, prog, NV_VSH_SLOTS * 16);
++        if (!prog || !consts) {
++            RECOMP_PROFILE_END();
++            return;
++        }
++        if (!s_prog_valid || pver != s_prog_version) {
++            if (!upload_cb(s_cb_prog, prog, NV_VSH_SLOTS * 16)) {
++                RECOMP_PROFILE_END();
++                return;
++            }
+             s_prog_version = pver;
++            s_prog_valid = 1;
+         }
+-        if (cver != s_vconst_version) {
+-            upload_cb(s_cb_vconst, consts, 192 * 16);
++        if (!s_vconst_valid || cver != s_vconst_version) {
++            if (!upload_cb(s_cb_vconst, consts, 192 * 16)) {
++                RECOMP_PROFILE_END();
++                return;
++            }
+             s_vconst_version = cver;
++            s_vconst_valid = 1;
+         }
+     }
+     uc.map[0] = 2.0f / (float)gw;
+@@ -3177,14 +3706,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+     uc.fogf[1] = st->fog_param[1];
+     uc.place[0] = shift;
      uc.place[1] = yscale;
-     upload_cb(s_cb_ub, &uc, sizeof uc);
+-    upload_cb(s_cb_ub, &uc, sizeof uc);
++    if (!upload_cb(s_cb_ub, &uc, sizeof uc)) {
++        RECOMP_PROFILE_END();
++        return;
++    }
      {
 -        ID3D11Buffer *vcb[4] = { s_cb_ub, NULL, s_cb_prog, s_cb_vconst };
 -        ID3D11DeviceContext_IASetInputLayout(s_ctx, NULL);
@@ -3562,7 +3645,7 @@ index b9f3fa2..593199b 100644
          ID3D11DeviceContext_DrawIndexed(s_ctx, ni, 0, 0);
      }
      s_raw_pos += (at + 255) & ~255u;
-@@ -3204,11 +3705,18 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3204,11 +3733,18 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
      float cc[8];
      D3D11_RECT r;
      int zclear = (flags & 1) != 0, sclear = (flags & 2) != 0;
@@ -3583,7 +3666,7 @@ index b9f3fa2..593199b 100644
      if (s) {
          if (flags & 0x10) mask |= D3D11_COLOR_WRITE_ENABLE_RED;
          if (flags & 0x20) mask |= D3D11_COLOR_WRITE_ENABLE_GREEN;
-@@ -3217,8 +3725,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3217,8 +3753,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
              mask |= D3D11_COLOR_WRITE_ENABLE_ALPHA;
      }
      if (!d) { zclear = sclear = 0; }
@@ -3595,7 +3678,7 @@ index b9f3fa2..593199b 100644
      if (s && mask) s->gpu_dirty = 1;
      zf = (st->surface_format >> 4) & 0xF;
      unpack4(color, cc);
-@@ -3234,8 +3744,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3234,8 +3772,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
      upload_cb(s_cb_clear, cc, sizeof cc);
      if (x1 >= gw) x1 = gw - 1;
      if (y1 >= gh) y1 = gh - 1;
@@ -3607,7 +3690,7 @@ index b9f3fa2..593199b 100644
      r.left = (LONG)(x0 * s_aa_x * s_cur_sx + 0.5f);
      r.top = (LONG)(y0 * s_aa_y * s_cur_sy + 0.5f);
      r.right = (LONG)((x1 + 1) * s_aa_x * s_cur_sx + 0.5f);
-@@ -3247,12 +3759,12 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3247,12 +3787,12 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
          ds_state(zclear, 7, zclear, sclear, 7, 0xFF, 0xFF, 0x1E01, 0x1E01, 0x1E01),
          zf == 1 ? 0 : (zstencil & 0xFF));
      ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -3623,7 +3706,7 @@ index b9f3fa2..593199b 100644
  }
  
  /* -------------------------------------------------------------- write-back */
-@@ -3270,6 +3782,27 @@ typedef struct {
+@@ -3270,6 +3810,27 @@ typedef struct {
      ID3D11RenderTargetView *down_rtv;
  } WbSlot;
  static WbSlot s_wb[MAX_SURFACES];
@@ -3651,7 +3734,7 @@ index b9f3fa2..593199b 100644
  
  static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
  {
-@@ -3289,12 +3822,14 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
+@@ -3289,12 +3850,14 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
              return 0;
          k->w = w; k->h = h;
      }
@@ -3672,7 +3755,7 @@ index b9f3fa2..593199b 100644
      }
      return 1;
  }
-@@ -3305,21 +3840,63 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
+@@ -3305,21 +3868,63 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
   * (nv2a_d3d_writeback_busy), holding back DMA_GET and fence releases until
   * then -- the title cannot learn the frame is finished before its pixels are
   * in guest memory. */
@@ -3738,7 +3821,7 @@ index b9f3fa2..593199b 100644
      for (i = 0; i < MAX_SURFACES; i++) {
          Surface *s = &s_surf[i];
          WbSlot *k = &s_wb[i];
-@@ -3328,16 +3905,18 @@ static int writeback_finish(int wait)
+@@ -3328,16 +3933,18 @@ static int writeback_finish(int wait)
          uint32_t x, y, rowb;
          int amode, r565;
          HRESULT hr;
@@ -3758,7 +3841,7 @@ index b9f3fa2..593199b 100644
          if (FAILED(hr))
              continue;
          dst = (uint8_t *)guest(s->va);
-@@ -3374,6 +3953,8 @@ static int writeback_finish(int wait)
+@@ -3374,6 +3981,8 @@ static int writeback_finish(int wait)
      }
      RECOMP_PROFILE_END();
      s_wb_pending = left;
@@ -3767,7 +3850,7 @@ index b9f3fa2..593199b 100644
      return !left;
  }
  
-@@ -3381,10 +3962,8 @@ int nv2a_d3d_writeback_busy(void)
+@@ -3381,10 +3990,8 @@ int nv2a_d3d_writeback_busy(void)
  {
      if (!s_wb_pending || writeback_finish(0))
          return 0;
@@ -3780,7 +3863,7 @@ index b9f3fa2..593199b 100644
      return 1;
  }
  
-@@ -3420,10 +3999,20 @@ static void writeback_surfaces(void)
+@@ -3420,10 +4027,20 @@ static void writeback_surfaces(void)
          }
          s->gpu_dirty = 0;                        /* later draws dirty it again */
          k->pending = 1;
@@ -3802,7 +3885,7 @@ index b9f3fa2..593199b 100644
      RECOMP_PROFILE_END();
  }
  
-@@ -3439,13 +4028,16 @@ static uint64_t s_zpass;
+@@ -3439,13 +4056,16 @@ static uint64_t s_zpass;
  static void zpass_collect(void)
  {
      UINT64 n = 0;
@@ -3819,7 +3902,7 @@ index b9f3fa2..593199b 100644
  }
  
  void nv2a_d3d_zpass_enable(int on)
-@@ -3657,9 +4249,8 @@ static void composite(ID3D11RenderTargetView *rtv, UINT w, UINT h, Surface *s,
+@@ -3657,9 +4277,8 @@ static void composite(ID3D11RenderTargetView *rtv, UINT w, UINT h, Surface *s,
      ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
      ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
      ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -3831,6 +3914,49 @@ index b9f3fa2..593199b 100644
      ID3D11DeviceContext_PSSetShader(s_ctx, s_present_ps, NULL, 0);
      ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 0, 1, &s_cb_present);
      surface_resolve(s);
+@@ -3779,38 +4398,24 @@ static void pace_vblank(void)
+     static LARGE_INTEGER freq;
+     static int64_t next;
+     static HANDLE timer;
+-    int64_t now, period;
++    int64_t now;
+     if (limit < 0) {
+         const char *e = getenv("RECOMP_FPS_LIMIT");
+         limit = e ? atoi(e) : 60;
+         QueryPerformanceFrequency(&freq);
+-        timer = CreateWaitableTimerExW(NULL, NULL, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
+-                                       TIMER_ALL_ACCESS);
++        timer = nv_pacing_create_timer();
+     }
+     if (limit <= 0)
+         return;
+-    period = freq.QuadPart / limit;
+     now = qpc();
+     /* A frame that ran late is shown at once and starts a new cadence;
+      * waiting for the next boundary would turn every slow frame into two. */
+-    next += period;
+-    if (!next || next <= now) {
+-        next = now;
++    if (!nv_pacing_deadline(&next, now, freq.QuadPart, limit))
+         return;
+-    }
+     {
+         int64_t t0 = now;
+-        int64_t remain = next - now;
+-        int64_t spin = freq.QuadPart / 1000;            /* last millisecond */
+         RECOMP_PROFILE_BEGIN("D3D11 pace");
+-        if (remain > spin && timer) {
+-            LARGE_INTEGER due;
+-            due.QuadPart = -(LONGLONG)((remain - spin) * 10000000 / freq.QuadPart);
+-            if (SetWaitableTimer(timer, &due, 0, NULL, NULL, FALSE))
+-                WaitForSingleObject(timer, INFINITE);
+-        }
+-        while (qpc() < next)
+-            YieldProcessor();
++        nv_pacing_wait(timer, freq.QuadPart, next, now);
+         RECOMP_PROFILE_END();
+         if (s_prof_on > 0) s_prof[PROF_PACE] += qpc() - t0;
+     }
 diff --git a/tests/dsp/CMakeLists.txt b/tests/dsp/CMakeLists.txt
 index 1e4ebc0..d3e1010 100644
 --- a/tests/dsp/CMakeLists.txt
@@ -4571,6 +4697,116 @@ index 0000000..b853df4
 +            break;
 +        xbox_nv2a_wake_wait(wake, observed);
 +    }
++}
++
++#endif
+diff --git a/src/video/nv2a_pacing.h b/src/video/nv2a_pacing.h
+new file mode 100644
+index 0000000..bd286fb
+--- /dev/null
++++ b/src/video/nv2a_pacing.h
+@@ -0,0 +1,104 @@
++/* Display pacing is owned by the render thread. Keep the successful wait's
++ * one-millisecond spin tail and late-frame cadence; timer failures must not
++ * turn the entire remaining frame into a busy spin. */
++#ifndef NV2A_PACING_H
++#define NV2A_PACING_H
++
++#include <windows.h>
++#include <stdint.h>
++#include <limits.h>
++
++static int nv_pacing_deadline(int64_t *next, int64_t now, int64_t frequency, int limit)
++{
++    int64_t period;
++    if (limit <= 0 || frequency <= 0) return 0;
++    period = frequency / limit;
++    /* A zero period cannot pace. Rebase rather than overflow signed QPC
++     * arithmetic; valid timestamps follow the original deadline calculation. */
++    if (period <= 0 || now < 0 || *next < 0 || *next > INT64_MAX - period) {
++        *next = now;
++        return 0;
++    }
++    *next += period;
++    if (!*next || *next <= now) {
++        *next = now;
++        return 0;
++    }
++    return 1;
++}
++
++static HANDLE nv_pacing_create_timer(void)
++{
++    HANDLE timer = CreateWaitableTimerExW(NULL, NULL, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
++                                         TIMER_ALL_ACCESS);
++    if (!timer) timer = CreateWaitableTimerExW(NULL, NULL, 0, TIMER_ALL_ACCESS);
++    return timer;
++}
++
++/* Convert QPC ticks to relative 100 ns units. The ordinary path is exactly
++ * the original integer conversion. Binary division handles only products
++ * that would overflow it, without changing the deadline or using floats. */
++static int64_t nv_pacing_timer_units(int64_t ticks, int64_t frequency)
++{
++    const uint64_t scale = 10000000;
++    uint64_t t = (uint64_t)ticks, f = (uint64_t)frequency, units;
++    if (ticks <= 0 || frequency <= 0) return 1;
++    if (t <= INT64_MAX / scale) {
++        units = t * scale / f;
++    } else {
++        uint64_t whole = t / f, a = t % f, remainder = 0, fraction = 0;
++        int bit;
++        for (bit = 23; bit >= 0; bit--) {
++            fraction *= 2;
++            if (remainder >= f - remainder) {
++                remainder -= f - remainder;
++                fraction++;
++            } else remainder *= 2;
++            if ((scale >> bit) & 1) {
++                if (remainder >= f - a) {
++                    remainder -= f - a;
++                    fraction++;
++                } else remainder += a;
++            }
++        }
++        if (whole > (INT64_MAX - fraction) / scale) return INT64_MAX;
++        units = whole * scale + fraction;
++    }
++    /* Zero would be an absolute date, rather than a future relative wait. */
++    return units ? (int64_t)units : 1;
++}
++
++static int64_t nv_pacing_qpc(void)
++{
++    LARGE_INTEGER now;
++    QueryPerformanceCounter(&now);
++    return now.QuadPart;
++}
++
++static void nv_pacing_wait(HANDLE timer, int64_t frequency, int64_t deadline, int64_t now)
++{
++    int64_t remain = deadline - now;
++    int64_t spin = frequency / 1000;
++    if (remain > spin) {
++        int waited = 0;
++        if (timer) {
++            LARGE_INTEGER due;
++            due.QuadPart = -nv_pacing_timer_units(remain - spin, frequency);
++            if (SetWaitableTimer(timer, &due, 0, NULL, NULL, FALSE))
++                waited = WaitForSingleObject(timer, INFINITE) == WAIT_OBJECT_0;
++        }
++        if (!waited) {
++            /* Request at most one ms at a time and recheck QPC: Sleep and
++             * ordinary timers can wake late on a coarse-resolution system.
++             * Failure never makes us spin longer than the original tail. */
++            now = nv_pacing_qpc();
++            while (now < deadline && deadline - now > spin) {
++                Sleep(1);
++                now = nv_pacing_qpc();
++            }
++        }
++    }
++    while (nv_pacing_qpc() < deadline) YieldProcessor();
 +}
 +
 +#endif
@@ -7484,6 +7720,286 @@ index 0000000..b1640a7
 +    else CHECK(0);
 +    return 0;
 +}
+diff --git a/tests/nv2a_pacing/CMakeLists.txt b/tests/nv2a_pacing/CMakeLists.txt
+new file mode 100644
+index 0000000..aba0ece
+--- /dev/null
++++ b/tests/nv2a_pacing/CMakeLists.txt
+@@ -0,0 +1,8 @@
++cmake_minimum_required(VERSION 3.20)
++project(nv2a_pacing C)
++enable_testing()
++add_executable(nv2a_pacing test_pacing.c)
++target_include_directories(nv2a_pacing PRIVATE ../../src/video)
++foreach(case cadence failures conversion native)
++    add_test(NAME nv2a_pacing_${case} COMMAND nv2a_pacing ${case})
++endforeach()
+diff --git a/tests/nv2a_pacing/README.md b/tests/nv2a_pacing/README.md
+new file mode 100644
+index 0000000..3efe343
+--- /dev/null
++++ b/tests/nv2a_pacing/README.md
+@@ -0,0 +1,35 @@
++# NV2A display pacing regressions
++
++Build from the parent MM3 checkout with its Windows MSVC environment:
++
++```powershell
++Set-ExecutionPolicy -Scope Process Bypass -Force
++. ./scripts/enter-env.ps1
++cmake -S tools/xboxrecomp/tests/nv2a_pacing -B conformance_tmp/pacing-test -G Ninja -DCMAKE_BUILD_TYPE=Release
++cmake --build conformance_tmp/pacing-test
++ctest --test-dir conformance_tmp/pacing-test --output-on-failure
++```
++
++The four cases exercise the production `nv2a_pacing.h` helper without a GPU:
++
++- `cadence`: 60,000 comparisons with the original deadline calculation at six rates, including early/exact/late frames, disabled pacing, and signed-overflow rebasing.
++- `failures`: injected high-resolution and ordinary timer creation failures, arm/wait failures, coarse or late wakes, and successful recovery. Every fallback sleep requests one millisecond, the final spin stays within the original one-millisecond tail, and completion cannot precede the deadline.
++- `conversion`: 60,000 exact QPC-to-relative-timer comparisons and overflowing-product, saturation, and sub-100-nanosecond cases.
++- `native`: actual Windows waits through both the original and new helpers, with matching cadence calculations and no early completion.
++
++Successful timer waits retain the existing one-millisecond tail and deadline cadence. A late frame still completes immediately and starts a new cadence. High-resolution timer creation now falls back to an ordinary timer; unavailable or failed timers use `Sleep(1)` with QPC rechecks instead of spinning for the full remaining frame. Ordinary timers and sleeps can wake late on systems with coarse scheduling resolution. The fallback bounds the requested sleep and spinning work; it cannot guarantee a one-millisecond actual wake latency.
++
++## Rejected shorter tails
++
++An isolated Windows experiment on the Ryzen 9 PRO 7940HS compared three interleaved 120-frame blocks per policy at 60 Hz, both idle and with four normal-priority CPU workers on 16 logical processors. It changed neither process priority nor affinity. Fixed 250/500-microsecond tails and an adaptive 125–500-microsecond tail lost deadline precision, so they were rejected.
++
++A follow-up compared the original tail against an adaptive 125–1000-microsecond tail, initially using one millisecond and then the largest of the last 16 timer wake latenesses plus 75 microseconds. It reduced measured thread cycles by 26.2% at idle and 57.8% under the controlled load. However, idle p99 deadline error rose from 0 to 136.7 microseconds, and errors above 100 microseconds rose from 1 to 7 of 360 frames. Loaded p99 errors were zero for both. This precision tradeoff was rejected; no adaptive pacing ships. Short-block `GetThreadTimes` values showed coarse accounting effects, so cycle reductions are not claimed as exact CPU milliseconds or gameplay performance gains.
++
++## Microsoft API references
++
++- [CreateWaitableTimerExW](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createwaitabletimerexw): high-resolution timers are supported from Windows 10 version 1803; ordinary timers remain available when that creation fails.
++- [SetWaitableTimer](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-setwaitabletimer): negative due times specify relative 100-nanosecond units; the helper uses a one-shot timer.
++- [WaitForSingleObject](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject): only `WAIT_OBJECT_0` confirms timer completion; other results take the fallback.
++- [Sleep](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-sleep): wake accuracy depends on clock resolution and subsequent scheduling.
++- [QPC guidance](https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps): QPC measures intervals independently of wall-clock changes, with a frequency cached at initialization.
++- [QueryThreadCycleTime](https://learn.microsoft.com/en-us/windows/win32/api/realtimeapiset/nf-realtimeapiset-querythreadcycletime): thread cycles include user/kernel execution and must not be converted directly to elapsed time.
+diff --git a/tests/nv2a_pacing/test_pacing.c b/tests/nv2a_pacing/test_pacing.c
+new file mode 100644
+index 0000000..2e01170
+--- /dev/null
++++ b/tests/nv2a_pacing/test_pacing.c
+@@ -0,0 +1,219 @@
++/* Exercise the production helper with deterministic Win32 failure injection
++ * and, separately, actual native waits. No GPU/context is needed. */
++#define WIN32_LEAN_AND_MEAN
++#include <windows.h>
++#include <intrin.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#define CHECK(x) do { if (!(x)) { fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#x); exit(1); } } while (0)
++static int mocked = 1;
++static int64_t clock_ticks, test_frequency = 1000000;
++static int64_t armed_units, wake_extra, sleep_ticks = 1000;
++static unsigned create_calls, arm_calls, wait_calls, sleep_calls, spin_calls;
++static DWORD create_flags[2];
++static unsigned fail_creates;
++static int fail_arm;
++static DWORD wait_result = WAIT_OBJECT_0;
++
++static HANDLE pacing_create(LPSECURITY_ATTRIBUTES sa, LPCWSTR name, DWORD flags, DWORD access)
++{
++    if (!mocked) return CreateWaitableTimerExW(sa,name,flags,access);
++    CHECK(!sa && !name && access == TIMER_ALL_ACCESS);
++    CHECK(create_calls < 2);create_flags[create_calls++] = flags;
++    if (fail_creates) { fail_creates--;SetLastError(ERROR_NOT_ENOUGH_MEMORY);return NULL; }
++    return (HANDLE)(uintptr_t)1;
++}
++static BOOL pacing_arm(HANDLE timer,const LARGE_INTEGER *due,LONG period,
++                        PTIMERAPCROUTINE completion,LPVOID arg,BOOL resume)
++{
++    if (!mocked) return SetWaitableTimer(timer,due,period,completion,arg,resume);
++    CHECK(timer == (HANDLE)(uintptr_t)1 && due->QuadPart < 0);
++    CHECK(!period && !completion && !arg && !resume);
++    arm_calls++;armed_units = -due->QuadPart;
++    if(fail_arm) { SetLastError(ERROR_INVALID_HANDLE);return FALSE; }
++    return TRUE;
++}
++static DWORD pacing_wait(HANDLE timer,DWORD timeout)
++{
++    if (!mocked) return WaitForSingleObject(timer,timeout);
++    CHECK(timer == (HANDLE)(uintptr_t)1 && timeout == INFINITE);wait_calls++;
++    if(wait_result == WAIT_OBJECT_0) clock_ticks += armed_units * test_frequency / 10000000 + wake_extra;
++    else SetLastError(ERROR_INVALID_HANDLE);
++    return wait_result;
++}
++static BOOL pacing_clock(LARGE_INTEGER *out)
++{
++    if(!mocked) return QueryPerformanceCounter(out);
++    out->QuadPart=clock_ticks;return TRUE;
++}
++static void pacing_sleep(DWORD ms)
++{
++    if(!mocked) { Sleep(ms);return; }
++    CHECK(ms == 1);sleep_calls++;clock_ticks += sleep_ticks;
++}
++static void pacing_yield(void)
++{
++    if(!mocked) { YieldProcessor();return; }
++    spin_calls++;clock_ticks += 10;
++}
++
++#define CreateWaitableTimerExW pacing_create
++#define SetWaitableTimer pacing_arm
++#define WaitForSingleObject pacing_wait
++#define QueryPerformanceCounter pacing_clock
++#define Sleep pacing_sleep
++#undef YieldProcessor
++#define YieldProcessor pacing_yield
++#include "nv2a_pacing.h"
++#undef CreateWaitableTimerExW
++#undef SetWaitableTimer
++#undef WaitForSingleObject
++#undef QueryPerformanceCounter
++#undef Sleep
++#undef YieldProcessor
++
++static void reset(void)
++{
++    mocked=1;clock_ticks=1000000;test_frequency=1000000;
++    armed_units=0;wake_extra=0;sleep_ticks=1000;
++    create_calls=arm_calls=wait_calls=sleep_calls=spin_calls=0;
++    fail_creates=0;fail_arm=0;wait_result=WAIT_OBJECT_0;
++    memset(create_flags,0,sizeof create_flags);
++}
++static int old_deadline(int64_t *next,int64_t now,int64_t frequency,int limit)
++{
++    if(limit<=0)return 0;
++    *next += frequency/limit;
++    if(!*next || *next <= now) { *next=now;return 0; }
++    return 1;
++}
++static void test_cadence(void)
++{
++    static const int rates[]={1,30,60,120,144,1000};
++    unsigned r,i;int64_t next,old,now;
++    reset();
++    next=123;CHECK(!nv_pacing_deadline(&next,1000,1000000,0) && next==123);
++    CHECK(!nv_pacing_deadline(&next,1000,1000000,-3) && next==123);
++    CHECK(!nv_pacing_deadline(&next,1000,0,60) && next==123);
++    for(r=0;r<sizeof rates/sizeof rates[0];r++) {
++        next=old=0;now=100000000;
++        for(i=0;i<10000;i++) {
++            int actual=nv_pacing_deadline(&next,now,1000000,rates[r]);
++            int expected=old_deadline(&old,now,1000000,rates[r]);
++            CHECK(actual==expected && next==old);
++            /* Frames can be early, exactly at a boundary, or several periods
++             * late. A late frame is returned immediately, never double-paced. */
++            if(actual && i%11) now=next+((int)(i%3)-1)*10;
++            else now+=1000000/rates[r]*(i%7+1);
++        }
++    }
++    next=0;CHECK(!nv_pacing_deadline(&next,1000,1000,2000) && next==1000);
++    next=INT64_MAX-10;CHECK(!nv_pacing_deadline(&next,INT64_MAX-5,1000000,60));
++    CHECK(next==INT64_MAX-5);
++    next=10;CHECK(!nv_pacing_deadline(&next,-1,1000000,60) && next==-1);
++    next=0;CHECK(nv_pacing_deadline(&next,0,1000000,60) && next==16666);
++    CHECK(!create_calls && !arm_calls && !wait_calls && !sleep_calls && !spin_calls);
++    puts("PASS: 60000 legacy deadline/cadence comparisons, off/negative/zero-rate, first/late/exact-boundary frames and signed overflow reset");
++}
++static void check_fallback(HANDLE timer)
++{
++    int64_t start=clock_ticks,deadline=start+16666;
++    nv_pacing_wait(timer,test_frequency,deadline,start);
++    CHECK(clock_ticks>=deadline && sleep_calls>0);
++    CHECK(spin_calls*10<=test_frequency/1000+10);
++    CHECK(clock_ticks-deadline<sleep_ticks+10);
++}
++static void test_failures(void)
++{
++    HANDLE timer;int64_t start,deadline;
++    reset();timer=nv_pacing_create_timer();
++    CHECK(timer && create_calls==1 && create_flags[0]==CREATE_WAITABLE_TIMER_HIGH_RESOLUTION);
++    start=clock_ticks;deadline=start+16666;
++    nv_pacing_wait(timer,test_frequency,deadline,start);
++    CHECK(arm_calls==1 && wait_calls==1 && sleep_calls==0 && spin_calls==100);
++    CHECK(armed_units==(16666-1000)*10 && clock_ticks==deadline);
++    reset();fail_creates=1;timer=nv_pacing_create_timer();
++    CHECK(timer && create_calls==2 && create_flags[0]==CREATE_WAITABLE_TIMER_HIGH_RESOLUTION && !create_flags[1]);
++    start=clock_ticks;nv_pacing_wait(timer,test_frequency,start+16666,start);
++    CHECK(arm_calls==1 && wait_calls==1 && !sleep_calls);
++    reset();fail_creates=2;timer=nv_pacing_create_timer();CHECK(!timer && create_calls==2);
++    check_fallback(timer);CHECK(!arm_calls && !wait_calls);
++    reset();fail_arm=1;check_fallback((HANDLE)(uintptr_t)1);CHECK(arm_calls==1 && !wait_calls);
++    reset();wait_result=WAIT_FAILED;check_fallback((HANDLE)(uintptr_t)1);CHECK(arm_calls==1 && wait_calls==1);
++    reset();wait_result=WAIT_TIMEOUT;check_fallback((HANDLE)(uintptr_t)1);CHECK(sleep_calls>0);
++    reset();sleep_ticks=16000;check_fallback(NULL);CHECK(sleep_calls==1 && spin_calls<=100);
++    reset();sleep_ticks=17000;check_fallback(NULL);CHECK(sleep_calls==1 && !spin_calls);
++    /* A transient arm failure may recover on the next frame. Successful
++     * waits keep the original timer call and one-ms tail, without sleeps. */
++    reset();fail_arm=1;check_fallback((HANDLE)(uintptr_t)1);
++    fail_arm=0;sleep_calls=spin_calls=0;start=clock_ticks;
++    nv_pacing_wait((HANDLE)(uintptr_t)1,test_frequency,start+16666,start);
++    CHECK(!sleep_calls && spin_calls==100);
++    reset();start=clock_ticks;nv_pacing_wait(NULL,test_frequency,start+500,start);
++    CHECK(!arm_calls && !wait_calls && !sleep_calls && spin_calls==50);
++    reset();wake_extra=5000;start=clock_ticks;
++    nv_pacing_wait((HANDLE)(uintptr_t)1,test_frequency,start+16666,start);
++    CHECK(clock_ticks>=start+16666 && !sleep_calls && !spin_calls);
++    puts("PASS: high-res/ordinary/create-both-fail/arm/wait failures, bounded one-ms spin and Sleep requests, coarse/late wake, successful retry and unchanged successful timer tail");
++}
++static void test_conversion(void)
++{
++    static const int64_t frequencies[]={60,1000,1000000,10000000,3579545,3000000000ll};
++    unsigned i,j;
++    for(i=0;i<sizeof frequencies/sizeof frequencies[0];i++)
++        for(j=1;j<=10000;j++) {
++            int64_t t=frequencies[i]*j/10000;
++            int64_t expected=t*10000000/frequencies[i];
++            if(expected<1)expected=1;
++            CHECK(nv_pacing_timer_units(t,frequencies[i])==expected);
++        }
++    CHECK(nv_pacing_timer_units(INT64_MAX,INT64_MAX)==10000000);
++    CHECK(nv_pacing_timer_units(INT64_MAX/2,INT64_MAX)==4999999);
++    CHECK(nv_pacing_timer_units(INT64_MAX-1,INT64_MAX)==9999999);
++    CHECK(nv_pacing_timer_units(INT64_MAX,1)==INT64_MAX);
++    CHECK(nv_pacing_timer_units(INT64_MAX-1,2)==INT64_MAX);
++    CHECK(nv_pacing_timer_units(1,INT64_MAX)==1);
++    puts("PASS: 60000 exact relative-unit conversions, sub-100ns clamp and overflowing products/division/saturation");
++}
++static void old_wait(HANDLE timer,int64_t frequency,int64_t deadline,int64_t now)
++{
++    int64_t remain=deadline-now,spin=frequency/1000;
++    if(remain>spin && timer) {
++        LARGE_INTEGER due;due.QuadPart=-(remain-spin)*10000000/frequency;
++        CHECK(SetWaitableTimer(timer,&due,0,NULL,NULL,FALSE));
++        CHECK(WaitForSingleObject(timer,INFINITE)==WAIT_OBJECT_0);
++    }
++    while(nv_pacing_qpc()<deadline)pacing_yield();
++}
++static void test_native(void)
++{
++    LARGE_INTEGER f;HANDLE timer;int64_t next=0,now,expected;unsigned i,legacy;
++    mocked=0;CHECK(QueryPerformanceFrequency(&f));timer=nv_pacing_create_timer();CHECK(timer);
++    for(legacy=0;legacy<2;legacy++) {
++        next=0;
++        for(i=0;i<30;i++) {
++            now=nv_pacing_qpc();expected=next;
++            CHECK(nv_pacing_deadline(&next,now,f.QuadPart,60)==old_deadline(&expected,now,f.QuadPart,60));
++            CHECK(next==expected);
++            if(next<=now)continue;
++            if(legacy)old_wait(timer,f.QuadPart,next,now);
++            else nv_pacing_wait(timer,f.QuadPart,next,now);
++            CHECK(nv_pacing_qpc()>=next);
++        }
++    }
++    CloseHandle(timer);
++    puts("PASS: actual Windows helper and original timer paths retain identical cadence calculations and never finish before their native QPC deadline");
++}
++int main(int argc,char **argv)
++{
++    CHECK(argc==2);
++    if(!strcmp(argv[1],"cadence"))test_cadence();
++    else if(!strcmp(argv[1],"failures"))test_failures();
++    else if(!strcmp(argv[1],"conversion"))test_conversion();
++    else if(!strcmp(argv[1],"native"))test_native();
++    else CHECK(0);
++    return 0;
++}
 diff --git a/tests/nv2a_ps_prewarm/CMakeLists.txt b/tests/nv2a_ps_prewarm/CMakeLists.txt
 new file mode 100644
 index 0000000..835e79e
@@ -9083,6 +9599,434 @@ index 0000000..2ca96d1
 +    RemoveDirectoryW(dir);
 +    printf("%u failed assertions\n", failures);
 +    return failures ? 1 : 0;
++}
+diff --git a/tests/nv2a_shader_lookup/CMakeLists.txt b/tests/nv2a_shader_lookup/CMakeLists.txt
+new file mode 100644
+index 0000000..cf555c0
+--- /dev/null
++++ b/tests/nv2a_shader_lookup/CMakeLists.txt
+@@ -0,0 +1,14 @@
++cmake_minimum_required(VERSION 3.20)
++project(nv2a_shader_lookup C)
++enable_testing()
++foreach(target shader_lookup vertex_retry)
++    add_executable(nv2a_${target} test_${target}.c)
++    target_include_directories(nv2a_${target} PRIVATE ../../src ../../src/video)
++    target_link_libraries(nv2a_${target} PRIVATE d3d11 dxgi dxguid d3dcompiler)
++endforeach()
++foreach(case lookup full queue)
++    add_test(NAME nv2a_shader_${case} COMMAND nv2a_shader_lookup ${case})
++endforeach()
++foreach(case version_zero program constants ub rings)
++    add_test(NAME nv2a_vertex_retry_${case} COMMAND nv2a_vertex_retry ${case})
++endforeach()
+diff --git a/tests/nv2a_shader_lookup/README.md b/tests/nv2a_shader_lookup/README.md
+new file mode 100644
+index 0000000..11cb680
+--- /dev/null
++++ b/tests/nv2a_shader_lookup/README.md
+@@ -0,0 +1,52 @@
++# Exact shader lookup and vertex upload retries
++
++The three CPU lookup regressions use the production `spec_find`/`spec_request`
++helpers. They check every byte of a key, a deliberately selected hash-bucket
++collision, queued/claimed/ready/failed transitions, publication from another
++thread, all 4096 occupied slots, live-queue saturation/retry, prewarm promotion,
++deduplication and table allocation replacement. An EMPTY slot is never retained
++as a negative lookup result.
++
++The five GPU regressions run on the renderer's selected D3D11 adapter. They feed
++valid NV2A instructions (`MOV oPos,v0; MOV oD0,c[n]; END`) and real float
++constant arrays into the normal interpreted vertex shader, then inspect actual
++render-target pixels. Red/green/blue outputs independently prove that the new
++program or constants were consumed. Cases cover:
++
++- Initial version zero, including failures of the initial program, constant and
++  per-draw buffer Maps followed by successful retries of that same version.
++- Failed changed program and changed constants Maps, including successful
++  program upload followed by failed constant upload.
++- Failed per-draw vertex constants, with no stale-offset draw.
++- Real raw/index ring DISCARD wraps, failed raw/index Maps and subsequent
++  NO_OVERWRITE reuse. Abandoned uploads never advance past an undrawn span;
++  a wrap still resets its cursor to the start of the new backing allocation.
++
++For worker scheduling and all four specialized shader variants, also run the
++existing `tests/nv2a_ps_prewarm` GPU/scheduler suite. Shader bytecode SHA keys,
++manifest schema/family identity and graphics output are unchanged.
++
++From the game repository after loading `scripts/enter-env.ps1`:
++
++```powershell
++cmake -S tools/xboxrecomp/tests/nv2a_shader_lookup -B conformance_tmp/stutter-shader-lookup-test -G Ninja -DCMAKE_BUILD_TYPE=Release
++cmake --build conformance_tmp/stutter-shader-lookup-test
++ctest --test-dir conformance_tmp/stutter-shader-lookup-test --output-on-failure
++./conformance_tmp/stutter-shader-lookup-test/nv2a_shader_lookup.exe benchmark conformance_tmp/texture-stutter-shader-cache
++```
++
++The optional benchmark loads a complete manifest using the production
++source/family/schema/SHA/exact-length validation. It prints the actual record
++count and compares the original serial FNV index, an exact previous-key front
++cache, the existing scalar four-lane hash as an index, their combination, and
++the final production lookup. It alternates candidate order, consumes every
++result through opaque noinline functions and reports nine-sample medians; no
++timing threshold is part of CTest. No private manifest records are committed.
++
++On the Ryzen 9 PRO 7940HS, the final isolated run used 148 valid 216-byte keys
++and 4096 slots. Original FNV lookup cost 176–178 ns. Production combined lookup
++cost 6.14 ns for one repeated key, 13.95 ns for four draws per key and 38.21 ns
++for all keys alternating. This saves approximately 0.12–0.15 ms per 850 lookups
++in these synthetic patterns. It does not establish a whole-game frame-rate or
++hitch improvement. The four-lane hash changes only bucket selection; exact
++key comparison resolves collisions and the front cache rereads published state.
+diff --git a/tests/nv2a_shader_lookup/test_shader_lookup.c b/tests/nv2a_shader_lookup/test_shader_lookup.c
+new file mode 100644
+index 0000000..a1b5353
+--- /dev/null
++++ b/tests/nv2a_shader_lookup/test_shader_lookup.c
+@@ -0,0 +1,177 @@
++/* Benchmark candidate table indexing on validated real learned PS keys. */
++#include "../../src/video/nv2a_d3d11.c"
++ptrdiff_t xbox_GetMemoryOffset(void) { return 0; }
++HWND xbox_FramebufferWindowHandle(void) { return NULL; }
++int xbox_FramebufferScanSource(uint32_t *va,uint32_t *pitch) { return 0; }
++int xbox_FramebufferOverlay(XboxOverlay *ovl) { return 0; }
++void xbox_FramebufferNoteFlip(uint32_t n) {}
++const uint32_t (*nv2a_vsh_program(uint32_t *start,uint32_t *version))[4] { return NULL; }
++const float (*nv2a_vsh_constants(uint32_t *version))[4] { return NULL; }
++#define CHECK(x) do { if(!(x)) {fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#x);exit(1);} } while(0)
++
++static PsKey number(unsigned i) { PsKey k={0};k.fin0=i;return k; }
++static void fixture(void)
++{
++    s_spec=calloc(PS_SPEC_SLOTS,sizeof *s_spec);CHECK(s_spec);
++    InitializeCriticalSection(&s_spec_cs);InitializeConditionVariable(&s_spec_cv);
++    s_spec_head=s_spec_tail=s_spec_warm_head=s_spec_warm_tail=0;
++}
++static PsSpec *ready(const PsKey *key)
++{
++    PsSpec *e=spec_find(key);CHECK(e);
++    e->key=*key;e->ps=(ID3D11PixelShader *)e;InterlockedExchange(&e->state,2);return e;
++}
++static DWORD WINAPI publish(void *arg)
++{
++    PsSpec *e=(PsSpec *)arg;Sleep(1);e->ps=(ID3D11PixelShader *)e;
++    InterlockedExchange(&e->state,2);return 0;
++}
++static void test_lookup(void)
++{
++    PsKey k=number(1);PsSpec *first=ready(&k),*e;unsigned i;
++    CHECK(spec_find(&k)==first && spec_request(&k,0)==first->ps);
++    /* Every key byte participates in identity, regardless of hash collisions. */
++    for(i=0;i<sizeof k;i++) {
++        PsKey changed=k;((uint8_t *)&changed)[i]^=0x80;e=ready(&changed);
++        CHECK(e!=first && spec_find(&changed)==e && spec_find(&k)==first);
++    }
++    /* Ready publication must become visible to repeated front-cache requests. */
++    k=number(900);CHECK(!spec_request(&k,0));e=spec_find(&k);CHECK(e->state==1);
++    InterlockedExchange(&e->state,4);CHECK(!spec_request(&k,0));
++    e->ps=(ID3D11PixelShader *)e;InterlockedExchange(&e->state,2);
++    CHECK(spec_request(&k,0)==e->ps);InterlockedExchange(&e->state,3);
++    CHECK(!spec_request(&k,0));
++    k=number(901);CHECK(!spec_request(&k,0));e=spec_find(&k);
++    InterlockedExchange(&e->state,4);
++    {
++        HANDLE worker=CreateThread(NULL,0,publish,e,0,NULL);DWORD until=GetTickCount()+5000;
++        CHECK(worker);
++        while(!spec_request(&k,0) && (LONG)(GetTickCount()-until)<0) SwitchToThread();
++        CHECK(WaitForSingleObject(worker,5000)==WAIT_OBJECT_0 && spec_request(&k,0)==e->ps);
++        CloseHandle(worker);
++    }
++    /* Force an actual four-lane bucket collision, not just random coverage. */
++    {
++        uint64_t h=hash_mem((const uint8_t *)&k,sizeof k);unsigned bucket=(unsigned)(h^(h>>32))&(PS_SPEC_SLOTS-1);
++        PsKey other;PsSpec *a=ready(&k),*b;
++        for(i=902;i<100000;i++) {other=number(i);h=hash_mem((const uint8_t *)&other,sizeof other);
++            if(((unsigned)(h^(h>>32))&(PS_SPEC_SLOTS-1))==bucket) break;}
++        CHECK(i<100000);b=ready(&other);CHECK(a!=b && spec_find(&k)==a && spec_find(&other)==b);
++    }
++    puts("PASS: complete exact-key identity and queued/claimed/ready/failed state publication on repeated lookups");
++}
++static void test_full(void)
++{
++    unsigned i;PsKey k;
++    for(i=0;i<PS_SPEC_SLOTS;i++) {k=number(i);ready(&k);}
++    k=number(17);PsSpec *old=spec_find(&k);CHECK(old && spec_find(&k)==old);
++    k=number(PS_SPEC_SLOTS+1);CHECK(!spec_find(&k) && !spec_request(&k,0));
++    for(i=0;i<PS_SPEC_SLOTS;i++) {k=number(i);CHECK(spec_find(&k) && !memcmp(&spec_find(&k)->key,&k,sizeof k));}
++    puts("PASS: actual 4096-entry table saturation returns NULL for missing keys and retains every existing key");
++}
++static void test_queue(void)
++{
++    PsKey k=number(1);PsSpec *e;
++    s_spec_head=PS_SPEC_QUEUE;s_spec_tail=0;
++    CHECK(!spec_request(&k,0));e=spec_find(&k);CHECK(e && e->state==0);
++    CHECK(!spec_request(&k,0) && spec_find(&k)->state==0);
++    s_spec_tail=1;CHECK(!spec_request(&k,0));CHECK(e->state==1);
++    CHECK(s_spec_q[0]==e && s_spec_head==PS_SPEC_QUEUE+1);
++    /* Prewarmed queued work must still promote to the live queue. */
++    k=number(2);CHECK(!spec_request(&k,1));e=spec_find(&k);CHECK(e->prewarm && !e->promoted);
++    CHECK(!spec_request(&k,0) && !e->promoted); /* Live queue is full. */
++    s_spec_tail=2;CHECK(!spec_request(&k,0));CHECK(e->promoted && s_spec_q[1]==e);
++    CHECK(!spec_request(&k,0) && s_spec_head==PS_SPEC_QUEUE+2);
++    /* Reinitialize like standalone scheduler tests do: an old front pointer
++     * must never survive a changed allocation or cache a fresh EMPTY slot. */
++    k=number(999);ready(&k);CHECK(spec_find(&k)->state==2);
++    DeleteCriticalSection(&s_spec_cs);free(s_spec);fixture();
++    e=spec_find(&k);CHECK(e && e->state==0);CHECK(!spec_request(&k,0) && e->state==1);
++    puts("PASS: queue-full EMPTY lookup remains retryable, warm live promotion survives full queue and repeated requests deduplicate");
++}
++
++typedef PsSpec *(*Lookup)(const PsKey *);
++static PsSpec *table,*last;
++static uint32_t fnv(const PsKey *key)
++{
++    uint32_t h=2166136261u;unsigned i;const uint8_t *p=(const uint8_t *)key;
++    for(i=0;i<sizeof *key;i++) h=(h^p[i])*16777619u;return h;
++}
++static uint32_t lanes(const PsKey *key)
++{uint64_t h=hash_mem((const uint8_t *)key,sizeof *key);return (uint32_t)(h^(h>>32));}
++static PsSpec *find_hash(const PsKey *key,int four_lanes)
++{
++    uint32_t h=four_lanes?lanes(key):fnv(key),i;
++    for(i=0;i<PS_SPEC_SLOTS;i++) {
++        PsSpec *e=&table[(h+i)&(PS_SPEC_SLOTS-1)];
++        if(!InterlockedCompareExchange(&e->state,0,0)||!memcmp(&e->key,key,sizeof *key)) return e;
++    }
++    return NULL;
++}
++static __declspec(noinline) PsSpec *baseline(const PsKey *key) {return find_hash(key,0);}
++static __declspec(noinline) PsSpec *four_lane(const PsKey *key) {return find_hash(key,1);}
++static PsSpec *find_front(const PsKey *key,int four_lanes)
++{
++    PsSpec *e;
++    if(last && InterlockedCompareExchange(&last->state,0,0) && !memcmp(&last->key,key,sizeof *key)) return last;
++    e=find_hash(key,four_lanes);
++    if(e && InterlockedCompareExchange(&e->state,0,0)) last=e;
++    return e;
++}
++static __declspec(noinline) PsSpec *front(const PsKey *key) {return find_front(key,0);}
++static __declspec(noinline) PsSpec *combined(const PsKey *key) {return find_front(key,1);}
++static __declspec(noinline) PsSpec *production(const PsKey *key) {return spec_find(key);}
++static volatile uintptr_t sink;
++static __declspec(noinline) double measure(Lookup lookup,const PsKey *keys,unsigned count,unsigned batch)
++{
++    LARGE_INTEGER f;int64_t start;unsigned i;const unsigned iterations=200000;
++    QueryPerformanceFrequency(&f);start=qpc();
++    for(i=0;i<iterations;i++) sink^=(uintptr_t)lookup(&keys[(i/batch)%count]);
++    return (qpc()-start)*1e9/f.QuadPart/iterations;
++}
++static void benchmark(const char *cache)
++{
++    wchar_t path[NV_SHADER_CACHE_PATH];uint8_t family[32];
++    uint32_t records[NV_PS_MANIFEST_LIMIT][NV_PS_MANIFEST_WORDS];
++    PsKey keys[NV_PS_MANIFEST_LIMIT];unsigned count=0,i,kind,pattern,sample,j;
++    PsSpec *tables[5];Lookup lookup[5]={baseline,front,four_lane,combined,production};
++    const char *names[5]={"FNV","FNV+front","four-lane","four-lane+front","production"};
++    double timings[5][9];
++    if(cache) CHECK(!_putenv_s("RECOMP_SHADER_CACHE_DIR",cache));
++    _putenv_s("RECOMP_SHADER_CACHE","1");spec_family(family);
++    CHECK(nv_ps_manifest_path(family,path) && nv_ps_manifest_read(path,family,records,&count) && count);
++    for(i=0;i<count;i++) {CHECK(records[i][41]<=3);memcpy(&keys[i],records[i],sizeof(PsKey));}
++    printf("LOOKUP actual validated manifest: %u keys, %zu-byte keys, %u slots, schema %u; source/family/SHA/length validated\n",
++           count,sizeof(PsKey),PS_SPEC_SLOTS,NV_PS_MANIFEST_SCHEMA);
++    for(kind=0;kind<5;kind++) {
++        table=s_spec=tables[kind]=calloc(PS_SPEC_SLOTS,sizeof(PsSpec));CHECK(table);last=NULL;
++        for(i=0;i<count;i++) {PsSpec *e=lookup[kind](&keys[i]);CHECK(e);e->key=keys[i];InterlockedExchange(&e->state,2);}
++        for(i=0;i<count;i++) CHECK(!memcmp(&lookup[kind](&keys[i])->key,&keys[i],sizeof(PsKey)));
++    }
++    for(pattern=0;pattern<3;pattern++) {
++        unsigned n=pattern==0?1:count,batch=pattern==1?4:1;
++        for(sample=0;sample<9;sample++) for(j=0;j<5;j++) {
++            kind=(sample+j)%5;table=s_spec=tables[kind];last=NULL;
++            timings[kind][sample]=measure(lookup[kind],keys,n,batch);
++        }
++        printf("LOOKUP pattern=%s, median of 9 x 200000 calls:\n",pattern==0?"one repeated key":pattern==1?"4 draws/key":"all keys alternating");
++        for(kind=0;kind<5;kind++) {
++            for(i=0;i<9;i++) for(j=i+1;j<9;j++) if(timings[kind][j]<timings[kind][i]) {
++                double t=timings[kind][i];timings[kind][i]=timings[kind][j];timings[kind][j]=t;
++            }
++            printf("  %-16s %.2f ns/call, %.3f ms total, %.3f ms/850 draws\n",names[kind],timings[kind][4],timings[kind][4]*.2,timings[kind][4]*850/1e6);
++        }
++    }
++    for(kind=0;kind<5;kind++) free(tables[kind]);s_spec=NULL;
++}
++int main(int argc,char **argv)
++{
++    CHECK(argc>=2);
++    if(!strcmp(argv[1],"benchmark")) {benchmark(argc>2?argv[2]:NULL);return 0;}
++    fixture();
++    if(!strcmp(argv[1],"lookup")) test_lookup();
++    else if(!strcmp(argv[1],"full")) test_full();
++    else if(!strcmp(argv[1],"queue")) test_queue();
++    else CHECK(0);
++    return 0;
++}
+diff --git a/tests/nv2a_shader_lookup/test_vertex_retry.c b/tests/nv2a_shader_lookup/test_vertex_retry.c
+new file mode 100644
+index 0000000..510b04e
+--- /dev/null
++++ b/tests/nv2a_shader_lookup/test_vertex_retry.c
+@@ -0,0 +1,161 @@
++/* Failed dynamic uploads must never draw stale vertex programs/constants. */
++#define COBJMACROS
++#define WIN32_LEAN_AND_MEAN
++#include <windows.h>
++#include <d3d11_1.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++static ID3D11Resource *fail_resource;
++static unsigned draws, maps_program, maps_constants, maps_ub;
++static HRESULT map_resource(ID3D11DeviceContext *,ID3D11Resource *,UINT,D3D11_MAP,UINT,D3D11_MAPPED_SUBRESOURCE *);
++static void draw_indexed(ID3D11DeviceContext *c,UINT n,UINT start,INT base)
++{ draws++;c->lpVtbl->DrawIndexed(c,n,start,base); }
++#undef ID3D11DeviceContext_Map
++#undef ID3D11DeviceContext_DrawIndexed
++#define ID3D11DeviceContext_Map map_resource
++#define ID3D11DeviceContext_DrawIndexed draw_indexed
++#include "../../src/video/nv2a_d3d11.c"
++
++static uint8_t ram[0x100000];
++static uint32_t instructions[136][4],program_version,constant_version;
++static float constants[192][4];
++ptrdiff_t xbox_GetMemoryOffset(void) { return (ptrdiff_t)ram; }
++HWND xbox_FramebufferWindowHandle(void) { return NULL; }
++int xbox_FramebufferScanSource(uint32_t *va,uint32_t *pitch) { return 0; }
++int xbox_FramebufferOverlay(XboxOverlay *ovl) { return 0; }
++void xbox_FramebufferNoteFlip(uint32_t n) {}
++const uint32_t (*nv2a_vsh_program(uint32_t *start,uint32_t *version))[4]
++{ *start=0;*version=program_version;return (const uint32_t (*)[4])instructions; }
++const float (*nv2a_vsh_constants(uint32_t *version))[4]
++{ *version=constant_version;return (const float (*)[4])constants; }
++#define CHECK(x) do { if(!(x)) {fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#x);exit(1);} } while(0)
++static HRESULT map_resource(ID3D11DeviceContext *c,ID3D11Resource *r,UINT sub,D3D11_MAP type,
++                            UINT flags,D3D11_MAPPED_SUBRESOURCE *m)
++{
++    if(r==(ID3D11Resource *)s_cb_prog) maps_program++;
++    if(r==(ID3D11Resource *)s_cb_vconst) maps_constants++;
++    if(r==(ID3D11Resource *)s_cb_ub) maps_ub++;
++    if(r==fail_resource) {fail_resource=NULL;return E_OUTOFMEMORY;}
++    return c->lpVtbl->Map(c,r,sub,type,flags,m);
++}
++static NvD3DState state(void)
++{
++    NvD3DState st={0};st.color_addr=0x20000;st.color_pitch=64*4;
++    st.surface_format=0x28;st.clip_w=st.clip_h=64;st.color_mask=0x01010101;
++    st.front_face=0x901;return st;
++}
++static void program(unsigned color_constant)
++{
++    memset(instructions,0,sizeof instructions);
++    /* MOV oPos,v0; MOV oD0,c[color_constant]; END. Identity xyzw swizzle. */
++    instructions[0][1]=(1u<<21)|0x1B;
++    instructions[0][2]=2u<<26;
++    instructions[0][3]=(15u<<12)|(1u<<11);
++    instructions[1][1]=(1u<<21)|(color_constant<<13)|0x1B;
++    instructions[1][2]=3u<<26;
++    instructions[1][3]=(15u<<12)|(1u<<11)|(3u<<3)|1;
++}
++static void triangle(void)
++{
++    NvD3DState st=state();float pos[3][4]={{8,8,0,1},{56,8,0,1},{8,56,0,1}};
++    NvD3DAttrib a[16]={0};float def[16][4]={{0}};uint32_t idx[3]={0,1,2};
++    a[0].enabled=1;a[0].type=2;a[0].size=4;a[0].stride=16;a[0].data=(const uint8_t *)pos;
++    nv2a_d3d_draw_ub(&st,NV_D3D_TRIANGLES,a,def,1,idx,3,0,2,NULL);
++}
++static void clear(void)
++{ NvD3DState st=state();nv2a_d3d_clear(&st,0xF0,0xFF000000,0,0,0,63,63); }
++static uint32_t pixel(void)
++{
++    Surface *s=surface_find(0x20000);ID3D11Texture2D *stage;
++    D3D11_TEXTURE2D_DESC d;D3D11_MAPPED_SUBRESOURCE m;uint32_t out;
++    CHECK(s);surface_resolve(s);ID3D11Texture2D_GetDesc(s->tex,&d);
++    d.Usage=D3D11_USAGE_STAGING;d.BindFlags=d.MiscFlags=0;d.CPUAccessFlags=D3D11_CPU_ACCESS_READ;
++    CHECK(SUCCEEDED(ID3D11Device_CreateTexture2D(s_dev,&d,NULL,&stage)));
++    ID3D11DeviceContext_CopyResource(s_ctx,(ID3D11Resource *)stage,(ID3D11Resource *)s->tex);
++    CHECK(SUCCEEDED(ID3D11DeviceContext_Map(s_ctx,(ID3D11Resource *)stage,0,D3D11_MAP_READ,0,&m)));
++    memcpy(&out,(uint8_t *)m.pData+16*m.RowPitch+16*4,4);
++    ID3D11DeviceContext_Unmap(s_ctx,(ID3D11Resource *)stage,0);ID3D11Texture2D_Release(stage);
++    return out;
++}
++static void first_draw(void)
++{
++    clear();triangle();CHECK(draws==1 && maps_program==1 && maps_constants==1 && maps_ub==1);
++    CHECK(pixel()==0xFFFF0000u);
++}
++static void test_version_zero(void)
++{
++    clear();fail_resource=(ID3D11Resource *)s_cb_prog;triangle();
++    CHECK(draws==0 && !fail_resource && maps_program==1 && maps_constants==0 && pixel()==0xFF000000u);
++    fail_resource=(ID3D11Resource *)s_cb_vconst;triangle();
++    CHECK(draws==0 && !fail_resource && maps_program==2 && maps_constants==1 && pixel()==0xFF000000u);
++    fail_resource=(ID3D11Resource *)s_cb_ub;triangle();
++    CHECK(draws==0 && !fail_resource && maps_program==2 && maps_constants==2 && maps_ub==1 && pixel()==0xFF000000u);
++    triangle();CHECK(draws==1 && maps_program==2 && maps_constants==2 && maps_ub==2);
++    CHECK(pixel()==0xFFFF0000u);
++    triangle();CHECK(draws==2 && maps_program==2 && maps_constants==2 && maps_ub==3);
++    CHECK(pixel()==0xFFFF0000u);
++    puts("PASS: valid version-zero MOV program/constants/per-draw failed uploads all retry, produce actual red pixels and reuse successful unchanged versions");
++}
++static void test_program(void)
++{
++    first_draw();program(1);program_version=1;clear();
++    UINT raw=s_raw_pos,index=s_ib_pos;fail_resource=(ID3D11Resource *)s_cb_prog;
++    triangle();CHECK(!fail_resource && draws==1 && maps_program==2);
++    CHECK(s_raw_pos==raw && s_ib_pos==index && pixel()==0xFF000000u);
++    triangle();CHECK(draws==2 && maps_program==3 && maps_constants==1);
++    CHECK(pixel()==0xFF00FF00u);
++    puts("PASS: failed changed program Map skips stale draw, retains ring positions and retries same version to actual green pixels");
++}
++static void test_constants(void)
++{
++    first_draw();constant_version=1;constants[0][0]=0;constants[0][2]=1;clear();
++    UINT raw=s_raw_pos,index=s_ib_pos;fail_resource=(ID3D11Resource *)s_cb_vconst;
++    triangle();CHECK(!fail_resource && draws==1 && maps_constants==2 && maps_program==1);
++    CHECK(s_raw_pos==raw && s_ib_pos==index && pixel()==0xFF000000u);
++    triangle();CHECK(draws==2 && maps_constants==3 && maps_program==1);
++    CHECK(pixel()==0xFF0000FFu);
++    /* A successful new program remains valid when its following constant Map
++     * fails: retry the constants without reuploading the successful program. */
++    program(1);program_version=2;constant_version=2;clear();fail_resource=(ID3D11Resource *)s_cb_vconst;
++    triangle();CHECK(draws==2 && maps_program==2 && maps_constants==4 && pixel()==0xFF000000u);
++    triangle();CHECK(draws==3 && maps_program==2 && maps_constants==5 && pixel()==0xFF00FF00u);
++    puts("PASS: failed constants retry, including after successful changed program; exact blue/green GPU pixels");
++}
++static void test_ub(void)
++{
++    first_draw();clear();UINT raw=s_raw_pos,index=s_ib_pos;
++    fail_resource=(ID3D11Resource *)s_cb_ub;triangle();CHECK(!fail_resource && draws==1 && maps_ub==2);
++    CHECK(s_raw_pos==raw && s_ib_pos==index && pixel()==0xFF000000u);
++    triangle();CHECK(draws==2 && maps_ub==3 && maps_program==1 && maps_constants==1);
++    CHECK(pixel()==0xFFFF0000u);
++    puts("PASS: failed per-draw vertex constants skip stale offsets; same-data retry produces exact red pixels");
++}
++static void test_rings(void)
++{
++    first_draw();program(1);program_version=1;clear();
++    s_raw_pos=VB_BYTES-16;s_ib_pos=IB_BYTES-4;fail_resource=(ID3D11Resource *)s_cb_prog;
++    triangle();CHECK(draws==1 && !fail_resource && s_raw_pos==0 && s_ib_pos==0 && pixel()==0xFF000000u);
++    triangle();CHECK(draws==2 && s_raw_pos==256 && s_ib_pos==256 && pixel()==0xFF00FF00u);
++    clear();fail_resource=(ID3D11Resource *)s_raw;triangle();CHECK(draws==2 && !fail_resource);
++    CHECK(s_raw_pos==256 && s_ib_pos==256 && pixel()==0xFF000000u);
++    triangle();CHECK(draws==3 && pixel()==0xFF00FF00u);
++    clear();fail_resource=(ID3D11Resource *)s_ib;UINT raw=s_raw_pos,index=s_ib_pos;
++    triangle();CHECK(draws==3 && !fail_resource && s_raw_pos==raw && s_ib_pos==index && pixel()==0xFF000000u);
++    triangle();CHECK(draws==4 && pixel()==0xFF00FF00u);
++    puts("PASS: failed program after real DISCARD wrap, raw/index Map failures and NO_OVERWRITE retries preserve ring positions and exact pixels");
++}
++int main(int argc,char **argv)
++{
++    CHECK(argc==2);_putenv_s("RECOMP_PS_SPEC","0");_putenv_s("RECOMP_MSAA","1");
++    _putenv_s("RECOMP_RENDER_SCALE","1");_putenv_s("RECOMP_FPS_LIMIT","0");
++    program(0);constants[0][0]=constants[0][3]=1;constants[1][1]=constants[1][3]=1;
++    CHECK(nv2a_d3d_init());
++    if(!strcmp(argv[1],"version_zero")) test_version_zero();
++    else if(!strcmp(argv[1],"program")) test_program();
++    else if(!strcmp(argv[1],"constants")) test_constants();
++    else if(!strcmp(argv[1],"ub")) test_ub();
++    else if(!strcmp(argv[1],"rings")) test_rings();
++    else CHECK(0);
++    return 0;
 +}
 diff --git a/tests/nv2a_textures/CMakeLists.txt b/tests/nv2a_textures/CMakeLists.txt
 new file mode 100644

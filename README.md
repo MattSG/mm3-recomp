@@ -174,12 +174,19 @@ MSVC builds allow automatic inlining in the DSP interpreter; positional-audio
 filtering reuses ring indices while retaining the same floating-point operations.
 Audio processing skips idle interrupt handling and selects the fractional-delay
 tap loop once per channel, preserving exact filter state and output samples.
+Optimized MSVC builds request inlining for the checked DSP instruction fetch helper; debug
+builds retain its function boundary and memory checks.
 `MM3_DSP_AUTO_INLINE=OFF` restores the compiler's default inlining setting for
 build comparisons. Normal play skips shared diagnostic counters and redundant
 GPU flushes.
 Draws retain fixed vertex resources and update vertex shader bindings only when
 the pass changes. Repeated texture stages reuse validated sampler-table entries
 and use the mip count already computed during texture lookup.
+Specialized shader lookup reuses the previous exact key and hashes changing keys
+in four lanes; full key comparisons still resolve collisions and pending shaders
+keep their compilation priority. Vertex program and constant versions advance
+only after successful GPU uploads. Failed uploads skip the draw and retry, so
+unchanged versions cannot leave stale shader data in subsequent frames.
 Pixel shader constants reuse their last successful upload only when all bytes,
 including dynamic lighting, fog, alpha and texture scales, are identical.
 GPU readbacks use one completion query per copy batch before mapping the pixels;
@@ -202,6 +209,9 @@ and generated mip levels. Native BC decoding follows Direct3D's precision rules
 and can differ slightly from the integer CPU decoder.
 GPU completion wakes waiting guest threads instead of keeping a CPU core busy;
 the same command, notification, and fence completion checks still apply.
+Display pacing keeps its one-millisecond spin tail. If the high-resolution
+timer fails, it falls back to an ordinary timer or short sleeps; these fallbacks
+can wake late on a coarse-resolution system, but avoid a full-frame busy spin.
 These reduce CPU work without lowering resolution, filtering, or draw distance.
 Frame-time benchmarks exclude screenshot capture, which adds a GPU readback and
 disk writes that can create spikes of its own.
