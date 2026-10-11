@@ -681,7 +681,7 @@ These residual stalls need more precise attribution before changing GPU
 completion behavior.
 
 A second final-build run, with extra hitch tracing disabled, completed startup,
-loading and 120 seconds of driving without an observed crash: **60.00 FPS**,
+loading and 120 seconds of driving without an observed crash: **59.96 FPS**,
 **17.53 ms p99**, **26.76 ms maximum**, and **zero intervals over twice the
 median**, at 14.29% process CPU. Both final-build runs verified movement of the
 live player car. These are bounded checks of one saved scene, not exhaustive
