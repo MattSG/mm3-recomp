@@ -6,7 +6,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "recomp_types.h"
+
+static unsigned contract_cos_count, contract_sin_count;
+static double contract_cos(double angle) { ++contract_cos_count; return cos(angle); }
+static double contract_sin(double angle) { ++contract_sin_count; return sin(angle); }
+#define cos contract_cos
+#define sin contract_sin
 #include "../src/mm3_speedometer.c"
+#undef cos
+#undef sin
 
 ptrdiff_t g_xbox_mem_offset;
 RECOMP_TLS uint32_t g_eax, g_ecx, g_edx, g_esp, g_ebx, g_esi, g_edi;
@@ -227,6 +235,18 @@ static void contract_check_geometry(unsigned type, int metric, float maximum, do
     double angle;
     const struct contract_quad *needle;
     assert(contract_quad_count > 60);
+    /* Compare cached background vertices with the original uncached angle
+     * expressions, including their exact double-to-float rounding. */
+    for (i = 0; i < 40; ++i) {
+        double a = i * 6.283185307179586 / 40.0;
+        double b = (i + 1) * 6.283185307179586 / 40.0;
+        const float xy[4][2] = {{cx, cy},
+            {cx + 56.0f * (float)cos(a), cy + 56.0f * (float)sin(a)},
+            {cx + 56.0f * (float)cos(b), cy + 56.0f * (float)sin(b)}, {cx, cy}};
+        unsigned vertex;
+        for (vertex = 0; vertex < 4; ++vertex)
+            assert(!memcmp(contract_quads[i].vertex[vertex], xy[vertex], 2 * sizeof(float)));
+    }
     for (i = 0; i <= 16; ++i) {
         double a = (start + (end - start) * i / 16.0) * 0.017453292519943295;
         assert(contract_close(contract_quads[position].vertex[0][5], .73f));
@@ -274,6 +294,32 @@ static void contract_fallbacks(void)
     assert(!contract_draw(100) && !contract_quad_count);
 }
 
+static void contract_check_cached_geometry(void)
+{
+    static struct contract_quad expected[2048];
+    unsigned count;
+    /* Force a new arc, then hold it fixed as speed and geometry do in the
+     * next frame. Every emitted float and guest register must be unchanged. */
+    contract_initialize("Koenigsegg", 4, 1);
+    MEMF(0x39E264 + 8 * 4) += 1.0f;
+    contract_cos_count = contract_sin_count = 0;
+    assert(contract_draw(150));
+    assert(contract_cos_count == 18 && contract_sin_count == 18);
+    count = contract_quad_count;
+    memcpy(expected, contract_quads, count * sizeof expected[0]);
+    contract_quad_count = contract_cos_count = contract_sin_count = 0;
+    assert(contract_draw(150));
+    assert(contract_cos_count == 1 && contract_sin_count == 1);
+    assert(contract_quad_count == count);
+    assert(!memcmp(expected, contract_quads, count * sizeof expected[0]));
+    /* Changing either boundary must invalidate the cached directions. */
+    MEMF(0x39E28C + 8 * 4) += 2.0f;
+    contract_quad_count = contract_cos_count = contract_sin_count = 0;
+    assert(contract_draw(150));
+    assert(contract_cos_count == 18 && contract_sin_count == 18);
+    assert(memcmp(expected, contract_quads, count * sizeof expected[0]));
+}
+
 int main(int argc, char **argv)
 {
     static const struct { const char *alias; float kmh, mph; } cars[] = {
@@ -299,6 +345,8 @@ int main(int argc, char **argv)
                     double kmh = maximum * fractions[speed] / (metric ? 1.0 : 0.6213712096214294);
                     contract_initialize(cars[car].alias, type, (int)metric);
                     assert(contract_draw(kmh));
+                    if (!car && type == 1 && !metric && !speed)
+                        assert(contract_cos_count == 59 && contract_sin_count == 59);
                     contract_check_geometry(type, (int)metric, maximum, kmh);
                 }
     contract_initialize("Koenigsegg", 4, 1);
@@ -306,6 +354,7 @@ int main(int argc, char **argv)
     contract_initialize("Koenigsegg", 4, 1);
     assert(contract_draw(INFINITY)); contract_check_geometry(4, 1, 800, INFINITY);
     contract_fallbacks();
-    puts("PASS: 82 configured dials; decoded labels, calibrated clamped needles, native ABI, complete guest state and fallbacks");
+    contract_check_cached_geometry();
+    puts("PASS: 82 configured dials; decoded labels, calibrated clamped needles, native ABI, complete guest state, fallbacks and exact cached geometry (two trig calls per warm frame)");
     return 0;
 }

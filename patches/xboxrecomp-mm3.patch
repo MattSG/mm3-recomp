@@ -1,5 +1,5 @@
 diff --git a/src/apu/apu_state.h b/src/apu/apu_state.h
-index 3493ba5000e5e878dd3a29c697398081efa90bb8..ad4ac94600223fdefabc5723421eb37e3ded9c34 100644
+index 3493ba5000e5e878dd3a29c697398081efa90bb8..38ba0943dbb5c1f309fad44e1661c5a349b1b1f9 100644
 --- a/src/apu/apu_state.h
 +++ b/src/apu/apu_state.h
 @@ -159,14 +159,21 @@ static inline void hrtf_filter_process(HrtfFilter *f,
@@ -30,6 +30,24 @@ index 3493ba5000e5e878dd3a29c697398081efa90bb8..ad4ac94600223fdefabc5723421eb37e
              }
              out[n][ch] = acc;
          }
+@@ -314,6 +321,9 @@ typedef struct MCPXAPUVPState {
+     uint8_t hrtf_headroom;
+     uint8_t hrtf_submix[4];
+     uint8_t submix_headroom[NUM_MIXBINS];
++    /* Rebuilt only if the audio thread's floating-point rounding changes. */
++    float attenuation[0x1000];
++    int attenuation_rounding;
+     float sample_buf[NUM_SAMPLES_PER_FRAME][2];
+     uint64_t voice_locked[4];
+     volatile long voice_spin[MCPX_HW_MAX_VOICES];   /* see voice_spin_lock */
+@@ -404,6 +414,7 @@ struct MCPXAPUState {
+         size_t ep_pcm_offset;
+         uint8_t *ep_pcm_queue;
+         size_t ep_pcm_queued, ep_pcm_capacity;
++        size_t ep_pcm_head; /* Byte offset of the oldest pending whole frame. */
+         bool ep_pcm_ready;
+         bool frame_mixed; /* Retained host frame must be mixed only once. */
+         uint64_t ep_pcm_dropped_frames;
 diff --git a/src/apu/dsp/interp/dsp_cpu.c b/src/apu/dsp/interp/dsp_cpu.c
 index 012a67b869c756061090a3e4c196d9a42c869c27..28dd8a019fe2a9ff243ab7762efc656556834cd0 100644
 --- a/src/apu/dsp/interp/dsp_cpu.c
@@ -238,7 +256,7 @@ index 4779275135c47db7e6b37e514caaafa9bd8e6c5b..07b2ffa9eb9e07f4087fc5507e7d1791
   * Get the state of a controller.
   * Port: 0-3 (Xbox controller ports)
 diff --git a/src/kernel/kernel.h b/src/kernel/kernel.h
-index b9a02bc41c7b5e30287d72d479e408fe270eeae3..3028a35d1b983dbb54f9db6069d62291d1478b87 100644
+index b9a02bc41c7b5e30287d72d479e408fe270eeae3..a7814fbc7fd0cabaf3d993db50704532c264bbd2 100644
 --- a/src/kernel/kernel.h
 +++ b/src/kernel/kernel.h
 @@ -124,6 +124,9 @@ enum {
@@ -259,11 +277,46 @@ index b9a02bc41c7b5e30287d72d479e408fe270eeae3..3028a35d1b983dbb54f9db6069d62291
  VOID    __stdcall xbox_RtlInitializeCriticalSection(PRTL_CRITICAL_SECTION CriticalSection);
  
  ULONG   __stdcall xbox_RtlNtStatusToDosError(NTSTATUS Status);
+@@ -793,6 +797,7 @@ KIRQL   __fastcall xbox_KfRaiseIrql(KIRQL NewIrql);
+  * Device models ask before delivering an interrupt; raising IRQL masks the
+  * line for the whole processor on hardware, not just for one thread. */
+ int     xbox_IrqlBlocksInterrupts(void);
++int     xbox_IrqlCurrent(void);
+ int     xbox_IrqlRaisedCount(void);
+ int     xbox_IrqlEnterInterrupt(int level);     /* around host-run ISRs and DPCs */
+ void    xbox_IrqlLeaveInterrupt(int saved);
 diff --git a/src/kernel/kernel_bridge.c b/src/kernel/kernel_bridge.c
-index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5172e0afa 100644
+index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..8a226abf71519fe83374d29e506dcc50fb33bcda 100644
 --- a/src/kernel/kernel_bridge.c
 +++ b/src/kernel/kernel_bridge.c
-@@ -365,15 +365,17 @@ static void kernel_data_init(void)
+@@ -38,6 +38,11 @@
+  * but only as warnings, and this file is compiled with /W4 /WX-. */
+ #include <stdlib.h>
+ #include <float.h>
++#include <fenv.h>
++#if defined(_M_IX86) || defined(_M_X64) || defined(__i386__) || defined(__x86_64__)
++#include <xmmintrin.h>
++#define BRIDGE_HAS_MXCSR 1
++#endif
+ /* Section B string helpers: wcslen helper, case folding.
+  * ctype.h/wctype.h are not pulled in by the platform headers on either host. */
+ #include <string.h>
+@@ -52,6 +57,14 @@ extern RECOMP_TLS uint32_t g_eax, g_ecx, g_edx, g_esp;
+ extern RECOMP_TLS uint32_t g_ebx, g_esi, g_edi;
+ extern uint32_t g_xbox_code_lo, g_xbox_code_hi;
+ extern RECOMP_TLS uint32_t g_seh_ebp;
++extern RECOMP_TLS uint32_t g_ebp;
++extern RECOMP_TLS int g_df, g_fp_top, g_fp_cmp;
++extern RECOMP_TLS uint16_t g_fp_control_word, g_fp_cc;
++extern RECOMP_TLS double g_fp_stack[8];
++extern RECOMP_TLS RecompMmx g_mm0, g_mm1, g_mm2, g_mm3;
++extern RECOMP_TLS RecompMmx g_mm4, g_mm5, g_mm6, g_mm7;
++extern RECOMP_TLS RecompXmm g_xmm0, g_xmm1, g_xmm2, g_xmm3;
++extern RECOMP_TLS RecompXmm g_xmm4, g_xmm5, g_xmm6, g_xmm7;
+ extern ptrdiff_t g_xbox_mem_offset;
+ 
+ /* Dispatch table lookup (for function pointer args) */
+@@ -365,15 +378,17 @@ static void kernel_data_init(void)
  /* Ordinal for each slot (read from Xbox memory during init) */
  static ULONG g_slot_ordinals[XBOX_KERNEL_THUNK_TABLE_SIZE];
  
@@ -289,7 +342,7 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
  
  /* How many kernel calls get logged before the log goes quiet.
   *
-@@ -381,24 +383,79 @@ static long long g_kernel_call_count = 0;
+@@ -381,24 +396,79 @@ static long long g_kernel_call_count = 0;
   * console, but a bring-up that gets past early init then has no visibility at
   * exactly the point it stops being obvious. Override with
   * RECOMP_KERNEL_LOG_BUDGET, the same way RECOMP_TRACE_BUDGET works for the
@@ -381,7 +434,32 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
  
  /* Read Xbox stack arg as uint32_t.
   * After kernel_thunk_dispatch pops the dummy return address (g_esp += 4),
-@@ -1511,9 +1568,11 @@ static void bridge_NtCreateEvent(void)
+@@ -1420,6 +1490,9 @@ static void bridge_ExAllocatePoolWithTag(void)
+ }
+ 
+ /* ── KfRaiseIrql / KfLowerIrql (ordinals 160, 161) ────── */
++static void kernel_drain_dpcs_preserving_state(void);
++static RECOMP_TLS int g_dpc_execution_depth;
++
+ static void bridge_KfRaiseIrql(void)
+ {
+     uint32_t new_irql = g_ecx; /* fastcall: KIRQL is passed in CL */
+@@ -1429,6 +1502,14 @@ static void bridge_KfRaiseIrql(void)
+ static void bridge_KfLowerIrql(void)
+ {
+     uint32_t new_irql = g_ecx; /* fastcall: KIRQL is passed in CL */
++    /* On the single guest processor pending DPCs run before execution resumes
++     * below DISPATCH_LEVEL. Keep the processor lock through the drain: an
++     * unlock followed by a worker-thread drain lets the caller destroy objects
++     * whose completion callbacks are still queued. Internal interrupt epilogues
++     * deliberately do not use this guest-kernel-call boundary. */
++    if ((UCHAR)new_irql < DISPATCH_LEVEL &&
++        xbox_IrqlCurrent() >= DISPATCH_LEVEL && !g_dpc_execution_depth)
++        kernel_drain_dpcs_preserving_state();
+     xbox_KfLowerIrql((UCHAR)new_irql);
+     g_eax = 0;
+ }
+@@ -1511,9 +1592,11 @@ static void bridge_NtCreateEvent(void)
          bridge_write_handle(handle_ptr, local_handle);
      }
  
@@ -396,7 +474,385 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
  
      g_eax = (uint32_t)status;
  }
-@@ -2723,6 +2782,7 @@ static void bridge_RtlNtStatusToDosError(void)
+@@ -2004,11 +2087,9 @@ static void bridge_HalReadSMCTrayState(void)
+  * interrupt enable and queues here, and the enumeration it should have started
+  * lives entirely in the deferred routine.
+  *
+- * ponytail: runs the routine inline rather than queueing it. A real DPC runs
+- * at DISPATCH_LEVEL shortly after the ISR returns, and this runs it before the
+- * ISR returns, on whichever thread queued it. That ordering difference has not
+- * mattered for anything here yet; when it does, the upgrade is a real queue
+- * drained by the thread that lowered IRQL, not a second call site.
++ * Work is queued until the guest lowers IRQL below DISPATCH_LEVEL, or until
++ * the timer worker can drain host-delivered interrupt work. In particular it
++ * does not run inside the ISR that queued it.
+  */
+ /* Run a DPC's deferred routine on the calling thread.
+  *
+@@ -2049,7 +2130,20 @@ static int kernel_run_dpc(uint32_t dpc_va, uint32_t arg1, uint32_t arg2)
+     g_esp -= 4; BRIDGE_MEM32(g_esp) = context;
+     g_esp -= 4; BRIDGE_MEM32(g_esp) = dpc_va;
+     g_esp -= 4; BRIDGE_MEM32(g_esp) = 0;
+-    { int _irql = xbox_IrqlEnterInterrupt(2); fn(); xbox_IrqlLeaveInterrupt(_irql); }
++    {
++        int saved_irql = xbox_IrqlEnterInterrupt(DISPATCH_LEVEL);
++        uint32_t kpcr = g_fs_base;
++        uint32_t saved_active = kpcr
++            ? BRIDGE_MEM32(kpcr + XBOX_KPCR_DPC_ACTIVE_OFFSET) : 0;
++        if (kpcr)
++            BRIDGE_MEM32(kpcr + XBOX_KPCR_DPC_ACTIVE_OFFSET) = 1;
++        g_dpc_execution_depth++;
++        fn();
++        g_dpc_execution_depth--;
++        if (kpcr)
++            BRIDGE_MEM32(kpcr + XBOX_KPCR_DPC_ACTIVE_OFFSET) = saved_active;
++        xbox_IrqlLeaveInterrupt(saved_irql);
++    }
+     return 1;
+ }
+ 
+@@ -2064,10 +2158,11 @@ static int kernel_run_dpc(uint32_t dpc_va, uint32_t arg1, uint32_t arg2)
+  * ran -- the same failure as an unqueued DPC, and just as quiet: the driver
+  * asks for exclusive access, is told it did not get it, and skips the work.
+  *
+- * ponytail: no lock is taken. Nothing else here runs at ISR IRQL, and the one
+- * caller that matters is a device model on its own thread; if two of those
+- * ever contend, this wants the interrupt object's own lock rather than a
+- * global one.
++ * Use the same modeled device IRQL and processor exclusion as
++ * kernel_raise_interrupt. A passive caller must not overlap a host-delivered
++ * ISR, and the callback observes the ISR's IRQL in the guest KPCR. The bridge
++ * currently delivers every device ISR at level 16 rather than recording a
++ * separate synchronization level for each interrupt object.
+  */
+ static void bridge_KeSynchronizeExecution(void)
+ {
+@@ -2089,17 +2184,17 @@ static void bridge_KeSynchronizeExecution(void)
+      * the dummy return address and the argument, so g_esp needs no fixup. */
+     g_esp -= 4; BRIDGE_MEM32(g_esp) = context;
+     g_esp -= 4; BRIDGE_MEM32(g_esp) = 0;
+-    fn();
++    { int saved_irql = xbox_IrqlEnterInterrupt(16);
++      fn();
++      xbox_IrqlLeaveInterrupt(saved_irql); }
+     /* g_eax is whatever the routine returned, which is this call's result. */
+ }
+ 
+ /* -- KeRemoveQueueDpc (ordinal 137) ------------------------
+  * BOOLEAN KeRemoveQueueDpc(PKDPC Dpc)
+  *
+- * Cancels a queued DPC, returning whether it was still in the queue. DPCs run
+- * inline here (see KeInsertQueueDpc), so by the time anyone can call this the
+- * routine has already run and there is nothing to cancel. FALSE is both the
+- * honest answer and the one that keeps a caller's bookkeeping right.
++ * Cancels a DPC that has not yet been claimed by a dispatcher, returning
++ * whether it was still queued.
+  */
+ static void bridge_KeRemoveQueueDpc(void);   /* defined with the queue */
+ 
+@@ -2113,12 +2208,10 @@ static void bridge_KeRemoveQueueDpc(void);   /* defined with the queue */
+  * the stack, and a driver's state machine re-enters itself from inside its own
+  * interrupt.
+  *
+- * Queued properly now, and drained by the timer thread, which is the one thread
+- * here that already has a guest stack and a TIB and runs nothing else urgent.
+- *
+- * ponytail: one queue, no IRQL, no per-processor list, and a DPC queued from a
+- * DPC runs on the next drain rather than immediately. Nothing here depends on
+- * DPC ordering beyond "after the ISR".
++ * The guest KfLowerIrql bridge drains before returning below DISPATCH_LEVEL.
++ * The timer thread also drains, for interrupts delivered by host device
++ * threads. Both dispatchers claim work under the same processor exclusion;
++ * a callback may queue more work, which runs after that callback returns.
+  */
+ #define XBOX_MAX_PENDING_DPC 64
+ typedef struct { uint32_t dpc, arg1, arg2; } PendingDpc;
+@@ -2197,8 +2290,19 @@ static void bridge_KeRemoveQueueDpc(void)
+     dpc_lock();
+     if (BRIDGE_MEM8(dpc + 2)) {
+         for (i = g_dpc_head; i != g_dpc_tail; i = (i + 1) % XBOX_MAX_PENDING_DPC)
+-            if (g_dpc_queue[i].dpc == dpc)
+-                g_dpc_queue[i].dpc = 0;         /* drained as a no-op */
++            if (g_dpc_queue[i].dpc == dpc) {
++                LONG next = (i + 1) % XBOX_MAX_PENDING_DPC;
++                /* Reclaim this slot immediately. Leaving a tombstone until
++                 * the worker drains it lets repeated insert/cancel pairs
++                 * fill an otherwise empty queue while DISPATCH is held. */
++                while (next != g_dpc_tail) {
++                    g_dpc_queue[i] = g_dpc_queue[next];
++                    i = next;
++                    next = (next + 1) % XBOX_MAX_PENDING_DPC;
++                }
++                g_dpc_tail = i;
++                break;
++            }
+         BRIDGE_MEM8(dpc + 2) = 0;
+         g_eax = 1;
+     }
+@@ -2300,15 +2404,20 @@ static void kernel_vblank_tick(void)
+     }
+ }
+ 
+-/* Run whatever is queued. Called from the timer thread, which has the guest
+- * stack and TIB that a deferred routine needs. */
++/* Run queued work on a thread with a guest stack/TIB. The guest-lowering path
++ * wraps this in a complete register/FPU save; the timer thread owns its state. */
+ static void kernel_drain_dpcs(void)
+ {
+     for (;;) {
+         PendingDpc d;
++        /* Claim at DISPATCH_LEVEL too. Dequeuing before taking the processor
++         * lock lets a raised guest remove/free a DPC that has already escaped
++         * the queue but is still waiting to enter kernel_run_dpc. */
++        int saved_irql = xbox_IrqlEnterInterrupt(2);
+         dpc_lock();
+         if (g_dpc_head == g_dpc_tail) {
+             LeaveCriticalSection(&g_dpc_lock);
++            xbox_IrqlLeaveInterrupt(saved_irql);
+             break;
+         }
+         d = g_dpc_queue[g_dpc_head];
+@@ -2320,7 +2429,90 @@ static void kernel_drain_dpcs(void)
+         LeaveCriticalSection(&g_dpc_lock);
+         if (d.dpc)
+             kernel_run_dpc(d.dpc, d.arg1, d.arg2);
+-    }
++        xbox_IrqlLeaveInterrupt(saved_irql);
++    }
++}
++
++/* A DPC interrupting a guest kernel call must not borrow that caller's live
++ * architectural state. The timer-worker path did not need this because it
++ * never resumes an interrupted guest function. Save emulated SIMD/x87 state
++ * as well as the host FP environment used by lifted arithmetic. */
++static void kernel_drain_dpcs_preserving_state(void)
++{
++    uint32_t regs[11], stack_top;
++    int stack_slot;
++    uint32_t fallback_stack = 0;
++    RecompMmx mm[8];
++    RecompXmm xmm[8];
++    double fp_stack[8];
++    int df, fp_top, fp_cmp;
++    uint16_t fp_control, fp_cc;
++    fenv_t host_fp;
++#ifdef BRIDGE_HAS_MXCSR
++    unsigned int mxcsr;
++#endif
++
++    /* Advisory empty fast path; new arrivals are handled by the next guest
++     * lowering or the timer worker. The authoritative claim remains locked. */
++    if (g_dpc_head == g_dpc_tail)
++        return;
++
++    /* Guest requests can retain pointers into the caller's stack until their
++     * completion runs. Borrowing the area below its current ESP lets nested
++     * callback frames overwrite those requests (observed in USB completions).
++     * Lease one independent stack for the whole batch, without changing TIB
++     * or thread identity. */
++    stack_slot = xbox_worker_stack_alloc();
++    if (stack_slot >= 0) {
++        stack_top = XBOX_WORKER_STACK_TOP(stack_slot);
++    } else {
++        /* Own this allocation for the batch too: a guest callback can lower
++         * IRQL and temporarily let another host thread dispatch a DPC. */
++        fallback_stack = xbox_HeapAlloc(XBOX_WORKER_STACK_SIZE, 4096);
++        if (!fallback_stack) {
++            fprintf(stderr, "[KERNEL] no isolated stack for pending DPCs\n");
++            fflush(stderr);
++            abort();
++        }
++        stack_top = fallback_stack + XBOX_WORKER_STACK_SIZE - 16;
++    }
++
++    regs[0] = g_eax; regs[1] = g_ecx; regs[2] = g_edx;
++    regs[3] = g_esp; regs[4] = g_ebx; regs[5] = g_esi;
++    regs[6] = g_edi; regs[7] = g_ebp; regs[8] = g_seh_ebp;
++    regs[9] = g_fs_base; regs[10] = g_xbox_kernel_caller;
++    mm[0] = g_mm0; mm[1] = g_mm1; mm[2] = g_mm2; mm[3] = g_mm3;
++    mm[4] = g_mm4; mm[5] = g_mm5; mm[6] = g_mm6; mm[7] = g_mm7;
++    xmm[0] = g_xmm0; xmm[1] = g_xmm1; xmm[2] = g_xmm2; xmm[3] = g_xmm3;
++    xmm[4] = g_xmm4; xmm[5] = g_xmm5; xmm[6] = g_xmm6; xmm[7] = g_xmm7;
++    memcpy(fp_stack, g_fp_stack, sizeof(fp_stack));
++    df = g_df; fp_top = g_fp_top; fp_cmp = g_fp_cmp;
++    fp_control = g_fp_control_word; fp_cc = g_fp_cc;
++    fegetenv(&host_fp);
++#ifdef BRIDGE_HAS_MXCSR
++    mxcsr = _mm_getcsr();
++#endif
++    g_df = 0; /* The kernel callback ABI requires forward string operations. */
++    g_esp = stack_top;
++    kernel_drain_dpcs();
++    if (stack_slot >= 0) xbox_worker_stack_free(stack_slot);
++    else xbox_HeapFree(fallback_stack);
++
++    g_eax = regs[0]; g_ecx = regs[1]; g_edx = regs[2];
++    g_esp = regs[3]; g_ebx = regs[4]; g_esi = regs[5];
++    g_edi = regs[6]; g_ebp = regs[7]; g_seh_ebp = regs[8];
++    g_fs_base = regs[9]; g_xbox_kernel_caller = regs[10];
++    g_mm0 = mm[0]; g_mm1 = mm[1]; g_mm2 = mm[2]; g_mm3 = mm[3];
++    g_mm4 = mm[4]; g_mm5 = mm[5]; g_mm6 = mm[6]; g_mm7 = mm[7];
++    g_xmm0 = xmm[0]; g_xmm1 = xmm[1]; g_xmm2 = xmm[2]; g_xmm3 = xmm[3];
++    g_xmm4 = xmm[4]; g_xmm5 = xmm[5]; g_xmm6 = xmm[6]; g_xmm7 = xmm[7];
++    memcpy(g_fp_stack, fp_stack, sizeof(fp_stack));
++    g_df = df; g_fp_top = fp_top; g_fp_cmp = fp_cmp;
++    g_fp_control_word = fp_control; g_fp_cc = fp_cc;
++    fesetenv(&host_fp);
++#ifdef BRIDGE_HAS_MXCSR
++    _mm_setcsr(mxcsr); /* Includes FTZ/DAZ, beyond the C fenv rounding mode. */
++#endif
+ }
+ 
+ /* ── KeInitializeDpc (ordinal 107) ────────────────────────
+@@ -2535,9 +2727,9 @@ static void bridge_KeInitializeTimerEx(void)
+  * during XInitDevices and enumerates from it.
+  *
+  * A due time is in 100 ns units, negative for relative and positive for an
+- * absolute time since 1601. Only the relative form is honoured here; an
+- * absolute due time is treated as immediate, which is wrong in principle and
+- * has not come up in practice.
++ * absolute time since 1601. Absolute deadlines use the guest system clock:
++ * DirectSound rearms its deferred-work timer with the next absolute deadline.
++ * Treating that as immediate repeatedly runs its DPC every polling tick.
+  *
+  * ponytail: one thread, a fixed table, and a 10 ms tick, so a due time is late
+  * by up to a tick and a periodic timer drifts. Nothing here is scheduling
+@@ -2555,6 +2747,42 @@ static XboxTimer g_timers[XBOX_MAX_TIMERS];
+ static CRITICAL_SECTION g_timer_lock;
+ static int g_timer_started;
+ 
++static void kernel_fire_due_timer(int i, long long now)
++{
++    uint32_t dpc, fired_va;
++    /* A cancellation at raised IRQL must happen before a timer is claimed,
++     * or after its callback has completed, never between those operations. */
++    int saved_irql = xbox_IrqlEnterInterrupt(2);
++    EnterCriticalSection(&g_timer_lock);
++    if (!g_timers[i].timer_va || now < g_timers[i].due_ms) {
++        LeaveCriticalSection(&g_timer_lock);
++        xbox_IrqlLeaveInterrupt(saved_irql);
++        return;
++    }
++    fired_va = g_timers[i].timer_va;
++    dpc = g_timers[i].dpc_va;
++    if (g_timers[i].period_ms > 0)
++        g_timers[i].due_ms = now + g_timers[i].period_ms;
++    else
++        g_timers[i].timer_va = 0;      /* one-shot, done */
++    /* Expiration publishes the signal before its DPC runs. The callback can
++     * rearm this timer or release its storage; the old expiration must not
++     * overwrite that new state or touch its memory after the callback. Keep
++     * event/header publication under the table lock so a concurrent set
++     * cannot publish a new deadline between these writes. */
++    BRIDGE_MEM32(fired_va + 4) = 1;
++    {
++        HANDLE ev = ke_shadow_lookup(fired_va);
++        if (ev) SetEvent(ev);
++    }
++    LeaveCriticalSection(&g_timer_lock);
++
++    /* Outside the table lock: guest routines can set or cancel timers. */
++    if (dpc)
++        kernel_run_dpc(dpc, 0, 0);
++    xbox_IrqlLeaveInterrupt(saved_irql);
++}
++
+ static DWORD WINAPI kernel_timer_thread(LPVOID unused)
+ {
+     int slot = xbox_worker_stack_alloc();
+@@ -2591,36 +2819,8 @@ static DWORD WINAPI kernel_timer_thread(LPVOID unused)
+         kernel_drain_dpcs();   /* deferred work, before due timers */
+         now = (long long)GetTickCount64();
+ 
+-        for (i = 0; i < XBOX_MAX_TIMERS; i++) {
+-            uint32_t dpc, fired_va;
+-
+-            EnterCriticalSection(&g_timer_lock);
+-            if (!g_timers[i].timer_va || now < g_timers[i].due_ms) {
+-                LeaveCriticalSection(&g_timer_lock);
+-                continue;
+-            }
+-            fired_va = g_timers[i].timer_va;
+-            dpc = g_timers[i].dpc_va;
+-            if (g_timers[i].period_ms > 0)
+-                g_timers[i].due_ms = now + g_timers[i].period_ms;
+-            else
+-                g_timers[i].timer_va = 0;      /* one-shot, done */
+-            LeaveCriticalSection(&g_timer_lock);
+-
+-            /* Outside the lock: the routine can set or cancel timers. */
+-            if (dpc)
+-                kernel_run_dpc(dpc, 0, 0);
+-
+-            /* Wake anyone parked on the timer's shadow event; a timer with no
+-             * DPC is just a kernel sleep. */
+-            {
+-                HANDLE ev = ke_shadow_lookup(fired_va);
+-                if (ev) {
+-                    SetEvent(ev);
+-                    BRIDGE_MEM32(fired_va + 4) = 1;   /* SignalState */
+-                }
+-            }
+-        }
++        for (i = 0; i < XBOX_MAX_TIMERS; i++)
++            kernel_fire_due_timer(i, now);
+     }
+ }
+ 
+@@ -2628,10 +2828,23 @@ static DWORD WINAPI kernel_timer_thread(LPVOID unused)
+ static void kernel_set_timer(uint32_t timer_va, long long due_100ns,
+                              long period_ms, uint32_t dpc_va)
+ {
+-    long long delay_ms = (due_100ns < 0) ? (-due_100ns) / 10000 : 0;
++    uint64_t delay_100ns = 0;
++    long long delay_ms;
+     int i, free_slot = -1;
+     uint32_t was_set = 0;
+ 
++    if (due_100ns < 0) {
++        /* Unsigned negation also handles the most-negative LARGE_INTEGER. */
++        delay_100ns = 0u - (uint64_t)due_100ns;
++    } else if (due_100ns > 0) {
++        LARGE_INTEGER now;
++        xbox_KeQuerySystemTime(&now);
++        if (due_100ns > now.QuadPart)
++            delay_100ns = (uint64_t)(due_100ns - now.QuadPart);
++    }
++    /* Round up so conversion to the polling clock never fires early. */
++    delay_ms = (long long)((delay_100ns + 9999u) / 10000u);
++
+     if (!g_timer_started) {
+         InitializeCriticalSection(&g_timer_lock);
+         g_timer_started = 1;
+@@ -2643,6 +2856,14 @@ static void kernel_set_timer(uint32_t timer_va, long long due_100ns,
+         if (g_timers[i].timer_va == timer_va) { free_slot = i; was_set = 1; break; }
+         if (!g_timers[i].timer_va && free_slot < 0) free_slot = i;
+     }
++    /* Reset before publishing the new deadline, under the same lock used
++     * by expiration. A due timer must never be signaled and then have that
++     * signal erased by this arm operation. */
++    BRIDGE_MEM32(timer_va + 4) = 0;
++    {
++        HANDLE ev = ke_shadow_lookup(timer_va);
++        if (ev) ResetEvent(ev);
++    }
+     if (free_slot >= 0) {
+         g_timers[free_slot].timer_va  = timer_va;
+         g_timers[free_slot].dpc_va    = dpc_va;
+@@ -2651,12 +2872,6 @@ static void kernel_set_timer(uint32_t timer_va, long long due_100ns,
+     }
+     LeaveCriticalSection(&g_timer_lock);
+ 
+-    /* A freshly set timer starts unsignaled, like the real KeSetTimer. */
+-    {
+-        HANDLE ev = ke_shadow_lookup(timer_va);
+-        if (ev)
+-            ResetEvent(ev);
+-    }
+     g_eax = was_set;
+ }
+ 
+@@ -2723,6 +2938,7 @@ static void bridge_RtlNtStatusToDosError(void)
      case 0xC000003A: g_eax = 3; break;          /* STATUS_OBJECT_PATH_NOT_FOUND → ERROR_PATH_NOT_FOUND */
      case 0xC0000022: g_eax = 5; break;          /* STATUS_ACCESS_DENIED → ERROR_ACCESS_DENIED */
      case 0xC0000008: g_eax = 6; break;          /* STATUS_INVALID_HANDLE → ERROR_INVALID_HANDLE */
@@ -404,7 +860,7 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
      case 0xC0000017: g_eax = 8; break;          /* STATUS_NO_MEMORY → ERROR_NOT_ENOUGH_MEMORY */
      case 0xC000000D: g_eax = 87; break;         /* STATUS_INVALID_PARAMETER → ERROR_INVALID_PARAMETER */
      /* The informational and warning codes, which are not failures and must
-@@ -2825,20 +2885,61 @@ static void bridge_write_iostatus(uint32_t ios_va, NTSTATUS status, uint32_t inf
+@@ -2825,20 +3041,61 @@ static void bridge_write_iostatus(uint32_t ios_va, NTSTATUS status, uint32_t inf
  #define BRIDGE_HANDLE_MASK 0x00FFFFFFu
  #define BRIDGE_HANDLE_MAX  16384
  static HANDLE s_handle_table[BRIDGE_HANDLE_MAX];
@@ -472,7 +928,7 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
  }
  
  /* Store a native HANDLE into a 32-bit Xbox memory slot (as a token). */
-@@ -2854,7 +2955,7 @@ static HANDLE bridge_read_handle(uint32_t va)
+@@ -2854,7 +3111,7 @@ static HANDLE bridge_read_handle(uint32_t va)
      uint32_t token = BRIDGE_MEM32(va);
      if ((token & 0xFF000000u) == BRIDGE_HANDLE_TAG) {
          uint32_t i = token & BRIDGE_HANDLE_MASK;
@@ -481,7 +937,7 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
      }
      /* Untagged value: synthetic/dummy handle -- pass through unchanged. */
      return (HANDLE)(uintptr_t)token;
-@@ -2877,7 +2978,7 @@ static HANDLE bridge_resolve_handle(uint32_t token)
+@@ -2877,7 +3134,7 @@ static HANDLE bridge_resolve_handle(uint32_t token)
  {
      if ((token & 0xFF000000u) == BRIDGE_HANDLE_TAG) {
          uint32_t i = token & BRIDGE_HANDLE_MASK;
@@ -490,7 +946,7 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
      }
      /* Pseudo-handles (NtCurrentProcess() = -1, NtCurrentThread() = -2) are
       * negative. Zero-extending them on a 64-bit host yields 0x00000000FFFFFFFE,
-@@ -2894,8 +2995,11 @@ static HANDLE bridge_take_handle(uint32_t token)
+@@ -2894,8 +3151,11 @@ static HANDLE bridge_take_handle(uint32_t token)
      if ((token & 0xFF000000u) == BRIDGE_HANDLE_TAG) {
          uint32_t i = token & BRIDGE_HANDLE_MASK;
          if (i > 0 && i < BRIDGE_HANDLE_MAX) {
@@ -504,7 +960,7 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
              return h;
          }
      }
-@@ -2965,8 +3069,9 @@ static NTSTATUS bridge_create_file_impl(
+@@ -2965,8 +3225,9 @@ static NTSTATUS bridge_create_file_impl(
      }
  
      if (bridge_is_cdrom_device(name.Buffer)) {
@@ -516,7 +972,7 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
          if (handle_va)
              BRIDGE_MEM32(handle_va) = BRIDGE_CDROM_HANDLE;
          bridge_write_iostatus(iostatus_va, 0, 1 /* FILE_OPENED */);
-@@ -3122,11 +3227,11 @@ static void bridge_NtCreateFile(void)
+@@ -3122,11 +3383,11 @@ static void bridge_NtCreateFile(void)
              xbox_VideoPlayFile(host);
      }
  
@@ -531,7 +987,7 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
          extern uint32_t xbox_LastFileError(void);
          uint32_t _e = g_eax ? xbox_LastFileError() : 0u;
          if (g_eax)
-@@ -3137,8 +3242,8 @@ static void bridge_NtCreateFile(void)
+@@ -3137,8 +3398,8 @@ static void bridge_NtCreateFile(void)
                    : _e ==  3u ? " ERROR_PATH_NOT_FOUND" : "");
          else
              fprintf(stderr, "  [FILE] -> 0x%08X\n", g_eax);
@@ -541,7 +997,7 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
  }
  
  /* ── NtOpenFile (ordinal 202, 6 args = 24 bytes) ──────── */
-@@ -3448,8 +3553,10 @@ static void bridge_NtReadFile(void)
+@@ -3448,8 +3709,10 @@ static void bridge_NtReadFile(void)
  
      /* What a read actually delivered. A decoder that rejects its input cannot
       * say whether the bytes were wrong or the read was, and the two look
@@ -554,7 +1010,7 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
          const uint8_t *p = (const uint8_t *)XBOX_TO_NATIVE(buffer_va);
          uint32_t got = (uint32_t)ios.Information;
          /* The offset matters as much as the length. A title streaming a pack
-@@ -3796,8 +3903,9 @@ static void bridge_NtDeviceIoControlFile(void)
+@@ -3796,8 +4059,9 @@ static void bridge_NtDeviceIoControlFile(void)
              uint32_t data_len = BRIDGE_MEM32(in_va + 12);
              uint32_t page     = BRIDGE_MEM8(in_va + 30) & 0x3F;
  
@@ -566,7 +1022,7 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
  
              if (data_va && data_len) {
                  uint32_t i;
-@@ -3831,8 +3939,9 @@ static void bridge_NtDeviceIoControlFile(void)
+@@ -3831,8 +4095,9 @@ static void bridge_NtDeviceIoControlFile(void)
              return;
          }
  
@@ -578,7 +1034,7 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
          if (out_va && out_len) {
              uint32_t i;
              for (i = 0; i < out_len; i++)
-@@ -5977,60 +6086,9 @@ static void bridge_RtlUshortByteSwap(void)
+@@ -5977,60 +6242,9 @@ static void bridge_RtlUshortByteSwap(void)
  /* ── Rtl Critical sections (ordinals 278, 295, 306) ─────────
   * 277/294 (plain Enter/Leave) are routed via the xbox_Rtl* wrappers already.
   *
@@ -642,7 +1098,7 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
  
  /* 278: VOID RtlEnterCriticalSectionAndRegion(PRTL_CRITICAL_SECTION) */
  static void bridge_RtlEnterCriticalSectionAndRegion(void)
-@@ -6049,9 +6107,8 @@ static void bridge_RtlLeaveCriticalSectionAndRegion(void)
+@@ -6049,9 +6263,8 @@ static void bridge_RtlLeaveCriticalSectionAndRegion(void)
  /* 306: BOOLEAN RtlTryEnterCriticalSection(PRTL_CRITICAL_SECTION) */
  static void bridge_RtlTryEnterCriticalSection(void)
  {
@@ -654,7 +1110,16 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
  }
  
  /* ── Rtl Misc stubs (ordinals 288, 297, 319, 321) ─────────── */
-@@ -9477,9 +9534,7 @@ static void kernel_thunk_dispatch_body(void)
+@@ -7311,7 +7524,7 @@ static void bridge_KeInsertQueueApc(void)
+ /* --- KeIsExecutingDpc (ordinal 121, 0 args = 0 bytes) --- */
+ static void bridge_KeIsExecutingDpc(void)
+ {
+-    g_eax = 0;
++    g_eax = g_dpc_execution_depth != 0;
+ }
+ 
+ /* --- KeLeaveCriticalRegion (ordinal 122, 0 args = 0 bytes) --- */
+@@ -9477,9 +9690,7 @@ static void kernel_thunk_dispatch_body(void)
      ordinal = g_slot_ordinals[slot];
      bridge = g_slot_bridges[slot];
  
@@ -665,7 +1130,7 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
  
      if (KERNEL_LOG_ON()) {
          /* The guest return address sits at the top of the guest stack: the
-@@ -9488,46 +9543,11 @@ static void kernel_thunk_dispatch_body(void)
+@@ -9488,46 +9699,11 @@ static void kernel_thunk_dispatch_body(void)
           * difference between guessing and knowing when a title recurses. */
          fprintf(stderr,
                  "  [KERNEL] #%lld: ordinal %u (slot %d) esp=0x%08X ret=0x%08X\n",
@@ -713,7 +1178,7 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
      /* Pop the dummy return address that PUSH32(esp, 0) pushed before RECOMP_ICALL.
       * On real x86, "call [thunk]" pushes a real return address and "ret" pops it.
       * In our model, the bridge is called directly (not via the simulated stack),
-@@ -9559,10 +9579,8 @@ static void kernel_thunk_dispatch_body(void)
+@@ -9559,10 +9735,8 @@ static void kernel_thunk_dispatch_body(void)
              static uint32_t seen = 0xDEADBEEFu;
              if (_watch_before != seen) {
                  seen = _watch_before;
@@ -726,7 +1191,7 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
                  fflush(stderr);
              }
          }
-@@ -9572,7 +9590,7 @@ static void kernel_thunk_dispatch_body(void)
+@@ -9572,7 +9746,7 @@ static void kernel_thunk_dispatch_body(void)
          bridge();
      } else {
          /* No specific bridge - return 0. Warn once per ordinal rather than
@@ -735,7 +1200,7 @@ index ed7682a0181215a5d461f983ce0d4ec7b79ba4cb..05db79d8e75d03396b6c8a66db1fc3d5
           * usually the reason a game misbehaves, so it must not be swallowed
           * by the general call-trace throttle. Bounded to one line per slot. */
          static uint8_t warned[XBOX_KERNEL_THUNK_TABLE_SIZE];
-@@ -9713,6 +9731,7 @@ void xbox_kernel_bridge_init(void)
+@@ -9713,6 +9887,7 @@ void xbox_kernel_bridge_init(void)
      int unbridged = 0;
      DWORD old_protect;
  
@@ -2093,7 +2558,7 @@ index b9de8d0b3a0f84f6579d5bf9a00db42e125de3e4..ac83ecc692ad1c4944576130f68c1818
 +    return completed;
  }
 diff --git a/src/kernel/xbox_memory_layout.c b/src/kernel/xbox_memory_layout.c
-index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b8952bf0c1d3 100644
+index a2e99fb9bcc3fab36a90f955167eec99000e6473..a78f9c0740ca044a1f1e0f4ccdb52fbdf0281ca9 100644
 --- a/src/kernel/xbox_memory_layout.c
 +++ b/src/kernel/xbox_memory_layout.c
 @@ -15,6 +15,7 @@
@@ -2260,9 +2725,9 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
              } else if (s_fence_snap_ok[i] && *fence != s_fence_snap[i]) {
                  *fence = s_fence_snap[i];
 +                changed = 1;
-             }
-         }
-     }
++            }
++        }
++    }
 +    if (changed) xbox_nv2a_wake_publish(&g_nv2a_wake);
 +}
 +
@@ -2311,7 +2776,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
 +                if (next) { native_heap = 1; break; }
 +                SwitchToThread();
 +                next = malloc(sizeof *next);
-+            }
+             }
 +            next->native_heap = native_heap;
 +            next->target = target; next->value = value; next->next = NULL;
 +            if (tail) tail->next = next;
@@ -2361,10 +2826,10 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
 +            next = next->next;
 +            if (done->native_heap) HeapFree(GetProcessHeap(), 0, done);
 +            else free(done);
-+        }
+         }
 +        g_fence_mirrors[i].command_head = g_fence_mirrors[i].command_tail = NULL;
 +        g_fence_mirrors[i].command_pending = 0;
-+    }
+     }
 +    if (changed) xbox_nv2a_wake_publish(&g_nv2a_wake);
  }
  
@@ -2479,7 +2944,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
      if (last_ms && (now - last_ms) < 1000)
          return;
      last_ms = now;
-@@ -958,6 +1160,115 @@ static void framebuffer_probe_tick(void)
+@@ -958,12 +1160,149 @@ static void framebuffer_probe_tick(void)
  
  static volatile int s_get_held;
  static uint32_t s_get_held_value;
@@ -2592,10 +3057,44 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
 +    }
 +    if (!s_scan_incomplete) command_fences_publish();
 +}
++
++/* Locate gaps between readback polls without changing the ACK schedule.
++ * No clocks on the normal path; trace output is limited to slow phases.
++ * The submission phase allows normal 60 Hz flip pacing before reporting. */
++static int64_t nv2a_ack_hitch_checkpoint(int64_t frequency, int64_t begin,
++                                        const char *phase, unsigned limit_ms)
++{
++    LARGE_INTEGER now;
++    if (!frequency) return 0;
++    QueryPerformanceCounter(&now);
++    if (begin && now.QuadPart - begin > frequency * limit_ms / 1000) {
++        double ms = 1000.0 / (double)frequency;
++        fprintf(stderr, "[HITCH] phase=%s qpc_ms=%.3f start_qpc_ms=%.3f "
++                        "duration_ms=%.3f thread=%lu\n", phase,
++                now.QuadPart * ms, begin * ms, (now.QuadPart - begin) * ms,
++                GetCurrentThreadId());
++        /* Diagnostic I/O is not part of the following phase. */
++        QueryPerformanceCounter(&now);
++    }
++    return now.QuadPart;
++}
  
  static DWORD WINAPI nv2a_ack_thread(LPVOID param)
  {
-@@ -991,7 +1302,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
+     extern int nv2a_d3d_writeback_busy(void);
+     volatile uint32_t *regs = (volatile uint32_t *)param;
++    LARGE_INTEGER trace_frequency = { 0 };
++    const char *trace_env = getenv("RECOMP_HITCH_TRACE");
++    if (trace_env && *trace_env && *trace_env != '0')
++        if (!QueryPerformanceFrequency(&trace_frequency) || trace_frequency.QuadPart <= 0)
++            trace_frequency.QuadPart = 0;
+     while (!InterlockedCompareExchange(&g_nv2a_ack_stop, 0, 0)) {
++        int64_t trace_begin = nv2a_ack_hitch_checkpoint(trace_frequency.QuadPart,
++                                                       0, NULL, 0);
+         for (size_t i = 0; i < sizeof(NV2A_ACK) / sizeof(NV2A_ACK[0]); i++) {
+             volatile uint32_t *r =
+                 (volatile uint32_t *)((char *)regs + NV2A_ACK[i].offset);
+@@ -991,25 +1330,27 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
           *
           * The advance now happens after the scan, further down, which is
           * also the only ordering that gives the title real back-pressure. */
@@ -2604,8 +3103,11 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
              fence_mirrors_tick(0);
              /* nothing left to execute: as before, all of it is done */
              if (*(volatile uint32_t *)((char *)regs + NV2A_USER_DMA_GET) ==
-@@ -1000,11 +1311,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
+                 *(volatile uint32_t *)((char *)regs + NV2A_USER_DMA_PUT))
+                 fence_mirrors_tick(1);
          }
++        trace_begin = nv2a_ack_hitch_checkpoint(trace_frequency.QuadPart,
++                                               trace_begin, "ack_status", 8);
          /* What was executed behind a flip becomes visible -- DMA_GET and any
           * fence release -- once the flip's surfaces are in guest memory. */
 -        if (s_get_held && !nv2a_d3d_writeback_busy()) {
@@ -2614,10 +3116,19 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
 -            s_get_held = 0;
 -        }
 +        nv2a_publish_readback_complete(regs);
++        trace_begin = nv2a_ack_hitch_checkpoint(trace_frequency.QuadPart,
++                                               trace_begin, "ack_readback_publish", 8);
  
          poke_tick();
          counter_mirrors_tick();
-@@ -1032,9 +1339,10 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
+         frame_counters_tick();
+         framebuffer_probe_tick();
++        trace_begin = nv2a_ack_hitch_checkpoint(trace_frequency.QuadPart,
++                                               trace_begin, "ack_tick_helpers", 8);
+ 
+         /* Which framebuffer the display would be scanning out.
+          *
+@@ -1032,9 +1373,10 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
              DWORD now_ms = GetTickCount();
              uint32_t put = *(volatile uint32_t *)((char *)regs + NV2A_USER_DMA_PUT);
              if (put != last_put || (now_ms - last_put_ms) > 2000) {
@@ -2629,7 +3140,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
                      extern void nv2a_pb_scan_report(void);
                      static DWORD last_report;
  
-@@ -1068,7 +1376,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
+@@ -1068,7 +1410,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
                  if (last_put && put != last_put) {
                      LARGE_INTEGER t0, t1;
                      QueryPerformanceCounter(&t0);
@@ -2638,7 +3149,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
                                   XBOX_CONTIG_BASE | (put & 0x0FFFFFFFu));
                      QueryPerformanceCounter(&t1);
                      if (nv2a_d3d_prof_enabled())
-@@ -1097,18 +1405,21 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
+@@ -1097,18 +1439,21 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
                  }
                  /* Consumed, now that it has actually been executed -- and,
                   * behind a flip, read back (see above). */
@@ -2667,7 +3178,27 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
                  /* GET as well as PUT. A title that stops submitting has either
                   * finished or is spinning on the GPU catching up, and only GET
                   * tells those apart -- D3D waits for GET to reach PUT before it
-@@ -1169,6 +1480,8 @@ static void xbox_Nv2aAckStart(void)
+@@ -1154,13 +1499,19 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
+          * millisecond unit, so the rate matches. */
+         *(volatile uint32_t *)((uintptr_t)(XBOX_KERNEL_DATA_BASE + KDATA_TICK_COUNT)
+                                + g_memory_offset) = GetTickCount();
++        trace_begin = nv2a_ack_hitch_checkpoint(trace_frequency.QuadPart,
++                                               trace_begin, "ack_submission", 33);
+ 
+         {
+             /* Loading screens and movies are shown without flips. */
+             extern void nv2a_d3d_tick(void);
+             nv2a_d3d_tick();
+         }
++        trace_begin = nv2a_ack_hitch_checkpoint(trace_frequency.QuadPart,
++                                               trace_begin, "ack_renderer_tick", 8);
+         Sleep(0);  /* yield; the waiter is spinning on another core */
++        nv2a_ack_hitch_checkpoint(trace_frequency.QuadPart,
++                                  trace_begin, "ack_yield", 8);
+     }
+     return 0;
+ }
+@@ -1169,6 +1520,8 @@ static void xbox_Nv2aAckStart(void)
  {
  
      poke_init();
@@ -2676,7 +3207,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
      g_nv2a_ack_stop = 0;
      g_nv2a_ack_thread = CreateThread(NULL, 0, nv2a_ack_thread,
                                       g_nv2a_memory, 0, NULL);
-@@ -2193,7 +2506,8 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
+@@ -2193,7 +2546,8 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
  
              fprintf(stderr, "  [%2u] %-12s VA=0x%08X vsize=%-8u raw=0x%08X rsize=%-8u%s\n",
                      si, sec_name, sec_va, sec_vsize, sec_raw_off, sec_raw_size,
@@ -2686,7 +3217,18 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
          }
  
          fprintf(stderr, "  Loaded %d/%u sections (%zu bytes total)\n",
-@@ -2494,13 +2808,22 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
+@@ -2297,7 +2651,9 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
+         #define XBOX_VA(va) ((void *)((uintptr_t)(va) + g_memory_offset))
+         #define MEM32_INIT(va, val) (*(uint32_t *)XBOX_VA(va) = (uint32_t)(val))
+ 
+-        /* Fake TIB at address 0x0 */
++        /* FS addresses the full KPCR, including inline DPC execution state. */
++        memset(XBOX_VA(XBOX_FS_BASE), 0, XBOX_KPCR_SIZE);
++        MEM32_INIT(XBOX_FS_BASE + 0x1C, XBOX_FS_BASE);    /* KPCR self pointer */
+         MEM32_INIT(XBOX_FS_BASE + 0x00, 0xFFFFFFFF);       /* SEH: end of chain */
+         MEM32_INIT(XBOX_FS_BASE + 0x04, XBOX_STACK_TOP);   /* Stack base (high address) */
+         MEM32_INIT(XBOX_FS_BASE + 0x08, XBOX_STACK_BASE);  /* Stack limit (low address) */
+@@ -2494,13 +2850,22 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
              MEM_RESERVE | MEM_COMMIT,
              PAGE_READWRITE
          );
@@ -2714,7 +3256,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
          if (g_nv2a_memory) {
              DWORD old_protect;
              if (VirtualProtect((char *)g_nv2a_memory + 0x8000, 0x1000,
-@@ -2935,6 +3258,7 @@ void xbox_MemoryLayoutShutdown(void)
+@@ -2935,6 +3300,7 @@ void xbox_MemoryLayoutShutdown(void)
      g_kernel_memory_owned = 0;
      if (g_nv2a_ack_thread) {
          InterlockedExchange(&g_nv2a_ack_stop, 1);
@@ -2722,7 +3264,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
          WaitForSingleObject(g_nv2a_ack_thread, 1000);
          CloseHandle(g_nv2a_ack_thread);
          g_nv2a_ack_thread = NULL;
-@@ -3036,8 +3360,10 @@ void xbox_MemoryLayoutShutdown(void)
+@@ -3036,8 +3402,10 @@ void xbox_MemoryLayoutShutdown(void)
   * memory through the mirrors.
   *
   * So reservations come from the mapped space *above* RAM instead. Those pages
@@ -2735,7 +3277,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
   *
   * Returns 0 when the mapping is no larger than RAM -- the default for titles
   * that never call xbox_SetMapSize -- which leaves the old behaviour untouched.
-@@ -3047,29 +3373,13 @@ void xbox_MemoryLayoutShutdown(void)
+@@ -3047,29 +3415,13 @@ void xbox_MemoryLayoutShutdown(void)
   * a real allocator; none has yet.
   */
  static uint32_t g_reserve_next;
@@ -2772,7 +3314,41 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
  
  BOOL xbox_IsXboxAddress(uintptr_t address)
  {
-@@ -3250,8 +3560,8 @@ void xbox_FreeThreadStack(uint32_t stack_top)
+@@ -3143,7 +3495,7 @@ uint32_t xbox_AllocThreadTib(void)
+ {
+     /* XBOX_VA is scoped to the loader; the same arithmetic, spelled here. */
+     #define TIB_VA(va) ((void *)((uintptr_t)(va) + g_memory_offset))
+-    const uint32_t tib_size = 0x40;
++    const uint32_t tib_size = XBOX_KPCR_SIZE;
+     const uint32_t context_size = 0x200;
+     uint32_t tib, block, thread_data, context, total;
+ 
+@@ -3158,9 +3510,13 @@ uint32_t xbox_AllocThreadTib(void)
+     thread_data = block + total;
+     context = thread_data + g_tls_thread_size;
+ 
+-    /* The TIB itself, copied so stack bounds and the fields the title filled
+-     * in are inherited, then the two that must not be. */
+-    memcpy(TIB_VA(tib), TIB_VA(XBOX_TIB_MAIN), tib_size);
++    /* Xbox FS addresses a full KPCR, not just an NT_TIB. In particular,
++     * DpcRoutineActive is at +0x58; a 0x40-byte prefix put it inside the TLS
++     * image below. Start processor state clean, copying only the TIB and
++     * existing self/PRCB-pointer fields before IRQL at +0x24. A new thread
++     * must not inherit the creator's active DPC or raised IRQL. */
++    memset(TIB_VA(tib), 0, tib_size);
++    memcpy(TIB_VA(tib), TIB_VA(XBOX_TIB_MAIN), XBOX_KPCR_IRQL_OFFSET);
+     memcpy(TIB_VA(block), TIB_VA(g_tls_template_va), total);
+     memset(TIB_VA(thread_data), 0, g_tls_thread_size);
+     /* XAPI's native thread bootstrap follows fs:[0x28]+0x28 to the TLS
+@@ -3173,6 +3529,7 @@ uint32_t xbox_AllocThreadTib(void)
+     *(uint32_t *)TIB_VA(block)      = thread_data;   /* slot 0           */
+     *(uint32_t *)TIB_VA(tib + 0x04) = block + total; /* fs:[4], see above*/
+     *(uint32_t *)TIB_VA(tib + 0x18) = tib;
++    *(uint32_t *)TIB_VA(tib + 0x1C) = tib;             /* KPCR self       */
+     *(uint32_t *)TIB_VA(tib + 0x28) = context;
+     if (getenv("RECOMP_THREAD_TLS_TRACE"))
+         fprintf(stderr, "[THREAD_TLS] tib=%08X fs4=%08X context=%08X block=%08X slot0=%08X\n",
+@@ -3250,8 +3607,8 @@ void xbox_FreeThreadStack(uint32_t stack_top)
   *
   * Grows up from the base; XBOX_GPU_INSTANCE_DEFAULT is carved off the top by
   * the GPU-instance bridge, so the two do not meet until the window is full.
@@ -2783,7 +3359,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
  /* Starts one page in. Physical page 0 is never handed out by the real
   * kernel, and the XDK's USB stack relies on that: XPP carves its host
   * controller structures from a private 0xFE0-byte arena ending at
-@@ -3283,9 +3593,109 @@ static void contig_remove(LONG at)
+@@ -3283,9 +3640,109 @@ static void contig_remove(LONG at)
      InterlockedDecrement(&g_contig_alloc_count);
  }
  
@@ -2894,7 +3470,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
  
      /* The kernel allocates physical pages, not byte-sized fragments. XDK
       * DirectSound keeps its silent samples in the remainder of a small
-@@ -3296,8 +3706,9 @@ uint32_t xbox_ContiguousAlloc(uint32_t size, uint32_t alignment)
+@@ -3296,8 +3753,9 @@ uint32_t xbox_ContiguousAlloc(uint32_t size, uint32_t alignment)
          return 0;
      size = (size + 0xFFFu) & ~0xFFFu;
  
@@ -2905,7 +3481,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
      /* Reuse freed pages first-fit by address, carving from the front of the
       * lowest free extent that fits; freed neighbours are coalesced on free.
       * Consecutive requests therefore come out adjacent, as they do from the
-@@ -3309,20 +3720,10 @@ uint32_t xbox_ContiguousAlloc(uint32_t size, uint32_t alignment)
+@@ -3309,20 +3767,10 @@ uint32_t xbox_ContiguousAlloc(uint32_t size, uint32_t alignment)
      for (LONG i = 0; i < g_contig_alloc_count; ++i) {
          uint32_t offset = g_contig_allocs[i].offset;
          uint32_t span = g_contig_allocs[i].size;
@@ -2929,7 +3505,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
          head = start - offset;
          tail = offset + span - (start + size);
          if (g_contig_alloc_count + (head ? 1 : 0) + (tail ? 1 : 0) > XBOX_CONTIG_MAX_ALLOCS)
-@@ -3344,26 +3745,30 @@ uint32_t xbox_ContiguousAlloc(uint32_t size, uint32_t alignment)
+@@ -3344,26 +3792,30 @@ uint32_t xbox_ContiguousAlloc(uint32_t size, uint32_t alignment)
          LeaveCriticalSection(&g_allocator_lock);
          return result;
      }
@@ -2972,7 +3548,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
          fflush(stderr);
          LeaveCriticalSection(&g_allocator_lock);
          return 0;
-@@ -3374,12 +3779,10 @@ uint32_t xbox_ContiguousAlloc(uint32_t size, uint32_t alignment)
+@@ -3374,12 +3826,10 @@ uint32_t xbox_ContiguousAlloc(uint32_t size, uint32_t alignment)
          return 0;
      }
  
@@ -2988,7 +3564,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
      if (getenv("RECOMP_CONTIG_TRACE"))
          fprintf(stderr, "[CONTIG_NEW] address=%08X size=%u esp=%08X ret=%08X\n", result, size,
                  g_esp, *(const uint32_t *)((uintptr_t)g_esp + g_memory_offset));
-@@ -3453,14 +3856,22 @@ int xbox_HeapReclaimEnabled(void)
+@@ -3453,14 +3903,22 @@ int xbox_HeapReclaimEnabled(void)
      return enabled;
  }
  
@@ -3015,7 +3591,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
      /* The table is split and coalesced in place; read it under the lock. */
      EnterCriticalSection(&g_allocator_lock);
      hi = g_contig_alloc_count;
-@@ -3479,7 +3890,6 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
+@@ -3479,7 +3937,6 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
       * the code bytes as colour static. A range may run on through adjacent
       * spans. */
      if (lo) {
@@ -3023,7 +3599,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
          i = lo - 1;
          covered = (uint64_t)g_contig_allocs[i].offset + g_contig_allocs[i].size;
          while (covered < end && i + 1 < g_contig_alloc_count &&
-@@ -3488,11 +3898,45 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
+@@ -3488,11 +3945,45 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
              covered += g_contig_allocs[i].size;
          }
          result = physical_offset >= g_contig_allocs[lo - 1].offset && end <= covered;
@@ -3069,7 +3645,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
  
  /* RECOMP_HEAP_WATCH=<hex address>: report heap blocks handed out over it. */
  static void heap_watch(const char *how, uint32_t addr, uint32_t size)
-@@ -3510,9 +3954,11 @@ static void heap_watch(const char *how, uint32_t addr, uint32_t size)
+@@ -3510,9 +4001,11 @@ static void heap_watch(const char *how, uint32_t addr, uint32_t size)
  uint32_t xbox_HeapAlloc(uint32_t size, uint32_t alignment)
  {
      uint32_t result;
@@ -3082,7 +3658,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
      if (size >= 16u * 1024u * 1024u) {
          static unsigned large_reports;
          if (large_reports++ < 24) {
-@@ -3569,21 +4015,13 @@ uint32_t xbox_HeapAlloc(uint32_t size, uint32_t alignment)
+@@ -3569,21 +4062,13 @@ uint32_t xbox_HeapAlloc(uint32_t size, uint32_t alignment)
          return result;
      }
  
@@ -3108,7 +3684,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
          fprintf(stderr, "xbox_HeapAlloc: out of memory (requested %u, used %u/%u)\n",
                  size, g_heap_next - XBOX_HEAP_BASE,
                  (unsigned)(XBOX_HEAP_TOP - XBOX_HEAP_BASE));
-@@ -3618,7 +4056,14 @@ uint32_t xbox_HeapAlloc(uint32_t size, uint32_t alignment)
+@@ -3618,7 +4103,14 @@ uint32_t xbox_HeapAlloc(uint32_t size, uint32_t alignment)
          LeaveCriticalSection(&g_allocator_lock);
          return 0;
      }
@@ -3124,7 +3700,7 @@ index a2e99fb9bcc3fab36a90f955167eec99000e6473..b9d115e33db5ab317f8ad88b6ae0b895
  
      /* Zero-fill the allocated block (Xbox memory is always zeroed) */
 diff --git a/src/kernel/xbox_memory_layout.h b/src/kernel/xbox_memory_layout.h
-index 69f1bf65ce430454de6aed19113e0be09c7c9489..d9e5d9a305fe354f2e45ff1e67ada31baa754250 100644
+index 69f1bf65ce430454de6aed19113e0be09c7c9489..f595231baf88431c34a8ed98dedd7bd73ff869d1 100644
 --- a/src/kernel/xbox_memory_layout.h
 +++ b/src/kernel/xbox_memory_layout.h
 @@ -195,16 +195,56 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size);
@@ -3186,6 +3762,18 @@ index 69f1bf65ce430454de6aed19113e0be09c7c9489..d9e5d9a305fe354f2e45ff1e67ada31b
  
  void xbox_MemoryLayoutShutdown(void);
  
+@@ -370,6 +410,11 @@ typedef union RecompXmm {
+  * XBOX_TIB_MAIN is where the first thread's TIB is built; every spawned
+  * thread gets its own from xbox_AllocThreadTib() and points g_fs_base at
+  * it. */
++/* Xbox FS addresses a KPCR: 0x28-byte prefix plus the 0x258-byte KPRCB.
++ * DpcRoutineActive is a ULONG at PrcbData + 0x30, beyond the NT_TIB. */
++#define XBOX_KPCR_SIZE              0x280u
++#define XBOX_KPCR_IRQL_OFFSET       0x24u
++#define XBOX_KPCR_DPC_ACTIVE_OFFSET 0x58u
+ #define XBOX_TIB_MAIN       0x00004000
+ extern RECOMP_TLS uint32_t g_fs_base;
+ #define XBOX_FS_BASE        g_fs_base
 diff --git a/src/usb/usb_gamepad.c b/src/usb/usb_gamepad.c
 index bd00f3fc02f3bac594c79acae4f0bbd61bcc2b5d..575b5f32ea729ab4474f91ce9aaf673c7e0fb6eb 100644
 --- a/src/usb/usb_gamepad.c
@@ -3224,7 +3812,7 @@ index bd00f3fc02f3bac594c79acae4f0bbd61bcc2b5d..575b5f32ea729ab4474f91ce9aaf673c
              }
          }
 diff --git a/src/video/nv2a_d3d11.c b/src/video/nv2a_d3d11.c
-index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97c3c4d86f 100644
+index b9f3fa263362c0ba5732c514ed6b2592f3459dea..dd387df3045238abedede2f10783e83cde55ecb8 100644
 --- a/src/video/nv2a_d3d11.c
 +++ b/src/video/nv2a_d3d11.c
 @@ -29,6 +29,8 @@
@@ -3924,7 +4512,25 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      s_init_state = 1;
      fprintf(stderr, "[D3D11] renderer ready: %ux%u internal, display aspect %.3f, %ux MSAA, %ux AF\n",
              (uint32_t)(GUEST_W * s_scale * widen() + 0.5f), (uint32_t)(GUEST_H * s_scale + 0.5f),
-@@ -1379,16 +1749,15 @@ static void blit_span(ID3D11ShaderResourceView *srv, ID3D11ShaderResourceView *m
+@@ -1356,7 +1726,7 @@ static void unbind_textures(void)
+ 
+ /* Draw columns [u0, u1) of `srv` into columns [x0, x1) of `rtv` (fractions
+  * of each width), full height. */
+-static void blit_span(ID3D11ShaderResourceView *srv, ID3D11ShaderResourceView *mask,
++static int blit_span(ID3D11ShaderResourceView *srv, ID3D11ShaderResourceView *mask,
+                       ID3D11RenderTargetView *rtv, UINT dst_w, UINT dst_h, float alpha,
+                       float x0, float x1, float u0, float u1)
+ {
+@@ -1369,7 +1739,7 @@ static void blit_span(ID3D11ShaderResourceView *srv, ID3D11ShaderResourceView *m
+     pc.src_size[0] = pc.src_size[1] = pc.src_size[2] = pc.src_size[3] = 1;
+     pc.force_alpha[0] = alpha;
+     pc.ovl_flags[3] = mask ? 1 : 0;
+-    upload_cb(s_cb_present, &pc, sizeof pc);
++    if (!upload_cb(s_cb_present, &pc, sizeof pc)) return 0;
+     unbind_textures();
+     unbind_targets();
+     ID3D11DeviceContext_OMSetRenderTargets(s_ctx, 1, &rtv, NULL);
+@@ -1379,20 +1749,20 @@ static void blit_span(ID3D11ShaderResourceView *srv, ID3D11ShaderResourceView *m
      ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
      ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
      ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -3945,7 +4551,12 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      }
      ID3D11DeviceContext_Draw(s_ctx, 4, 0);
      unbind_targets();
-@@ -1413,13 +1782,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
+     unbind_textures();
++    return 1;
+ }
+ 
+ static void blit(ID3D11ShaderResourceView *srv, ID3D11RenderTargetView *rtv,
+@@ -1413,13 +1783,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
  }
  
  /* Guest rows of a surface as BGRA, with the format's fixed alpha. */
@@ -3962,7 +4573,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
          uint32_t *dst = out + (size_t)y * s->w;
          if (s->bpp == 4) {
              memcpy(dst, row, (size_t)s->w * 4);
-@@ -1454,6 +1823,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
+@@ -1454,6 +1824,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
  static UINT s_up_w[2], s_up_h[2];
  static uint32_t *s_up_pixels, *s_mask_pixels;
  static size_t s_up_cap, s_mask_cap;
@@ -3971,7 +4582,22 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
  
  /* slot 0: image, slot 1: change mask */
  static ID3D11ShaderResourceView *upload_slot(int k, const uint32_t *pixels, UINT w, UINT h)
-@@ -1489,6 +1860,25 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1465,10 +1837,12 @@ static ID3D11ShaderResourceView *upload_slot(int k, const uint32_t *pixels, UINT
+         s_up_tex[k] = make_texture(w, h, 1, 1, DXGI_FORMAT_B8G8R8A8_UNORM,
+                                    D3D11_BIND_SHADER_RESOURCE, 0);
+         if (!s_up_tex[k]) return NULL;
+-        ID3D11Device_CreateShaderResourceView(s_dev, (ID3D11Resource *)s_up_tex[k],
+-                                              NULL, &s_up_srv[k]);
+         s_up_w[k] = w; s_up_h[k] = h;
+     }
++    /* Resource creation can succeed while its view fails. Retry that view
++     * without recreating the texture or publishing a failed upload. */
++    if (!s_up_srv[k] && FAILED(ID3D11Device_CreateShaderResourceView(s_dev,
++            (ID3D11Resource *)s_up_tex[k], NULL, &s_up_srv[k]))) return NULL;
+     ID3D11DeviceContext_UpdateSubresource(s_ctx, (ID3D11Resource *)s_up_tex[k], 0,
+                                           NULL, pixels, w * 4, 0);
+     return s_up_srv[k];
+@@ -1489,6 +1863,31 @@ static uint32_t *scratch_pixels(size_t count)
      return s_up_pixels;
  }
  
@@ -3994,57 +4620,154 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
 +    return s_swz_rows;
 +}
 +
++/* A single reusable pending shadow keeps CPU writes made during submission
++ * visible to the next sync. Only successfully submitted bytes become the
++ * surface shadow; swapping buffers avoids copying them again on commit. */
++static uint8_t *s_sync_rows;
++static size_t s_sync_cap;
++
  /* Guest memory is the authority for what the CPU writes. A shadow copy of
   * each surface's guest bytes says which pixels the CPU changed since the last
   * look; only those replace what the GPU drew. A loading screen drawn by the
-@@ -1496,22 +1886,24 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1496,71 +1895,83 @@ static uint32_t *scratch_pixels(size_t count)
  static void surface_sync_impl(Surface *s, int force)
  {
      uint32_t rowb = s->w * s->bpp, y, x, x0 = 0xFFFFFFFFu, x1 = 0, y0 = 0xFFFFFFFFu, y1 = 0;
 +    uint32_t pitch;
++    size_t bytes = (size_t)rowb * s->h, count = (size_t)s->w * s->h;
      uint32_t *px, *mask;
      const uint8_t *g;
 -    if (!s->bpp || s->swizzled || !guest_ok(s->va, (size_t)s->pitch * s->h))
++    ID3D11ShaderResourceView *srv, *msk = NULL;
++    float span0, span1;
 +    if (!s->bpp || !guest_ok(s->va, (size_t)s->pitch * s->h))
          return;
      if (!force && s->synced_frame == s_epoch)
          return;
+-    s->synced_frame = s_epoch;
+-    g = guest(s->va);
+-    if (!s->shadow) {
+-        s->shadow = (uint8_t *)malloc((size_t)rowb * s->h);
+-        if (!s->shadow) return;
++    /* A forced sync can fail after an earlier successful sync in this epoch. */
++    s->synced_frame = s_epoch - 1;
 +    g = surface_guest_rows(s, &pitch);
 +    if (!g) return;
-     s->synced_frame = s_epoch;
--    g = guest(s->va);
-     if (!s->shadow) {
-         s->shadow = (uint8_t *)malloc((size_t)rowb * s->h);
-         if (!s->shadow) return;
++    if (s->shadow) {
++        /* The common unchanged path allocates and copies nothing. */
          for (y = 0; y < s->h; y++)
 -            memcpy(s->shadow + (size_t)y * rowb, g + (size_t)y * s->pitch, rowb);
-+            memcpy(s->shadow + (size_t)y * rowb, g + (size_t)y * pitch, rowb);
-         px = scratch_pixels((size_t)s->w * s->h);
-         if (!px) return;
+-        px = scratch_pixels((size_t)s->w * s->h);
+-        if (!px) return;
 -        surface_rows_to_bgra(s, px);
-+        surface_rows_to_bgra(s, g, pitch, px);
-         {
-             ID3D11ShaderResourceView *srv = upload_image(px, s->w, s->h);
-             float x0, x1;
-@@ -1522,7 +1914,7 @@ static void surface_sync_impl(Surface *s, int force)
-         return;
-     }
-     for (y = 0; y < s->h; y++) {
+-        {
+-            ID3D11ShaderResourceView *srv = upload_image(px, s->w, s->h);
+-            float x0, x1;
+-            guest_span(s, &x0, &x1);
+-            if (srv) blit_span(srv, NULL, s->rtv, s->iw, s->ih, -1.0f, x0, x1, 0, 1);
+-            s->ms_dirty = 1; s->gen++;
++            if (memcmp(g + (size_t)y * pitch, s->shadow + (size_t)y * rowb, rowb))
++                break;
++        if (y == s->h) { s->synced_frame = s_epoch; return; }
++    }
++    if (bytes > s_sync_cap) {
++        uint8_t *rows = (uint8_t *)realloc(s_sync_rows, bytes);
++        if (!rows) return;
++        s_sync_rows = rows;
++        s_sync_cap = bytes;
++    }
++    for (y = 0; y < s->h; y++)
++        memcpy(s_sync_rows + (size_t)y * rowb, g + (size_t)y * pitch, rowb);
++    if (s->shadow) {
++        if (s_mask_cap < count) {
++            uint32_t *pixels = (uint32_t *)realloc(s_mask_pixels, count * 4);
++            if (!pixels) return;
++            s_mask_pixels = pixels;
++            s_mask_cap = count;
+         }
+-        return;
+-    }
+-    for (y = 0; y < s->h; y++) {
 -        const uint8_t *row = g + (size_t)y * s->pitch;
-+        const uint8_t *row = g + (size_t)y * pitch;
-         uint8_t *sh = s->shadow + (size_t)y * rowb;
-         if (!memcmp(row, sh, rowb)) continue;
-         if (y0 == 0xFFFFFFFFu) {
-@@ -1552,7 +1944,7 @@ static void surface_sync_impl(Surface *s, int force)
-                 s->phys, s_frame, x0, y0, x1, y1);
-     px = scratch_pixels((size_t)s->w * s->h);
+-        uint8_t *sh = s->shadow + (size_t)y * rowb;
+-        if (!memcmp(row, sh, rowb)) continue;
+-        if (y0 == 0xFFFFFFFFu) {
+-            if (s_mask_cap < (size_t)s->w * s->h) {
+-                free(s_mask_pixels);
+-                s_mask_pixels = (uint32_t *)malloc((size_t)s->w * s->h * 4);
+-                s_mask_cap = s_mask_pixels ? (size_t)s->w * s->h : 0;
+-                if (!s_mask_pixels) return;
+-            }
+-            memset(s_mask_pixels, 0, (size_t)s->w * s->h * 4);
+-            y0 = y;
+-        }
+-        y1 = y;
+-        mask = s_mask_pixels + (size_t)y * s->w;
+-        for (x = 0; x < s->w; x++)
+-            if (memcmp(row + x * s->bpp, sh + x * s->bpp, s->bpp)) {
+-                mask[x] = 0xFFFFFFFFu;
+-                if (x < x0) x0 = x;
+-                if (x > x1) x1 = x;
+-            }
+-        memcpy(sh, row, rowb);
++        memset(s_mask_pixels, 0, count * 4);
++        for (y = 0; y < s->h; y++) {
++            const uint8_t *row = s_sync_rows + (size_t)y * rowb;
++            const uint8_t *sh = s->shadow + (size_t)y * rowb;
++            if (!memcmp(row, sh, rowb)) continue;
++            if (y0 == 0xFFFFFFFFu) y0 = y;
++            y1 = y;
++            mask = s_mask_pixels + (size_t)y * s->w;
++            for (x = 0; x < s->w; x++)
++                if (memcmp(row + x * s->bpp, sh + x * s->bpp, s->bpp)) {
++                    mask[x] = 0xFFFFFFFFu;
++                    if (x < x0) x0 = x;
++                    if (x > x1) x1 = x;
++                }
++        }
++        if (y0 == 0xFFFFFFFFu) { s->synced_frame = s_epoch; return; }
++        if (getenv("RECOMP_D3D_TRACE"))
++            fprintf(stderr, "[D3D11] CPU wrote surface %08X (frame %u) %u,%u-%u,%u\n",
++                    s->phys, s_frame, x0, y0, x1, y1);
+     }
+-    if (y0 == 0xFFFFFFFFu)
+-        return;
+-    if (getenv("RECOMP_D3D_TRACE"))
+-        fprintf(stderr, "[D3D11] CPU wrote surface %08X (frame %u) %u,%u-%u,%u\n",
+-                s->phys, s_frame, x0, y0, x1, y1);
+-    px = scratch_pixels((size_t)s->w * s->h);
++    px = scratch_pixels(count);
      if (!px) return;
 -    surface_rows_to_bgra(s, px);
-+    surface_rows_to_bgra(s, g, pitch, px);
++    surface_rows_to_bgra(s, s_sync_rows, rowb, px);
++    srv = upload_slot(0, px, s->w, s->h);
++    if (!srv) return;
++    if (s->shadow) {
++        msk = upload_slot(1, s_mask_pixels, s->w, s->h);
++        if (!msk) return;
++    }
++    guest_span(s, &span0, &span1);
++    if (!blit_span(srv, msk, s->rtv, s->iw, s->ih, -1.0f, span0, span1, 0, 1))
++        return;
      {
-         ID3D11ShaderResourceView *srv = upload_slot(0, px, s->w, s->h);
-         ID3D11ShaderResourceView *msk = upload_slot(1, s_mask_pixels, s->w, s->h);
-@@ -1572,8 +1964,11 @@ static void surface_sync(Surface *s, int force)
+-        ID3D11ShaderResourceView *srv = upload_slot(0, px, s->w, s->h);
+-        ID3D11ShaderResourceView *msk = upload_slot(1, s_mask_pixels, s->w, s->h);
+-        float x0, x1;
+-        guest_span(s, &x0, &x1);
+-        if (srv && msk) blit_span(srv, msk, s->rtv, s->iw, s->ih, -1.0f, x0, x1, 0, 1);
+-        s->ms_dirty = 1; s->gen++;
++        uint8_t *old_shadow = s->shadow;
++        s->shadow = s_sync_rows;
++        s_sync_rows = old_shadow;
++        s_sync_cap = old_shadow ? bytes : 0;
+     }
++    s->synced_frame = s_epoch;
++    s->ms_dirty = 1;
++    s->gen++;
+ }
+ 
+ static void surface_sync(Surface *s, int force)
+@@ -1572,8 +1983,11 @@ static void surface_sync(Surface *s, int force)
      if (s_prof_on > 0) s_prof[PROF_SYNC] += qpc() - t0;
  }
  
@@ -4056,7 +4779,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      if (s_cur_rt == s) unbind_targets();
      if (s->srv) ID3D11ShaderResourceView_Release(s->srv);
      if (s->rtv) ID3D11RenderTargetView_Release(s->rtv);
-@@ -1635,9 +2030,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
+@@ -1635,9 +2049,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
      } else {
          for (i = 0; i < MAX_SURFACES && !victim; i++)
              if (!s_surf[i].tex) victim = &s_surf[i];
@@ -4070,7 +4793,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
          if (!victim) victim = &s_surf[0];
      }
      surface_release(victim);
-@@ -1901,9 +2297,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
+@@ -1901,9 +2316,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
  }
  
  typedef struct TexEntry {
@@ -4082,7 +4805,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      size_t bytes;
      ID3D11Texture2D *tex;
      ID3D11ShaderResourceView *srv;
-@@ -1954,12 +2350,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
+@@ -1954,12 +2369,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
      return 1;
  }
  
@@ -4138,7 +4861,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
          for (by = 0; by < bh; by++)
              for (bx = 0; bx < bw; bx++) {
                  d3d8_dxt_decode_block(src + ((size_t)by * bw + bx) * L->bpp, t->color, px);
-@@ -1969,6 +2408,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
+@@ -1969,6 +2427,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
              }
          return;
      }
@@ -4150,7 +4873,18 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      if (L->kind == K_LIN) {
          for (y = 0; y < h; y++) {
              const uint8_t *row = src + (size_t)y * t->pitch;
-@@ -2057,22 +2501,55 @@ static int host_levels(const TexLayout *L, const NvD3DTexture *t)
+@@ -2028,7 +2491,9 @@ static void tex_evict(void)
+     }
+ }
+ 
+-/* One mip level below src: a 2x2 box (a dimension already 1 stays 1). */
++/* One mip level below src: a 2x2 box (a dimension already 1 stays 1).
++ * src == dst is safe: each output is written only after reading its complete
++ * source footprint, and precedes the next footprint in forward row order. */
+ static void halve_bgra(const uint32_t *src, uint32_t w, uint32_t h, uint32_t *dst)
+ {
+     uint32_t nw = w > 1 ? w / 2 : 1, nh = h > 1 ? h / 2 : 1, x, y, c;
+@@ -2057,22 +2522,55 @@ static int host_levels(const TexLayout *L, const NvD3DTexture *t)
      return n > L->levels ? n : L->levels;
  }
  
@@ -4191,7 +4925,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
 -
 -    if (!tex_layout(t, &L) || !guest_ok(t->addr, L.total))
 -        return NULL;
-+    uint32_t *pal = NULL, *px = NULL, *a = NULL, *b = NULL;
++    uint32_t *pal = NULL, *px = NULL;
 +    DXGI_FORMAT host_format;
 +    int hl, is_new, native;
 +
@@ -4213,7 +4947,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
          e->used = s_frame;
          return e->srv;
      }
-@@ -2082,21 +2559,47 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2082,21 +2580,35 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
          ph = hash_mem((const uint8_t *)pal, t->palette_len * 4);
      }
      if (e && e->hash == h && e->pal_hash == ph) {
@@ -4231,18 +4965,6 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
 +    if (!native) {
 +        px = scratch_pixels((size_t)t->width * t->height);
 +        if (!px) {
-+            if (e) e->used = s_frame;
-+            return e ? e->srv : NULL;
-+        }
-+    }
-+    if (hl > L.levels) {
-+        size_t n = (size_t)L.level_w[L.levels - 1] * L.level_h[L.levels - 1];
-+        a = (uint32_t *)malloc(n * 4);
-+        b = (uint32_t *)malloc(n * 4);
-+        if (!a || !b) {
-+            free(a); free(b);
-+            /* Keep the last complete upload visible while the next draw
-+             * retries. Do not advance its hash or checked epoch. */
 +            if (e) e->used = s_frame;
 +            return e ? e->srv : NULL;
 +        }
@@ -4267,7 +4989,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
          if (L.faces == 6) {
              sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
              sd.TextureCube.MipLevels = (UINT)hl;
-@@ -2104,36 +2607,45 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2104,71 +2616,97 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
              sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
              sd.Texture2D.MipLevels = (UINT)hl;
          }
@@ -4333,9 +5055,25 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
 -            if (hl <= L.levels || !a) continue;
 +            if (hl <= L.levels) continue;
              w = L.level_w[L.levels - 1]; h = L.level_h[L.levels - 1];
-             memcpy(a, px, (size_t)w * h * 4);
+-            memcpy(a, px, (size_t)w * h * 4);
++            /* UpdateSubresource has copied the supplied pixels on return.
++             * Continue shrinking the decoded last guest mip in its existing
++             * scratch space, avoiding two allocations and a copy per upload. */
              for (; lv < hl; lv++) {
-@@ -2152,23 +2664,44 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+-                uint32_t *tmp;
+-                halve_bgra(a, w, h, b);
++                halve_bgra(px, w, h, px);
+                 if (w > 1) w /= 2;
+                 if (h > 1) h /= 2;
+                 ID3D11DeviceContext_UpdateSubresource(
+                     s_ctx, (ID3D11Resource *)e->tex,
+-                    (UINT)lv + (UINT)f * (UINT)hl, NULL, b, w * 4, 0);
+-                tmp = a; a = b; b = tmp;
++                    (UINT)lv + (UINT)f * (UINT)hl, NULL, px, w * 4, 0);
+             }
+         }
+-        free(a);
+-        free(b);
      }
      e->hash = h;
      e->pal_hash = ph;
@@ -4357,8 +5095,6 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
 +        if (e->tex) ID3D11Texture2D_Release(e->tex);
 +        free(e);
 +    }
-+    free(a);
-+    free(b);
 +    return NULL;
  }
  
@@ -4383,7 +5119,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
  /* -------------------------------------------------------- state objects */
  
  typedef struct { uint64_t key; void *obj; } StateSlot;
-@@ -2346,12 +2879,29 @@ static D3D11_TEXTURE_ADDRESS_MODE addr_mode(uint32_t m)
+@@ -2346,12 +2884,29 @@ static D3D11_TEXTURE_ADDRESS_MODE addr_mode(uint32_t m)
      }
  }
  
@@ -4414,7 +5150,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      if (bias13 & 0x1000) bias13 -= 0x2000;
      key = (uint64_t)minf | ((uint64_t)magf << 8) | ((uint64_t)(bias13 & 0x1FFF) << 12) |
            ((uint64_t)(levels & 15) << 25) | ((uint64_t)(reduce != 0) << 29) |
-@@ -2393,9 +2943,26 @@ static ID3D11SamplerState *sampler(const NvD3DTexture *t, int levels, int reduce
+@@ -2393,9 +2948,26 @@ static ID3D11SamplerState *sampler(const NvD3DTexture *t, int levels, int reduce
          }
          ID3D11Device_CreateSamplerState(s_dev, &d, (ID3D11SamplerState **)slot);
      }
@@ -4441,7 +5177,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
  /* ------------------------------------------------------------------- draw */
  
  static uint32_t mode_needs_texture(uint32_t mode)
-@@ -2585,9 +3152,8 @@ static ID3D11ShaderResourceView *surface_y16(Surface *s)
+@@ -2585,9 +3157,8 @@ static ID3D11ShaderResourceView *surface_y16(Surface *s)
          ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
          ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
          ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -4453,7 +5189,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
          ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 1, &src);
          ID3D11DeviceContext_Draw(s_ctx, 3, 0);
          unbind_targets();
-@@ -2622,9 +3188,8 @@ static ID3D11ShaderResourceView *depth_y16(Depth *d)
+@@ -2622,9 +3193,8 @@ static ID3D11ShaderResourceView *depth_y16(Depth *d)
          ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
          ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
          ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -4465,7 +5201,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
          ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 1, src);
          {
              float cc[8] = { 0 };
-@@ -2707,7 +3272,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2707,7 +3277,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          if (!mode_needs_texture(mode) || !t->addr || !t->width || !t->height)
              continue;
          tex_format(t->color, &kind);
@@ -4478,7 +5214,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
          s_draw_textured = 1;
          if (!s_draw_tex_addr) s_draw_tex_addr = t->addr;
          if (rt && rt->sx > rt->sy * 1.001f) s_draw_reads_wide = 1;
-@@ -2742,9 +3311,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2742,9 +3316,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
                  }
              }
          } else {
@@ -4489,7 +5225,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
              if (kind == K_LIN) {
                  pc.tex_scale[n][0] = 1.0f / (float)t->width;
                  pc.tex_scale[n][1] = 1.0f / (float)t->height;
-@@ -2758,7 +3325,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2758,7 +3330,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          }
          if (!view) continue;
          if (t->cube && !rt) srv[4 + n] = view; else srv[n] = view;
@@ -4498,7 +5234,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
          pc.tex_info[n][0] = (t->control0 >> 2) & 1;
          pc.tex_info[n][1] = t->filter >> 28;
          /* Point taps of an upscaled linear target average the guest pixel's
-@@ -2816,7 +3383,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2816,7 +3388,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          pc.zp1[0] = 1.0f / ((float)zm + 1.0f);
          pc.zp1[1] = (float)zm;
      }
@@ -4507,7 +5243,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
  
      if (st->poly_offset_fill && !(st->z_perspective && d)) {
          /* The slope term multiplies the depth change per pixel. At an
-@@ -2832,11 +3399,10 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2832,11 +3404,10 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
      {
          uint32_t v = (st->flat_shade ? 1u : 0u) | (st->z_perspective && d ? 2u : 0u);
          ID3D11PixelShader *ps = spec_ps(&pc, v);
@@ -4521,7 +5257,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      ID3D11DeviceContext_RSSetState(s_ctx, rs_state(cull == 3 ? 0 : cull,
                                                     st->front_face == 0x901, bias, slope));
      apply_scissor(st, gw, gh);
-@@ -3025,6 +3591,7 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -3025,6 +3596,7 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
                        uint32_t lo, uint32_t hi, const float (*pos)[4])
  {
      static uint32_t s_prog_version, s_vconst_version;
@@ -4529,7 +5265,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      static float *dx;
      static uint32_t dx_cap;
      struct { const uint8_t *base; uint32_t stride, span; } grp[16];
-@@ -3073,9 +3640,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -3073,9 +3645,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
      RECOMP_PROFILE_BEGIN("D3D11 draw");
      t_draw = s_prof_on > 0 ? qpc() : 0;
      s_prof_draws++;
@@ -4547,7 +5283,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      }
      if (pos && s && s->sx > s->sy * 1.001f) {
          /* Menu artwork and controls span the display together. Only the
-@@ -3158,13 +3730,25 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -3158,13 +3735,25 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
          const uint32_t (*prog)[4] = nv2a_vsh_program(&start, &pver);
          const float (*consts)[4] = nv2a_vsh_constants(&cver);
          uc.info[0] = start;
@@ -4577,7 +5313,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
          }
      }
      uc.map[0] = 2.0f / (float)gw;
-@@ -3177,14 +3761,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -3177,14 +3766,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
      uc.fogf[1] = st->fog_param[1];
      uc.place[0] = shift;
      uc.place[1] = yscale;
@@ -4598,7 +5334,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
          ID3D11DeviceContext_DrawIndexed(s_ctx, ni, 0, 0);
      }
      s_raw_pos += (at + 255) & ~255u;
-@@ -3204,11 +3788,18 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3204,11 +3793,18 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
      float cc[8];
      D3D11_RECT r;
      int zclear = (flags & 1) != 0, sclear = (flags & 2) != 0;
@@ -4619,7 +5355,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      if (s) {
          if (flags & 0x10) mask |= D3D11_COLOR_WRITE_ENABLE_RED;
          if (flags & 0x20) mask |= D3D11_COLOR_WRITE_ENABLE_GREEN;
-@@ -3217,8 +3808,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3217,8 +3813,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
              mask |= D3D11_COLOR_WRITE_ENABLE_ALPHA;
      }
      if (!d) { zclear = sclear = 0; }
@@ -4631,7 +5367,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      if (s && mask) s->gpu_dirty = 1;
      zf = (st->surface_format >> 4) & 0xF;
      unpack4(color, cc);
-@@ -3234,8 +3827,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3234,8 +3832,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
      upload_cb(s_cb_clear, cc, sizeof cc);
      if (x1 >= gw) x1 = gw - 1;
      if (y1 >= gh) y1 = gh - 1;
@@ -4643,7 +5379,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      r.left = (LONG)(x0 * s_aa_x * s_cur_sx + 0.5f);
      r.top = (LONG)(y0 * s_aa_y * s_cur_sy + 0.5f);
      r.right = (LONG)((x1 + 1) * s_aa_x * s_cur_sx + 0.5f);
-@@ -3247,12 +3842,12 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3247,12 +3847,12 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
          ds_state(zclear, 7, zclear, sclear, 7, 0xFF, 0xFF, 0x1E01, 0x1E01, 0x1E01),
          zf == 1 ? 0 : (zstencil & 0xFF));
      ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -4660,7 +5396,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
  }
  
  /* -------------------------------------------------------------- write-back */
-@@ -3270,6 +3865,27 @@ typedef struct {
+@@ -3270,6 +3870,27 @@ typedef struct {
      ID3D11RenderTargetView *down_rtv;
  } WbSlot;
  static WbSlot s_wb[MAX_SURFACES];
@@ -4688,7 +5424,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
  
  static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
  {
-@@ -3289,12 +3905,14 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
+@@ -3289,12 +3910,14 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
              return 0;
          k->w = w; k->h = h;
      }
@@ -4709,7 +5445,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      }
      return 1;
  }
-@@ -3305,21 +3923,63 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
+@@ -3305,21 +3928,63 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
   * (nv2a_d3d_writeback_busy), holding back DMA_GET and fence releases until
   * then -- the title cannot learn the frame is finished before its pixels are
   * in guest memory. */
@@ -4775,7 +5511,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      for (i = 0; i < MAX_SURFACES; i++) {
          Surface *s = &s_surf[i];
          WbSlot *k = &s_wb[i];
-@@ -3328,16 +3988,18 @@ static int writeback_finish(int wait)
+@@ -3328,16 +3993,18 @@ static int writeback_finish(int wait)
          uint32_t x, y, rowb;
          int amode, r565;
          HRESULT hr;
@@ -4795,7 +5531,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
          if (FAILED(hr))
              continue;
          dst = (uint8_t *)guest(s->va);
-@@ -3374,6 +4036,8 @@ static int writeback_finish(int wait)
+@@ -3374,6 +4041,8 @@ static int writeback_finish(int wait)
      }
      RECOMP_PROFILE_END();
      s_wb_pending = left;
@@ -4804,7 +5540,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      return !left;
  }
  
-@@ -3381,10 +4045,8 @@ int nv2a_d3d_writeback_busy(void)
+@@ -3381,10 +4050,8 @@ int nv2a_d3d_writeback_busy(void)
  {
      if (!s_wb_pending || writeback_finish(0))
          return 0;
@@ -4817,7 +5553,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      return 1;
  }
  
-@@ -3420,10 +4082,20 @@ static void writeback_surfaces(void)
+@@ -3420,10 +4087,20 @@ static void writeback_surfaces(void)
          }
          s->gpu_dirty = 0;                        /* later draws dirty it again */
          k->pending = 1;
@@ -4839,7 +5575,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      RECOMP_PROFILE_END();
  }
  
-@@ -3439,13 +4111,16 @@ static uint64_t s_zpass;
+@@ -3439,13 +4116,16 @@ static uint64_t s_zpass;
  static void zpass_collect(void)
  {
      UINT64 n = 0;
@@ -4856,7 +5592,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
  }
  
  void nv2a_d3d_zpass_enable(int on)
-@@ -3657,17 +4332,16 @@ static void composite(ID3D11RenderTargetView *rtv, UINT w, UINT h, Surface *s,
+@@ -3657,17 +4337,16 @@ static void composite(ID3D11RenderTargetView *rtv, UINT w, UINT h, Surface *s,
      ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
      ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
      ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -4878,7 +5614,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      ID3D11DeviceContext_Draw(s_ctx, 4, 0);
      unbind_targets();
      unbind_textures();
-@@ -3724,7 +4398,36 @@ static ID3D11Texture2D *s_cap_tex;
+@@ -3724,7 +4403,36 @@ static ID3D11Texture2D *s_cap_tex;
  static ID3D11RenderTargetView *s_cap_rtv;
  static UINT s_cap_w, s_cap_h;
  
@@ -4916,12 +5652,13 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
  {
      PresentConsts pc;
      s_last_present = GetTickCount();
-@@ -3755,12 +4458,24 @@ static void present_surface(Surface *s)
+@@ -3755,12 +4463,27 @@ static void present_surface(Surface *s)
          ID3D11RenderTargetView *rtv = NULL;
          if (SUCCEEDED(IDXGISwapChain1_GetBuffer(s_swap, 0, &IID_ID3D11Texture2D, (void **)&bb))) {
              static int vsync = -1;
 -            ID3D11Device_CreateRenderTargetView(s_dev, (ID3D11Resource *)bb, NULL, &rtv);
 +            HRESULT present_hr;
++            int64_t present_trace;
 +            if (FAILED(ID3D11Device_CreateRenderTargetView(s_dev, (ID3D11Resource *)bb,
 +                                                         NULL, &rtv)) || !rtv) {
 +                ID3D11Texture2D_Release(bb);
@@ -4937,13 +5674,15 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
 +            /* Composite and capture are complete; align the actual host
 +             * submission, without pacing tick/movie-only presentations. */
 +            if (pacing && !pace_after_present()) pace_flip(pacing);
++            present_trace = hitch_trace_begin();
 +            present_hr = IDXGISwapChain1_Present(s_swap, (UINT)vsync, 0);
 +            if (pacing && s_frame_csv_file)
 +                frame_csv_present(qpc(), present_hr);
++            hitch_trace_report("present", present_trace);
              ID3D11RenderTargetView_Release(rtv);
              ID3D11Texture2D_Release(bb);
          }
-@@ -3779,40 +4494,24 @@ static void pace_vblank(void)
+@@ -3779,40 +4502,24 @@ static void pace_vblank(void)
      static LARGE_INTEGER freq;
      static int64_t next;
      static HANDLE timer;
@@ -4988,7 +5727,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      }
  }
  
-@@ -3897,6 +4596,7 @@ static Surface *scan_surface(uint32_t va, uint32_t pitch)
+@@ -3897,6 +4604,7 @@ static Surface *scan_surface(uint32_t va, uint32_t pitch)
  void nv2a_d3d_flip(uint32_t surface_addr, uint32_t pitch)
  {
      Surface *s;
@@ -4996,7 +5735,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      if (!nv2a_d3d_init())
          return;
      s_frame_bg_tex = 0;
-@@ -3910,17 +4610,17 @@ void nv2a_d3d_flip(uint32_t surface_addr, uint32_t pitch)
+@@ -3910,17 +4618,17 @@ void nv2a_d3d_flip(uint32_t surface_addr, uint32_t pitch)
          int64_t t0 = s_prof_on > 0 ? qpc() : 0, t1;
          writeback_surfaces();
          t1 = s_prof_on > 0 ? qpc() : 0;
@@ -5021,7 +5760,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
      RECOMP_PROFILE_FRAME();
      prof_report();
      display_config(0);
-@@ -3940,7 +4640,7 @@ void nv2a_d3d_tick(void)
+@@ -3940,7 +4648,7 @@ void nv2a_d3d_tick(void)
          return;
      if (xbox_FramebufferScanSource(&va, &pitch)) {
          Surface *s = scan_surface(va, pitch);
@@ -5030,7 +5769,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
          s_frame++;
          return;
      }
-@@ -3948,7 +4648,7 @@ void nv2a_d3d_tick(void)
+@@ -3948,7 +4656,7 @@ void nv2a_d3d_tick(void)
      if (s_shown && now - s_last_flip > 50) {
          XboxOverlay ovl;
          if (xbox_FramebufferOverlay(&ovl))
@@ -5040,7 +5779,7 @@ index b9f3fa263362c0ba5732c514ed6b2592f3459dea..df48ca0a94e11e9c640978f847ef6c97
              s_last_present = now;
      }
 diff --git a/tests/dsp/CMakeLists.txt b/tests/dsp/CMakeLists.txt
-index 1e4ebc07943573bc6f859daa06dedd9ef4c6e609..d3e10109d446a8289553d52dc5f0eeae929a7285 100644
+index 1e4ebc07943573bc6f859daa06dedd9ef4c6e609..7e5f319c5608fa07287ba9ef0264fcce7d6e3333 100644
 --- a/tests/dsp/CMakeLists.txt
 +++ b/tests/dsp/CMakeLists.txt
 @@ -19,6 +19,10 @@ add_executable(dsp_disasm_test dsp_disasm_test.c)
@@ -5054,10 +5793,14 @@ index 1e4ebc07943573bc6f859daa06dedd9ef4c6e609..d3e10109d446a8289553d52dc5f0eeae
  add_executable(dsp_frame_replay dsp_frame_replay.c)
  target_link_libraries(dsp_frame_replay PRIVATE dsp_runtime)
  target_compile_definitions(dsp_frame_replay PRIVATE _CRT_SECURE_NO_WARNINGS)
-@@ -54,6 +58,10 @@ if(DSP_XEMU_REFERENCE_DIR)
+@@ -54,11 +58,24 @@ if(DSP_XEMU_REFERENCE_DIR)
      "-Doutput=${CMAKE_CURRENT_BINARY_DIR}/dma-results" -P "${CMAKE_CURRENT_SOURCE_DIR}/compare_dma.cmake")
  endif()
  if(WIN32)
++  add_executable(vp_attenuation_test vp_attenuation_test.c)
++  target_include_directories(vp_attenuation_test PRIVATE ../../src ../../src/apu)
++  target_compile_definitions(vp_attenuation_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS _USE_MATH_DEFINES)
++  add_test(NAME vp_attenuation COMMAND vp_attenuation_test)
 +  add_executable(hrtf_filter_test hrtf_filter_test.c)
 +  target_include_directories(hrtf_filter_test PRIVATE ../../src ../../src/apu)
 +  target_compile_definitions(hrtf_filter_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
@@ -5065,11 +5808,21 @@ index 1e4ebc07943573bc6f859daa06dedd9ef4c6e609..d3e10109d446a8289553d52dc5f0eeae
    add_executable(dsp_apu_test dsp_apu_test.c apu_dsp_under_test.c)
    target_include_directories(dsp_apu_test PRIVATE ../../src ../../src/apu)
    target_compile_definitions(dsp_apu_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
+   target_link_libraries(dsp_apu_test PRIVATE dsp_runtime)
+   add_test(NAME dsp_apu COMMAND dsp_apu_test)
++  add_executable(dsp_pcm_queue_test dsp_pcm_queue_test.c apu_dsp_under_test.c)
++  target_include_directories(dsp_pcm_queue_test PRIVATE ../../src ../../src/apu)
++  target_compile_definitions(dsp_pcm_queue_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
++  target_link_libraries(dsp_pcm_queue_test PRIVATE dsp_runtime)
++  add_test(NAME dsp_pcm_queue COMMAND dsp_pcm_queue_test)
+   add_test(NAME dsp_frame_capture COMMAND "${CMAKE_COMMAND}" -E env
+     "RECOMP_DSP_FRAME_DUMP=${CMAKE_CURRENT_BINARY_DIR}/test-frame" "$<TARGET_FILE:dsp_apu_test>")
+   add_test(NAME dsp_capture_reset COMMAND "${CMAKE_COMMAND}" -E env
 diff --git a/tests/kernel_dispatch/CMakeLists.txt b/tests/kernel_dispatch/CMakeLists.txt
-index a8e9688c5161e277ae01aa7c37ac26b1705f053c..d92b5acb6613727c503d06675863007782df17d3 100644
+index a8e9688c5161e277ae01aa7c37ac26b1705f053c..74a6bea1a818dc9e0bf5fa5d6aeae967e5b7bd69 100644
 --- a/tests/kernel_dispatch/CMakeLists.txt
 +++ b/tests/kernel_dispatch/CMakeLists.txt
-@@ -7,5 +7,59 @@ add_subdirectory(../.. xboxrecomp)
+@@ -7,5 +7,97 @@ add_subdirectory(../.. xboxrecomp)
  add_executable(kernel-dispatch-thread-test kernel_dispatch_thread_test.c)
  target_include_directories(kernel-dispatch-thread-test PRIVATE ../../src/kernel)
  target_link_libraries(kernel-dispatch-thread-test PRIVATE xboxrecomp)
@@ -5085,6 +5838,12 @@ index a8e9688c5161e277ae01aa7c37ac26b1705f053c..d92b5acb6613727c503d066758630077
 +add_executable(kernel-cs-test kernel_cs_test.c)
 +target_include_directories(kernel-cs-test PRIVATE ../../src/kernel)
 +target_link_libraries(kernel-cs-test PRIVATE xboxrecomp)
++add_executable(kernel-dpc-exclusion-test kernel_dpc_exclusion_test.c)
++target_include_directories(kernel-dpc-exclusion-test PRIVATE ../../src/kernel)
++target_link_libraries(kernel-dpc-exclusion-test PRIVATE xboxrecomp)
++add_executable(kernel-interrupt-sync-test kernel_interrupt_sync_test.c)
++target_include_directories(kernel-interrupt-sync-test PRIVATE ../../src/kernel)
++target_link_libraries(kernel-interrupt-sync-test PRIVATE xboxrecomp)
 +add_executable(nv2a-notify-wait-test nv2a_notify_wait_test.c)
 +target_include_directories(nv2a-notify-wait-test PRIVATE ../../src)
 +add_executable(nv2a-fence-wait-test nv2a_fence_wait_test.c)
@@ -5114,6 +5873,12 @@ index a8e9688c5161e277ae01aa7c37ac26b1705f053c..d92b5acb6613727c503d066758630077
 +add_test(NAME kernel-log-summary COMMAND kernel-log-test summary)
 +add_test(NAME kernel-file-sharing COMMAND kernel-file-sharing-test)
 +add_test(NAME kernel-cs COMMAND kernel-cs-test)
++add_test(NAME kernel-dpc-exclusion COMMAND kernel-dpc-exclusion-test)
++add_test(NAME kernel-timer-exclusion COMMAND kernel-dpc-exclusion-test timer)
++set_tests_properties(kernel-dpc-exclusion kernel-timer-exclusion PROPERTIES TIMEOUT 10)
++add_test(NAME kernel-interrupt-sync-irql COMMAND kernel-interrupt-sync-test)
++add_test(NAME kernel-interrupt-sync-exclusion COMMAND kernel-interrupt-sync-test exclusion)
++set_tests_properties(kernel-interrupt-sync-irql kernel-interrupt-sync-exclusion PROPERTIES TIMEOUT 10)
 +set_tests_properties(kernel-cs PROPERTIES FAIL_REGULAR_EXPRESSION "\\[CS\\] enters=")
 +add_test(NAME kernel-cs-counters COMMAND kernel-cs-test counters)
 +set_tests_properties(kernel-cs-counters PROPERTIES PASS_REGULAR_EXPRESSION "\\[CS\\] enters=")
@@ -5129,11 +5894,37 @@ index a8e9688c5161e277ae01aa7c37ac26b1705f053c..d92b5acb6613727c503d066758630077
 +set_tests_properties(nv2a-pb-hitch-quiet PROPERTIES FAIL_REGULAR_EXPRESSION "\\[HITCH\\]")
 +add_test(NAME nv2a-pb-hitch-trace COMMAND nv2a-pb-hitch-test trace)
 +set_tests_properties(nv2a-pb-hitch-trace PROPERTIES PASS_REGULAR_EXPRESSION "cpu_ms=40[.]000.*max_ms=80[.]000.*method=17FC")
++
++add_executable(kernel-timer-lifecycle-test kernel_timer_lifecycle_test.c)
++target_include_directories(kernel-timer-lifecycle-test PRIVATE ../../src/kernel)
++target_link_libraries(kernel-timer-lifecycle-test PRIVATE xboxrecomp)
++foreach(case order rearm retire publication periodic absolute expired relative audio_deadline)
++    add_test(NAME kernel-timer-${case} COMMAND kernel-timer-lifecycle-test ${case})
++endforeach()
++
++add_executable(kernel-dpc-queue-test kernel_dpc_queue_test.c)
++target_include_directories(kernel-dpc-queue-test PRIVATE ../../src/kernel)
++target_link_libraries(kernel-dpc-queue-test PRIVATE xboxrecomp)
++add_test(NAME kernel-dpc-cancel-capacity COMMAND kernel-dpc-queue-test capacity)
++add_test(NAME kernel-dpc-cancel-order COMMAND kernel-dpc-queue-test order)
++
++add_executable(kernel-dpc-lower-test kernel_dpc_lower_test.c)
++target_include_directories(kernel-dpc-lower-test PRIVATE ../../src/kernel)
++target_link_libraries(kernel-dpc-lower-test PRIVATE xboxrecomp)
++foreach(case lifetime context nested boundary active stack exhausted concurrent)
++    add_test(NAME kernel-dpc-lower-${case} COMMAND kernel-dpc-lower-test ${case})
++endforeach()
++
++add_executable(kernel-thread-tib-test kernel_thread_tib_test.c)
++target_include_directories(kernel-thread-tib-test PRIVATE ../../src/kernel)
++target_link_libraries(kernel-thread-tib-test PRIVATE xboxrecomp)
++add_test(NAME kernel-thread-tib-layout COMMAND kernel-thread-tib-test layout)
++add_test(NAME kernel-thread-tib-state COMMAND kernel-thread-tib-test state)
 diff --git a/tests/kernel_dispatch/README.md b/tests/kernel_dispatch/README.md
-index dd7efb097e3ddeaa79263075e946c06982fc3ee0..5ad726b10f09c08ffd7577a6aa182fcd3ac00c98 100644
+index dd7efb097e3ddeaa79263075e946c06982fc3ee0..a79a75829959bfa44e5be4c470575a6af3f3043b 100644
 --- a/tests/kernel_dispatch/README.md
 +++ b/tests/kernel_dispatch/README.md
-@@ -1,14 +1,144 @@
+@@ -1,14 +1,161 @@
 -# Kernel dispatch thread regression
 +# Kernel dispatch regressions
  
@@ -5270,16 +6061,33 @@ index dd7efb097e3ddeaa79263075e946c06982fc3ee0..5ad726b10f09c08ffd7577a6aa182fcd
 +word preservation, lengths/schema and unchanged host LastError, then removes
 +only its own artifacts.
 +
++Timer lifecycle cases cover signal publication before callbacks, rearming,
++retired timer storage, periodic cancellation, and absolute/relative deadlines.
++The `audio_deadline` case mirrors MM3's future-deadline rearm loop: one action
++must require one callback, rather than running again on every polling tick.
++DPC cancellation cases exercise wrapped FIFO order, duplicate rejection, and
++1,000 insert/cancel cycles without losing queue capacity.
++
++The lower-IRQL cases require pending completions to run before the lowering
++thread resumes object destruction. They check register, x87, MMX, XMM and host
++floating-point state preservation, nested callbacks, the DISPATCH boundary,
++and DPC-active state. Callback frames use an independent guest stack; a USB
++request-shaped sentinel below the interrupted stack pointer must survive.
++Stack-pool exhaustion is also exercised. Thread-layout cases verify that the
++full KPCR, including `FS+0x58`, cannot alias the title's TLS and that a new
++thread starts with clear IRQL and DPC state.
++
  On Windows with Visual Studio:
  
  ```
  cmake -S tests/kernel_dispatch -B build/kernel-dispatch -A x64
 -cmake --build build/kernel-dispatch --config Release --target kernel-dispatch-thread-test
-+cmake --build build/kernel-dispatch --config Release --target kernel-dispatch-thread-test kernel-log-test kernel-file-sharing-test kernel-cs-test nv2a-notify-wait-test nv2a-fence-wait-test contig-range-cache-test nv2a-command-fence-test nv2a-dma-sync-test nv2a-pb-hitch-test
++cmake --build build/kernel-dispatch --config Release
  ctest --test-dir build/kernel-dispatch -C Release --output-on-failure
  ```
 +
-+These ten executables provide all fifteen registered CTest cases.
++Build all targets before running CTest so the timer, DPC and thread-layout
++regressions are included.
 diff --git a/tests/memory_regressions/CMakeLists.txt b/tests/memory_regressions/CMakeLists.txt
 index e7e9b9e9cce069648496595e9c37216be4c129a5..4e7a35fd8e883e8726162b00aeda080458c14253 100644
 --- a/tests/memory_regressions/CMakeLists.txt
@@ -11715,10 +12523,10 @@ index 0000000000000000000000000000000000000000..561f5a635186a91a79d99e2444a8414a
 +Full content hashing and per-kick validation are preserved.
 diff --git a/tests/nv2a_samplers/test_samplers.c b/tests/nv2a_samplers/test_samplers.c
 new file mode 100644
-index 0000000000000000000000000000000000000000..afbc5098e2a82775dc65eed9d0aada00809af918
+index 0000000000000000000000000000000000000000..6c7bec720430984f91b10ecf91b5682c43da6ea4
 --- /dev/null
 +++ b/tests/nv2a_samplers/test_samplers.c
-@@ -0,0 +1,311 @@
+@@ -0,0 +1,314 @@
 +/* Exercise the real sampler table/fast requests, including native GPU taps. */
 +#define COBJMACROS
 +#define WIN32_LEAN_AND_MEAN
@@ -11959,10 +12767,13 @@ index 0000000000000000000000000000000000000000..afbc5098e2a82775dc65eed9d0aada00
 +    t.addr=0x07FFFFF0;CHECK(!check_levels(&t));t.addr=0x28000;
 +    t.levels=2;t.format++;fail_srv=1;CHECK(!check_levels(&t));CHECK(!fail_srv);
 +    CHECK(check_levels(&t));
-+    /* Existing upload retained on a failed generated-mip allocation. */
++    /* Existing upload retained on a failed scratch allocation. Generated
++     * mips reuse this scratch, so release it to exercise the retry path. */
 +    t.addr=0x30000;t.format++;v=check_levels(&t);CHECK(v);
-+    ram[t.addr]^=0x10;s_epoch++;fail_alloc_size=4*4*4;fail_alloc=1;
++    free(s_up_pixels);s_up_pixels=NULL;s_up_cap=0;
++    ram[t.addr]^=0x10;s_epoch++;fail_alloc_size=8*8*4;fail_alloc=1;
 +    CHECK(check_levels(&t)==v);CHECK(!fail_alloc);CHECK(check_levels(&t)==v);
++    free(s_up_pixels);s_up_pixels=NULL;s_up_cap=0;
 +    t.addr=0x38000;t.format++;fail_alloc=1;CHECK(!check_levels(&t));CHECK(!fail_alloc);
 +    CHECK(check_levels(&t));
 +    t.color=0x12;t.pitch=8*4;t.levels=15;t.addr=0x40000;t.format++;
@@ -12648,7 +13459,7 @@ index 0000000000000000000000000000000000000000..510b04ee116b32b5ec6be8611f8536ba
 +}
 diff --git a/tests/nv2a_textures/CMakeLists.txt b/tests/nv2a_textures/CMakeLists.txt
 new file mode 100644
-index 0000000000000000000000000000000000000000..3529a60b4d8e36ba325e909b493094c23b2a3b6a
+index 0000000000000000000000000000000000000000..ad388d2362db2d775411d797d767722582ff6436
 --- /dev/null
 +++ b/tests/nv2a_textures/CMakeLists.txt
 @@ -0,0 +1,13 @@
@@ -12662,7 +13473,7 @@ index 0000000000000000000000000000000000000000..3529a60b4d8e36ba325e909b493094c2
 +        NV2A_TEXTURE_RENDERER="${NV2A_TEXTURE_RENDERER}")
 +endif()
 +target_link_libraries(nv2a_textures PRIVATE d3d11 dxgi dxguid d3dcompiler)
-+foreach(case srv_retry mip_retry palette_identity decode_equivalence native_bc)
++foreach(case srv_retry mip_retry palette_identity decode_equivalence native_bc mip_inplace mip_chain)
 +    add_test(NAME nv2a_texture_${case} COMMAND nv2a_textures ${case})
 +endforeach()
 diff --git a/tests/nv2a_textures/README.md b/tests/nv2a_textures/README.md
@@ -13218,10 +14029,10 @@ index 0000000000000000000000000000000000000000..4e2a7755a24e8e67bbfa75b77a1c2261
 +}
 diff --git a/tests/nv2a_textures/test_textures.c b/tests/nv2a_textures/test_textures.c
 new file mode 100644
-index 0000000000000000000000000000000000000000..68833934f72b9bc74cfb342b1cb30436227305de
+index 0000000000000000000000000000000000000000..6a37a7a0ed4cb5faf91a1a91ca6eda9ae443bc89
 --- /dev/null
 +++ b/tests/nv2a_textures/test_textures.c
-@@ -0,0 +1,337 @@
+@@ -0,0 +1,347 @@
 +/* Drive the real cache and inspect its GPU pixels, including failed uploads. */
 +#define COBJMACROS
 +#define WIN32_LEAN_AND_MEAN
@@ -13234,6 +14045,7 @@ index 0000000000000000000000000000000000000000..68833934f72b9bc74cfb342b1cb30436
 +static int fail_srv;
 +static size_t fail_alloc_size;
 +static int fail_alloc;
++static size_t pixel_allocations;
 +
 +static HRESULT create_srv(ID3D11Device *device, ID3D11Resource *resource,
 +                          const D3D11_SHADER_RESOURCE_VIEW_DESC *desc,
@@ -13249,6 +14061,7 @@ index 0000000000000000000000000000000000000000..68833934f72b9bc74cfb342b1cb30436
 +
 +static void *allocate_pixels(size_t bytes)
 +{
++    pixel_allocations++;
 +    if (fail_alloc && bytes == fail_alloc_size) {
 +        fail_alloc--;
 +        return NULL;
@@ -13349,8 +14162,10 @@ index 0000000000000000000000000000000000000000..68833934f72b9bc74cfb342b1cb30436
 +    texture.width = texture.height = 8; texture.levels = 2;
 +    for (i = 0; i < 64; i++) ((uint32_t *)(ram + texture.addr))[i] = 0xFFFF0000u;
 +    for (i = 64; i < 80; i++) ((uint32_t *)(ram + texture.addr))[i] = 0xFF0000FFu;
-+    /* The mip-generation temporary is 4x4; the top-level scratch is 8x8. */
-+    fail_alloc_size = 4 * 4 * 4;
++    /* Generated mips reuse the top-level scratch. An allocation failure must
++     * still leave the complete previous GPU image visible and retryable. */
++    free(s_up_pixels); s_up_pixels = NULL; s_up_cap = 0;
++    fail_alloc_size = 8 * 8 * 4;
 +    fail_alloc = 1;
 +    CHECK(texture_get(&texture) == NULL);
 +    CHECK(fail_alloc == 0);
@@ -13364,13 +14179,14 @@ index 0000000000000000000000000000000000000000..68833934f72b9bc74cfb342b1cb30436
 +    /* Also retry a failed update of an existing resource. */
 +    for (i = 64; i < 80; i++) ((uint32_t *)(ram + texture.addr))[i] = 0xFF00FF00u;
 +    nv2a_d3d_kick();
++    free(s_up_pixels); s_up_pixels = NULL; s_up_cap = 0;
 +    fail_alloc = 1;
 +    CHECK(texture_get(&texture) == view);
 +    CHECK(fail_alloc == 0 && s_tex_count == count + 1);
 +    for (i = 1; i < 4; i++) CHECK(read_mip(view, i) == 0xFF0000FFu);
 +    CHECK(texture_get(&texture) == view);
 +    for (i = 1; i < 4; i++) CHECK(read_mip(view, i) == 0xFF00FF00u);
-+    puts("PASS: allocation failure cannot publish incomplete mips and retries existing uploads");
++    puts("PASS: scratch allocation failure cannot publish incomplete mips and retries existing uploads");
 +    return 0;
 +}
 +
@@ -13405,6 +14221,7 @@ index 0000000000000000000000000000000000000000..68833934f72b9bc74cfb342b1cb30436
 +}
 +
 +#include "native_bc_tests.h"
++#include "mip_generation_tests.h"
 +
 +static int test_decode_equivalence(void)
 +{
@@ -13545,7 +14362,9 @@ index 0000000000000000000000000000000000000000..68833934f72b9bc74cfb342b1cb30436
 +    CHECK(argc == 2);
 +    if (!strcmp(argv[1], "decode_equivalence")) return test_decode_equivalence();
 +    if (!strcmp(argv[1], "benchmark_decode")) return benchmark_decode();
-+    ram = calloc(1, !strcmp(argv[1], "benchmark_native_bc") ? 0x1000000 : 0x100000);
++    if (!strcmp(argv[1], "mip_inplace")) return test_mip_inplace();
++    if (!strcmp(argv[1], "benchmark_mip_cpu")) return benchmark_mip_cpu();
++    ram = calloc(1, (!strcmp(argv[1], "benchmark_native_bc") || !strcmp(argv[1], "benchmark_mip_upload")) ? 0x1000000 : 0x100000);
 +    CHECK(ram);
 +    _putenv_s("RECOMP_MSAA", "1");
 +    _putenv_s("RECOMP_RENDER_SCALE", "1");
@@ -13556,6 +14375,1978 @@ index 0000000000000000000000000000000000000000..68833934f72b9bc74cfb342b1cb30436
 +    if (!strcmp(argv[1], "mip_retry")) return test_mip_retry();
 +    if (!strcmp(argv[1], "palette_identity")) return test_palette_identity();
 +    if (!strcmp(argv[1], "native_bc")) return test_native_bc();
++    if (!strcmp(argv[1], "mip_chain")) return test_mip_chain();
++    if (!strcmp(argv[1], "benchmark_mip_upload")) return benchmark_mip_upload();
 +    if (!strcmp(argv[1], "benchmark_native_bc")) return benchmark_native_bc();
 +    CHECK(0);
++}
+diff --git a/src/apu/apu_dsp.c b/src/apu/apu_dsp.c
+index 37401abfc056902fbd1cab1d91e5682c9550b3c8..d8a93e35be611822d5ffa09e96d022ce32fc69b0 100644
+--- a/src/apu/apu_dsp.c
++++ b/src/apu/apu_dsp.c
+@@ -59,24 +59,44 @@ static void ep_scratch_rw(void *opaque, uint8_t *ptr, uint32_t addr, size_t len,
+                            ptr, addr, len, dir)) d->ep.dsp->dma.error = true;
+ }
+ 
++/* Callers cap this whole-frame ring at 64 frames. Capacity, head and queued
++ * bytes are frame-aligned, so a single frame never crosses the allocation.
++ * Grow geometrically. A doubled allocation has room
++ * after the old end for the wrapped prefix, so realloc can retain the queue
++ * in FIFO order without a second allocation. Native OOM only limits staging. */
++static void reserve_pcm_queue(MCPXAPUState *d, size_t required)
++{
++    size_t old_capacity = d->monitor.ep_pcm_capacity;
++    size_t capacity = old_capacity ? old_capacity : sizeof(d->monitor.frame_buf);
++    if (required <= old_capacity) return;
++    while (capacity < required) capacity *= 2;
++    uint8_t *queue = realloc(d->monitor.ep_pcm_queue, capacity);
++    if (!queue) return;
++    if (old_capacity &&
++        d->monitor.ep_pcm_queued > old_capacity - d->monitor.ep_pcm_head) {
++        size_t wrapped = d->monitor.ep_pcm_queued -
++                         (old_capacity - d->monitor.ep_pcm_head);
++        memcpy(queue + old_capacity, queue, wrapped);
++    }
++    d->monitor.ep_pcm_queue = queue;
++    d->monitor.ep_pcm_capacity = capacity;
++}
++
+ static void publish_pcm_frame(MCPXAPUState *d, const uint8_t *pcm)
+ {
+     size_t size = sizeof(d->monitor.frame_buf);
+     if ((d->monitor.ep_pcm_ready || d->monitor.frame_mixed) &&
+         d->monitor.ep_pcm_capacity - d->monitor.ep_pcm_queued < size &&
+         d->monitor.ep_pcm_queued < 64 * size) {
+-        size_t required = d->monitor.ep_pcm_queued + size;
+-        uint8_t *queue = realloc(d->monitor.ep_pcm_queue, required);
+-        if (queue) {
+-            d->monitor.ep_pcm_queue = queue;
+-            d->monitor.ep_pcm_capacity = required;
+-        }
++        reserve_pcm_queue(d, d->monitor.ep_pcm_queued + size);
+     }
+     if (!d->monitor.ep_pcm_ready && !d->monitor.frame_mixed) {
+         memcpy(d->monitor.frame_buf, pcm, sizeof(d->monitor.frame_buf));
+         d->monitor.ep_pcm_ready = true;
+     } else if (d->monitor.ep_pcm_capacity - d->monitor.ep_pcm_queued >= sizeof(d->monitor.frame_buf)) {
+-        memcpy(d->monitor.ep_pcm_queue + d->monitor.ep_pcm_queued,
++        size_t tail = d->monitor.ep_pcm_head + d->monitor.ep_pcm_queued;
++        if (tail >= d->monitor.ep_pcm_capacity) tail -= d->monitor.ep_pcm_capacity;
++        memcpy(d->monitor.ep_pcm_queue + tail,
+                pcm, sizeof(d->monitor.frame_buf));
+         d->monitor.ep_pcm_queued += sizeof(d->monitor.frame_buf);
+     } else {
+@@ -113,13 +133,7 @@ static void fifo_rw(MCPXAPUState *d, bool gp, uint8_t *ptr, unsigned index,
+         if (frames > (SIZE_MAX - d->monitor.ep_pcm_queued) / frame_size) { dsp->dma.error = true; return; }
+         size_t required = d->monitor.ep_pcm_queued + frames * frame_size;
+         if (required > 64 * frame_size) required = 64 * frame_size;
+-        if (required > d->monitor.ep_pcm_capacity) {
+-            uint8_t *queue = realloc(d->monitor.ep_pcm_queue, required);
+-            if (queue) {
+-                d->monitor.ep_pcm_queue = queue;
+-                d->monitor.ep_pcm_capacity = required;
+-            }
+-        }
++        reserve_pcm_queue(d, required);
+     }
+     uint8_t *pcm = ptr;
+     size_t pcm_len = len;
+@@ -169,10 +183,13 @@ void mcpx_apu_dsp_pcm_consumed(MCPXAPUState *d)
+     d->monitor.ep_pcm_ready = false;
+     d->monitor.frame_mixed = false;
+     if (d->monitor.ep_pcm_queued >= sizeof(d->monitor.frame_buf)) {
+-        memcpy(d->monitor.frame_buf, d->monitor.ep_pcm_queue, sizeof(d->monitor.frame_buf));
++        memcpy(d->monitor.frame_buf,
++               d->monitor.ep_pcm_queue + d->monitor.ep_pcm_head,
++               sizeof(d->monitor.frame_buf));
+         d->monitor.ep_pcm_queued -= sizeof(d->monitor.frame_buf);
+-        memmove(d->monitor.ep_pcm_queue,
+-                d->monitor.ep_pcm_queue + sizeof(d->monitor.frame_buf), d->monitor.ep_pcm_queued);
++        d->monitor.ep_pcm_head += sizeof(d->monitor.frame_buf);
++        if (d->monitor.ep_pcm_head == d->monitor.ep_pcm_capacity ||
++            !d->monitor.ep_pcm_queued) d->monitor.ep_pcm_head = 0;
+         d->monitor.ep_pcm_ready = true;
+     }
+ }
+@@ -250,6 +267,7 @@ static void dsp_write_word_locked(MCPXAPUState *d, bool gp, uint32_t addr, uint3
+                 d->ep_frame_div = 0;
+                 d->monitor.ep_pcm_offset = 0;
+                 d->monitor.ep_pcm_queued = 0;
++                d->monitor.ep_pcm_head = 0;
+                 d->monitor.ep_pcm_ready = false;
+                 d->monitor.frame_mixed = false;
+             }
+diff --git a/src/apu/apu_vp.c b/src/apu/apu_vp.c
+index 755c02e978ac39c761ab411988b3004e5cb5fc09..cb2551d120dcfc87e5cdb09fd33224b705d495ff 100644
+--- a/src/apu/apu_vp.c
++++ b/src/apu/apu_vp.c
+@@ -21,6 +21,7 @@
+ 
+ #include "apu_state.h"
+ #include "fpconv.h"
++#include <fenv.h>
+ #ifdef _MSC_VER
+ #include <intrin.h>
+ #else
+@@ -103,10 +104,20 @@ static float clampf(float v, float mn, float mx)
+     return v;
+ }
+ 
+-static float attenuate(uint16_t vol)
++static float attenuate(const MCPXAPUState *d, uint16_t vol)
+ {
+-    vol &= 0xFFF;
+-    return (vol == 0xFFF) ? 0.0f : powf(10.0f, vol / (64.0f * -20.0f));
++    return d->vp.attenuation[vol & 0xFFF];
++}
++
++static void prepare_attenuation(MCPXAPUState *d)
++{
++    int rounding = fegetround();
++    if (d->vp.attenuation_rounding == rounding)
++        return;
++    for (unsigned vol = 0; vol < 0xFFF; ++vol)
++        d->vp.attenuation[vol] = powf(10.0f, vol / (64.0f * -20.0f));
++    d->vp.attenuation[0xFFF] = 0.0f;
++    d->vp.attenuation_rounding = rounding;
+ }
+ 
+ /* ============================================================
+@@ -1240,7 +1251,7 @@ static void voice_process(MCPXAPUState *d,
+         } else {
+             hr = (float)(1 << d->vp.submix_headroom[bin[b]]);
+         }
+-        g *= attenuate(vol[b]) / hr;
++        g *= attenuate(d, vol[b]) / hr;
+         /* Bin channel follows xemu (b % channels). Splitting HRTF bins into
+          * left/right ear pairs fed the GP crosstalk bins (MM3: 6 8 7 9)
+          * distinct ears: gameplay went out of phase (L/R corr -0.73), +8 dB
+@@ -1260,7 +1271,7 @@ static void voice_process(MCPXAPUState *d,
+         float g = 0.0f;
+         for (int b = 0; b < 8; b++) {
+             float hr = (float)(1 << d->vp.submix_headroom[bin[b]]);
+-            float bg = attenuate(vol[b]) / hr;
++            float bg = attenuate(d, vol[b]) / hr;
+             if (bg > g) g = bg;
+         }
+         g *= ea_value;
+@@ -1282,6 +1293,9 @@ static void voice_process(MCPXAPUState *d,
+ void mcpx_apu_vp_frame(MCPXAPUState *d,
+                         float mixbins[NUM_MIXBINS][NUM_SAMPLES_PER_FRAME])
+ {
++    /* Initialization and mixing can run on different host threads. Match the
++     * current rounding mode once per frame, never once per bin/voice. */
++    prepare_attenuation(d);
+     memset(d->vp.sample_buf, 0, sizeof(d->vp.sample_buf));
+ 
+     for (int list = 0; list < 3; list++) {
+@@ -1336,8 +1350,13 @@ void mcpx_apu_vp_frame(MCPXAPUState *d,
+ 
+ void mcpx_apu_vp_init(MCPXAPUState *d)
+ {
+-    /* Single-threaded - no worker dispatch needed */
+-    (void)d;
++    /* Eight bins per voice used to repeat this powf every 32 samples, even
++     * when their volume had not changed. Calculate the finite input domain
++     * using the same expression and host math library, before the frame
++     * thread starts. The final encoding is the hardware's silence sentinel.
++     * Keeping the table in the APU avoids lazy-init races and shared state. */
++    d->vp.attenuation_rounding = -2;
++    prepare_attenuation(d);
+ }
+ 
+ void mcpx_apu_vp_finalize(MCPXAPUState *d)
+diff --git a/src/kernel/kernel_hal.c b/src/kernel/kernel_hal.c
+index 966bab801ff9eecc5c6ee83d1a45e5256983d296..7ff1623b3b27a16c03a04eacb9da3414c4cf98ee 100644
+--- a/src/kernel/kernel_hal.c
++++ b/src/kernel/kernel_hal.c
+@@ -40,6 +40,11 @@
+ 
+ static XBOX_THREAD_LOCAL KIRQL g_current_irql = PASSIVE_LEVEL;
+ 
++int xbox_IrqlCurrent(void)
++{
++    return (int)g_current_irql;
++}
++
+ /* The current IRQL, where guest code reads it: KPCR.Irql, fs:[0x24].
+  *
+  * The XDK does not always ask the kernel. DirectSound's lock
+diff --git a/src/video/nv2a_d3d11.h b/src/video/nv2a_d3d11.h
+index 082f091526eb340785051b45434bef5897de2e78..80f57cc209652a2e02ea448ac0a8811e938f1e10 100644
+--- a/src/video/nv2a_d3d11.h
++++ b/src/video/nv2a_d3d11.h
+@@ -2,12 +2,13 @@
+  * D3D11 renderer for the NV2A pushbuffer executor.
+  *
+  * The executor (src/kernel/nv2a_pb_exec.c) decodes the title's GPU command
+- * stream and runs its vertex programs; this turns the result into D3D11 draws.
++ * stream and supplies vertex arrays, indices and state for D3D11 draws. A
++ * host vertex shader interprets the title's NV2A vertex programs.
+  * Rasterisation, register combiners, texturing, blending, depth and stencil
+  * all run on the host GPU. Render targets live in host textures keyed by the
+- * physical address the title gave them, so a surface the title later samples
+- * as a texture (its own render-to-texture passes) is read back from the GPU
+- * rather than from guest RAM, which the GPU never writes.
++ * physical address the title gave them. Render-to-texture passes sample these
++ * host resources. CPU-assisted synchronization merges guest RAM writes into
++ * surfaces and copies completed renderings back to guest RAM at flips.
+  *
+  * Everything here runs on the one thread that executes the pushbuffer.
+  */
+diff --git a/tests/dsp/apu_dsp_under_test.c b/tests/dsp/apu_dsp_under_test.c
+index 376760b6542b493b0995747251f3d87241e02db8..44d2ef1b3a66b9b3ebee55199222e7adcee04afb 100644
+--- a/tests/dsp/apu_dsp_under_test.c
++++ b/tests/dsp/apu_dsp_under_test.c
+@@ -1,9 +1,30 @@
+-/* Replace only native queue allocation; compile the real DSP/FIFO glue. */
++/* Instrument native staging operations; compile the real DSP/FIFO glue. */
+ #include <stdlib.h>
++#include <stdint.h>
++#include <string.h>
+ extern int dsp_test_fail_alloc;
++uint64_t dsp_test_pcm_allocations, dsp_test_pcm_copied, dsp_test_pcm_moved;
+ static void *test_realloc(void *ptr, size_t size)
+ {
++    dsp_test_pcm_allocations++;
+     return dsp_test_fail_alloc ? NULL : realloc(ptr, size);
+ }
++static void *test_memcpy(void *destination, const void *source, size_t size)
++{
++    dsp_test_pcm_copied += size;
++    return memcpy(destination, source, size);
++}
++static void *test_memmove(void *destination, const void *source, size_t size)
++{
++    dsp_test_pcm_moved += size;
++    return memmove(destination, source, size);
++}
+ #define realloc test_realloc
++#define memcpy test_memcpy
++#define memmove test_memmove
+ #include "../../src/apu/apu_dsp.c"
++
++void dsp_test_publish_pcm_frame(MCPXAPUState *d, const uint8_t *pcm)
++{
++    publish_pcm_frame(d, pcm);
++}
+diff --git a/tests/dsp/dsp_apu_test.c b/tests/dsp/dsp_apu_test.c
+index 6dafbebf6b6e83ca5ae1be5228cda7bf4cea00e1..00f9c0853676daa4d5f4fb30f41c266f14e65492 100644
+--- a/tests/dsp/dsp_apu_test.c
++++ b/tests/dsp/dsp_apu_test.c
+@@ -446,11 +446,17 @@ int main(void)
+     mcpx_apu_dsp_pcm_consumed(d);
+     for (unsigned i = 0; i < 1024; i++) CHECK(((uint8_t *)d->monitor.frame_buf)[i] == 0x11);
+     /* Rewriting an already released reset register must not discard PCM. */
++    run_locked_frame(d, mixbins);
++    run_locked_frame(d, mixbins);
++    mcpx_apu_dsp_pcm_consumed(d);
++    CHECK(d->monitor.ep_pcm_head == 1024 && d->monitor.ep_pcm_queued == 1024);
+     d->monitor.ep_pcm_offset = 512;
+     mcpx_apu_dsp_write(d, false, NV_PAPU_EPRST, 3, 4);
+     CHECK(d->monitor.ep_pcm_offset == 512);
++    CHECK(d->monitor.ep_pcm_head == 1024 && d->monitor.ep_pcm_queued == 1024);
+     mcpx_apu_dsp_write(d, false, NV_PAPU_EPRST, 0, 4);
+-    CHECK(d->monitor.ep_pcm_offset == 0 && d->monitor.ep_pcm_queued == 0 && !d->monitor.ep_pcm_ready);
++    CHECK(d->monitor.ep_pcm_offset == 0 && d->monitor.ep_pcm_queued == 0 &&
++          d->monitor.ep_pcm_head == 0 && !d->monitor.ep_pcm_ready);
+     /* Failed EP DMA must not publish its payload as native host PCM. */
+     mcpx_apu_dsp_write(d, false, NV_PAPU_EPRST, 3, 4);
+     for (unsigned i = 0; i < 7; i++)
+diff --git a/tests/dsp/dsp_pcm_queue_test.c b/tests/dsp/dsp_pcm_queue_test.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..b37975332da6dc1f36cfd2de25eff4f9cc279592
+--- /dev/null
++++ b/tests/dsp/dsp_pcm_queue_test.c
+@@ -0,0 +1,120 @@
++#include "apu_state.h"
++
++#define CHECK(condition) do { if (!(condition)) { \
++    fprintf(stderr, "PCM queue check failed at line %d: %s\n", __LINE__, #condition); \
++    exit(1); } } while (0)
++
++struct McpxApuDebug g_dbg;
++int dsp_test_fail_alloc;
++uint8_t *g_apu_ram_ptr;
++uint8_t *mcpx_apu_phys(uint64_t address)
++{
++    (void)address;
++    CHECK(0); /* Queue-only checks must not read or write guest memory. */
++    return NULL;
++}
++
++extern uint64_t dsp_test_pcm_allocations, dsp_test_pcm_copied, dsp_test_pcm_moved;
++void dsp_test_publish_pcm_frame(MCPXAPUState *d, const uint8_t *pcm);
++
++static void fill_frame(uint8_t *frame, unsigned sequence)
++{
++    for (unsigned i = 0; i < 1024; i++)
++        frame[i] = (uint8_t)(sequence * 17 + i * 23 + (sequence >> 8));
++}
++
++static void publish(MCPXAPUState *d, unsigned sequence)
++{
++    uint8_t frame[1024];
++    fill_frame(frame, sequence);
++    dsp_test_publish_pcm_frame(d, frame);
++}
++
++static void check_frame(MCPXAPUState *d, unsigned sequence)
++{
++    uint8_t frame[1024];
++    fill_frame(frame, sequence);
++    CHECK(!memcmp(d->monitor.frame_buf, frame, sizeof(frame)));
++}
++
++int main(void)
++{
++    MCPXAPUState *d = calloc(1, sizeof(*d));
++    CHECK(d);
++
++    /* Move the head, wrap at the old end, fail a growth, then grow the
++     * wrapped queue. Every retained frame must remain in its original order. */
++    for (unsigned i = 0; i < 5; i++) publish(d, i);
++    CHECK(d->monitor.ep_pcm_capacity == 4096);
++    for (unsigned i = 0; i < 3; i++) {
++        check_frame(d, i);
++        mcpx_apu_dsp_pcm_consumed(d);
++    }
++    for (unsigned i = 5; i < 8; i++) publish(d, i);
++    uint64_t dropped = d->monitor.ep_pcm_dropped_frames;
++    dsp_test_fail_alloc = 1;
++    publish(d, 99);
++    dsp_test_fail_alloc = 0;
++    CHECK(d->monitor.ep_pcm_capacity == 4096);
++    CHECK(d->monitor.ep_pcm_queued == 4096);
++    CHECK(d->monitor.ep_pcm_dropped_frames == dropped + 1);
++    publish(d, 8);
++    CHECK(d->monitor.ep_pcm_capacity == 8192);
++    for (unsigned i = 3; i < 9; i++) {
++        check_frame(d, i);
++        mcpx_apu_dsp_pcm_consumed(d);
++    }
++    CHECK(!d->monitor.ep_pcm_ready && !d->monitor.ep_pcm_queued);
++    CHECK(!d->monitor.ep_pcm_head);
++
++    /* Compare a stream of bursts, consumes and overflows to an independent
++     * FIFO model. The model stores sequence numbers rather than PCM offsets. */
++    unsigned model[65], count = 0;
++    uint32_t random = 0x762d81ab;
++    for (unsigned sequence = 0; sequence < 20000; sequence++) {
++        random = random * 1664525u + 1013904223u;
++        if ((random >> 28) < 5) {
++            if (count) {
++                check_frame(d, model[0]);
++                memmove(model, model + 1, --count * sizeof(*model));
++            }
++            mcpx_apu_dsp_pcm_consumed(d);
++        } else {
++            uint64_t drops_before = d->monitor.ep_pcm_dropped_frames;
++            publish(d, sequence);
++            if (count < 65) {
++                model[count++] = sequence;
++                CHECK(d->monitor.ep_pcm_dropped_frames == drops_before);
++            } else CHECK(d->monitor.ep_pcm_dropped_frames == drops_before + 1);
++        }
++        CHECK(d->monitor.ep_pcm_ready == (count != 0));
++        CHECK(d->monitor.ep_pcm_queued == (count ? count - 1 : 0) * 1024);
++        CHECK(d->monitor.ep_pcm_capacity <= 65536);
++        if (count) check_frame(d, model[0]);
++    }
++    while (count) {
++        check_frame(d, model[0]);
++        memmove(model, model + 1, --count * sizeof(*model));
++        mcpx_apu_dsp_pcm_consumed(d);
++    }
++
++    /* Consumption copies only the next frame even with a full backlog.
++     * Allocation growth from zero through 64 frames takes seven allocations. */
++    free(d->monitor.ep_pcm_queue);
++    memset(&d->monitor, 0, sizeof(d->monitor));
++    dsp_test_pcm_allocations = dsp_test_pcm_copied = dsp_test_pcm_moved = 0;
++    for (unsigned i = 0; i < 65; i++) publish(d, i);
++    CHECK(dsp_test_pcm_allocations == 7);
++    CHECK(d->monitor.ep_pcm_queued == 65536);
++    dsp_test_pcm_copied = dsp_test_pcm_moved = 0;
++    for (unsigned i = 0; i < 65; i++) {
++        check_frame(d, i);
++        mcpx_apu_dsp_pcm_consumed(d);
++    }
++    CHECK(dsp_test_pcm_copied == 65536 && !dsp_test_pcm_moved);
++    printf("PCM queue: ordered wrap/growth/OOM/bursts; 7 growth allocations, "
++           "65536 copied bytes and 0 shifted bytes for a 64-frame drain\n");
++    free(d->monitor.ep_pcm_queue);
++    free(d);
++    return 0;
++}
+diff --git a/tests/dsp/vp_attenuation_test.c b/tests/dsp/vp_attenuation_test.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..aa08d7ccef1f7b9899ca171e02dab9dfd4a413ef
+--- /dev/null
++++ b/tests/dsp/vp_attenuation_test.c
+@@ -0,0 +1,143 @@
++/* Compile the production VP so this covers its initialization and lookup,
++ * including reset behavior. Compare every uint16_t input against the former
++ * formula, with exact float and mixed PCM equality rather than a tolerance. */
++#include <math.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++static uint64_t pow_calls;
++static float counted_powf(float base, float exponent)
++{
++    ++pow_calls;
++    return powf(base, exponent);
++}
++#define powf counted_powf
++#include "../../src/apu/apu_vp.c"
++#undef powf
++
++#define CHECK(condition) do { if (!(condition)) { \
++    fprintf(stderr, "VP attenuation check line %d: %s\n", __LINE__, #condition); \
++    exit(1); } } while (0)
++
++struct McpxApuDebug g_dbg, g_dbg_cache;
++int g_dbg_voice_monitor = -1;
++uint64_t g_dbg_muted_voices[4];
++uint8_t *g_apu_ram_ptr;
++uint8_t *mcpx_apu_phys(uint64_t address)
++{
++    (void)address;
++    CHECK(0); /* No guest-memory access is needed for volume conversion. */
++    return NULL;
++}
++
++static float reference_attenuate(uint16_t volume)
++{
++    volume &= 0xFFF;
++    return volume == 0xFFF ? 0.0f : powf(10.0f, volume / (64.0f * -20.0f));
++}
++
++static void check_all_inputs(MCPXAPUState *d)
++{
++    float expected_pcm[32], actual_pcm[32];
++    int16_t expected_s16[32], actual_s16[32];
++    for (unsigned input = 0; input <= UINT16_MAX; ++input) {
++        float expected = reference_attenuate((uint16_t)input);
++        float actual = attenuate(d, (uint16_t)input);
++        CHECK(!memcmp(&expected, &actual, sizeof(expected)));
++        for (unsigned sample = 0; sample < 32; ++sample) {
++            float pcm = (float)((int)sample - 16) / 16.0f;
++            float start = (input & 1) ? 0.0f : 1.0f;
++            expected_pcm[sample] = (start + (expected - start) / 32 * (sample + 1)) * pcm;
++            actual_pcm[sample] = (start + (actual - start) / 32 * (sample + 1)) * pcm;
++        }
++        CHECK(!memcmp(expected_pcm, actual_pcm, sizeof(expected_pcm)));
++        src_float_to_short_array(expected_pcm, expected_s16, 32);
++        src_float_to_short_array(actual_pcm, actual_s16, 32);
++        CHECK(!memcmp(expected_s16, actual_s16, sizeof(expected_s16)));
++    }
++}
++
++static __declspec(noinline) float bench_reference(const volatile uint16_t *inputs, unsigned count)
++{
++    float sum = 0.0f;
++    for (unsigned repeat = 0; repeat < 1024; ++repeat)
++        for (unsigned i = 0; i < count; ++i)
++            sum += reference_attenuate(inputs[i]);
++    return sum;
++}
++
++static __declspec(noinline) float bench_cached(MCPXAPUState *d, const volatile uint16_t *inputs, unsigned count)
++{
++    float sum = 0.0f;
++    for (unsigned repeat = 0; repeat < 1024; ++repeat)
++        for (unsigned i = 0; i < count; ++i)
++            sum += attenuate(d, inputs[i]);
++    return sum;
++}
++
++static void benchmark(MCPXAPUState *d)
++{
++    uint16_t inputs[8192];
++    uint32_t random = 0x12345678;
++    LARGE_INTEGER frequency, begin, middle, end;
++    QueryPerformanceFrequency(&frequency);
++    for (unsigned i = 0; i < 8192; ++i) {
++        random = random * 1664525u + 1013904223u;
++        inputs[i] = (uint16_t)(random >> 16);
++    }
++    for (unsigned trial = 0; trial < 5; ++trial) {
++        QueryPerformanceCounter(&begin);
++        float before = bench_reference(inputs, 8192);
++        QueryPerformanceCounter(&middle);
++        float after = bench_cached(d, inputs, 8192);
++        QueryPerformanceCounter(&end);
++        CHECK(!memcmp(&before, &after, sizeof(before)));
++        printf("trial=%u calls=8388608 reference_ms=%.3f cached_ms=%.3f sum=%.9g\n",
++               trial + 1, 1000.0 * (middle.QuadPart - begin.QuadPart) / frequency.QuadPart,
++               1000.0 * (end.QuadPart - middle.QuadPart) / frequency.QuadPart, after);
++    }
++}
++
++int main(int argc, char **argv)
++{
++    MCPXAPUState *d = calloc(1, sizeof(*d));
++    MCPXAPUState *other = calloc(1, sizeof(*other));
++    CHECK(d && other);
++    mcpx_apu_vp_init(d);
++    CHECK(pow_calls == 4095);
++    check_all_inputs(d);
++    CHECK(pow_calls == 4095);
++    CHECK(attenuate(d, 0) == 1.0f && attenuate(d, 0xFFF) == 0.0f);
++    CHECK(attenuate(d, 0xFFE) > 0.0f);
++    mcpx_apu_vp_reset(d);
++    check_all_inputs(d);
++    CHECK(pow_calls == 4095);
++    mcpx_apu_vp_init(other);
++    CHECK(pow_calls == 8190);
++    CHECK(!memcmp(d->vp.attenuation, other->vp.attenuation, sizeof(d->vp.attenuation)));
++    {
++        int saved_rounding = fegetround();
++        const int modes[] = {FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO, FE_TONEAREST};
++        float mixbins[NUM_MIXBINS][NUM_SAMPLES_PER_FRAME] = {{0}};
++        d->regs[NV_PAPU_TVL2D] = d->regs[NV_PAPU_TVL3D] = d->regs[NV_PAPU_TVLMP] = 0xFFFF;
++        for (unsigned mode = 0; mode < sizeof(modes) / sizeof(modes[0]); ++mode) {
++            CHECK(!fesetround(modes[mode]));
++            mcpx_apu_vp_frame(d, mixbins);
++            uint64_t warmed_calls = pow_calls;
++            check_all_inputs(d);
++            mcpx_apu_vp_frame(d, mixbins);
++            CHECK(pow_calls == warmed_calls);
++        }
++        CHECK(!fesetround(saved_rounding));
++        mcpx_apu_vp_frame(d, mixbins);
++    }
++    if (argc > 1 && !strcmp(argv[1], "--bench")) benchmark(d);
++    puts("PASS: 65536 encodings in all 4 rounding modes, gain ramps/PCM, reset, separate instances; no warm powf calls");
++    mcpx_apu_vp_finalize(d);
++    mcpx_apu_vp_finalize(other);
++    free(other);
++    free(d);
++    return 0;
++}
+diff --git a/tests/kernel_dispatch/kernel_dpc_exclusion_test.c b/tests/kernel_dispatch/kernel_dpc_exclusion_test.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..1fb8d9856ac2561e90a3b81bd2729b314ff849d7
+--- /dev/null
++++ b/tests/kernel_dispatch/kernel_dpc_exclusion_test.c
+@@ -0,0 +1,138 @@
++/* Synthetic guest DPCs exercise the real queue, timer and IRQL dispatcher. */
++#ifndef KERNEL_BRIDGE_SOURCE
++#define KERNEL_BRIDGE_SOURCE "../../src/kernel/kernel_bridge.c"
++#endif
++#include KERNEL_BRIDGE_SOURCE
++/* A before-source comparison can supply the unmodified timer-loop body as
++ * this callable adapter; normal tests call the production helper directly. */
++#ifdef KERNEL_TIMER_CLAIM_ADAPTER
++#include KERNEL_TIMER_CLAIM_ADAPTER
++#endif
++
++#define CHECK(c) do { if (!(c)) { \
++    fprintf(stderr, "DPC exclusion check failed at line %d: %s\n", __LINE__, #c); \
++    ExitProcess(1); \
++} } while (0)
++
++enum { DPC = 0x20000, TIMER = 0x22000, DPC_CONTEXT = 0x24000, ROUTINE = 0x26000 };
++static uint8_t *memory;
++static HANDLE worker_started;
++static volatile LONG callbacks;
++static int timer_mode;
++
++static void guest_dpc(void)
++{
++    CHECK(BRIDGE_MEM8(g_fs_base + 0x24) == 2);
++    CHECK(BRIDGE_MEM32(g_esp) == 0);
++    CHECK(BRIDGE_MEM32(g_esp + 4) == DPC);
++    CHECK(BRIDGE_MEM32(g_esp + 8) == DPC_CONTEXT);
++    CHECK(BRIDGE_MEM32(g_esp + 12) == (timer_mode ? 0 : 0x1234));
++    CHECK(BRIDGE_MEM32(g_esp + 16) == (timer_mode ? 0 : 0x5678));
++    InterlockedIncrement(&callbacks);
++    g_esp += 20; /* Original guest DeferredRoutine stdcall ret 16. */
++}
++
++recomp_func_t recomp_lookup(uint32_t address)
++{
++    return address == ROUTINE ? guest_dpc : NULL;
++}
++recomp_func_t recomp_lookup_manual(uint32_t address)
++{
++    (void)address;
++    return NULL;
++}
++
++static void prepare(void)
++{
++    memset(memory + DPC, 0, 32);
++    BRIDGE_MEM16(DPC) = 0x13;
++    BRIDGE_MEM32(DPC + 12) = ROUTINE;
++    BRIDGE_MEM32(DPC + 16) = DPC_CONTEXT;
++    if (timer_mode) {
++        g_timers[0].timer_va = TIMER;
++        g_timers[0].dpc_va = DPC;
++        g_timers[0].due_ms = 0;
++        g_timers[0].period_ms = 0;
++    } else {
++        g_esp = 0x30000;
++        BRIDGE_MEM32(g_esp) = DPC;
++        BRIDGE_MEM32(g_esp + 4) = 0x1234;
++        BRIDGE_MEM32(g_esp + 8) = 0x5678;
++        bridge_KeInsertQueueDpc();
++        CHECK(g_eax == 1 && BRIDGE_MEM8(DPC + 2) == 1);
++    }
++}
++
++static DWORD WINAPI drain(LPVOID unused)
++{
++    (void)unused;
++    g_esp = 0x80000;
++    g_fs_base = 0x18000;
++    CHECK(SetEvent(worker_started));
++    if (timer_mode) kernel_fire_due_timer(0, 1000);
++    else kernel_drain_dpcs();
++    CHECK(g_esp == 0x80000);
++    CHECK(BRIDGE_MEM8(g_fs_base + 0x24) == 0);
++    return 0;
++}
++
++static HANDLE start_worker(void)
++{
++    CHECK(ResetEvent(worker_started));
++    HANDLE worker = CreateThread(NULL, 0, drain, NULL, 0, NULL);
++    CHECK(worker);
++    CHECK(WaitForSingleObject(worker_started, 3000) == WAIT_OBJECT_0);
++    return worker;
++}
++
++int main(int argc, char **argv)
++{
++    timer_mode = argc > 1 && !strcmp(argv[1], "timer");
++    memory = VirtualAlloc(NULL, 16 * 1024 * 1024,
++                          MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
++    CHECK(memory);
++    g_xbox_mem_offset = (ptrdiff_t)memory;
++    g_fs_base = 0x10000;
++    worker_started = CreateEventW(NULL, TRUE, FALSE, NULL);
++    CHECK(worker_started);
++    InitializeCriticalSection(&g_timer_lock);
++    g_timer_started = 1; /* Use an explicitly driven worker, not a poll thread. */
++
++    int saved_irql = xbox_IrqlEnterInterrupt(2);
++    prepare();
++    HANDLE worker = start_worker();
++    /* The processor belongs to this guest thread. A host worker must neither
++     * claim nor run deferred work until this thread restores its old IRQL. */
++    CHECK(WaitForSingleObject(worker, 100) == WAIT_TIMEOUT);
++    CHECK(callbacks == 0);
++    if (timer_mode) {
++        EnterCriticalSection(&g_timer_lock);
++        int still_armed = g_timers[0].timer_va == TIMER;
++        LeaveCriticalSection(&g_timer_lock);
++        CHECK(still_armed);
++        CHECK(xbox_kernel_cancel_timer(TIMER) == 1);
++    } else {
++        CHECK(BRIDGE_MEM8(DPC + 2) == 1);
++        g_esp = 0x30000;
++        BRIDGE_MEM32(g_esp) = DPC;
++        bridge_KeRemoveQueueDpc();
++        CHECK(g_eax == 1 && BRIDGE_MEM8(DPC + 2) == 0);
++    }
++    xbox_IrqlLeaveInterrupt(saved_irql);
++    CHECK(WaitForSingleObject(worker, 3000) == WAIT_OBJECT_0);
++    CHECK(CloseHandle(worker));
++    CHECK(callbacks == 0 && BRIDGE_MEM8(g_fs_base + 0x24) == 0);
++
++    /* Uncancelled work still executes once, at the correct IRQL, with the
++     * original four guest arguments and stack cleanup. */
++    prepare();
++    worker = start_worker();
++    CHECK(WaitForSingleObject(worker, 3000) == WAIT_OBJECT_0);
++    CHECK(CloseHandle(worker));
++    CHECK(callbacks == 1);
++    CHECK(CloseHandle(worker_started));
++    CHECK(VirtualFree(memory, 0, MEM_RELEASE));
++    printf("PASS: %s claim obeys guest DISPATCH exclusion and cancellation; "
++           "uncancelled callback ABI preserved\n", timer_mode ? "timer" : "DPC");
++    return 0;
++}
+diff --git a/tests/kernel_dispatch/kernel_dpc_lower_test.c b/tests/kernel_dispatch/kernel_dpc_lower_test.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..3376b373d95425b233616ae3fa56a9a89070580f
+--- /dev/null
++++ b/tests/kernel_dispatch/kernel_dpc_lower_test.c
+@@ -0,0 +1,316 @@
++/* Queued completions must precede object destruction after KfLowerIrql. */
++#ifndef KERNEL_BRIDGE_SOURCE
++#define KERNEL_BRIDGE_SOURCE "../../src/kernel/kernel_bridge.c"
++#endif
++#define xbox_HeapAlloc test_dpc_heap_alloc
++#define xbox_HeapFree test_dpc_heap_free
++#include KERNEL_BRIDGE_SOURCE
++#undef xbox_HeapAlloc
++#undef xbox_HeapFree
++#include <fenv.h>
++#include <xmmintrin.h>
++
++#define CHECK(c) do { if (!(c)) { \
++    fprintf(stderr, "DPC lowering check failed at line %d: %s\n", __LINE__, #c); \
++    ExitProcess(1); \
++} } while (0)
++
++enum { DPC = 0x20000, HEAD = 0x22000, VOICE = 0x24000,
++       ROUTINE = 0x26000, LIVE_VTABLE = 0x362978, DEAD_VTABLE = 0x362910 };
++static uint8_t *memory;
++static int callbacks, max_depth;
++static RECOMP_TLS int callback_depth;
++static const char *mode;
++static RECOMP_TLS DWORD lowering_thread;
++static LONG fallback_allocations, fallback_frees;
++static uint32_t outer_callback_stack;
++static uint32_t callback_stack;
++static unsigned char caller_stack[256];
++
++/* Keep the focused harness's memory arena independent of heap initialization;
++ * production still allocates from xbox_HeapAlloc on worker-pool exhaustion. */
++uint32_t test_dpc_heap_alloc(uint32_t size, uint32_t alignment)
++{
++    CHECK(size == XBOX_WORKER_STACK_SIZE && alignment == 4096);
++    LONG index = InterlockedIncrement(&fallback_allocations) - 1;
++    return 0xC00000 + (uint32_t)index * XBOX_WORKER_STACK_SIZE;
++}
++void test_dpc_heap_free(uint32_t address)
++{
++    CHECK(address >= 0xC00000 && address < 0x1000000);
++    InterlockedIncrement(&fallback_frees);
++}
++static DWORD WINAPI parallel_lower(LPVOID unused);
++
++/* Avoid depending on declarations introduced by the repair, so the same
++ * regression compiles against a saved before-source. */
++extern RECOMP_TLS uint32_t g_ebp;
++extern RECOMP_TLS int g_df, g_fp_top, g_fp_cmp;
++extern RECOMP_TLS uint16_t g_fp_control_word, g_fp_cc;
++extern RECOMP_TLS double g_fp_stack[8];
++extern RECOMP_TLS RecompMmx g_mm0, g_mm1, g_mm2, g_mm3;
++extern RECOMP_TLS RecompMmx g_mm4, g_mm5, g_mm6, g_mm7;
++extern RECOMP_TLS RecompXmm g_xmm0, g_xmm1, g_xmm2, g_xmm3;
++extern RECOMP_TLS RecompXmm g_xmm4, g_xmm5, g_xmm6, g_xmm7;
++
++typedef struct {
++    uint32_t regs[10];
++    RecompMmx mm[8];
++    RecompXmm xmm[8];
++    double fp[8];
++    int df, fp_top, fp_cmp, host_rounding;
++    uint16_t control, cc;
++    unsigned mxcsr;
++} State;
++
++static void snapshot(State *s)
++{
++    memset(s, 0, sizeof(*s));
++    s->regs[0] = g_ecx; s->regs[1] = g_edx; s->regs[2] = g_esp;
++    s->regs[3] = g_ebx; s->regs[4] = g_esi; s->regs[5] = g_edi;
++    s->regs[6] = g_ebp; s->regs[7] = g_seh_ebp;
++    s->regs[8] = g_fs_base; s->regs[9] = g_xbox_kernel_caller;
++    s->mm[0] = g_mm0; s->mm[1] = g_mm1; s->mm[2] = g_mm2; s->mm[3] = g_mm3;
++    s->mm[4] = g_mm4; s->mm[5] = g_mm5; s->mm[6] = g_mm6; s->mm[7] = g_mm7;
++    s->xmm[0] = g_xmm0; s->xmm[1] = g_xmm1; s->xmm[2] = g_xmm2; s->xmm[3] = g_xmm3;
++    s->xmm[4] = g_xmm4; s->xmm[5] = g_xmm5; s->xmm[6] = g_xmm6; s->xmm[7] = g_xmm7;
++    memcpy(s->fp, g_fp_stack, sizeof(s->fp));
++    s->df = g_df; s->fp_top = g_fp_top; s->fp_cmp = g_fp_cmp;
++    s->control = g_fp_control_word; s->cc = g_fp_cc;
++    s->host_rounding = fegetround(); s->mxcsr = _mm_getcsr();
++}
++
++static void queue(void)
++{
++    uint32_t saved_esp = g_esp;
++    g_esp -= 12;
++    BRIDGE_MEM32(g_esp) = DPC;
++    BRIDGE_MEM32(g_esp + 4) = 0x1234;
++    BRIDGE_MEM32(g_esp + 8) = 0x5678;
++    bridge_KeInsertQueueDpc();
++    CHECK(g_eax == 1);
++    g_esp = saved_esp;
++}
++
++static void clobber_state(void)
++{
++    g_eax = g_ecx = g_edx = g_ebx = g_esi = g_edi = 0xDEADBEEF;
++    g_ebp = 0xDDDDDDDD; g_seh_ebp = 0xEEEEEEEE;
++    g_xbox_kernel_caller = 0xBADCA11;
++    memset(g_fp_stack, 0xBA, sizeof(g_fp_stack));
++    g_fp_top = 7; g_fp_cmp = -1; g_fp_control_word = 0x77F; g_fp_cc = 0x100;
++    g_mm0.q = g_mm1.q = g_mm2.q = g_mm3.q = 0xBAADF00DDEADBEEFull;
++    g_mm4 = g_mm5 = g_mm6 = g_mm7 = g_mm0;
++    g_xmm0.q[0] = 0xBBBBBBBBBBBBBBBBull; g_xmm0.q[1] = 0xCCCCCCCCCCCCCCCCull;
++    g_xmm1 = g_xmm2 = g_xmm3 = g_xmm4 = g_xmm5 = g_xmm6 = g_xmm7 = g_xmm0;
++    g_df = 1;
++    CHECK(fesetround(FE_TOWARDZERO) == 0);
++    _mm_setcsr(_mm_getcsr() ^ 0x8040u); /* FTZ and DAZ must also survive. */
++}
++
++static void guest_dpc(void)
++{
++    CHECK(GetCurrentThreadId() == lowering_thread);
++    CHECK(BRIDGE_MEM8(g_fs_base + XBOX_KPCR_IRQL_OFFSET) == 2);
++    CHECK(BRIDGE_MEM32(g_esp) == 0);
++    CHECK(BRIDGE_MEM32(g_esp + 4) == DPC);
++    CHECK(BRIDGE_MEM32(g_esp + 8) == VOICE);
++    CHECK(BRIDGE_MEM32(g_esp + 12) == 0x1234);
++    CHECK(BRIDGE_MEM32(g_esp + 16) == 0x5678);
++    CHECK(BRIDGE_MEM8(DPC + 2) == 0);
++    if (!strcmp(mode, "stack") || !strcmp(mode, "exhausted")) {
++        /* Match the observed USB alias: the request lies 0x54 bytes below
++         * the lowering caller's ESP, and a callback pushes a return PC there. */
++        uint32_t saved_esp = g_esp;
++        for (unsigned i = 0; i < 48; i++) {
++            g_esp -= 4;
++            BRIDGE_MEM32(g_esp) = 0x0035FBD3;
++        }
++        g_esp = saved_esp;
++        if (BRIDGE_MEM32(0x80000 - 0x54 + 8) != 0x5A5A5A5A)
++            fprintf(stderr, "USB-shaped request callback overwritten: %08X\n",
++                    BRIDGE_MEM32(0x80000 - 0x54 + 8));
++        CHECK(!memcmp(memory + 0x80000 - sizeof(caller_stack),
++                      caller_stack, sizeof(caller_stack)));
++        if (!strcmp(mode, "stack")) {
++            if (callback_stack) CHECK(callback_stack == g_esp);
++            callback_stack = g_esp;
++        }
++    }
++    callbacks++;
++    callback_depth++;
++    if (callback_depth > max_depth) max_depth = callback_depth;
++
++    if (!strcmp(mode, "context") || !strcmp(mode, "active")) {
++        CHECK(BRIDGE_MEM8(g_fs_base + XBOX_KPCR_DPC_ACTIVE_OFFSET) == 1);
++        bridge_KeIsExecutingDpc();
++        CHECK(g_eax == 1);
++    }
++    if (!strcmp(mode, "lifetime")) {
++        /* Match DirectSound's intrusive +0x54 completion link and the vtable
++         * transition at the end of its base destructor. */
++        uint32_t entry = BRIDGE_MEM32(HEAD);
++        CHECK(entry == VOICE + 0x54);
++        CHECK(BRIDGE_MEM32(entry - 0x54) == LIVE_VTABLE);
++        BRIDGE_MEM32(HEAD) = BRIDGE_MEM32(HEAD + 4) = HEAD;
++        BRIDGE_MEM32(entry) = BRIDGE_MEM32(entry + 4) = entry;
++    } else if (!strcmp(mode, "context")) {
++        CHECK(g_df == 0);
++        clobber_state();
++    } else if (!strcmp(mode, "concurrent") && callbacks == 1) {
++        outer_callback_stack = g_esp;
++        BRIDGE_MEM32(g_esp - 64) = 0x12345678;
++        xbox_KfLowerIrql(0);
++        HANDLE thread = CreateThread(NULL, 0, parallel_lower, NULL, 0, NULL);
++        CHECK(thread && WaitForSingleObject(thread, 5000) == WAIT_OBJECT_0);
++        CloseHandle(thread);
++        xbox_KfRaiseIrql(2);
++        CHECK(BRIDGE_MEM32(g_esp - 64) == 0x12345678);
++    } else if (!strcmp(mode, "concurrent")) {
++        CHECK(g_esp != outer_callback_stack);
++        BRIDGE_MEM32(g_esp - 64) = 0xBAADF00D;
++    } else if (!strcmp(mode, "nested") && callbacks == 1) {
++        queue();
++        g_ecx = 0;
++        bridge_KfLowerIrql();
++        CHECK(callbacks == 1); /* Never invoke a DPC from inside a DPC. */
++        xbox_KfRaiseIrql(2);
++    }
++    callback_depth--;
++    g_esp += 20;
++}
++
++recomp_func_t recomp_lookup(uint32_t address)
++{
++    return address == ROUTINE ? guest_dpc : NULL;
++}
++recomp_func_t recomp_lookup_manual(uint32_t address)
++{
++    (void)address;
++    return NULL;
++}
++
++static void prepare(void)
++{
++    memset(memory + DPC, 0, 32);
++    BRIDGE_MEM16(DPC) = 0x13;
++    BRIDGE_MEM32(DPC + 12) = ROUTINE;
++    BRIDGE_MEM32(DPC + 16) = VOICE;
++    BRIDGE_MEM32(VOICE) = LIVE_VTABLE;
++    BRIDGE_MEM32(HEAD) = BRIDGE_MEM32(HEAD + 4) = VOICE + 0x54;
++    BRIDGE_MEM32(VOICE + 0x54) = BRIDGE_MEM32(VOICE + 0x58) = HEAD;
++    queue();
++}
++
++static DWORD WINAPI parallel_lower(LPVOID unused)
++{
++    (void)unused;
++    g_fs_base = 0x11000; g_esp = 0x90000;
++    lowering_thread = GetCurrentThreadId();
++    xbox_KfRaiseIrql(2); prepare();
++    g_ecx = 0; bridge_KfLowerIrql();
++    CHECK(g_esp == 0x90000);
++    return 0;
++}
++
++int main(int argc, char **argv)
++{
++    CHECK(argc == 2);
++    mode = argv[1];
++    memory = VirtualAlloc(NULL, 16 * 1024 * 1024,
++                          MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
++    CHECK(memory);
++    g_xbox_mem_offset = (ptrdiff_t)memory;
++    g_fs_base = 0x10000;
++    g_esp = 0x80000;
++    lowering_thread = GetCurrentThreadId();
++    int occupied[XBOX_WORKER_STACK_COUNT];
++    if (!strcmp(mode, "exhausted") || !strcmp(mode, "concurrent")) {
++        for (int i = 0; i < XBOX_WORKER_STACK_COUNT; i++) {
++            occupied[i] = xbox_worker_stack_alloc();
++            CHECK(occupied[i] >= 0);
++        }
++        CHECK(xbox_worker_stack_alloc() < 0);
++    }
++    xbox_KfRaiseIrql(16);
++    prepare();
++    if (!strcmp(mode, "stack") || !strcmp(mode, "exhausted")) {
++        memset(caller_stack, 0x5A, sizeof(caller_stack));
++        memcpy(memory + 0x80000 - sizeof(caller_stack), caller_stack, sizeof(caller_stack));
++    }
++
++    if (!strcmp(mode, "boundary")) {
++        g_ecx = 2;
++        bridge_KfLowerIrql();
++        CHECK(callbacks == 0 && BRIDGE_MEM8(DPC + 2) == 1);
++    }
++    if (!strcmp(mode, "context")) {
++        const int modes[] = { FE_TONEAREST, FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO };
++        for (unsigned i = 0; i < sizeof(modes) / sizeof(modes[0]); i++) {
++            if (i) { xbox_KfRaiseIrql(2); prepare(); }
++            g_ecx = 0; g_edx = 0x22222222; g_ebx = 0x33333333;
++            g_esi = 0x44444444; g_edi = 0x55555555;
++            g_ebp = 0x66666666; g_seh_ebp = 0x77777777; g_xbox_kernel_caller = 0x88888888;
++            memset(g_fp_stack, 0x12, sizeof(g_fp_stack));
++            g_fp_top = 3; g_fp_cmp = 1; g_fp_control_word = 0xB7F; g_fp_cc = 0x4000;
++            RecompMmx *mm[] = { &g_mm0, &g_mm1, &g_mm2, &g_mm3, &g_mm4, &g_mm5, &g_mm6, &g_mm7 };
++            RecompXmm *xmm[] = { &g_xmm0, &g_xmm1, &g_xmm2, &g_xmm3, &g_xmm4, &g_xmm5, &g_xmm6, &g_xmm7 };
++            for (unsigned r = 0; r < 8; r++) {
++                mm[r]->q = 0x1234567800000000ull + r;
++                xmm[r]->q[0] = 0x9988776600000000ull + r;
++                xmm[r]->q[1] = 0xAABBCCDD00000000ull + r;
++            }
++            g_df = 1;
++            CHECK(fesetround(modes[i]) == 0);
++            _mm_setcsr((_mm_getcsr() & ~0x8040u) | ((i & 1) ? 0x8040u : 0));
++            State before, after;
++            snapshot(&before);
++            bridge_KfLowerIrql();
++            snapshot(&after);
++            CHECK(callbacks == (int)i + 1);
++            CHECK(g_eax == 0 && !memcmp(&before, &after, sizeof(before)));
++        }
++    } else {
++        g_ecx = 0;
++        bridge_KfLowerIrql();
++        CHECK(callbacks == ((!strcmp(mode, "nested") || !strcmp(mode, "concurrent")) ? 2 : 1));
++    }
++    if (!strcmp(mode, "stack") || !strcmp(mode, "exhausted")) {
++        CHECK(!memcmp(memory + 0x80000 - sizeof(caller_stack), caller_stack, sizeof(caller_stack)));
++        CHECK(g_esp == 0x80000);
++        if (!strcmp(mode, "exhausted")) {
++            CHECK(fallback_allocations == 1);
++            xbox_KfRaiseIrql(2); prepare();
++            memcpy(memory + 0x80000 - sizeof(caller_stack), caller_stack, sizeof(caller_stack));
++            g_ecx = 0; bridge_KfLowerIrql();
++            CHECK(callbacks == 2 && fallback_allocations == 2 && fallback_frees == 2);
++            for (int i = 0; i < XBOX_WORKER_STACK_COUNT; i++) xbox_worker_stack_free(occupied[i]);
++        }
++        /* Every lease must be released after a synchronous drain. */
++        for (int i = 0; i < XBOX_WORKER_STACK_COUNT; i++) {
++            occupied[i] = xbox_worker_stack_alloc(); CHECK(occupied[i] >= 0);
++        }
++        for (int i = 0; i < XBOX_WORKER_STACK_COUNT; i++) xbox_worker_stack_free(occupied[i]);
++    }
++    if (!strcmp(mode, "concurrent")) {
++        CHECK(fallback_allocations == 2 && fallback_frees == 2);
++        for (int i = 0; i < XBOX_WORKER_STACK_COUNT; i++) xbox_worker_stack_free(occupied[i]);
++    }
++    CHECK(max_depth == 1 && g_esp == 0x80000);
++    CHECK(BRIDGE_MEM8(g_fs_base + XBOX_KPCR_IRQL_OFFSET) == 0);
++    CHECK(BRIDGE_MEM8(g_fs_base + XBOX_KPCR_DPC_ACTIVE_OFFSET) == 0);
++    CHECK(BRIDGE_MEM8(DPC + 2) == 0);
++    if (!strcmp(mode, "lifetime")) {
++        BRIDGE_MEM32(VOICE) = DEAD_VTABLE;
++        CHECK(BRIDGE_MEM32(HEAD) == HEAD);
++    }
++    int completed = callbacks;
++    kernel_drain_dpcs();
++    CHECK(callbacks == completed); /* Worker fallback cannot run it twice. */
++    bridge_KeIsExecutingDpc();
++    CHECK(g_eax == 0);
++    CHECK(xbox_IrqlRaisedCount() == 0);
++    CHECK(VirtualFree(memory, 0, MEM_RELEASE));
++    printf("PASS: DPC lower %s\n", mode);
++    return 0;
++}
+diff --git a/tests/kernel_dispatch/kernel_dpc_queue_test.c b/tests/kernel_dispatch/kernel_dpc_queue_test.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..3324b1eb33e8b42670adade00c78576b1a1606e5
+--- /dev/null
++++ b/tests/kernel_dispatch/kernel_dpc_queue_test.c
+@@ -0,0 +1,61 @@
++/* Canceled DPCs must release queue capacity without disturbing live order. */
++#ifndef KERNEL_BRIDGE_SOURCE
++#define KERNEL_BRIDGE_SOURCE "../../src/kernel/kernel_bridge.c"
++#endif
++#include KERNEL_BRIDGE_SOURCE
++#define CHECK(c) do { if (!(c)) { fprintf(stderr, "DPC queue line %d: %s\n", __LINE__, #c); ExitProcess(1); } } while (0)
++enum { DPC_BASE = 0x20000, ROUTINE = 0x26000 };
++static unsigned seen[128], calls;
++static void guest_dpc(void)
++{
++    unsigned id = (BRIDGE_MEM32(g_esp + 4) - DPC_BASE) / 32;
++    CHECK(BRIDGE_MEM8(g_fs_base + 0x24) == 2);
++    CHECK(BRIDGE_MEM32(g_esp + 12) == id + 100);
++    CHECK(BRIDGE_MEM32(g_esp + 16) == id + 200);
++    CHECK(!BRIDGE_MEM8(DPC_BASE + id * 32 + 2));
++    CHECK(calls < 128); seen[calls++] = id;
++    g_esp += 20;
++}
++recomp_func_t recomp_lookup(uint32_t address) { return address == ROUTINE ? guest_dpc : NULL; }
++recomp_func_t recomp_lookup_manual(uint32_t address) { (void)address; return NULL; }
++static void insert(unsigned id, unsigned result)
++{
++    BRIDGE_MEM32(g_esp) = DPC_BASE + id * 32;
++    BRIDGE_MEM32(g_esp + 4) = id + 100;
++    BRIDGE_MEM32(g_esp + 8) = id + 200;
++    bridge_KeInsertQueueDpc(); CHECK(g_eax == result);
++}
++static void remove_dpc(unsigned id, unsigned result)
++{
++    BRIDGE_MEM32(g_esp) = DPC_BASE + id * 32;
++    bridge_KeRemoveQueueDpc(); CHECK(g_eax == result);
++}
++int main(int argc, char **argv)
++{
++    uint8_t *memory = VirtualAlloc(NULL, 16 * 1024 * 1024, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
++    unsigned i;
++    int saved;
++    CHECK(memory && argc == 2);
++    g_xbox_mem_offset = (ptrdiff_t)memory; g_fs_base = 0x10000; g_esp = 0x80000;
++    for (i = 0; i < 64; i++) BRIDGE_MEM32(DPC_BASE + i * 32 + 12) = ROUTINE;
++    saved = xbox_IrqlEnterInterrupt(2);
++    if (!strcmp(argv[1], "capacity")) {
++        for (i = 0; i < 1000; i++) { insert(0, 1); remove_dpc(0, 1); }
++        insert(1, 1);
++        xbox_IrqlLeaveInterrupt(saved);
++        kernel_drain_dpcs(); CHECK(calls == 1 && seen[0] == 1);
++    } else {
++        g_dpc_head = g_dpc_tail = XBOX_MAX_PENDING_DPC - 3;
++        for (i = 1; i <= 5; i++) insert(i, 1);
++        remove_dpc(3, 1); remove_dpc(1, 1); remove_dpc(5, 1);
++        remove_dpc(3, 0); insert(6, 1); insert(2, 0);
++        xbox_IrqlLeaveInterrupt(saved);
++        kernel_drain_dpcs();
++        CHECK(calls == 3 && seen[0] == 2 && seen[1] == 4 && seen[2] == 6);
++        CHECK(g_dpc_head == g_dpc_tail);
++    }
++    CHECK(g_esp == 0x80000 && BRIDGE_MEM8(g_fs_base + 0x24) == 0);
++    VirtualFree(memory, 0, MEM_RELEASE);
++    printf("PASS DPC %s: cancellation releases capacity; live order, arguments and duplicate rejection preserved\n", argv[1]);
++    return 0;
++}
+diff --git a/tests/kernel_dispatch/kernel_interrupt_sync_test.c b/tests/kernel_dispatch/kernel_interrupt_sync_test.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..9dc93531041899a2e383739e02028247dd73d291
+--- /dev/null
++++ b/tests/kernel_dispatch/kernel_interrupt_sync_test.c
+@@ -0,0 +1,161 @@
++/* Synthetic guest callbacks exercise the production interrupt bridge. */
++#ifndef KERNEL_BRIDGE_SOURCE
++#define KERNEL_BRIDGE_SOURCE "../../src/kernel/kernel_bridge.c"
++#endif
++#include KERNEL_BRIDGE_SOURCE
++
++#define CHECK(c) do { if (!(c)) { \
++    fprintf(stderr, "Interrupt synchronization check failed at line %d: %s\n", \
++            __LINE__, #c); \
++    ExitProcess(1); \
++} } while (0)
++
++enum { INTERRUPT = 0x20000, SYNC_ROUTINE = 0x22000, ISR_ROUTINE = 0x24000,
++       SYNC_CONTEXT = 0x26000, VECTOR = 3 };
++static uint8_t *memory;
++static HANDLE worker_started, callback_entered, callback_release;
++static volatile LONG sync_callbacks, isr_callbacks;
++static int exclusion_mode, hold_callback;
++
++static void guest_sync(void)
++{
++    CHECK(BRIDGE_MEM32(g_esp) == 0);
++    CHECK(BRIDGE_MEM32(g_esp + 4) == SYNC_CONTEXT);
++    if (!exclusion_mode) CHECK(BRIDGE_MEM8(g_fs_base + 0x24) == 16);
++    InterlockedIncrement(&sync_callbacks);
++    if (hold_callback) {
++        CHECK(SetEvent(callback_entered));
++        CHECK(WaitForSingleObject(callback_release, 3000) == WAIT_OBJECT_0);
++    }
++    g_eax = 0xA5;
++    g_esp += 8; /* Guest BOOLEAN callback stdcall ret 4. */
++}
++
++static void guest_isr(void)
++{
++    CHECK(BRIDGE_MEM8(g_fs_base + 0x24) == 16);
++    CHECK(BRIDGE_MEM32(g_esp) == 0);
++    CHECK(BRIDGE_MEM32(g_esp + 4) == INTERRUPT);
++    CHECK(BRIDGE_MEM32(g_esp + 8) == SYNC_CONTEXT);
++    InterlockedIncrement(&isr_callbacks);
++    g_eax = 1;
++    g_esp += 12; /* Guest ServiceRoutine stdcall ret 8. */
++}
++
++recomp_func_t recomp_lookup(uint32_t address)
++{
++    if (address == SYNC_ROUTINE) return guest_sync;
++    if (address == ISR_ROUTINE) return guest_isr;
++    return NULL;
++}
++recomp_func_t recomp_lookup_manual(uint32_t address)
++{
++    (void)address;
++    return NULL;
++}
++
++static void call_sync(void)
++{
++    BRIDGE_MEM32(g_esp) = INTERRUPT;
++    BRIDGE_MEM32(g_esp + 4) = SYNC_ROUTINE;
++    BRIDGE_MEM32(g_esp + 8) = SYNC_CONTEXT;
++    uint32_t stack_before = g_esp;
++    bridge_KeSynchronizeExecution();
++    CHECK(g_esp == stack_before && g_eax == 0xA5);
++}
++
++static DWORD WINAPI worker(LPVOID run_isr)
++{
++    g_esp = run_isr ? 0x90000 : 0x80000;
++    g_fs_base = run_isr ? 0x18000 : 0x14000;
++    uint32_t stack_before = g_esp;
++    CHECK(SetEvent(worker_started));
++    if (run_isr) CHECK(kernel_raise_interrupt(VECTOR) == 1);
++    else call_sync();
++    CHECK(g_esp == stack_before);
++    CHECK(BRIDGE_MEM8(g_fs_base + 0x24) == 0);
++    return 0;
++}
++
++static HANDLE start_worker(int run_isr)
++{
++    CHECK(ResetEvent(worker_started));
++    HANDLE thread = CreateThread(NULL, 0, worker,
++                                run_isr ? (LPVOID)1 : NULL, 0, NULL);
++    CHECK(thread);
++    CHECK(WaitForSingleObject(worker_started, 3000) == WAIT_OBJECT_0);
++    return thread;
++}
++
++static void join_worker(HANDLE thread)
++{
++    CHECK(WaitForSingleObject(thread, 3000) == WAIT_OBJECT_0);
++    CHECK(CloseHandle(thread));
++}
++
++int main(int argc, char **argv)
++{
++    exclusion_mode = argc > 1 && !strcmp(argv[1], "exclusion");
++    memory = VirtualAlloc(NULL, 16 * 1024 * 1024,
++                          MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
++    CHECK(memory);
++    g_xbox_mem_offset = (ptrdiff_t)memory;
++    g_fs_base = 0x10000;
++    g_esp = 0x30000;
++    worker_started = CreateEventW(NULL, TRUE, FALSE, NULL);
++    callback_entered = CreateEventW(NULL, TRUE, FALSE, NULL);
++    callback_release = CreateEventW(NULL, TRUE, FALSE, NULL);
++    CHECK(worker_started && callback_entered && callback_release);
++    BRIDGE_MEM32(INTERRUPT) = ISR_ROUTINE;
++    BRIDGE_MEM32(INTERRUPT + 4) = SYNC_CONTEXT;
++    BRIDGE_MEM32(INTERRUPT + 8) = VECTOR;
++    g_connected_isr[VECTOR] = INTERRUPT;
++
++    if (exclusion_mode) {
++        /* The ISR owns the processor. A passive synchronization request must
++         * wait before entering its callback or touching the shared SYNC_CONTEXT. */
++        int saved_irql = xbox_IrqlEnterInterrupt(16);
++        HANDLE sync_thread = start_worker(0);
++        CHECK(WaitForSingleObject(sync_thread, 100) == WAIT_TIMEOUT);
++        CHECK(sync_callbacks == 0);
++        xbox_IrqlLeaveInterrupt(saved_irql);
++        join_worker(sync_thread);
++        CHECK(sync_callbacks == 1);
++
++        /* Conversely, a synchronization callback excludes the real ISR
++         * dispatcher until it returns. No interrupt is discarded. */
++        hold_callback = 1;
++        sync_thread = start_worker(0);
++        CHECK(WaitForSingleObject(callback_entered, 3000) == WAIT_OBJECT_0);
++        HANDLE isr_thread = start_worker(1);
++        CHECK(WaitForSingleObject(isr_thread, 100) == WAIT_TIMEOUT);
++        CHECK(isr_callbacks == 0);
++        CHECK(SetEvent(callback_release));
++        join_worker(sync_thread);
++        join_worker(isr_thread);
++        CHECK(sync_callbacks == 2 && isr_callbacks == 1);
++    } else {
++        /* A passive caller and a nested DPC caller both observe ISR IRQL,
++         * keep the callback's return value and restore their prior IRQL. */
++        call_sync();
++        CHECK(BRIDGE_MEM8(g_fs_base + 0x24) == 0);
++        int saved_irql = xbox_IrqlEnterInterrupt(2);
++        call_sync();
++        CHECK(BRIDGE_MEM8(g_fs_base + 0x24) == 2);
++        xbox_IrqlLeaveInterrupt(saved_irql);
++        CHECK(sync_callbacks == 2);
++
++        BRIDGE_MEM32(g_esp + 4) = 0; /* Missing routine remains a false result. */
++        bridge_KeSynchronizeExecution();
++        CHECK(g_esp == 0x30000 && g_eax == 0 && sync_callbacks == 2);
++    }
++
++    CHECK(BRIDGE_MEM8(g_fs_base + 0x24) == 0);
++    CHECK(CloseHandle(worker_started));
++    CHECK(CloseHandle(callback_entered));
++    CHECK(CloseHandle(callback_release));
++    CHECK(VirtualFree(memory, 0, MEM_RELEASE));
++    printf("PASS: interrupt synchronization %s; callback arguments, result "
++           "and stack preserved\n", exclusion_mode ? "exclusion" : "IRQL");
++    return 0;
++}
+diff --git a/tests/kernel_dispatch/kernel_thread_tib_test.c b/tests/kernel_dispatch/kernel_thread_tib_test.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..8e366ea95d891856fcf1334eef89b45557e50845
+--- /dev/null
++++ b/tests/kernel_dispatch/kernel_thread_tib_test.c
+@@ -0,0 +1,61 @@
++/* Production KPCR/TLS allocation: DPC-active storage must not alias TLS. */
++#include "kernel.h"
++#include "xbox_memory_layout.h"
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#ifndef MEMORY_LAYOUT_SOURCE
++#define MEMORY_LAYOUT_SOURCE "../../src/kernel/xbox_memory_layout.c"
++#endif
++#include MEMORY_LAYOUT_SOURCE
++void *recomp_lookup(ULONG address) { (void)address; abort(); }
++void *recomp_lookup_manual(ULONG address) { (void)address; abort(); }
++#define CHECK(c) do { if (!(c)) { fprintf(stderr, "thread KPCR line %d: %s\n", __LINE__, #c); exit(1); } } while (0)
++static uint8_t *bytes(uint32_t va) { return (uint8_t *)((uintptr_t)g_memory_offset + va); }
++static uint32_t *word(uint32_t va) { return (uint32_t *)bytes(va); }
++int main(int argc, char **argv)
++{
++    uint8_t *arena = VirtualAlloc(NULL, 32 * 1024 * 1024, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
++    uint32_t tib, other, block, context, thread_data;
++    unsigned i;
++    CHECK(arena && argc == 2);
++    g_memory_offset = (ptrdiff_t)arena;
++    InitializeCriticalSection(&g_allocator_lock); g_allocator_lock_initialized = 1;
++    g_tls_template_va = 0x10000; g_tls_total = 64;
++    for (i = 0; i < g_tls_total; i++) bytes(g_tls_template_va)[i] = (uint8_t)(0x60 + i);
++    memset(bytes(XBOX_TIB_MAIN), 0xCC, 0x280);
++    *word(XBOX_TIB_MAIN + 0x08) = 0x780000;
++    *word(XBOX_TIB_MAIN + 0x20) = 0x761000;
++    bytes(XBOX_TIB_MAIN)[0x24] = 2; /* creator happens to be in a DPC */
++    *word(XBOX_TIB_MAIN + 0x58) = 1;
++    tib = xbox_AllocThreadTib(); other = xbox_AllocThreadTib();
++    CHECK(tib && other && tib != other);
++    context = *word(tib + 0x28); block = *word(context + 0x28); thread_data = *word(block);
++    CHECK(*word(tib) == 0xFFFFFFFFu && *word(tib + 0x18) == tib);
++    CHECK(*word(tib + 0x04) == block + g_tls_total && *word(tib + 0x08) == 0x780000);
++    CHECK(*word(tib + 0x20) == 0x761000);
++    CHECK(thread_data == block + g_tls_total && context == thread_data + g_tls_thread_size);
++    CHECK(!memcmp(bytes(block + 4), bytes(g_tls_template_va + 4), g_tls_total - 4));
++    CHECK(context != *word(other + 0x28));
++    if (!strcmp(argv[1], "state")) {
++        CHECK(bytes(tib)[0x24] == 0 && *word(tib + 0x58) == 0);
++        CHECK(*word(tib + 0x1C) == tib);
++        CHECK(bytes(XBOX_TIB_MAIN)[0x24] == 2 && *word(XBOX_TIB_MAIN + 0x58) == 1);
++        *word(tib + 0x58) = 1;
++        CHECK(*word(other + 0x58) == 0);
++    } else {
++        uint8_t snapshot[64 + 64 + 0x200];
++        CHECK(sizeof snapshot == g_tls_total + g_tls_thread_size + 0x200);
++        memcpy(snapshot, bytes(block), sizeof snapshot);
++        *word(tib + 0x58) = 1;
++        CHECK(!memcmp(snapshot, bytes(block), sizeof snapshot));
++        *word(tib + 0x58) = 0;
++        CHECK(!memcmp(snapshot, bytes(block), sizeof snapshot));
++        CHECK(block >= tib + 0x280); /* KPCR 0x28 prefix + 0x258 KPRCB. */
++    }
++    xbox_HeapFree(tib); xbox_HeapFree(other);
++    CHECK(VirtualFree(arena, 0, MEM_RELEASE));
++    printf("PASS thread KPCR %s: independent execution state and nonoverlapping TLS/bootstrap storage\n", argv[1]);
++    return 0;
++}
+diff --git a/tests/kernel_dispatch/kernel_timer_lifecycle_test.c b/tests/kernel_dispatch/kernel_timer_lifecycle_test.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..f291315921c8f4b1383144c488c8b1d4160dd089
+--- /dev/null
++++ b/tests/kernel_dispatch/kernel_timer_lifecycle_test.c
+@@ -0,0 +1,122 @@
++/* Timer state must be published before callbacks can rearm or retire it. */
++#define WIN32_LEAN_AND_MEAN
++#include <windows.h>
++static int expire_on_reset;
++static LONGLONG system_now = 133000000000000000LL;
++static ULONGLONG tick_now = 100000;
++static LONGLONG audio_deadline;
++static unsigned completed_audio_work;
++static VOID __stdcall test_query_time(PLARGE_INTEGER out) { out->QuadPart = system_now; }
++static ULONGLONG WINAPI test_tick(void) { return tick_now; }
++#define xbox_KeQuerySystemTime test_query_time
++#define GetTickCount64 test_tick
++static void kernel_fire_due_timer(int i, long long now);
++static BOOL WINAPI watched_reset(HANDLE event)
++{
++    if (expire_on_reset) {
++        expire_on_reset = 0;
++        kernel_fire_due_timer(0, 0x7FFFFFFFFFFFFFFFLL);
++    }
++    return ResetEvent(event);
++}
++#define ResetEvent watched_reset
++#ifndef KERNEL_BRIDGE_SOURCE
++#define KERNEL_BRIDGE_SOURCE "../../src/kernel/kernel_bridge.c"
++#endif
++#include KERNEL_BRIDGE_SOURCE
++#undef ResetEvent
++#define CHECK(c) do { if (!(c)) { fprintf(stderr, "timer lifecycle line %d: %s\n", __LINE__, #c); ExitProcess(1); } } while (0)
++enum { TIMER = 0x20000, DPC = 0x22000, ROUTINE = 0x26000 };
++static uint8_t *memory;
++static HANDLE timer_event;
++static unsigned callbacks;
++static const char *mode;
++static void guest_dpc(void)
++{
++    CHECK(BRIDGE_MEM8(g_fs_base + 0x24) == 2);
++    CHECK(BRIDGE_MEM32(g_esp + 4) == DPC);
++    callbacks++;
++    if (!strcmp(mode, "order")) {
++        CHECK(BRIDGE_MEM32(TIMER + 4) == 1);
++        CHECK(WaitForSingleObject(timer_event, 0) == WAIT_OBJECT_0);
++    } else if (!strcmp(mode, "rearm")) {
++        kernel_set_timer(TIMER, -1000000000LL, 0, DPC);
++        CHECK(!g_eax);
++    } else if (!strcmp(mode, "retire")) {
++        memset(memory + TIMER, 0xA5, 40);
++    } else if (!strcmp(mode, "audio_deadline")) {
++        /* MM3 sub_0027B554 -> sub_0027B389: deferred audio work that is
++         * still in the future rearms KeSetTimer at that absolute time. */
++        if (system_now < audio_deadline) kernel_set_timer(TIMER, audio_deadline, 0, DPC);
++        else completed_audio_work++;
++    }
++    g_esp += 20;
++}
++recomp_func_t recomp_lookup(uint32_t address) { return address == ROUTINE ? guest_dpc : NULL; }
++recomp_func_t recomp_lookup_manual(uint32_t address) { (void)address; return NULL; }
++int main(int argc, char **argv)
++{
++    CHECK(argc == 2); mode = argv[1];
++    memory = VirtualAlloc(NULL, 16 * 1024 * 1024, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
++    CHECK(memory); g_xbox_mem_offset = (ptrdiff_t)memory; g_fs_base = 0x10000; g_esp = 0x80000;
++    InitializeCriticalSection(&g_timer_lock); g_timer_started = 1;
++    BRIDGE_MEM32(g_esp) = TIMER; BRIDGE_MEM32(g_esp + 4) = 0;
++    bridge_KeInitializeTimerEx(); timer_event = ke_shadow_lookup(TIMER); CHECK(timer_event);
++    BRIDGE_MEM32(DPC + 12) = ROUTINE;
++    if (!strcmp(mode, "audio_deadline")) {
++        unsigned step;
++        audio_deadline = system_now + 20000000;
++        kernel_set_timer(TIMER, audio_deadline, 0, DPC);
++        for (step = 0; step < 200; step++) {
++            tick_now += 10; system_now += 100000;
++            kernel_fire_due_timer(0, (long long)tick_now);
++        }
++        printf("audio timer: callbacks=%u completed=%u over 200 polling ticks\n", callbacks, completed_audio_work);
++        CHECK(callbacks == 1 && completed_audio_work == 1);
++        ke_shadow_remove(TIMER); VirtualFree(memory, 0, MEM_RELEASE);
++        return 0;
++    }
++    if (!strcmp(mode, "absolute") || !strcmp(mode, "expired") || !strcmp(mode, "relative")) {
++        long long due = !strcmp(mode, "absolute") ? system_now + 20000000LL :
++                        !strcmp(mode, "expired") ? system_now - 1 : -15001;
++        long long expected = !strcmp(mode, "absolute") ? 102000 :
++                             !strcmp(mode, "expired") ? 100000 : 100002;
++        kernel_set_timer(TIMER, due, 0, DPC);
++        CHECK(g_timers[0].due_ms == expected);
++        kernel_fire_due_timer(0, expected - 1); CHECK(!callbacks);
++        kernel_fire_due_timer(0, expected); CHECK(callbacks == 1);
++        ke_shadow_remove(TIMER); VirtualFree(memory, 0, MEM_RELEASE);
++        printf("PASS timer %s: deadline honored without repeated early audio DPCs\n", mode);
++        return 0;
++    }
++    if (!strcmp(mode, "publication")) expire_on_reset = 1;
++    kernel_set_timer(TIMER, 0, !strcmp(mode, "periodic") ? 10 : 0,
++                     !strcmp(mode, "publication") ? 0 : DPC);
++    CHECK(!g_eax);
++    if (!strcmp(mode, "publication")) {
++        /* If expiration beat reset, its signal must not disappear. */
++        CHECK(g_timers[0].timer_va == TIMER || WaitForSingleObject(timer_event, 0) == WAIT_OBJECT_0);
++    } else {
++        long long now = g_timers[0].due_ms;
++        kernel_fire_due_timer(0, now);
++        CHECK(callbacks == 1 && g_esp == 0x80000);
++        if (!strcmp(mode, "rearm")) {
++            CHECK(g_timers[0].timer_va == TIMER && g_timers[0].due_ms > now);
++            CHECK(BRIDGE_MEM32(TIMER + 4) == 0 && WaitForSingleObject(timer_event, 0) == WAIT_TIMEOUT);
++            kernel_fire_due_timer(0, now); CHECK(callbacks == 1);
++            kernel_fire_due_timer(0, g_timers[0].due_ms); CHECK(callbacks == 2);
++        } else if (!strcmp(mode, "retire")) {
++            unsigned i; for (i = 0; i < 40; i++) CHECK(memory[TIMER + i] == 0xA5);
++        } else if (!strcmp(mode, "periodic")) {
++            CHECK(g_timers[0].timer_va == TIMER && g_timers[0].due_ms == now + 10);
++            kernel_fire_due_timer(0, now + 9); CHECK(callbacks == 1);
++            kernel_fire_due_timer(0, now + 10); CHECK(callbacks == 2);
++            CHECK(xbox_kernel_cancel_timer(TIMER));
++            kernel_fire_due_timer(0, now + 100); CHECK(callbacks == 2);
++        } else { CHECK(!g_timers[0].timer_va); }
++    }
++    CHECK(BRIDGE_MEM8(g_fs_base + 0x24) == 0);
++    ke_shadow_remove(TIMER); VirtualFree(memory, 0, MEM_RELEASE);
++    printf("PASS timer %s: state/event ordering, callback lifetime and scheduling\n", mode);
++    return 0;
++}
+diff --git a/tests/nv2a_surface_sync/CMakeLists.txt b/tests/nv2a_surface_sync/CMakeLists.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..f73edc22727300bdddaecdc6b7adf187e25858b6
+--- /dev/null
++++ b/tests/nv2a_surface_sync/CMakeLists.txt
+@@ -0,0 +1,13 @@
++cmake_minimum_required(VERSION 3.20)
++project(nv2a_surface_sync C)
++enable_testing()
++add_executable(nv2a_surface_sync test_surface_sync.c)
++target_include_directories(nv2a_surface_sync PRIVATE ../../src ../../src/video)
++target_link_libraries(nv2a_surface_sync PRIVATE d3d11 dxgi dxguid d3dcompiler)
++foreach(samples 1 4)
++    foreach(case initial_snapshot initial_pixels initial_texture initial_srv initial_constants
++                 dirty_snapshot dirty_mask dirty_pixels dirty_texture dirty_srv mask_texture mask_srv
++                 dirty_constants concurrent_initial concurrent_dirty padded16 swizzled unchanged multiple_surfaces)
++        add_test(NAME nv2a_surface_${case}_${samples}x COMMAND nv2a_surface_sync ${case} ${samples})
++    endforeach()
++endforeach()
+diff --git a/tests/nv2a_surface_sync/test_surface_sync.c b/tests/nv2a_surface_sync/test_surface_sync.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..2bdee3a0e9a3f7fde05c5bdf9b0f3f7acc1b1e62
+--- /dev/null
++++ b/tests/nv2a_surface_sync/test_surface_sync.c
+@@ -0,0 +1,254 @@
++/* Failed surface uploads must retain pending CPU writes and retry in the
++ * same epoch. Exercise real D3D11 resources, masked draws and GPU pixels. */
++#define COBJMACROS
++#define WIN32_LEAN_AND_MEAN
++#include <windows.h>
++#include <d3d11_1.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++static int inspect, fail_malloc, fail_realloc, fail_texture, fail_srv, fail_constants;
++static unsigned allocations, updates, draws;
++static uint32_t *late_write;
++static ID3D11Resource *present_buffer;
++
++static void *watched_malloc(size_t bytes)
++{
++    if (inspect) { allocations++; if (fail_malloc && !--fail_malloc) return NULL; }
++    return malloc(bytes);
++}
++static void *watched_realloc(void *old, size_t bytes)
++{
++    if (inspect) { allocations++; if (fail_realloc && !--fail_realloc) return NULL; }
++    return realloc(old, bytes);
++}
++static HRESULT watched_texture(ID3D11Device *dev, const D3D11_TEXTURE2D_DESC *d,
++                                const D3D11_SUBRESOURCE_DATA *data, ID3D11Texture2D **out)
++{
++    if (inspect && fail_texture && !--fail_texture) { *out = NULL; return E_OUTOFMEMORY; }
++    return dev->lpVtbl->CreateTexture2D(dev, d, data, out);
++}
++static HRESULT watched_srv(ID3D11Device *dev, ID3D11Resource *res,
++                            const D3D11_SHADER_RESOURCE_VIEW_DESC *d, ID3D11ShaderResourceView **out)
++{
++    if (inspect && fail_srv && !--fail_srv) { *out = NULL; return E_OUTOFMEMORY; }
++    return dev->lpVtbl->CreateShaderResourceView(dev, res, d, out);
++}
++static HRESULT watched_map(ID3D11DeviceContext *ctx, ID3D11Resource *res, UINT sub,
++                            D3D11_MAP type, UINT flags, D3D11_MAPPED_SUBRESOURCE *out)
++{
++    if (inspect && res == present_buffer) {
++        if (late_write) { *late_write = 0xFF00FF00u; late_write = NULL; }
++        if (fail_constants) { fail_constants = 0; return E_OUTOFMEMORY; }
++    }
++    return ctx->lpVtbl->Map(ctx, res, sub, type, flags, out);
++}
++static void watched_update(ID3D11DeviceContext *ctx, ID3D11Resource *res, UINT sub,
++                            const D3D11_BOX *box, const void *src, UINT row, UINT depth)
++{
++    if (inspect) updates++;
++    ctx->lpVtbl->UpdateSubresource(ctx, res, sub, box, src, row, depth);
++}
++static void watched_draw(ID3D11DeviceContext *ctx, UINT count, UINT start)
++{
++    if (inspect) draws++;
++    ctx->lpVtbl->Draw(ctx, count, start);
++}
++#define malloc watched_malloc
++#define realloc watched_realloc
++#undef ID3D11Device_CreateTexture2D
++#define ID3D11Device_CreateTexture2D watched_texture
++#undef ID3D11Device_CreateShaderResourceView
++#define ID3D11Device_CreateShaderResourceView watched_srv
++#undef ID3D11DeviceContext_Map
++#define ID3D11DeviceContext_Map watched_map
++#undef ID3D11DeviceContext_UpdateSubresource
++#define ID3D11DeviceContext_UpdateSubresource watched_update
++#undef ID3D11DeviceContext_Draw
++#define ID3D11DeviceContext_Draw watched_draw
++#include "../../src/video/nv2a_d3d11.c"
++#undef malloc
++#undef realloc
++
++static uint8_t ram[0x100000];
++ptrdiff_t xbox_GetMemoryOffset(void) { return (ptrdiff_t)ram; }
++HWND xbox_FramebufferWindowHandle(void) { return NULL; }
++int xbox_FramebufferScanSource(uint32_t *va, uint32_t *pitch) { return 0; }
++int xbox_FramebufferOverlay(XboxOverlay *ovl) { return 0; }
++void xbox_FramebufferNoteFlip(uint32_t n) {}
++const uint32_t (*nv2a_vsh_program(uint32_t *start, uint32_t *version))[4] { return NULL; }
++const float (*nv2a_vsh_constants(uint32_t *version))[4] { return NULL; }
++#define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #x); exit(1); } } while (0)
++
++static uint32_t pixel(Surface *s, unsigned x, unsigned y)
++{
++    ID3D11Texture2D *stage;
++    D3D11_TEXTURE2D_DESC d;
++    D3D11_MAPPED_SUBRESOURCE m;
++    uint32_t value;
++    int saved_inspect = inspect;
++    inspect = 0;
++    surface_resolve(s);
++    ID3D11Texture2D_GetDesc(s->tex, &d);
++    d.Usage = D3D11_USAGE_STAGING; d.BindFlags = d.MiscFlags = 0;
++    d.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
++    CHECK(SUCCEEDED(ID3D11Device_CreateTexture2D(s_dev, &d, NULL, &stage)));
++    ID3D11DeviceContext_CopyResource(s_ctx, (ID3D11Resource *)stage, (ID3D11Resource *)s->tex);
++    CHECK(SUCCEEDED(ID3D11DeviceContext_Map(s_ctx, (ID3D11Resource *)stage, 0, D3D11_MAP_READ, 0, &m)));
++    memcpy(&value, (uint8_t *)m.pData + y * m.RowPitch + x * 4, sizeof value);
++    ID3D11DeviceContext_Unmap(s_ctx, (ID3D11Resource *)stage, 0);
++    ID3D11Texture2D_Release(stage);
++    inspect = saved_inspect;
++    return value;
++}
++static void reset_slot(int k, int texture)
++{
++    if (s_up_srv[k]) ID3D11ShaderResourceView_Release(s_up_srv[k]);
++    s_up_srv[k] = NULL;
++    if (texture && s_up_tex[k]) { ID3D11Texture2D_Release(s_up_tex[k]); s_up_tex[k] = NULL; }
++}
++static void clear_gpu(Surface *s)
++{
++    float red[4] = {1, 0, 0, 1};
++    ID3D11DeviceContext_ClearRenderTargetView(s_ctx, s->rtv, red);
++    s->ms_dirty = s->gpu_dirty = 1;
++}
++static void clear_snapshot(void)
++{
++    free(s_sync_rows); s_sync_rows = NULL; s_sync_cap = 0;
++}
++static void clear_mask(void)
++{
++    free(s_mask_pixels); s_mask_pixels = NULL; s_mask_cap = 0;
++}
++static void clear_pixels(void)
++{
++    free(s_up_pixels); s_up_pixels = NULL; s_up_cap = 0;
++}
++static void check_distinct_shadows(const Surface *large_surface, const Surface *small_surface)
++{
++    CHECK(large_surface->shadow && small_surface->shadow && large_surface->shadow != small_surface->shadow);
++    CHECK(s_sync_rows != large_surface->shadow && s_sync_rows != small_surface->shadow);
++}
++static void test_multiple_surfaces(void)
++{
++    Surface *large_surface = surface_get(0x20000, 64 * 4, 8, 64, 32, 0);
++    Surface *small_surface = surface_get(0x30000, 8 * 4, 8, 8, 8, 0);
++    uint32_t *large_pixels = (uint32_t *)(ram + 0x20000);
++    uint32_t *small_pixels = (uint32_t *)(ram + 0x30000);
++    uint32_t generation;
++    CHECK(large_surface && small_surface);
++    clear_gpu(large_surface); clear_gpu(small_surface);
++    inspect = 1;
++
++    large_pixels[31 * 64 + 63] = 0xFF0000FFu;
++    surface_sync(large_surface, 1);
++    check_distinct_shadows(large_surface, small_surface);
++    CHECK(pixel(large_surface, 63, 31) == 0xFF0000FFu && pixel(large_surface, 62, 31) == 0xFFFF0000u);
++    CHECK(pixel(small_surface, 7, 7) == 0xFFFF0000u);
++
++    small_pixels[7 * 8 + 7] = 0xFF00FF00u;
++    surface_sync(small_surface, 1);
++    check_distinct_shadows(large_surface, small_surface);
++    CHECK(pixel(small_surface, 7, 7) == 0xFF00FF00u && pixel(small_surface, 6, 7) == 0xFFFF0000u);
++    CHECK(pixel(large_surface, 63, 31) == 0xFF0000FFu);
++
++    /* The reusable buffer now came from the smaller surface and must grow. */
++    large_pixels[31 * 64 + 62] = 0xFFFFFFFFu;
++    surface_sync(large_surface, 1);
++    check_distinct_shadows(large_surface, small_surface);
++    CHECK(pixel(large_surface, 62, 31) == 0xFFFFFFFFu && pixel(large_surface, 63, 31) == 0xFF0000FFu);
++    CHECK(pixel(small_surface, 7, 7) == 0xFF00FF00u);
++    CHECK(((uint32_t *)large_surface->shadow)[31 * 64 + 62] == 0xFFFFFFFFu);
++    CHECK(((uint32_t *)small_surface->shadow)[7 * 8 + 7] == 0xFF00FF00u);
++
++    surface_release(small_surface);
++    CHECK(!small_surface->shadow && s_sync_rows != large_surface->shadow);
++    generation = large_surface->gen;
++    large_pixels[0] = 0xFF00FF00u;
++    fail_constants = 1;
++    surface_sync(large_surface, 1);
++    CHECK(!fail_constants && large_surface->gen == generation && !((uint32_t *)large_surface->shadow)[0]);
++    CHECK(pixel(large_surface, 0, 0) == 0xFFFF0000u);
++    surface_sync(large_surface, 0);
++    CHECK(large_surface->gen == generation + 1 && s_sync_rows != large_surface->shadow);
++    CHECK(pixel(large_surface, 0, 0) == 0xFF00FF00u && pixel(large_surface, 1, 0) == 0xFFFF0000u);
++    CHECK(pixel(large_surface, 62, 31) == 0xFFFFFFFFu && pixel(large_surface, 63, 31) == 0xFF0000FFu);
++    CHECK(draws == 4);
++    surface_release(large_surface);
++    clear_snapshot(); /* Must not alias either released surface's allocation. */
++    printf("PASS: differently sized surface buffers alternate, grow, release and retry; %ux MSAA\n", s_msaa);
++}
++int main(int argc, char **argv)
++{
++    const char *test;
++    Surface *s;
++    uint32_t generation, *row;
++    int initial, concurrent, bpp16, swizzled;
++    CHECK(argc == 3); test = argv[1];
++    initial = !strncmp(test, "initial_", 8) || !strcmp(test, "concurrent_initial");
++    concurrent = !strncmp(test, "concurrent_", 11);
++    bpp16 = !strcmp(test, "padded16"); swizzled = !strcmp(test, "swizzled");
++    _putenv_s("RECOMP_MSAA", argv[2]); _putenv_s("RECOMP_RENDER_SCALE", "1");
++    _putenv_s("RECOMP_PS_SPEC", "0"); _putenv_s("RECOMP_FPS_LIMIT", "0");
++    CHECK(nv2a_d3d_init());
++    present_buffer = (ID3D11Resource *)s_cb_present;
++    if (!strcmp(test, "multiple_surfaces")) { test_multiple_surfaces(); return 0; }
++    s = surface_get(0x20000, bpp16 ? 80 : 128, bpp16 ? 3 : 8, 32, 32, swizzled);
++    CHECK(s && s->shadow); present_buffer = (ID3D11Resource *)s_cb_present;
++    clear_gpu(s); generation = s->gen;
++    row = (uint32_t *)(ram + s->va);
++    if (initial) { free(s->shadow); s->shadow = NULL; }
++    if (bpp16) {
++        uint16_t blue = 0x001F;
++        memcpy(ram + s->va + 7 * s->pitch + 5 * 2, &blue, sizeof blue);
++        memset(ram + s->va + 64, 0xFF, 16); /* padding must not upload */
++    } else if (swizzled) {
++        /* Morton address of pixel (5,7), with five interleaved x/y bits. */
++        row[3 + 8 + 48] = 0xFF0000FFu;
++    } else if (strcmp(test, "unchanged")) row[0] = 0xFF0000FFu;
++
++    if (!strcmp(test, "initial_snapshot") || !strcmp(test, "dirty_snapshot")) {
++        clear_snapshot(); fail_realloc = 1;
++    } else if (!strcmp(test, "dirty_mask")) { clear_snapshot(); clear_mask(); fail_realloc = 2; }
++    else if (strstr(test, "pixels")) { clear_pixels(); fail_malloc = 1; }
++    else if (!strcmp(test, "initial_texture") || !strcmp(test, "dirty_texture")) {
++        reset_slot(0, 1); fail_texture = 1;
++    } else if (!strcmp(test, "initial_srv") || !strcmp(test, "dirty_srv")) {
++        reset_slot(0, 0); fail_srv = 1;
++    } else if (!strcmp(test, "mask_texture")) { reset_slot(1, 1); fail_texture = 1; }
++    else if (!strcmp(test, "mask_srv")) { reset_slot(1, 1); fail_srv = 1; }
++    else if (strstr(test, "constants")) fail_constants = 1;
++    if (concurrent) late_write = row;
++    inspect = 1;
++    surface_sync(s, 1);
++    if (!strcmp(test, "unchanged")) {
++        surface_sync(s, 0); s_epoch++; surface_sync(s, 0);
++        CHECK(!allocations && !updates && !draws && s->gen == generation);
++        CHECK(pixel(s, 0, 0) == 0xFFFF0000u);
++    } else if (bpp16 || swizzled) {
++        CHECK(draws == 1 && pixel(s, 5, 7) == 0xFF0000FFu);
++        CHECK(pixel(s, 6, 7) == 0xFFFF0000u);
++        s_epoch++; surface_sync(s, 0); CHECK(draws == 1);
++    } else if (concurrent) {
++        CHECK(!late_write && draws == 1 && pixel(s, 0, 0) == 0xFF0000FFu);
++        CHECK(*(uint32_t *)s->shadow == 0xFF0000FFu && row[0] == 0xFF00FF00u);
++        s_epoch++; surface_sync(s, 0);
++        CHECK(draws == 2 && pixel(s, 0, 0) == 0xFF00FF00u);
++        CHECK(initial || pixel(s, 1, 0) == 0xFFFF0000u);
++    } else {
++        CHECK(!fail_malloc && !fail_realloc && !fail_texture && !fail_srv && !fail_constants);
++        CHECK(!draws && s->gen == generation && s->synced_frame != s_epoch);
++        CHECK(initial ? !s->shadow : *(uint32_t *)s->shadow == 0);
++        CHECK(pixel(s, 0, 0) == 0xFFFF0000u);
++        surface_sync(s, 0); /* no epoch advance: failures must remain retryable */
++        CHECK(draws == 1 && s->gen == generation + 1 && s->synced_frame == s_epoch);
++        CHECK(*(uint32_t *)s->shadow == 0xFF0000FFu && pixel(s, 0, 0) == 0xFF0000FFu);
++        CHECK(initial || pixel(s, 1, 0) == 0xFFFF0000u);
++        s_epoch++; surface_sync(s, 0); CHECK(draws == 1);
++    }
++    printf("PASS: %s, %ux MSAA; exact GPU pixels, successful shadow commit and retry\n", test, s_msaa);
++    return 0;
++}
+diff --git a/tests/nv2a_textures/mip_generation_tests.h b/tests/nv2a_textures/mip_generation_tests.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..34673a144974a791a6218649aa32539b03c3ecd4
+--- /dev/null
++++ b/tests/nv2a_textures/mip_generation_tests.h
+@@ -0,0 +1,242 @@
++/* In-place generation must preserve every channel, mip, and cube face. */
++static void mip_reference(const uint32_t *src, unsigned w, unsigned h, uint32_t *dst)
++{
++    unsigned nw = w > 1 ? w / 2 : 1, nh = h > 1 ? h / 2 : 1;
++    unsigned x, y, c, dx, dy;
++    for (y = 0; y < nh; y++)
++        for (x = 0; x < nw; x++) {
++            uint32_t pixel = 0;
++            for (c = 0; c < 4; c++) {
++                unsigned sum = 0;
++                for (dy = 0; dy < 2; dy++)
++                    for (dx = 0; dx < 2; dx++) {
++                        unsigned sx = w > 1 ? x * 2 + dx : 0;
++                        unsigned sy = h > 1 ? y * 2 + dy : 0;
++                        sum += (src[sy * w + sx] >> (8 * c)) & 255;
++                    }
++                pixel |= ((sum + 2) / 4) << (8 * c);
++            }
++            dst[y * nw + x] = pixel;
++        }
++}
++
++static int test_mip_inplace(void)
++{
++    const unsigned dimensions[] = {1, 2, 3, 4, 5, 7, 8, 15, 16, 31, 64, 128};
++    uint32_t original[128 * 128], reference[128 * 128], actual[128 * 128 + 2];
++    uint32_t random = 0x58A42F01u;
++    unsigned wi, hi, i, w, h, nw, nh;
++    for (wi = 0; wi < sizeof dimensions / sizeof dimensions[0]; wi++)
++        for (hi = 0; hi < sizeof dimensions / sizeof dimensions[0]; hi++) {
++            w = dimensions[wi]; h = dimensions[hi];
++            for (i = 0; i < w * h; i++) original[i] = random_word(&random);
++            memcpy(actual + 1, original, w * h * 4);
++            actual[0] = actual[1 + w * h] = 0xA5E37C91u;
++            while (w > 1 || h > 1) {
++                nw = w > 1 ? w / 2 : 1; nh = h > 1 ? h / 2 : 1;
++                mip_reference(original, w, h, reference);
++                halve_bgra(actual + 1, w, h, actual + 1);
++                CHECK(!memcmp(reference, actual + 1, nw * nh * 4));
++                CHECK(actual[0] == 0xA5E37C91u);
++                CHECK(actual[1 + dimensions[wi] * dimensions[hi]] == 0xA5E37C91u);
++                memcpy(original, reference, nw * nh * 4);
++                w = nw; h = nh;
++            }
++        }
++    puts("PASS: in-place mip chains exactly match independent channel averaging for 144 rectangles");
++    return 0;
++}
++
++static int check_mip_resource(ID3D11ShaderResourceView *view, const NvD3DTexture *texture,
++                               const TexLayout *layout)
++{
++    ID3D11Resource *resource = NULL;
++    ID3D11Texture2D *source = NULL, *staging = NULL;
++    D3D11_TEXTURE2D_DESC desc;
++    D3D11_MAPPED_SUBRESOURCE mapped;
++    uint32_t pixels[32 * 32], reduced[32 * 32];
++    unsigned face, mip, row, w, h, levels = host_levels(layout, texture);
++    ID3D11ShaderResourceView_GetResource(view, &resource);
++    CHECK(SUCCEEDED(ID3D11Resource_QueryInterface(resource, &IID_ID3D11Texture2D, (void **)&source)));
++    ID3D11Resource_Release(resource);
++    ID3D11Texture2D_GetDesc(source, &desc);
++    CHECK(desc.MipLevels == levels && desc.ArraySize == (UINT)layout->faces);
++    CHECK(desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM);
++    desc.Usage = D3D11_USAGE_STAGING; desc.BindFlags = desc.MiscFlags = 0;
++    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
++    CHECK(SUCCEEDED(ID3D11Device_CreateTexture2D(s_dev, &desc, NULL, &staging)));
++    ID3D11DeviceContext_CopyResource(s_ctx, (ID3D11Resource *)staging, (ID3D11Resource *)source);
++    for (face = 0; face < desc.ArraySize; face++) {
++        w = texture->width; h = texture->height;
++        for (mip = 0; mip < levels; mip++) {
++            unsigned subresource = mip + face * levels;
++            if (mip < (unsigned)layout->levels)
++                decode_level(texture, layout, guest(texture->addr) + face * layout->face_stride +
++                             layout->level_off[mip], mip, NULL, pixels);
++            else {
++                unsigned previous_w = texture->width >> (mip - 1);
++                unsigned previous_h = texture->height >> (mip - 1);
++                mip_reference(pixels, previous_w ? previous_w : 1,
++                               previous_h ? previous_h : 1, reduced);
++                memcpy(pixels, reduced, w * h * 4);
++            }
++            CHECK(SUCCEEDED(ID3D11DeviceContext_Map(s_ctx, (ID3D11Resource *)staging, subresource,
++                                                   D3D11_MAP_READ, 0, &mapped)));
++            for (row = 0; row < h; row++)
++                CHECK(!memcmp((uint8_t *)mapped.pData + row * mapped.RowPitch, pixels + row * w, w * 4));
++            ID3D11DeviceContext_Unmap(s_ctx, (ID3D11Resource *)staging, subresource);
++            if (w > 1) w /= 2;
++            if (h > 1) h /= 2;
++        }
++    }
++    ID3D11Texture2D_Release(staging); ID3D11Texture2D_Release(source);
++    return 0;
++}
++
++static int test_mip_chain(void)
++{
++    const unsigned formats[] = {0x06, 0x07, 0x0C, 0x0E, 0x0F};
++    const unsigned dimensions[][2] = {{16, 16}, {32, 8}, {1, 32}, {32, 1}};
++    uint32_t random = 0xDAC35691u;
++    unsigned format, dimension, iteration, i, count = 0;
++    for (format = 0; format < sizeof formats / sizeof formats[0]; format++)
++        for (dimension = 0; dimension < sizeof dimensions / sizeof dimensions[0]; dimension++) {
++            NvD3DTexture texture = {0};
++            TexLayout layout;
++            ID3D11ShaderResourceView *first = NULL, *view;
++            texture.addr = 0x20000 + count++ * 0x4000;
++            texture.color = formats[format];
++            texture.format = (formats[format] << 8) | 0x03220000u;
++            texture.width = dimensions[dimension][0]; texture.height = dimensions[dimension][1];
++            texture.levels = 2; texture.cube = dimension == 0;
++            CHECK(tex_layout(&texture, &layout));
++            for (iteration = 0; iteration < 2; iteration++) {
++                size_t allocations;
++                for (i = 0; i < layout.total; i++) ram[texture.addr + i] = (uint8_t)random_word(&random);
++                nv2a_d3d_kick();
++                allocations = pixel_allocations;
++                view = texture_get(&texture);
++                CHECK(view);
++                if (iteration) {
++                    CHECK(view == first);
++                    CHECK(pixel_allocations == allocations);
++                } else first = view;
++                CHECK(!check_mip_resource(view, &texture, &layout));
++            }
++        }
++    puts("PASS: short 2D/cube mip chains and changed uploads retain every GPU pixel without temporary allocation");
++    return 0;
++}
++
++typedef void (*MipChainFunction)(uint32_t *, unsigned, unsigned);
++static volatile uint32_t mip_sink;
++
++/* Allocation/copy behavior before this change, using the same box filter. */
++static void mip_chain_before(uint32_t *pixels, unsigned w, unsigned h)
++{
++    uint32_t *a = malloc((size_t)w * h * 4), *b = malloc((size_t)w * h * 4);
++    memcpy(a, pixels, (size_t)w * h * 4);
++    while (w > 1 || h > 1) {
++        uint32_t *tmp;
++        halve_bgra(a, w, h, b);
++        if (w > 1) w /= 2;
++        if (h > 1) h /= 2;
++        mip_sink ^= b[w * h - 1];
++        tmp = a; a = b; b = tmp;
++    }
++    free(a); free(b);
++}
++
++static void mip_chain_inplace(uint32_t *pixels, unsigned w, unsigned h)
++{
++    while (w > 1 || h > 1) {
++        halve_bgra(pixels, w, h, pixels);
++        if (w > 1) w /= 2;
++        if (h > 1) h /= 2;
++        mip_sink ^= pixels[w * h - 1];
++    }
++}
++
++static __declspec(noinline) double time_mip_chain(MipChainFunction function,
++    uint32_t *pixels, unsigned w, unsigned h, unsigned repetitions)
++{
++    LARGE_INTEGER frequency;
++    int64_t start;
++    unsigned iteration;
++    QueryPerformanceFrequency(&frequency);
++    start = qpc();
++    for (iteration = 0; iteration < repetitions; iteration++) {
++        pixels[0]++;
++        function(pixels, w, h);
++    }
++    return (qpc() - start) * 1000.0 / frequency.QuadPart / repetitions;
++}
++
++static void sort_mip_times(double values[7])
++{
++    unsigned i, j;
++    for (i = 0; i < 7; i++)
++        for (j = i + 1; j < 7; j++)
++            if (values[j] < values[i]) {
++                double tmp = values[i]; values[i] = values[j]; values[j] = tmp;
++            }
++}
++
++static int benchmark_mip_cpu(void)
++{
++    uint32_t *pixels = malloc(512 * 512 * 4);
++    const unsigned sizes[] = {4, 16, 128, 512};
++    unsigned size, sample;
++    CHECK(pixels);
++    memset(pixels, 127, 512 * 512 * 4);
++    for (size = 0; size < sizeof sizes / sizeof sizes[0]; size++) {
++        double before[7], after[7];
++        unsigned repetitions = sizes[size] <= 16 ? 20000 : 200;
++        for (sample = 0; sample < 7; sample++) {
++            if (sample & 1) {
++                after[sample] = time_mip_chain(mip_chain_inplace, pixels, sizes[size], sizes[size], repetitions);
++                before[sample] = time_mip_chain(mip_chain_before, pixels, sizes[size], sizes[size], repetitions);
++            } else {
++                before[sample] = time_mip_chain(mip_chain_before, pixels, sizes[size], sizes[size], repetitions);
++                after[sample] = time_mip_chain(mip_chain_inplace, pixels, sizes[size], sizes[size], repetitions);
++            }
++        }
++        sort_mip_times(before); sort_mip_times(after);
++        printf("MIP CPU %ux%u median: before %.6f ms, in-place %.6f ms, %.2fx\n",
++               sizes[size], sizes[size], before[3], after[3], before[3] / after[3]);
++    }
++    free(pixels);
++    return 0;
++}
++
++static int benchmark_mip_upload(void)
++{
++    NvD3DTexture texture = {0};
++    TexLayout layout;
++    LARGE_INTEGER frequency;
++    double times[7];
++    unsigned sample, iteration, i;
++    size_t allocations = pixel_allocations;
++    uint32_t random = 0xA2B4581Du;
++    texture.addr = 0x100000; texture.color = 0x06; texture.format = 0x0AA40600u;
++    texture.width = texture.height = 1024; texture.levels = 4;
++    CHECK(tex_layout(&texture, &layout));
++    for (i = 0; i < layout.total; i++) ram[texture.addr + i] = (uint8_t)random_word(&random);
++    CHECK(texture_get(&texture));
++    QueryPerformanceFrequency(&frequency);
++    allocations = pixel_allocations;
++    for (sample = 0; sample < 7; sample++) {
++        int64_t start = qpc();
++        for (iteration = 0; iteration < 100; iteration++) {
++            ram[texture.addr]++;
++            nv2a_d3d_kick();
++            CHECK(texture_get(&texture));
++        }
++        ID3D11DeviceContext_Flush(s_ctx);
++        times[sample] = (qpc() - start) * 1000.0 / frequency.QuadPart / 100;
++    }
++    sort_mip_times(times);
++    printf("MIP UPLOAD 1024x1024, 4 guest/11 host levels: %.6f ms median per update, %zu temporary allocation attempts / 700 updates\n",
++           times[3], pixel_allocations - allocations);
++    return 0;
 +}

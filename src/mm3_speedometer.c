@@ -235,16 +235,48 @@ static void line(const Dial *dial, float x1, float y1, float x2, float y2,
 
 static void disk(const Dial *dial)
 {
+    static RECOMP_TLS struct { float c, s; } circle[41];
+    static RECOMP_TLS int ready;
     unsigned i;
+    /* The dial background does not change with the car, units or camera.
+     * Retain the original double angles and float rounding, but compute each
+     * boundary once per guest thread instead of twice every frame. */
+    if (!ready) {
+        for (i = 0; i <= 40; ++i) {
+            double a = i * 6.283185307179586 / 40.0;
+            circle[i].c = (float)cos(a);
+            circle[i].s = (float)sin(a);
+        }
+        ready = 1;
+    }
     for (i = 0; i < 40; ++i) {
-        double a = i * 6.283185307179586 / 40.0;
-        double b = (i + 1) * 6.283185307179586 / 40.0;
         const float xy[8] = {dial->cx, dial->cy,
-            dial->cx + 56.0f * (float)cos(a), dial->cy + 56.0f * (float)sin(a),
-            dial->cx + 56.0f * (float)cos(b), dial->cy + 56.0f * (float)sin(b),
+            dial->cx + 56.0f * circle[i].c, dial->cy + 56.0f * circle[i].s,
+            dial->cx + 56.0f * circle[i + 1].c, dial->cy + 56.0f * circle[i + 1].s,
             dial->cx, dial->cy};
         quad(dial, xy, 0.035f, 0.045f, 0.055f);
     }
+}
+
+static const float (*tick_directions(double start, double end))[2]
+{
+    static RECOMP_TLS struct {
+        double start, end;
+        float directions[17][2];
+        int ready;
+    } cache;
+    unsigned i;
+    /* Camera type/units may select another arc. Its angles remain fixed
+     * while driving; positions and labels still use the current frame. */
+    if (!cache.ready || cache.start != start || cache.end != end) {
+        for (i = 0; i <= 16; ++i) {
+            double a = (start + (end - start) * i / 16.0) * 0.017453292519943295;
+            cache.directions[i][0] = (float)cos(a);
+            cache.directions[i][1] = (float)sin(a);
+        }
+        cache.start = start; cache.end = end; cache.ready = 1;
+    }
+    return cache.directions;
 }
 
 static void digit(const Dial *dial, unsigned value, float x, float y)
@@ -311,6 +343,8 @@ int mm3_speedometer_draw(uint32_t node, uint32_t frame, double speed_kmh)
     int metric;
     float maximum;
     double start, end, value, angle;
+    const float (*directions)[2];
+    float needle_c, needle_s;
     GuestState state;
     Dial dial;
     if (!mapped(node, 0x34) || !mapped(frame - 352u, 0x180) ||
@@ -338,9 +372,9 @@ int mm3_speedometer_draw(uint32_t node, uint32_t frame, double speed_kmh)
     dial.scratch = g_esp - 0x500u; dial.renderer = g_esi;
     dial.effects = MEM32(frame + 0x18u); dial.frame = frame; dial.state = &state;
     disk(&dial);
+    directions = tick_directions(start, end);
     for (i = 0; i <= 16; ++i) {
-        double a = (start + (end - start) * i / 16.0) * 0.017453292519943295;
-        float c = (float)cos(a), s = (float)sin(a), inner = i % 2 ? 52.0f : 50.0f;
+        float c = directions[i][0], s = directions[i][1], inner = i % 2 ? 52.0f : 50.0f;
         line(&dial, dial.cx + inner * c, dial.cy + inner * s,
             dial.cx + 55.0f * c, dial.cy + 55.0f * s, i % 2 ? .8f : 1.2f, .73f, .8f, .88f);
         if (!(i % 2))
@@ -352,8 +386,9 @@ int mm3_speedometer_draw(uint32_t node, uint32_t frame, double speed_kmh)
     if (!isfinite(value) || value < 0.0) value = 0.0;
     if (value > maximum) value = maximum;
     angle = (start + (end - start) * value / maximum) * 0.017453292519943295;
-    line(&dial, dial.cx - 5.0f * (float)cos(angle), dial.cy - 5.0f * (float)sin(angle),
-         dial.cx + 64.0f * (float)cos(angle), dial.cy + 64.0f * (float)sin(angle),
+    needle_c = (float)cos(angle); needle_s = (float)sin(angle);
+    line(&dial, dial.cx - 5.0f * needle_c, dial.cy - 5.0f * needle_s,
+         dial.cx + 64.0f * needle_c, dial.cy + 64.0f * needle_s,
          1.6f, 1.0f, .26f, .10f);
     box(&dial, dial.cx - 2.0f, dial.cy - 2.0f, 4.0f, 4.0f, .87f, .91f, .96f);
     restore_state(&state);

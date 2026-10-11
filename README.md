@@ -379,8 +379,19 @@ tools\venv\Scripts\python.exe tools\car-mods\prepare.py --restore
 | `RECOMP_XA2_PCM_DUMP=<file>` | Dump the mixed audio (s16 stereo 48 kHz). |
 | `RECOMP_WATCHDOG_SECS=<n>` | After n seconds of running, report where the game thread is (for hangs). |
 
-`tools\bench\run.ps1 -Exe <exe> -Save <save template>` runs the repeatable menu + race
-benchmark (frame-time percentiles, lows, jitter, executor time, GPU use).
+`tools\bench\run.ps1 -Exe <exe> -Save <save template> -Profile Balanced -Tag <unique-name>`
+runs a frontend and stationary gameplay benchmark. It copies the save, pins the
+profile settings, creates a separate shader cache, and records the executable
+hash, effective settings, player positions, frame intervals and process CPU.
+`tools\bench\summarize.py` reports guest-flip and host Present submission intervals
+separately; neither measures when a frame reaches the display. The run rejects
+startup/scene failures and waits for complete CSV persistence before stopping.
+Omit `-Exe` to use the current build. Optional `-X <x> -Z <z>` requests a verified
+teleport; otherwise it measures the saved scene's spawn. Use the same save,
+settings and coordinates for comparisons. `-ShaderCacheSeed <directory>` copies
+an identical cache snapshot into each run; without it, each cache starts empty.
+The frontend scene is selected by timed input and is not verified as a specific
+menu. Traffic, scene timing and other system activity still affect comparisons.
 `tools\powershell\Test-MM3AiStart.ps1 -Exe <exe> -Save <save template> [-FpsLimit 60]` takes the
 same path into the first race and checks every AI car leaves the line forwards (exit 0 = pass).
 
@@ -410,6 +421,11 @@ GPU flushes.
 Draws retain fixed vertex resources and update vertex shader bindings only when
 the pass changes. Repeated texture stages reuse validated sampler-table entries
 and use the mip count already computed during texture lookup.
+Pending native PCM uses a bounded circular queue instead of shifting the backlog
+on every consumption. Its storage remains capped at 64 KiB; geometric growth
+preserves queued frames through wrapping and allocation failures. Custom HUD
+dials cache their fixed background/tick directions per guest thread and reuse
+the needle's trigonometric results without changing geometry or guest state.
 Large texture-content buffers use native vector integer arithmetic when both
 the CPU and Windows support it. Hash values and byte coverage match the scalar
 implementation exactly; small shader keys retain their scalar path.
@@ -432,6 +448,12 @@ Both queue-pointer views follow actual command consumption. GPU notifications
 become visible after their matching consumed position and readbacks, so a ring
 wrap cannot wake the producer with a read pointer from the previous lap.
 Native waits retain the game's final queue and GPU-idle checks.
+Deferred callbacks and due timers acquire the runtime's DISPATCH exclusion
+before being removed from their queues. Cancellation while a guest thread
+holds DISPATCH can therefore still find the pending work; the worker cannot
+retain a canceled callback while waiting for permission to execute it.
+Interrupt synchronization callbacks in the kernel bridge use the same modeled
+ISR exclusion and IRQL as interrupt delivery, restoring the caller's IRQL afterward.
 Concurrent guest workers publish and remove native handle tokens under a short
 table lock, with pointer-sized acquire/release access for resolution. Native
 file operations and waits run outside that lock.
@@ -475,6 +497,200 @@ CSV `present_ms` records intervals between successful DXGI Present returns for
 guest flips, excluding movie-only ticks and failed submissions.
 Compare it with `frame_ms` when investigating uneven presentation. Neither
 column measures when the monitor actually displays a frame.
+
+### Performance review (2026-10-11)
+
+The first code-review assessment in this audit was **7/10 for implementation, 7/10 for
+efficiency and 6/10 for maintainability**. These are engineering judgments,
+not benchmark-derived scores. Native recompilation, bounded caches, asynchronous
+shader compilation, sleeping GPU waits and focused guest-ABI tests are strengths.
+The large compatibility/renderer modules and unresolved gameplay hitches limit
+the assessment; this pass does not establish a broad FPS increase.
+
+| Improvement | Verified result | Scope of evidence |
+|---|---|---|
+| Circular pending PCM queue | 64 to 7 growth allocations; no backlog shifts | 100,000 saturated consume/refill operations: median 61.689 to 3.820 ms over five runs; maximum queue remains 64 KiB |
+| Cached custom-dial geometry | 198 to 2 trigonometric calls per warm dial | Bit-identical 2,260,900-byte quad streams across 82 scenarios; guest state preserved |
+| Deferred-work claim ordering | Canceled DPCs/timers cannot escape a raised-IRQL owner's cancellation | Both tests fail before and pass after the fix; uncanceled callback arguments and stack recovery preserved |
+| Interrupt synchronization | Callback excludes modeled ISRs and restores IRQL | Both regressions fail before and pass after; callback context, Boolean result and guest stack preserved |
+| Benchmark runner | Isolated saves/caches, pinned settings, validated gameplay and complete CSV | Launch-failure environment restoration, safe copy boundaries and summary interval checks |
+
+Validation passed 32 renderer tests, 16 DSP tests, 22 kernel-dispatch tests,
+four benchmark tests, and the custom-dial/readout regressions. The production
+RelWithDebInfo build succeeds. The packaged runtime patch applies to the pinned
+toolkit and reproduces the working source after Git newline normalization.
+
+The delivered build completed a 30-second Balanced stationary gameplay window
+at the same saved spawn, with isolated empty shader caches in both runs:
+
+| Build | FPS | Frame p99 | Maximum interval | Process CPU | Hitches over 2x median |
+|---|---|---|---|---|---|
+| Preserved baseline | 59.97 | 17.41 ms | 20.65 ms | 13.66% | 0 |
+| Delivered build | 60.00 | 17.39 ms | 21.59 ms | 13.41% | 0 |
+
+These are single capped windows with changing traffic, not proof of a general
+FPS or CPU improvement. Three additional baseline startup checks and three
+checks with the PCM/HUD/DPC changes, without the graphics experiment, completed
+successfully. The delivered build also includes the interrupt synchronization
+fix. This limited validation cannot establish that every startup failure is fixed.
+
+A fixed graphics-state retention experiment passed pixel/state regressions and
+reduced unchanged-draw calls from 12.59 to 3.32 ns in a microbenchmark, only about
+0.0074 ms per 800 draws. Builds containing it repeatedly failed startup in deferred
+DirectSound voice work, despite one completed gameplay run. No cache defect was
+identified, and its connection to the failure remains uncertain. The experiment
+is excluded from the delivered source and build while that issue is investigated.
+Its completed gameplay run averaged 59.71 FPS, with a 160.82 ms hitch; the initial
+matched baseline averaged 59.97 FPS without that hitch. This is not evidence of
+a whole-game performance increase.
+
+The synchronization races above are independently proven; neither establishes
+the cause of the DirectSound voice-lifecycle failure. Startup reliability and
+gameplay hitches remain priorities. Further performance work should measure draw
+setup, uploads and submission separately, then examine surface synchronization,
+texture hashing and the GPU vertex-program interpreter in busy driving scenes.
+Texture eviction rescans and quadratic HUD grouping remain lower-priority
+candidates until profiles show a cost. The follow-up below addresses temporary
+mip buffers and the surface synchronization upload-failure path.
+
+Local measurements, preserved before sources/executable, geometry streams and
+regression logs are retained under `conformance_tmp/performance-audit-20261011`;
+full-game run evidence is under `conformance_tmp/bench`. These generated artifacts
+are excluded from source control.
+
+### Performance follow-up (2026-10-11)
+
+The revised code-review assessment is **7.5/10 for implementation, 7.5/10 for
+code efficiency and 6/10 for maintainability**. These provisional judgments
+credit the verified local changes and failure handling; they are not a measured
+whole-game speedup.
+
+This pass preserves the earlier changes and improves three specific paths:
+
+| Weak point | Change | Verified result |
+|---|---|---|
+| Repeated audio volume exponentiation | Reuse a 4,096-entry attenuation table per APU; rebuild if the audio thread's rounding mode changes | 8,388,608 conversions: median 53.435 to 5.627 ms over five trials (9.5x for this operation); exact float and PCM comparisons for all 65,536 input encodings under all four rounding modes |
+| Temporary generated-mip buffers | Reduce each mip in place in the existing decode buffer | Two temporary allocations and a copy removed per applicable upload; 1,400 to zero temporary allocations across 700 updates; isolated 128x128 mip generation 0.0603 to 0.0296 ms |
+| Surface shadow committed before upload success | Stage guest bytes and commit them only after successful submission; retry failed resources and constants | 38 surface regressions cover exact pixels, injected failures, same-epoch retry, writes during submission, multiple surface sizes and release, and 1x/4x MSAA |
+
+The audio table adds 16 KiB per APU. Surface synchronization retains one reusable
+raw snapshot for changed surfaces, with extra copying on that path; unchanged
+surfaces allocate, copy and upload nothing. This is a correctness improvement,
+not a claimed synchronization speedup. Full texture-upload timings overlapped
+between builds, so the mip microbenchmark does not establish a general upload
+or FPS gain. Ten surface failure regressions fail against the preserved original
+renderer and pass with the fix.
+
+The benchmark runner now accepts `-Scenario Driving`, which holds the throttle
+for the measurement window and verifies that the car moved. It retains the input
+script, scenario, executable hash, copied-save identity and start/end positions.
+The default remains `Stationary`. Driving uses repeatable inputs, but traffic
+and collisions can change the route; compare its results separately from the
+stationary window.
+
+Validation passes 72 renderer tests, 17 DSP tests and four benchmark tests. The
+RelWithDebInfo game build succeeds, and the refreshed runtime patch reproduces
+the working runtime from its pinned toolkit revision. Local source snapshots,
+microbenchmarks and test evidence are under
+`conformance_tmp/performance-followup-20261011`; gameplay runs use the
+`followup-*` directories under `conformance_tmp/bench`.
+
+Matched 30-second Balanced stationary windows used the same saved spawn and
+isolated empty shader caches:
+
+| Build | FPS | Frame p99 | Maximum interval | Process CPU | Hitches over 2x median |
+|---|---|---|---|---|---|
+| Preserved follow-up baseline | 60.00 | 17.53 ms | 17.94 ms | 13.22% | 0 |
+| Optimized build | 60.00 | 17.41 ms | 20.70 ms | 13.32% | 0 |
+
+Separate 30-second driving windows used the same save, spawn, profile and
+throttle input, again with isolated empty shader caches:
+
+| Build | FPS | Frame p99 | Maximum interval | Process CPU | Hitches over 2x median |
+|---|---|---|---|---|---|
+| Preserved follow-up baseline | 60.00 | 17.29 ms | 20.28 ms | 12.74% | 0 |
+| Optimized build | 59.99 | 17.51 ms | 23.94 ms | 12.77% | 0 |
+
+These single capped windows do not establish an overall FPS, CPU or frame-pacing
+improvement. The remaining priorities are the intermittent deferred-voice
+startup crash, reproducible long driving hitches, and profiling of draw setup,
+surface synchronization, texture hashing and vertex interpretation in busier
+scenes. Large renderer and compatibility modules still limit maintainability.
+Texture eviction restructuring is deferred until measurements show that the
+768 MiB texture budget is exceeded; avoiding scans would otherwise add
+bookkeeping to ordinary cache hits without demonstrated benefit.
+
+### Stutter and crash investigation (2026-10-11)
+
+This pass prioritizes deferred callbacks, timer scheduling and thread memory.
+These are correctness faults that can create extra work or corrupt state; they
+are more urgent than small renderer optimizations.
+
+| Weak point | Repair | Evidence |
+|---|---|---|
+| Pending DPC completions could outlive the protected object's cleanup | Drain queued completions when a guest lowers IRQL below DISPATCH, while retaining processor exclusion | Lifetime, ordering, nested-callback and boundary regressions fail before and pass after |
+| Positive absolute timer deadlines fired immediately | Convert against guest system time; round relative deadlines up safely | A synthetic audio rearm scenario falls from 200 callbacks to one for the same action over two seconds |
+| Timer signaling happened after callbacks | Publish the signal before the callback; clear it before publishing a rearmed timer | Rearm and retired-storage regressions pass |
+| Canceled DPC entries kept consuming queue slots | Compact the pending FIFO when removing work | 1,000 insert/cancel cycles preserve capacity and callback order |
+| The 0x40-byte thread header overlapped guest TLS | Reserve the full 0x280-byte KPCR and initialize each thread's IRQL/DPC state independently | Layout and inherited-state regressions fail before and pass after |
+
+Synchronous callback execution preserves general registers, x87/MMX/XMM state,
+direction flags and the host floating-point environment. It leases an independent
+guest stack for each batch, with an owned allocation if the worker pool is full.
+An initial implementation reused the interrupted stack and caused two startup
+timeouts in three trials. A trace identified a USB request callback overwritten
+by the return address `0035FBD3`; the regression reproduces that overwrite, and
+the isolated-stack version passes three out of three startup trials. Concurrent
+pool-exhaustion coverage also rejects sharing a fallback stack between batches.
+The normal path performs no guest heap allocation, and an empty queue skips the
+stack lease and state snapshot.
+
+The historical DirectSound failure is consistent with completion work observing
+a voice after its destruction changed its vtable. The repaired ordering prevents
+that tested lifecycle pattern, but the exact intermittent crash was not reproduced
+in this pass. Existing skipped USB/null indirect-call warnings occur in both
+baseline and repaired runs; their original cause remains unresolved. This is
+still a multithreaded approximation of the guest processor, not a complete
+single-CPU scheduler.
+
+The final kernel suite passes **43/43** tests; the memory suite passes **5/5**.
+The RelWithDebInfo game builds successfully. Evidence, preserved executable/PDB
+pairs and unsuccessful diagnostic variants are under
+`conformance_tmp/stability-20261011`, `conformance_tmp/dpc-lower-20261011`,
+`conformance_tmp/kernel-lifecycle-20261011` and `conformance_tmp/bench`.
+
+Both 90-second Balanced driving runs completed startup and loading from the
+same copied save and spawn, using isolated empty shader caches and the same
+throttle input:
+
+| Build | FPS | Frame p99 | Maximum interval | Process CPU | Hitches over 2x median |
+|---|---|---|---|---|---|
+| Preserved stability baseline | 59.80 | 17.76 ms | 68.26 ms | 12.10% | 4 |
+| Repaired build | 59.95 | 17.69 ms | 30.79 ms | 15.16% | 0 |
+
+The final run had fewer large spikes, but this single comparison does not
+establish causation. Traffic/collisions produced different routes: the baseline
+ended around 212 draws per frame and the repaired run around 1,435. The higher
+CPU figure therefore cannot isolate callback overhead or establish a CPU
+efficiency improvement. The baseline's longest gap included 41 ms between
+readback polls, without a correspondingly slow individual readback call.
+The repaired run's longest frame includes 16.48 ms inside readback processing;
+the existing probe does not separate query, map, pixel copying and unmap costs.
+A 56.17 ms menu-to-race transition gap also remains outside the driving window.
+These residual stalls need more precise attribution before changing GPU
+completion behavior.
+
+A second final-build run, with extra hitch tracing disabled, completed startup,
+loading and 120 seconds of driving without an observed crash: **60.00 FPS**,
+**17.53 ms p99**, **26.76 ms maximum**, and **zero intervals over twice the
+median**, at 14.29% process CPU. Both final-build runs verified movement of the
+live player car. These are bounded checks of one saved scene, not exhaustive
+coverage of every vehicle, map, mode or intermittent failure.
+
+`tools/bench/run.ps1 -HitchTrace` enables optional renderer, readback, submission,
+ACK-worker and DXGI Present timing. Normal runs leave these extra timing probes
+disabled. Background shader compilation and a pending readback's elapsed time
+must not be mistaken for time actively spent blocking the render thread.
 
 ### Diagnostics
 
