@@ -14,9 +14,6 @@ extern void nv2a_d3d_set_depth_view_remap(float scale, float knee);
  * had it and stretch the band from 0.78 out to the new far plane.
  * ponytail: one knee for every sky; read it per ramp if a sky's band differs. */
 #define FOG_KNEE 0.78f
-/* Facade zones ({80,280}, sub_001661D0) stay at the Xbox values: scaled,
- * buildings near the camera lost their facades and showed as dark slabs
- * with stepped edges (Montmartre, X 1298.7 Z 1167.7 facing 225 degrees). */
 /* PAL MM3: increase the title's own visibility/LOD distances before its
  * native D3D11 translation sees geometry. Keep the original fade fractions,
  * frustum construction, streaming and temporary render-pass save/restore.
@@ -120,6 +117,52 @@ void sub_000FE71E(void)
         MEMF(g_ebp + 8) = MEMF(g_esp + 4);
     }
     sub_000FE71E_original();
+}
+
+/* Facade zones {80,280}: buildings nearer than the first get the full facade
+ * path, nearer than the second the textured mid path, the rest the flat far
+ * path. Both scale with the view distance, capped at 2: the mid and near
+ * paths fill the facade manager's per-frame vertex pools, and once a pool
+ * is full the allocator (sub_00162F75) returns 0 and the building is drawn
+ * with only its dark cloud-shadow pass -- the slabs seen at Montmartre
+ * (X 1298.7 Z 1167.7 facing 225 degrees) when the zones were scaled alone. */
+static float facade_scale(void)
+{
+    float scale = view_scale();
+    return scale > 2.0f ? 2.0f : scale;
+}
+
+extern void sub_001630A7_original(void);
+void sub_001630A7(void)
+{
+    uint32_t self;
+    sub_001630A7_original();
+    /* The constructor sets the pool capacities sub_001633B7 later sizes its
+     * vertex buffers from: 0x3000 and 0x800 facade vertices, 0x200 and
+     * 0x600 in two side pools. Twice the zone distances cover four times the
+     * buildings; 5x keeps the large pool's vertex numbers under 0x10000.
+     * About 3.7 MB more guest memory. */
+    if (facade_scale() > 1.0f) {
+        self = g_eax;
+        MEM32(self + 0x1ED0) *= 5;
+        MEM32(self + 0x1F2C) *= 5;
+        MEM32(self + 0x1F88) *= 5;
+        MEM32(self + 0x48) *= 5;
+    }
+}
+
+extern void sub_001661D0_original(void);
+void sub_001661D0(void)
+{
+    uint32_t caller = MEM32(g_esp);
+    /* Facade construction and renderFacadeSetZones (Lua) supply original
+     * distances; the supersampled-pass save/restore calls at 0x211220 and
+     * 0x21153D already use effective values. */
+    if (caller == 0x0015FA1Du || caller == 0x0020FABAu) {
+        MEMF(g_esp + 4) *= facade_scale();
+        MEMF(g_esp + 8) *= facade_scale();
+    }
+    sub_001661D0_original();
 }
 
 extern void sub_0022F298_original(void);

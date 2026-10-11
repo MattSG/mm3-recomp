@@ -53,7 +53,7 @@ endif()
 # Render distance renames definitions only: renaming every reference with a
 # compile definition would bypass the hooks for callers in the same chunk.
 set(MM3_DISTANCE_FUNCTIONS sub_000D9E2E sub_000E2D5B sub_000F4AC3 sub_000FE71E
-    sub_002256C7 sub_002203E5 sub_0022F298 sub_0015A929)
+    sub_001630A7 sub_001661D0 sub_002256C7 sub_002203E5 sub_0022F298 sub_0015A929)
 
 list(JOIN MM3_RENAMED_FUNCTIONS "|" hook_names)
 list(JOIN MM3_DISTANCE_FUNCTIONS "|" distance_names)
