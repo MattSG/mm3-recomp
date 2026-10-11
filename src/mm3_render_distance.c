@@ -24,10 +24,11 @@ extern void nv2a_d3d_set_depth_view_remap(float scale, float knee);
  *   RECOMP_DRAW_DISTANCE (default 4): object/pedestrian/traffic LODs, blob
  *     shadows and the particle overdraw cap. Everything stays inside the
  *     Xbox city view distance, so nothing low-detail is exposed.
- *   RECOMP_VIEW_DISTANCE (default 1): city view distance and far plane.
- *     Above 1 the title draws its far city past the 700 m it was built for
- *     (flat untextured blocks, panorama band; Paris X 643.2 Z 52.6 down the
- *     Seine). */
+ *   RECOMP_VIEW_DISTANCE (default 2): city view distance and far plane.
+ *     Past the 700 m it was built for the title only has flat untextured
+ *     blocks (Paris X 643.2 Z 52.6 down the Seine); the depth-haze remap
+ *     fades them into the sky (63% at 700 m, 99.6% at 1400 m), so 4 looks
+ *     the same as 2 and only costs more. */
 static float env_scale(const char *name, float fallback)
 {
     const char *env = getenv(name);
@@ -54,7 +55,7 @@ static float view_scale(void)
 {
     static float scale;
     if (!scale) {
-        scale = env_scale("RECOMP_VIEW_DISTANCE", 1.0f);
+        scale = env_scale("RECOMP_VIEW_DISTANCE", 2.0f);
         /* MM3_FOG_REMAP=0 keeps the scaled band, for A/B comparisons. */
         if (scale > 1.0f && (!getenv("MM3_FOG_REMAP") || strcmp(getenv("MM3_FOG_REMAP"), "0")))
             nv2a_d3d_set_depth_view_remap(scale, FOG_KNEE);

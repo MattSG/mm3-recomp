@@ -86,7 +86,7 @@ F11 or Alt+Enter toggles fullscreen. The window size sets the internal resolutio
 | `RECOMP_MSAA` | `4` | MSAA sample count (1/2/4/8). |
 | `RECOMP_ANISO` | `16` | Anisotropic filtering (1–16). |
 | `RECOMP_DRAW_DISTANCE` | `4` | LOD distance multiplier (1 = Xbox, up to 4): pedestrians, traffic, object detail, blob shadows, particle overdraw cap. Stays inside the Xbox view distance. |
-| `RECOMP_VIEW_DISTANCE` | `1` | City view distance and far-plane multiplier (1 = Xbox, up to 4). Above 1 the game draws its low-detail far city: flat untextured blocks and a haze band past ~700 m, and trees standing in front of the haze. Facade detail zones stay at the Xbox distances. |
+| `RECOMP_VIEW_DISTANCE` | `2` | City view distance and far-plane multiplier (1 = Xbox, up to 4). Past the Xbox 700 m the game only has low-detail blocks; the distance haze fades them into the sky (63% at 700 m, all but gone by 1400 m), so 4 looks like 2. Facade detail zones stay at the Xbox distances. |
 | `RECOMP_PS_SPEC` | `1` | `0`: skip specialised pixel shaders (slow; for debugging). |
 | `MM3_SAVE_DIR` | built-in | Folder holding the HDD/save partition images. |
 | `MM3_DEBUG_TELEPORT` | off | Teleport debugger: a panel with live X/Y/Z and heading that places the car on the ground at a typed X/Z and heading (degrees), and the pipe `tools\powershell\Send-MM3Teleport.ps1` drives. See `DEBUG_TELEPORT.md`. |
