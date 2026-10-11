@@ -26,16 +26,17 @@ ROOT = Path(__file__).resolve().parents[2]
 ARCHIVES = ("Data/Data_hd.zip", "Data/Data_dvd.zip")
 STATE_DIR = ".mm3-car-mods"
 RATINGS = {"TOPSPEED", "ACCELERATION", "MASS", "HANDLING", "DURABILITY"}
+SPEEDOMETER = {"max_kmh": (100, 1200), "max_mph": (60, 750)}
 PHYSICS = {
     "Mass": (100, 10000), "TorqueScale": (1, 5000),
     "TorqueScaleFactor": (0.1, 5), "WheelDrive": (0, 2),
     "BrakeTorque": (100, 30000), "HandBrakeTorque": (100, 30000),
     "LatFrictionFactor": (0.1, 5), "AirKZZ": (0.001, 10),
-    "AirKZY": (0.001, 10), "MaxTorqueRPM": (500, 20000),
+    "AirKZY": (0.001, 10), "MaxTorqueRPM": (500, 8000),
     "MaxRPM": (500, 20000), "CutRPM": (500, 20000),
     "MinRPM": (100, 10000), "TimeChangeGear": (0.05, 5),
     "TimeChangeGearFR": (0.05, 5), "WheelRatio": (0.5, 10),
-    "MinRPMGearChange": (500, 20000), "MaxTurboTorqueRPM": (500, 20000),
+    "MinRPMGearChange": (500, 20000), "MaxTurboTorqueRPM": (500, 8000),
     "GearStatusDownGearFactor": (0.1, 0.95),
     "SteeringEndSpeed": (20, 1000), "WheelRadius": (0.1, 2),
 }
@@ -43,11 +44,19 @@ PAINT_MATERIALS = {
     "mini": ({"body1", "texture_gloss", "minitexturMatt"}, {"Skin_Blank"}),
     "mfastback": ({"Color", "Color_tex_logo", "Color_tex_mply"}, {"Lodtexture"}),
     "viper": ({"Body1", "ViperTextureAlpha", "ViperTextureMulti"}, {"Texture_Gloss"}),
+    "koenigsegg": ({"Lack", "Lack_textur"}, {"Lod_texture"}),
+    "lotus": ({"Lacken", "Lacktexturh"}, {"TextureBlank"}),
 }
 IDENTITIES = {
     9001: ("MRly", "mini", "Mini Rally"),
     9002: ("MustangGT", "MFastBack", "Mustang GT"),
     9003: ("VRace", "Viper", "Viper Race"),
+    9004: ("Panoz", "Viper", "Panoz GTR-1"),
+    9005: ("McLaren_F1", "Koenigsegg", "McLaren F1"),
+    9006: ("Form1", "Lotus", "Formula 1"),
+    9007: ("BChiron_GT", "Koenigsegg", "Bugatti Chiron"),
+    9008: ("BBolide_GT", "Koenigsegg", "Bugatti Bolide"),
+    9009: ("Ford_GTcar", "Koenigsegg", "Ford GT"),
 }
 
 
@@ -70,15 +79,16 @@ def load_config(path: Path) -> dict:
         raise ValueError("Manifest requires version 1 and a cars array")
     seen_ids, seen_aliases = set(), set()
     for car in config["cars"]:
-        exact_keys(car, {"id", "alias", "donor", "display_name", "ratings", "physics", "colors"}, "car")
-        if set(car) != {"id", "alias", "donor", "display_name", "ratings", "physics", "colors"}:
+        required = {"id", "alias", "donor", "display_name", "ratings", "physics", "colors"}
+        exact_keys(car, required | {"speedometer"}, "car")
+        if not required <= set(car):
             raise ValueError("Each car requires id, alias, donor, display_name, ratings, physics, colors")
         ident = car["id"]
         if type(ident) is not int or not 1 <= ident <= 32767 or ident in seen_ids:
             raise ValueError("Car IDs must be unique integers from 1 to 32767")
         seen_ids.add(ident)
         if IDENTITIES.get(ident) != (car["alias"], car["donor"], car["display_name"]):
-            raise ValueError("Car id, alias, donor and display_name are fixed identities; edit ratings, physics and colors")
+            raise ValueError("Car id, alias, donor and display_name are fixed identities; edit ratings, physics, colors and speedometer")
         for key in ("alias", "donor"):
             if not isinstance(car[key], str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{1,31}", car[key]):
                 raise ValueError(f"Invalid car {key}")
@@ -88,7 +98,7 @@ def load_config(path: Path) -> dict:
             raise ValueError("Car aliases must be unique and different from their donors")
         seen_aliases.add(car["alias"].lower())
         if car["donor"].lower() not in PAINT_MATERIALS:
-            raise ValueError("Supported donors: mini, MFastBack, Viper")
+            raise ValueError("Supported donors: " + ", ".join(sorted(PAINT_MATERIALS)))
         if not isinstance(car["display_name"], str) or not re.fullmatch(r"[ -~]{1,50}", car["display_name"]):
             raise ValueError("Display names must contain 1 to 50 printable ASCII characters")
         exact_keys(car["ratings"], RATINGS, "rating")
@@ -107,19 +117,37 @@ def load_config(path: Path) -> dict:
                     raise ValueError("Forward gear ratios must decrease as gears increase")
                 continue
             low, high = PHYSICS[key]
+            if key in {"MaxTorqueRPM", "MaxTurboTorqueRPM"} and type(value) in (int, float) and math.isfinite(value) and value > high:
+                raise ValueError("Supported stock torque curve ends near 8500 RPM; automatic peak must be <= 8000 RPM")
             if type(value) not in (int, float) or not math.isfinite(value) or not low <= value <= high:
                 raise ValueError(f"{key} must be a finite number from {low} to {high}")
             if key == "WheelDrive" and type(value) is not int:
                 raise ValueError("WheelDrive must be 0 (front), 1 (rear), or 2 (all wheels)")
-        # The three fixed donors all use this idle/shift/cutoff/redline ordering.
+        # The supported donors all use this idle/shift/cutoff/redline ordering.
         physics = car["physics"]
         idle, shift, cutoff, redline = (physics.get(key, default) for key, default in
                                       (("MinRPM", 1000), ("MinRPMGearChange", 4000),
                                        ("CutRPM", 8000), ("MaxRPM", 10000)))
         if not idle < shift < cutoff <= redline:
             raise ValueError("RPM settings require MinRPM < MinRPMGearChange < CutRPM <= MaxRPM")
+        # sub_001CF7B4 builds road-speed upshift thresholds from peak RPM - 50;
+        # sub_001CB7E8 samples the supported stock curve, which ends near 8500
+        # RPM (and has a hard 9500-RPM limit); keep peaks <= 8000 for headroom.
+        # All supported donors inherit these two peaks. Lowering only CutRPM
+        # must not leave an automatic shift threshold beyond the usable engine.
+        for key, default in (("MaxTorqueRPM", 6500), ("MaxTurboTorqueRPM", 6750)):
+            if not idle < physics.get(key, default) < cutoff:
+                raise ValueError(f"{key} must be above MinRPM and below CutRPM for automatic gear changes")
         if not isinstance(car["colors"], list) or not 1 <= len(car["colors"]) <= 3 or any(not isinstance(c, str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", c) for c in car["colors"]):
             raise ValueError("Each car requires 1 to 3 colors in #rrggbb form")
+        if "speedometer" in car:
+            exact_keys(car["speedometer"], set(SPEEDOMETER), "speedometer")
+            if set(car["speedometer"]) != set(SPEEDOMETER):
+                raise ValueError("Speedometer requires both max_kmh and max_mph")
+            for key, (low, high) in SPEEDOMETER.items():
+                value = car["speedometer"][key]
+                if type(value) not in (int, float) or not math.isfinite(value) or not low <= value <= high:
+                    raise ValueError(f"Speedometer {key} must be a finite number from {low} to {high}")
     if not config["cars"]:
         raise ValueError("At least one car is required; use --restore to remove installed variants")
     return config
@@ -140,6 +168,9 @@ def update_section(text: str, section: str, values: dict, remove: set[str] = fro
 def tweak_variant(original: bytes, car: dict) -> bytes:
     text = original.decode("ascii")
     info = {"ID": car["id"], **car["ratings"], "PAINTJOBNAME": car["alias"]}
+    if "speedometer" in car:
+        # The sport HUD supports the native extended digital speed readout.
+        info["SPEEDOMETERTYPE"] = 1
     text = update_section(text, "CarInfo", info, {"LOCKED", "HIDDEN", "ADMITTANCE", "SKIN", "COLOR"})
     colors = "".join(f"\tCOLOR\t\t{i} 0x{c[1:]} 0x{c[1:]}\r\n" for i, c in enumerate(car["colors"]))
     text = text.replace("End(CarInfo)", colors + "End(CarInfo)", 1)
@@ -149,6 +180,12 @@ def tweak_variant(original: bytes, car: dict) -> bytes:
         physics = {"NGears": len(ratios) - 1, **physics}
         physics["GearRatioVector"] = " ".join(format(ratio, ".9g") for ratio in ratios)
     text = update_section(text, "CarBody", physics)
+    if "speedometer" in car:
+        gauges = {"SpeedometerMaxKmh": car["speedometer"]["max_kmh"],
+                  "SpeedometerMaxMph": car["speedometer"]["max_mph"]}
+        text = update_section(text, "CarCamera", gauges)
+        if "Begin(CarCameraSS)" in text:
+            text = update_section(text, "CarCameraSS", gauges)
     return text.encode("ascii")
 
 

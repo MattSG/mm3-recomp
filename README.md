@@ -3,6 +3,50 @@
 Static recompilation of the Xbox title Midtown Madness 3 to native x86-64 Windows, on the
 [xboxrecomp](tools/xboxrecomp) runtime, rendering through Direct3D 11.
 
+**Credits:** This project builds on the original
+[mm3-recomp by Matt Graham (MattSG)](https://github.com/MattSG/mm3-recomp) and the
+[xboxrecomp toolkit](https://github.com/MattSG/xboxrecomp). Credit for that foundation
+belongs to the original author and upstream contributors.
+
+This fork is maintained by [lakshya16157](https://github.com/lakshya16157), with
+assistance from OpenAI Codex on performance and runtime improvements, gameplay
+fixes, and the custom-car tools.
+
+## How this fork was developed
+
+The maintainer built and tested this fork from a Midtown Madness 3 `.iso`/XISO,
+using the [xemu Xbox emulator](https://xemu.app/) to run the original Xbox game
+as a reference during development. The native build extracts the game files
+from a supported disc image and statically recompiles its Xbox CPU code into
+a Windows executable; it then runs on the xboxrecomp runtime with Direct3D 11.
+Launching that native executable does not require xemu.
+
+Bring your own game disc or supported image. Game data, disc images, xemu BIOS
+files and emulator hard disks are not distributed in this repository. The
+[disc notes below](#which-disc) explain accepted native-build images; xemu's
+reference workflow uses a bare XDVDFS XISO rather than a two-part redump image.
+
+## Improvements in this fork
+
+- **Visuals:** fixed refreshing of streamed textures and CPU-written swizzled
+  surfaces, and prevented stale vertex programs/constants after failed GPU
+  uploads. The default internal resolution is 2304×1440 at 16:10, with
+  configurable aspect, resolution, MSAA, anisotropic filtering and draw distance.
+- **Efficiency:** persistent shader caching and startup prewarming, less repeated
+  texture/shader lookup work, optimized texture conversion and audio processing,
+  and GPU-completion waits that let waiting threads sleep.
+- **Timing and runtime:** a 60 FPS maximum, presentation pacing immediately before
+  Present, command/fence ordering repairs, safer guest-handle access, and save-root
+  handling. Extended-distance particle overlap is bounded to reduce effects load.
+- **Driving and selection:** arrow-key driving, camera and manual-shift controls,
+  focus-aware keyboard input, and selection of all 35 supported-disc car models.
+- **Car workshop:** nine extra tuned variants, editable paint and driving stats,
+  validated gearing/RPM settings, larger interior speedometer ranges and numeric
+  speed readouts for the sport and Koenigsegg HUDs.
+
+The detailed settings and runtime notes below describe these changes and their
+limits. See the [car-pack guide](tools/car-mods/README.md) for further tuning examples.
+
 ## Building from a fresh clone
 
 You need Windows 10/11 x64, Visual Studio 2022 or newer with **Desktop development with C++**
@@ -104,14 +148,123 @@ cars. Event-specific vehicle classes still apply. Bonus paints and career statis
 to follow profile progress. Set `MM3_UNLOCK_ALL_CARS=0` to restore the original car locks;
 the availability change does not write unlock keys to your save.
 
-An optional [extra-car pack](tools/car-mods/README.md) adds Mini Rally, Mustang GT
-and Viper Race as separate tuned variants of the existing models. Install it
-with `tools\venv\Scripts\python.exe tools\car-mods\prepare.py --apply` while the
-game is closed. Their menu ratings and driving physics are editable in
-`tools/car-mods/cars.json`; reapply the pack and restart to use changed stats.
-The installer backs up the affected data and provides `--restore`.
+## Added cars and editing stats
 
-### Options
+The optional [extra-car pack](tools/car-mods/README.md) adds Mini Rally, Mustang GT,
+Viper Race, Panoz GTR-1, McLaren F1, Formula 1, Bugatti Chiron, Bugatti Bolide and
+Ford GT as separate selectable entries alongside the original cars. Each has its
+own name, paint, menu ratings and driving setup.
+
+These variants reuse stock MM3 meshes, interiors, engine sounds and collision
+models. Panoz GTR-1 uses the Viper body; McLaren F1, Chiron, Bolide and Ford GT use
+the Koenigsegg body; Formula 1 uses the enclosed Lotus body. Mini Rally, Mustang GT
+and Viper Race use their corresponding stock bodies. These are game-tuned
+interpretations, with no new replica meshes or measured real-world specifications.
+
+### Visual editor
+
+1. Close the game, then double-click [tools/car-mods/editor.cmd](tools/car-mods/editor.cmd)
+   or run `tools\car-mods\editor.cmd` from the repository root.
+2. Select an added car and edit its paint, menu ratings, physics, gearing, RPM
+   settings and interior speedometer ranges. Blank optional physics fields inherit
+   the stock donor's settings.
+3. Choose **Save** to write [cars.json](tools/car-mods/cars.json), or **Save & Apply**
+   to save and install the changes into your extracted `game_files` data.
+4. Restart the game and select the car to load the changes.
+
+The paint view is a schematic color preview; it does not display or edit the 3D
+car mesh. The editor is a small Python/Tkinter desktop app with no web server or
+extra GUI packages. Its source is [editor.py](tools/car-mods/editor.py).
+
+### JSON and command-line editing
+
+Edit [tools/car-mods/cars.json](tools/car-mods/cars.json) directly with a text editor
+if preferred. From the repository root, run the preview first, then apply with
+the game closed:
+
+```powershell
+tools\venv\Scripts\python.exe tools\car-mods\prepare.py
+tools\venv\Scripts\python.exe tools\car-mods\prepare.py --apply
+pwsh scripts\play.ps1 -Keyboard
+```
+
+Both the editor and installer accept `--config <path>` and `--game-dir <path>`
+for another manifest or extracted game directory. For example:
+
+```powershell
+tools\venv\Scripts\python.exe tools\car-mods\editor.py --config tools\car-mods\cars.json --game-dir game_files
+tools\venv\Scripts\python.exe tools\car-mods\prepare.py --config tools\car-mods\cars.json --game-dir game_files --apply
+```
+
+Keep `id`, `alias`, `donor` and `display_name` unchanged: these identities are
+registered by the runtime. Adding a new identity or donor body requires code
+changes as well as a manifest entry. The supplied editor and manifest tune the
+added variants; they do not provide a general editor for every original car.
+
+### What each setting changes
+
+Menu ratings are integers from 0 to 9: `TOPSPEED`, `ACCELERATION`, `MASS`,
+`HANDLING` and `DURABILITY`. They control the menu bars. Actual driving behavior
+comes from the separate `physics` settings, and `colors` contains one to three
+paint colors in `#rrggbb` format.
+
+| Physics setting | Effect |
+|---|---|
+| `TorqueScale`, `TorqueScaleFactor` | Engine torque and its multiplier. |
+| `Mass` | Physical weight. |
+| `BrakeTorque`, `HandBrakeTorque` | Braking and handbrake strength. |
+| `LatFrictionFactor` | Cornering grip. |
+| `AirKZZ`, `AirKZY` | Aerodynamic coefficients. |
+| `WheelDrive` | 0: front wheels; 1: rear wheels; 2: all wheels. |
+| `SteeringEndSpeed` | Speed-dependent steering setting. |
+| `WheelRadius` | Wheel radius, also used in automatic shift-speed calculations. |
+| `GearRatioVector` | Reverse ratio followed by two through six forward ratios. |
+| `WheelRatio` | Final drive multiplier; a smaller value makes gears longer. |
+| `TimeChangeGear`, `TimeChangeGearFR` | Forward shifting and forward/reverse transition times, in seconds. |
+| `MinRPM`, `MinRPMGearChange`, `CutRPM`, `MaxRPM` | Idle, minimum shift, cutoff and redline settings. |
+| `MaxTorqueRPM`, `MaxTurboTorqueRPM` | Peak torque RPM used to calculate automatic upshift speeds. |
+| `GearStatusDownGearFactor` | Automatic downshift factor. |
+
+For example, changing Mini Rally's `physics.TorqueScale` from `440` to `500`
+increases engine torque. Changing `ratings.ACCELERATION` changes only its menu bar.
+The installer validates supported value ranges before applying changes.
+
+### Gearing and speedometers
+
+Use a negative reverse ratio followed by positive, decreasing forward ratios,
+for example `[-3.3, 2.5, 1.72, 1.28, 1.0, 0.82, 0.7]`. Gear count is derived
+from this array; do not add `NGears`. Keep
+`MinRPM < MinRPMGearChange < CutRPM <= MaxRPM`, and keep both peak-torque RPM
+settings above idle and below cutoff. The supported stock torque curve requires
+`MaxTorqueRPM` and `MaxTurboTorqueRPM` to be at most 8000 RPM; Formula 1 therefore
+uses stock-compatible RPM values rather than a modern F1 engine's RPM range.
+
+Automatic upshifts depend on road speed calculated from gear ratios, final drive,
+wheel radius and peak torque RPM (the turbo peak for a turbo-equipped donor).
+Wheelspin can raise RPM before the car reaches its shift speed. Lowering
+`MinRPMGearChange` alone does not make automatic upshifts happen earlier.
+The pack's ratios and RPM settings address the earlier missed-shift issue, and
+the installer rejects conflicting thresholds. Select **Automatic** or **Manual**
+in the game's car setup; Manual uses **R/F** on the MM3 keyboard layout or Xbox
+**B/X** to shift up/down while driving.
+
+The optional `speedometer.max_kmh` and `speedometer.max_mph` values set the
+interior dashboard needle range. Fast variants use **800 km/h / 500 mph**;
+Mini Rally uses 500 km/h / 311 mph. Enter both limits, or leave both blank in the
+editor to inherit the donor gauge. These limits change the gauge, not engine
+power, actual top speed or the `TOPSPEED` menu rating. The full-screen sport and
+Koenigsegg HUDs also show numeric speed beyond the analog dial's highest marking;
+the original full-screen analog calibration is retained.
+
+The installer backs up affected game archives and reuses those originals when
+reapplying, so edits do not accumulate. It does not edit saved profiles. To
+remove the pack and restore the original game data, close the game and run:
+
+```powershell
+tools\venv\Scripts\python.exe tools\car-mods\prepare.py --restore
+```
+
+## Options
 
 | Variable | Default | Effect |
 |---|---|---|

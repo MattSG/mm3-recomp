@@ -1,0 +1,496 @@
+#!/usr/bin/env python3
+"""Small, dependency-free desktop editor for the MM3 extra-car manifest."""
+
+from __future__ import annotations
+
+import argparse
+import copy
+import csv
+import importlib.util
+import io
+import json
+import math
+from pathlib import Path
+import queue
+import re
+import subprocess
+import sys
+import tempfile
+import threading
+import tkinter as tk
+from tkinter import colorchooser, messagebox, ttk
+
+HERE = Path(__file__).resolve().parent
+SPEC = importlib.util.spec_from_file_location("mm3_car_prepare", HERE / "prepare.py")
+prepare = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(prepare)
+
+RATING_ORDER = ("TOPSPEED", "ACCELERATION", "MASS", "HANDLING", "DURABILITY")
+DRIVING = ("TorqueScale", "Mass", "BrakeTorque", "LatFrictionFactor", "AirKZZ", "WheelDrive")
+TRANSMISSION = ("WheelRatio", "TimeChangeGear", "TimeChangeGearFR", "MinRPM", "MinRPMGearChange", "CutRPM", "MaxRPM", "MaxTorqueRPM", "MaxTurboTorqueRPM")
+LABELS = {
+    "TorqueScale": "Engine torque", "Mass": "Weight", "BrakeTorque": "Braking strength",
+    "LatFrictionFactor": "Cornering grip", "AirKZZ": "Air drag", "WheelDrive": "Driven wheels",
+    "WheelRatio": "Final drive", "TimeChangeGear": "Shift time (seconds)",
+    "TimeChangeGearFR": "Reverse shift time", "MinRPM": "Idle RPM",
+    "MinRPMGearChange": "Minimum shift RPM", "CutRPM": "Cutoff RPM", "MaxRPM": "Redline RPM",
+    "MaxTorqueRPM": "Peak torque RPM", "MaxTurboTorqueRPM": "Turbo peak torque RPM",
+    "TorqueScaleFactor": "Torque multiplier", "HandBrakeTorque": "Handbrake strength",
+    "AirKZY": "Vertical drag", "GearStatusDownGearFactor": "Downshift factor",
+    "SteeringEndSpeed": "Steering end speed", "WheelRadius": "Wheel radius",
+}
+DRIVE_OPTIONS = ("", "0 - Front", "1 - Rear", "2 - All wheels")
+
+
+def validated(config: dict) -> dict:
+    """Use exactly the same validation as the installer, without saving edits."""
+    with tempfile.TemporaryDirectory(prefix="mm3-car-editor-") as temporary:
+        path = Path(temporary) / "cars.json"
+        path.write_text(json.dumps(config), encoding="utf-8")
+        return prepare.load_config(path)
+
+
+def number(text: str, label: str, integer: bool = False) -> int | float:
+    try:
+        result = float(text)
+    except ValueError as error:
+        raise ValueError(f"{label} must be a number") from error
+    if not math.isfinite(result) or (integer and result != int(result)):
+        raise ValueError(f"{label} must be a finite {'integer' if integer else 'number'}")
+    return int(result) if integer or result.is_integer() else result
+
+
+def edited_car(car: dict, ratings: dict[str, str], physics: dict[str, str],
+               gears: str, colors: list[str], speedometer: dict[str, str]) -> dict:
+    """Translate the form into config data; blank physics fields inherit the donor."""
+    result = copy.deepcopy(car)
+    result["ratings"] = {key: number(ratings[key], key.title(), True) for key in RATING_ORDER}
+    result["physics"] = {}
+    for key, text in physics.items():
+        if text.strip():
+            result["physics"][key] = number(text.split(" - ", 1)[0].strip(), LABELS.get(key, key), key == "WheelDrive")
+    if gears.strip():
+        tokens = re.split(r"[\s,]+", gears.strip().strip("[]").strip())
+        result["physics"]["GearRatioVector"] = [number(token, "Gear ratio") for token in tokens]
+    result["colors"] = [color.strip().lower() for color in colors]
+    result.pop("speedometer", None)
+    if any(text.strip() for text in speedometer.values()):
+        if not all(text.strip() for text in speedometer.values()):
+            raise ValueError("Enter both speedometer limits, or leave both blank to inherit the donor")
+        result["speedometer"] = {key: number(text, "Speedometer limit") for key, text in speedometer.items()}
+    return result
+
+
+class EditorModel:
+    def __init__(self, path: Path):
+        self.path = path.resolve()
+        self.reload()
+
+    def reload(self) -> None:
+        self.config = prepare.load_config(self.path)
+        self.baseline = self.path.read_bytes()
+        self.saved = copy.deepcopy(self.config)
+
+    def replace_car(self, index: int, car: dict) -> None:
+        candidate = copy.deepcopy(self.config)
+        candidate["cars"][index] = car
+        self.config = validated(candidate)
+
+    def save(self) -> None:
+        config = validated(self.config)
+        if self.path.read_bytes() != self.baseline:
+            raise ValueError("cars.json changed outside the editor. Reload it before saving to keep those changes.")
+        payload = (json.dumps(config, indent=2) + "\n").encode("utf-8")
+        prepare.atomic_write(self.path, payload)
+        self.baseline = payload
+        self.saved = copy.deepcopy(config)
+
+    def apply_command(self, game_dir: Path) -> list[str]:
+        # pythonw has no console streams; use its adjacent console interpreter.
+        executable = Path(sys.executable)
+        if executable.name.lower() == "pythonw.exe":
+            executable = executable.with_name("python.exe")
+        return [str(executable), str(HERE / "prepare.py"), "--config", str(self.path),
+                "--game-dir", str(game_dir.resolve()), "--apply"]
+
+
+def game_is_running() -> bool:
+    if sys.platform != "win32":
+        return False
+    result = subprocess.run(["tasklist", "/FI", "IMAGENAME eq mm3_recomp.exe", "/FO", "CSV", "/NH"],
+                            capture_output=True, text=True, check=True,
+                            creationflags=subprocess.CREATE_NO_WINDOW, timeout=10)
+    return any(row and row[0].lower() == "mm3_recomp.exe" for row in csv.reader(io.StringIO(result.stdout)))
+
+
+class CarEditor:
+    def __init__(self, root: tk.Tk, config: Path = HERE / "cars.json", game_dir: Path = prepare.ROOT / "game_files"):
+        self.root, self.game_dir = root, game_dir
+        self.model = EditorModel(config)
+        self.current = 0
+        self.loading = False
+        self.applying = False
+        self.events = queue.Queue()
+        self.rating_vars, self.physics_vars = {}, {}
+        self.gear_var = tk.StringVar()
+        self.speed_vars = {key: tk.StringVar() for key in ("max_kmh", "max_mph")}
+        self.color_vars = []
+        self.preview_color = 0
+        self.status = tk.StringVar(value="Choose a car, edit its settings, then save. Apply with the game closed.")
+        root.title("MM3 Car Workshop")
+        root.geometry("1110x820")
+        root.minsize(1030, 790)
+        root.configure(background="#f3f5f8")
+        root.option_add("*Font", "{Segoe UI} 10")
+        style = ttk.Style(root)
+        style.theme_use("clam")
+        style.configure("TFrame", background="#f3f5f8")
+        style.configure("TLabel", background="#f3f5f8")
+        style.configure("Title.TLabel", font=("Segoe UI", 19, "bold"))
+        style.configure("Sub.TLabel", foreground="#526174")
+        style.configure("TButton", padding=(10, 7))
+        style.configure("Small.TButton", padding=(6, 2))
+        self._build()
+        self._load_car(0)
+        root.protocol("WM_DELETE_WINDOW", self.close)
+        root.after(100, self._poll_apply)
+
+    def _build(self) -> None:
+        outer = ttk.Frame(self.root, padding=18)
+        outer.pack(fill="both", expand=True)
+        ttk.Label(outer, text="Car Workshop", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(outer, text="Tune the added cars and preview their paint colors.", style="Sub.TLabel").pack(anchor="w", pady=(3, 15))
+        # Reserve the actions before the expanding editor panes, so a smaller
+        # window never pushes Save/Apply below its visible client area.
+        footer = ttk.Frame(outer)
+        footer.pack(side="bottom", fill="x")
+        body = ttk.Frame(outer)
+        body.pack(fill="both", expand=True)
+        catalog = ttk.Frame(body, width=205)
+        catalog.pack(side="left", fill="y", padx=(0, 16))
+        ttk.Label(catalog, text="EXTRA CARS", style="Sub.TLabel").pack(anchor="w", pady=(0, 8))
+        self.listbox = tk.Listbox(catalog, width=23, height=17, exportselection=False, borderwidth=0,
+                                 highlightthickness=1, highlightbackground="#ccd3df", background="white",
+                                 selectbackground="#2066ba", activestyle="none", font=("Segoe UI", 11))
+        for car in self.model.config["cars"]:
+            self.listbox.insert("end", car["display_name"])
+        self.listbox.pack(fill="y", expand=True)
+        self.listbox.bind("<<ListboxSelect>>", self.select_car)
+        ttk.Label(catalog, text="Blank physics fields use\nthe original donor setting.\n\nRatings only change\nthe vehicle menu bars.", style="Sub.TLabel", wraplength=185).pack(anchor="w", pady=12)
+        main = ttk.Frame(body)
+        main.pack(side="left", fill="both", expand=True)
+        self.name_label = ttk.Label(main, font=("Segoe UI", 15, "bold"))
+        self.name_label.pack(anchor="w")
+        self.identity_label = ttk.Label(main, style="Sub.TLabel")
+        self.identity_label.pack(anchor="w", pady=(3, 12))
+        notebook = ttk.Notebook(main)
+        notebook.pack(fill="both", expand=True)
+        driving = ttk.Frame(notebook, padding=14)
+        transmission = ttk.Frame(notebook, padding=14)
+        advanced = ttk.Frame(notebook, padding=14)
+        notebook.add(driving, text=" Driving ")
+        notebook.add(transmission, text=" Gears & RPM ")
+        notebook.add(advanced, text=" More settings ")
+        ttk.Label(driving, text="Driving physics", font=("Segoe UI", 11, "bold")).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
+        self._physics_fields(driving, DRIVING, 1)
+        ttk.Separator(driving).grid(row=7, column=0, columnspan=3, sticky="ew", pady=10)
+        ttk.Label(driving, text="Menu ratings (0 to 9)", font=("Segoe UI", 11, "bold")).grid(row=8, column=0, columnspan=3, sticky="w", pady=(0, 8))
+        for row, key in enumerate(RATING_ORDER, 9):
+            ttk.Label(driving, text=key.replace("TOPSPEED", "TOP SPEED").title()).grid(row=row, column=0, sticky="w", pady=5)
+            variable = tk.StringVar()
+            self.rating_vars[key] = variable
+            ttk.Spinbox(driving, from_=0, to=9, increment=1, width=12, textvariable=variable).grid(row=row, column=1, sticky="w", padx=10)
+        self._physics_fields(transmission, TRANSMISSION, 0)
+        ttk.Label(transmission, text="Gear ratios").grid(row=9, column=0, sticky="w", pady=(7, 3))
+        ttk.Entry(transmission, textvariable=self.gear_var, width=37).grid(row=10, column=0, columnspan=3, sticky="ew")
+        ttk.Label(transmission, text="Reverse first; 2–6 decreasing forward ratios.", style="Sub.TLabel").grid(row=11, column=0, columnspan=3, sticky="w", pady=4)
+        ttk.Label(transmission, text="RPM order: idle < shift < cutoff ≤ redline", style="Sub.TLabel").grid(row=12, column=0, columnspan=3, sticky="w", pady=4)
+        ttk.Label(transmission, text="Automatic upshift speeds use gear ratios, wheel radius and peak torque RPM (turbo peak torque RPM for turbo-equipped donors). Lowering minimum shift RPM alone will not make automatic shift earlier.", style="Sub.TLabel", wraplength=390).grid(row=13, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        remaining = [key for key in prepare.PHYSICS if key not in DRIVING + TRANSMISSION]
+        self._physics_fields(advanced, remaining, 0)
+        preview = ttk.Frame(body, width=245)
+        preview.pack(side="right", fill="y", padx=(16, 0))
+        ttk.Label(preview, text="PAINT PREVIEW", style="Sub.TLabel").pack(anchor="w", pady=(0, 8))
+        self.canvas = tk.Canvas(preview, width=245, height=145, background="#172638", highlightthickness=0)
+        self.canvas.pack()
+        ttk.Label(preview, text="Body schematic • reused donor mesh", style="Sub.TLabel", wraplength=245).pack(anchor="w", pady=(4, 5))
+        self.paint_frame = ttk.Frame(preview)
+        self.paint_frame.pack(fill="x")
+        palette_buttons = ttk.Frame(preview)
+        palette_buttons.pack(fill="x", pady=4)
+        self.add_button = ttk.Button(palette_buttons, text="+ Paint", command=self.add_color, style="Small.TButton")
+        self.add_button.pack(side="left")
+        self.remove_button = ttk.Button(palette_buttons, text="− Paint", command=self.remove_color, style="Small.TButton")
+        self.remove_button.pack(side="right")
+        ttk.Separator(preview).pack(fill="x", pady=7)
+        ttk.Label(preview, text="Interior speedometer range", font=("Segoe UI", 11, "bold")).pack(anchor="w")
+        self.gauge = tk.Canvas(preview, width=245, height=118, background="#f3f5f8", highlightthickness=0)
+        self.gauge.pack(pady=3)
+        limits = getattr(prepare, "SPEEDOMETER", {"max_kmh": (100, 1200), "max_mph": (60, 750)})
+        for key, unit in (("max_kmh", "km/h"), ("max_mph", "mph")):
+            row = ttk.Frame(preview)
+            row.pack(fill="x", pady=2)
+            ttk.Label(row, text=f"Max {unit}", width=11).pack(side="left")
+            ttk.Entry(row, textvariable=self.speed_vars[key], width=10).pack(side="left")
+            self.speed_vars[key].trace_add("write", self._draw)
+        ttk.Label(preview, text=f"Both blank = donor range.\nkm/h {limits['max_kmh'][0]}–{limits['max_kmh'][1]}; mph {limits['max_mph'][0]}–{limits['max_mph'][1]}.\nSets the dashboard needle range.", style="Sub.TLabel", wraplength=245).pack(anchor="w", pady=4)
+        ttk.Separator(footer).pack(fill="x", pady=(10, 8))
+        buttons = ttk.Frame(footer)
+        buttons.pack(fill="x")
+        self.save_button = ttk.Button(buttons, text="Save settings", command=self.save)
+        self.save_button.pack(side="left")
+        self.apply_button = ttk.Button(buttons, text="Save & Apply to game", command=self.apply)
+        self.apply_button.pack(side="left", padx=8)
+        self.reload_button = ttk.Button(buttons, text="Reload settings", command=self.reload)
+        self.reload_button.pack(side="left")
+        ttk.Button(buttons, text="Close", command=self.close).pack(side="right")
+        ttk.Label(footer, textvariable=self.status, style="Sub.TLabel", wraplength=980).pack(anchor="w", pady=(8, 0))
+
+    def _physics_fields(self, parent, keys, start) -> None:
+        for row, key in enumerate(keys, start):
+            ttk.Label(parent, text=LABELS.get(key, key)).grid(row=row, column=0, sticky="w", pady=2)
+            variable = tk.StringVar()
+            self.physics_vars[key] = variable
+            if key == "WheelDrive":
+                field = ttk.Combobox(parent, textvariable=variable, values=DRIVE_OPTIONS, state="readonly", width=17)
+            else:
+                field = ttk.Entry(parent, textvariable=variable, width=19)
+            field.grid(row=row, column=1, padx=(10, 6), sticky="w")
+            low, high = prepare.PHYSICS[key]
+            ttk.Label(parent, text=f"{low:g}–{high:g}", style="Sub.TLabel").grid(row=row, column=2, sticky="w")
+
+    def _load_car(self, index: int) -> None:
+        self.loading = True
+        self.current = index
+        car = self.model.config["cars"][index]
+        self.name_label.configure(text=car["display_name"])
+        self.identity_label.configure(text=f"ID {car['id']} · {car['donor']} donor model")
+        for key, variable in self.rating_vars.items():
+            variable.set(str(car["ratings"][key]))
+        for key, variable in self.physics_vars.items():
+            value = car["physics"].get(key, "")
+            variable.set(DRIVE_OPTIONS[value + 1] if key == "WheelDrive" and value != "" else str(value))
+        self.gear_var.set(", ".join(str(value) for value in car["physics"].get("GearRatioVector", [])))
+        for key, variable in self.speed_vars.items():
+            variable.set(str(car.get("speedometer", {}).get(key, "")))
+        self._paint_rows(car["colors"])
+        self.listbox.selection_clear(0, "end")
+        self.listbox.selection_set(index)
+        self.listbox.see(index)
+        self.loading = False
+        self._draw()
+
+    def _paint_rows(self, colors: list[str]) -> None:
+        for child in self.paint_frame.winfo_children():
+            child.destroy()
+        self.color_vars = []
+        self.preview_color = min(self.preview_color, len(colors) - 1)
+        for index, color in enumerate(colors):
+            variable = tk.StringVar(value=color)
+            variable.trace_add("write", self._draw)
+            self.color_vars.append(variable)
+            row = ttk.Frame(self.paint_frame)
+            row.pack(fill="x", pady=2)
+            ttk.Label(row, text=f"Paint {index + 1}", width=8).pack(side="left")
+            entry = ttk.Entry(row, textvariable=variable, width=11)
+            entry.pack(side="left", padx=4)
+            entry.bind("<FocusIn>", lambda _event, i=index: self.preview_paint(i))
+            ttk.Button(row, text="Pick…", command=lambda i=index: self.pick_color(i), style="Small.TButton").pack(side="right")
+        self.add_button.configure(state="normal" if len(colors) < 3 else "disabled")
+        self.remove_button.configure(state="normal" if len(colors) > 1 else "disabled")
+
+    def _draw(self, *_args) -> None:
+        if self.loading or not hasattr(self, "gauge"):
+            return
+        colors = [variable.get() if re.fullmatch(r"#[0-9a-fA-F]{6}", variable.get()) else "#888888" for variable in self.color_vars]
+        color = colors[self.preview_color] if colors else "#888888"
+        c = self.canvas
+        c.delete("all")
+        c.create_text(16, 19, text=f"Paint {self.preview_color + 1}", anchor="w", fill="#d8e4f3", font=("Segoe UI", 9))
+        c.create_oval(23, 128, 227, 155, fill="#101c29", outline="")
+        for x in (48, 174):
+            c.create_oval(x, 112, x + 30, 144, fill="#09121a", outline="#657488", width=2)
+            c.create_oval(x + 8, 120, x + 22, 135, fill="#a1aeba", outline="")
+        c.create_polygon(22, 116, 36, 92, 75, 87, 94, 63, 154, 63, 181, 88, 217, 98, 224, 119,
+                         208, 127, 32, 127, fill=color, outline="#edf5ff", width=2, smooth=True)
+        c.create_polygon(92, 69, 117, 69, 117, 89, 77, 89, fill="#7bc1e5", outline="#25344a")
+        c.create_polygon(123, 69, 151, 69, 173, 89, 123, 89, fill="#7bc1e5", outline="#25344a")
+        c.create_line(123, 95, 123, 121, fill="#405164", width=2)
+        c.create_line(134, 98, 145, 98, fill="#edf5ff", width=2)
+        c.create_rectangle(211, 104, 220, 113, fill="#f9ecc0", outline="")
+        for index, swatch in enumerate(colors):
+            item = c.create_oval(84 + index * 29, 162, 101 + index * 29, 179, fill=swatch, outline="white", width=3 if index == self.preview_color else 1)
+            c.tag_bind(item, "<Button-1>", lambda _event, i=index: self.preview_paint(i))
+        c.scale("all", 0, 0, 1, 0.78)
+        g = self.gauge
+        g.delete("all")
+        g.create_arc(41, 8, 205, 172, start=0, extent=180, style="arc", outline="#bac7d8", width=9)
+        limit = self.speed_vars["max_kmh"].get().strip()
+        try:
+            maximum = float(limit)
+            if not math.isfinite(maximum) or maximum <= 0:
+                maximum = None
+        except ValueError:
+            maximum = None
+        for index in range(5):
+            angle = math.pi - index * math.pi / 4
+            x, y = 123 + 82 * math.cos(angle), 90 - 82 * math.sin(angle)
+            g.create_line(x, y, 123 + 70 * math.cos(angle), 90 - 70 * math.sin(angle), fill="#526174", width=2)
+            if maximum is not None:
+                g.create_text(123 + 58 * math.cos(angle), 90 - 58 * math.sin(angle), text=f"{maximum * index / 4:g}", font=("Segoe UI", 8), fill="#526174")
+        g.create_line(123, 90, 163, 42, fill="#2066ba", width=3)
+        g.create_oval(118, 85, 128, 95, fill="#2066ba", outline="")
+        g.create_text(123, 109, text=f"{limit} km/h" if maximum else "Donor dial range", fill="#526174", font=("Segoe UI", 10))
+
+    def preview_paint(self, index: int) -> None:
+        self.preview_color = index
+        self._draw()
+
+    def pick_color(self, index: int) -> None:
+        self.preview_paint(index)
+        current = self.color_vars[index].get()
+        chosen = colorchooser.askcolor(current if re.fullmatch(r"#[0-9a-fA-F]{6}", current) else "#888888", parent=self.root, title=f"Paint {index + 1}")[1]
+        if chosen:
+            self.color_vars[index].set(chosen)
+
+    def add_color(self) -> None:
+        self._paint_rows([variable.get() for variable in self.color_vars] + ["#ffffff"])
+        self._draw()
+
+    def remove_color(self) -> None:
+        self._paint_rows([variable.get() for variable in self.color_vars][:-1])
+        self._draw()
+
+    def _collect(self) -> None:
+        car = edited_car(self.model.config["cars"][self.current],
+                         {key: variable.get() for key, variable in self.rating_vars.items()},
+                         {key: variable.get() for key, variable in self.physics_vars.items()},
+                         self.gear_var.get(), [variable.get() for variable in self.color_vars],
+                         {key: variable.get() for key, variable in self.speed_vars.items()})
+        self.model.replace_car(self.current, car)
+
+    def _error(self, error) -> None:
+        self.status.set(str(error))
+        messagebox.showerror("Check car settings", str(error), parent=self.root)
+
+    def select_car(self, _event=None) -> None:
+        selection = self.listbox.curselection()
+        if self.loading or not selection or selection[0] == self.current:
+            return
+        try:
+            self._collect()
+        except (ValueError, OSError) as error:
+            self.listbox.selection_clear(0, "end")
+            self.listbox.selection_set(self.current)
+            self._error(error)
+            return
+        self._load_car(selection[0])
+
+    def save(self) -> bool:
+        try:
+            self._collect()
+            self.model.save()
+        except (ValueError, OSError) as error:
+            self._error(error)
+            return False
+        self.status.set("Settings saved. Apply them to the game, then restart it to load the changes.")
+        return True
+
+    def reload(self) -> None:
+        if not messagebox.askyesno("Reload settings", "Discard edits in this window and reload the settings file?", parent=self.root):
+            return
+        try:
+            self.model.reload()
+            self.listbox.delete(0, "end")
+            for car in self.model.config["cars"]:
+                self.listbox.insert("end", car["display_name"])
+            self._load_car(min(self.current, len(self.model.config["cars"]) - 1))
+            self.status.set("Reloaded settings from disk.")
+        except (ValueError, OSError) as error:
+            self._error(error)
+
+    def apply(self) -> None:
+        if self.applying or not self.save():
+            return
+        try:
+            if game_is_running():
+                self.status.set("Settings saved. Close the running MM3 game, then click Save & Apply again.")
+                return
+        except (OSError, subprocess.SubprocessError) as error:
+            self._error(f"Unable to check whether the game is closed: {error}")
+            return
+        self.applying = True
+        for button in (self.save_button, self.apply_button, self.reload_button):
+            button.configure(state="disabled")
+        self.status.set("Applying settings… Original game-data backups are preserved by the installer.")
+        command = self.model.apply_command(self.game_dir)
+
+        def worker():
+            try:
+                result = subprocess.run(command, capture_output=True, text=True,
+                                        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
+                self.events.put((result.returncode, result.stdout, result.stderr))
+            except OSError as error:
+                self.events.put((1, "", str(error)))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _poll_apply(self) -> None:
+        try:
+            code, stdout, stderr = self.events.get_nowait()
+        except queue.Empty:
+            pass
+        else:
+            self.applying = False
+            for button in (self.save_button, self.apply_button, self.reload_button):
+                button.configure(state="normal")
+            if code:
+                self._error((stderr or stdout).strip() or "The installer did not complete.")
+            else:
+                self.status.set("Applied successfully. Restart MM3 to load the cars, paint and new stats.")
+        self.root.after(100, self._poll_apply)
+
+    def close(self) -> None:
+        if self.applying:
+            self.status.set("Wait for the installation to finish before closing this window.")
+            return
+        try:
+            self._collect()
+            dirty = self.model.config != self.model.saved
+        except (ValueError, OSError):
+            dirty = True
+        if dirty:
+            answer = messagebox.askyesnocancel("Unsaved settings", "Save your changes before closing?", parent=self.root)
+            if answer is None or (answer and not self.save()):
+                return
+        self.root.destroy()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--config", type=Path, default=HERE / "cars.json")
+    parser.add_argument("--game-dir", type=Path, default=prepare.ROOT / "game_files")
+    parser.add_argument("--smoke-test", action="store_true", help="Open, verify and close the UI without saving or applying")
+    args = parser.parse_args()
+    root = tk.Tk()
+    try:
+        app = CarEditor(root, args.config, args.game_dir)
+        if args.smoke_test:
+            root.update()
+            for index in range(len(app.model.config["cars"])):
+                app._load_car(index)
+                app._collect()
+                root.update()
+            print(f"Car editor UI checked: {len(app.model.config['cars'])} cars, {len(app.physics_vars)} physics fields.")
+            root.destroy()
+        else:
+            root.mainloop()
+        return 0
+    except (ValueError, OSError) as error:
+        messagebox.showerror("MM3 Car Workshop", str(error), parent=root)
+        root.destroy()
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

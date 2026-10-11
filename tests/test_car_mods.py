@@ -57,8 +57,8 @@ class CarModsTest(unittest.TestCase):
         self.game = Path(self.temp.name)
         self.config = json.loads((ROOT / "tools/car-mods/cars.json").read_text())
         hd, dvd = {"Cars/Tweak/SortOrder": b"12\r\n8\r\n11\r\n", "unrelated.bin": bytes(range(256))}, {"unrelated.texture": b"preserve me"}
-        for car, stock_id in zip(self.config["cars"], (12, 8, 11)):
-            donor = car["donor"]
+        donor_ids = {"mini": 12, "MFastBack": 8, "Viper": 11, "Koenigsegg": 15, "Lotus": 18}
+        for donor, stock_id in donor_ids.items():
             text = "Begin(CarInfo)\r\n\tID\t" + str(stock_id) + "\r\n"
             text += "\tCOLOR\t0 0x443322 0x443322\r\n\tSKIN\t1 0xff0000 0xff0000\r\n"
             text += "\tLOCKED\r\n\tHIDDEN\r\n\tADMITTANCE\t0 0 2\r\n"
@@ -66,6 +66,8 @@ class CarModsTest(unittest.TestCase):
             text += "\tVEHICLECLASS\t1\r\nEnd(CarInfo)\r\nBegin(CarBody)\r\n"
             text += "\tMass\t1500\r\n\tTorqueScale\t300\r\n\tNWheels\t4\r\nEnd(CarBody)\r\n"
             text += "Begin(CarWheel0)\r\n\tMass\t9\r\nEnd(CarWheel0)\r\n"
+            text += "Begin(CarCamera)\r\n\tHoodPos\t0 1 2\r\n\tSpeedometerMaxKmh\t620\r\n\tSpeedometerMaxMph\t500\r\nEnd(CarCamera)\r\n"
+            text += "Begin(CarCameraSS)\r\n\tOutFarStartZ\t6\r\nEnd(CarCameraSS)\r\n"
             hd[f"Cars/Tweak/{donor}.txt"] = text.encode()
             for suffix in ("", "_lod1"):
                 base = f"Cars/{donor}{suffix}"
@@ -120,7 +122,8 @@ class CarModsTest(unittest.TestCase):
                     self.assertEqual(output[name][payload:payload + info.file_size], after.read(info))
                 self.assertTrue(all(len(i.extra) == 36 for i in before.infolist()))
         with zipfile.ZipFile(io.BytesIO(output[MOD.ARCHIVES[0]])) as hd:
-            self.assertEqual(hd.read("Cars/Tweak/SortOrder"), b"12\r\n8\r\n11\r\n9001\r\n9002\r\n9003\r\n")
+            added_ids = b"".join(str(car["id"]).encode() + b"\r\n" for car in self.config["cars"])
+            self.assertEqual(hd.read("Cars/Tweak/SortOrder"), b"12\r\n8\r\n11\r\n" + added_ids)
             text = hd.read("Cars/Tweak/MRly.txt").decode()
             self.assertIn("ID\t\t9001", text)
             self.assertIn("Mass\t\t980", text)
@@ -138,6 +141,55 @@ class CarModsTest(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(output[MOD.ARCHIVES[1]])) as dvd:
             for car in self.config["cars"]:
                 self.assertEqual(dvd.read(f"LoadingScreens/Default_{car['alias']}.tga"), dvd.read(f"LoadingScreens/Default_{car['donor']}.tga"))
+
+    def test_requested_cars_are_independent_variants_of_shared_donors(self):
+        expected = ["Panoz GTR-1", "McLaren F1", "Formula 1", "Bugatti Chiron", "Bugatti Bolide", "Ford GT"]
+        self.assertEqual([car["display_name"] for car in self.config["cars"][3:]], expected)
+        self.assertEqual(set(car["id"] for car in self.config["cars"]), set(range(9001, 9010)))
+        output = self.plan()
+        with zipfile.ZipFile(io.BytesIO(output[MOD.ARCHIVES[0]])) as hd:
+            materials = set()
+            for car in self.config["cars"]:
+                alias = car["alias"]
+                tweak = hd.read(f"Cars/Tweak/{alias}.txt").decode()
+                self.assertIn(f"ID\t\t{car['id']}\r\n", tweak)
+                self.assertIn(f"TorqueScale\t\t{car['physics']['TorqueScale']}\r\n", tweak)
+                self.assertNotIn("LOCKED", tweak)
+                for suffix in ("", "_lod1"):
+                    material_name = f"Cars/{alias}{suffix}/materialSet00.omb"
+                    self.assertNotIn(material_name.lower(), materials)
+                    materials.add(material_name.lower())
+                    self.assertIn(bytes.fromhex(car["colors"][0][1:])[::-1], hd.read(material_name))
+                    mesh = output[f"Data/Shared/Cars/{alias}{suffix}/body.cmp"]
+                    self.assertIn(f"Cars\\{alias}{suffix}\\materialSet00.oms".encode(), mesh)
+                    self.assertEqual(len(mesh), len((self.game / f"Data/Shared/Cars/{car['donor']}{suffix}/body.cmp").read_bytes()))
+            self.assertNotEqual(hd.read("Cars/McLaren_F1/materialSet00.omb"), hd.read("Cars/BChiron_GT/materialSet00.omb"))
+
+    def test_speedometer_validation_and_camera_serialization(self):
+        path = self.game / "speedometer.json"
+        output = self.plan()
+        with zipfile.ZipFile(io.BytesIO(output[MOD.ARCHIVES[0]])) as hd:
+            tweak = hd.read("Cars/Tweak/BBolide_GT.txt").decode()
+            self.assertEqual(tweak.count("SpeedometerMaxKmh\t\t800\r\n"), 2)
+            self.assertEqual(tweak.count("SpeedometerMaxMph\t\t500\r\n"), 2)
+            self.assertIn("SPEEDOMETERTYPE\t\t1\r\n", tweak)
+            self.assertIn("HoodPos\t0 1 2", tweak)
+            self.assertIn("OutFarStartZ\t6", tweak)
+        legacy = copy.deepcopy(self.config)
+        del legacy["cars"][0]["speedometer"]
+        path.write_text(json.dumps(legacy))
+        MOD.load_config(path)
+        legacy_output = self.plan(legacy)
+        with zipfile.ZipFile(io.BytesIO(legacy_output[MOD.ARCHIVES[0]])) as hd:
+            self.assertIn(b"SpeedometerMaxKmh\t620\r\n", hd.read("Cars/Tweak/MRly.txt"))
+        for value in [{"max_kmh": 800}, {"max_kmh": 800, "max_mph": 500, "bogus": 1},
+                      {"max_kmh": 1201, "max_mph": 500}, {"max_kmh": 800, "max_mph": 0},
+                      {"max_kmh": float("nan"), "max_mph": 500}, {"max_kmh": 800, "max_mph": True}, None]:
+            config = copy.deepcopy(self.config)
+            config["cars"][0]["speedometer"] = value
+            path.write_text(json.dumps(config))
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                MOD.load_config(path)
 
     def test_reapply_stats_is_idempotent_and_restore_is_exact(self):
         output = self.plan()
@@ -240,6 +292,24 @@ class CarModsTest(unittest.TestCase):
             self.assertEqual((self.game / name).read_bytes(), original)
         self.assertFalse((self.game / MOD.STATE_DIR / "state.json").exists())
         self.assertFalse((self.game / "Data/Shared/Cars/MRly/body.cmp").exists())
+
+    def test_automatic_shifts_cannot_require_rpm_beyond_cutoff_or_native_torque_table(self):
+        path = self.game / "rpm.json"
+        for key, value in (("CutRPM", 6000), ("MaxTorqueRPM", 8000),
+                           ("MaxTurboTorqueRPM", 8000), ("MaxTorqueRPM", 8500),
+                           ("MaxTurboTorqueRPM", 8500), ("MaxTurboTorqueRPM", 10500),
+                           ("MaxTorqueRPM", 1000)):
+            rejected = copy.deepcopy(self.config)
+            rejected["cars"][2]["physics"][key] = value
+            path.write_text(json.dumps(rejected))
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                MOD.load_config(path)
+        # A lower cutoff remains available when both automatic shift peaks are
+        # lowered with it, rather than silently inheriting unusable donor peaks.
+        valid = copy.deepcopy(self.config)
+        valid["cars"][2]["physics"].update({"MaxTorqueRPM": 5500, "MaxTurboTorqueRPM": 5700, "CutRPM": 6000})
+        path.write_text(json.dumps(valid))
+        MOD.load_config(path)
 
     def test_failed_restore_retains_valid_installed_state(self):
         output = self.plan()

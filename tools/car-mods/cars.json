@@ -8,7 +8,8 @@
       "display_name": "Mini Rally",
       "ratings": {"TOPSPEED": 7, "ACCELERATION": 8, "MASS": 2, "HANDLING": 9, "DURABILITY": 4},
       "physics": {"Mass": 980, "TorqueScale": 440, "WheelDrive": 2, "BrakeTorque": 7200, "LatFrictionFactor": 1.7, "AirKZZ": 0.025},
-      "colors": ["#f28c28", "#f2f2f2", "#174c28"]
+      "colors": ["#f28c28", "#f2f2f2", "#174c28"],
+      "speedometer": {"max_kmh": 500, "max_mph": 311}
     },
     {
       "id": 9002,
@@ -17,7 +18,8 @@
       "display_name": "Mustang GT",
       "ratings": {"TOPSPEED": 9, "ACCELERATION": 9, "MASS": 5, "HANDLING": 7, "DURABILITY": 7},
       "physics": {"Mass": 1500, "TorqueScale": 900, "WheelDrive": 1, "BrakeTorque": 5200, "LatFrictionFactor": 1.8, "AirKZZ": 0.009},
-      "colors": ["#1769aa", "#e5c047", "#8b1828"]
+      "colors": ["#1769aa", "#e5c047", "#8b1828"],
+      "speedometer": {"max_kmh": 800, "max_mph": 500}
     },
     {
       "id": 9003,
@@ -36,7 +38,110 @@
         "WheelRatio": 3.8,
         "TimeChangeGear": 0.3
       },
-      "colors": ["#f4c430", "#563bb2", "#16a085"]
+      "colors": ["#f4c430", "#563bb2", "#16a085"],
+      "speedometer": {"max_kmh": 800, "max_mph": 500}
+    },
+    {
+      "id": 9004,
+      "alias": "Panoz",
+      "donor": "Viper",
+      "display_name": "Panoz GTR-1",
+      "ratings": {"TOPSPEED": 9, "ACCELERATION": 9, "MASS": 3, "HANDLING": 9, "DURABILITY": 5},
+      "physics": {
+        "Mass": 1150, "TorqueScale": 900, "WheelDrive": 1,
+        "BrakeTorque": 8500, "LatFrictionFactor": 2.6, "AirKZZ": 0.007,
+        "GearRatioVector": [-3.3, 2.65, 1.85, 1.42, 1.13, 0.92, 0.74],
+        "WheelRatio": 3.7, "TimeChangeGear": 0.22, "SteeringEndSpeed": 420,
+        "WheelRadius": 0.34, "MaxTorqueRPM": 6500, "MaxTurboTorqueRPM": 6750,
+        "MinRPMGearChange": 4000, "CutRPM": 8000, "MaxRPM": 9500
+      },
+      "colors": ["#c7a52b", "#efefeb", "#961e28"],
+      "speedometer": {"max_kmh": 800, "max_mph": 500}
+    },
+    {
+      "id": 9005,
+      "alias": "McLaren_F1",
+      "donor": "Koenigsegg",
+      "display_name": "McLaren F1",
+      "ratings": {"TOPSPEED": 9, "ACCELERATION": 9, "MASS": 3, "HANDLING": 9, "DURABILITY": 4},
+      "physics": {
+        "Mass": 1140, "TorqueScale": 950, "WheelDrive": 1,
+        "BrakeTorque": 10000, "LatFrictionFactor": 2.35, "AirKZZ": 0.0065,
+        "GearRatioVector": [-3.3, 2.62, 1.8, 1.36, 1.07, 0.86, 0.68],
+        "WheelRatio": 3.6, "TimeChangeGear": 0.24, "SteeringEndSpeed": 460,
+        "WheelRadius": 0.34, "MaxTorqueRPM": 6500, "MaxTurboTorqueRPM": 6750,
+        "MinRPMGearChange": 4000, "CutRPM": 8000, "MaxRPM": 9500
+      },
+      "colors": ["#b9c2cc", "#ef8a21", "#243a64"],
+      "speedometer": {"max_kmh": 800, "max_mph": 500}
+    },
+    {
+      "id": 9006,
+      "alias": "Form1",
+      "donor": "Lotus",
+      "display_name": "Formula 1",
+      "ratings": {"TOPSPEED": 9, "ACCELERATION": 9, "MASS": 1, "HANDLING": 9, "DURABILITY": 2},
+      "physics": {
+        "Mass": 800, "TorqueScale": 650, "WheelDrive": 1,
+        "BrakeTorque": 11000, "LatFrictionFactor": 3.0, "AirKZZ": 0.009,
+        "GearRatioVector": [-3.3, 2.65, 1.95, 1.5, 1.2, 0.98, 0.8],
+        "WheelRatio": 3.6, "TimeChangeGear": 0.1, "SteeringEndSpeed": 450,
+        "WheelRadius": 0.34, "MaxTorqueRPM": 6500, "MaxTurboTorqueRPM": 6750,
+        "MinRPMGearChange": 4000, "CutRPM": 8000, "MaxRPM": 9500
+      },
+      "colors": ["#dc202a", "#28b8af", "#18325e"],
+      "speedometer": {"max_kmh": 800, "max_mph": 500}
+    },
+    {
+      "id": 9007,
+      "alias": "BChiron_GT",
+      "donor": "Koenigsegg",
+      "display_name": "Bugatti Chiron",
+      "ratings": {"TOPSPEED": 9, "ACCELERATION": 9, "MASS": 6, "HANDLING": 8, "DURABILITY": 7},
+      "physics": {
+        "Mass": 1850, "TorqueScale": 1900, "WheelDrive": 2,
+        "BrakeTorque": 14500, "LatFrictionFactor": 2.5, "AirKZZ": 0.0055,
+        "GearRatioVector": [-3.3, 2.65, 1.84, 1.35, 1.02, 0.8, 0.62],
+        "WheelRatio": 3.3, "TimeChangeGear": 0.18, "SteeringEndSpeed": 540,
+        "WheelRadius": 0.34, "MaxTorqueRPM": 6500, "MaxTurboTorqueRPM": 6750,
+        "MinRPMGearChange": 4000, "CutRPM": 8000, "MaxRPM": 9500
+      },
+      "colors": ["#165bca", "#191d29", "#ece9df"],
+      "speedometer": {"max_kmh": 800, "max_mph": 500}
+    },
+    {
+      "id": 9008,
+      "alias": "BBolide_GT",
+      "donor": "Koenigsegg",
+      "display_name": "Bugatti Bolide",
+      "ratings": {"TOPSPEED": 9, "ACCELERATION": 9, "MASS": 3, "HANDLING": 9, "DURABILITY": 4},
+      "physics": {
+        "Mass": 1240, "TorqueScale": 2050, "WheelDrive": 2,
+        "BrakeTorque": 16000, "LatFrictionFactor": 2.95, "AirKZZ": 0.005,
+        "GearRatioVector": [-3.3, 2.7, 1.88, 1.38, 1.03, 0.79, 0.6],
+        "WheelRatio": 3.3, "TimeChangeGear": 0.12, "SteeringEndSpeed": 580,
+        "WheelRadius": 0.34, "MaxTorqueRPM": 6500, "MaxTurboTorqueRPM": 6750,
+        "MinRPMGearChange": 4000, "CutRPM": 8000, "MaxRPM": 9500
+      },
+      "colors": ["#20bbd7", "#343a47", "#eceef1"],
+      "speedometer": {"max_kmh": 800, "max_mph": 500}
+    },
+    {
+      "id": 9009,
+      "alias": "Ford_GTcar",
+      "donor": "Koenigsegg",
+      "display_name": "Ford GT",
+      "ratings": {"TOPSPEED": 9, "ACCELERATION": 9, "MASS": 4, "HANDLING": 9, "DURABILITY": 6},
+      "physics": {
+        "Mass": 1380, "TorqueScale": 1100, "WheelDrive": 1,
+        "BrakeTorque": 11500, "LatFrictionFactor": 2.55, "AirKZZ": 0.007,
+        "GearRatioVector": [-3.3, 2.8, 1.95, 1.47, 1.16, 0.94, 0.76],
+        "WheelRatio": 3.55, "TimeChangeGear": 0.2, "SteeringEndSpeed": 430,
+        "WheelRadius": 0.34, "MaxTorqueRPM": 6500, "MaxTurboTorqueRPM": 6750,
+        "MinRPMGearChange": 4000, "CutRPM": 8000, "MaxRPM": 9500
+      },
+      "colors": ["#68b7d1", "#f0ece4", "#ad1828"],
+      "speedometer": {"max_kmh": 800, "max_mph": 500}
     }
   ]
 }

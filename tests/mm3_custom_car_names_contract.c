@@ -91,11 +91,21 @@ static void initialize(const char *name)
 
 int main(void)
 {
+    static const char *expected_names[] = {"MINI Rally", "Mustang GT", "Viper Race",
+        "Panoz GTR-1", "McLaren F1", "Formula 1", "Bugatti Chiron", "Bugatti Bolide", "Ford GT"};
     static const char *stock[] = {"SID_CAR_SHORT_12", "SID_CAR_MF_8",
         "SID_CAR_MODEL_11", "SID_CAR_SHORT_90010", "SID_CAR_MODEL_9003_EXTRA",
         "SID_CAR_SHORT_900", "", "SID_OPTIONS"};
     size_t i, j;
+    assert(sizeof car_names / sizeof car_names[0] == 27);
+    for (i = 0; i < sizeof expected_names / sizeof expected_names[0]; ++i) {
+        char expected_key[32];
+        snprintf(expected_key, sizeof expected_key, "SID_CAR_SHORT_%u", 9001u + (unsigned)i);
+        assert(strcmp(car_names[i * 3u + 2u].key, expected_key) == 0);
+        assert(strcmp(car_names[i * 3u + 2u].value, expected_names[i]) == 0);
+    }
     for (i = 0; i < sizeof car_names / sizeof car_names[0]; ++i) {
+        assert(strlen(car_names[i].value) < 32); /* reserved UTF-16 scratch */
         initialize(car_names[i].key);
         sub_0011C194();
         assert(original_calls == 0 && constructor_calls == 1);
@@ -125,6 +135,6 @@ int main(void)
         assert(g_ecx == 0xBAD && g_ebx == 0xBAD && g_fp_top == 7);
         assert(MEM32(output) == 0x12345678);
     }
-    puts("PASS: nine custom car labels, RET 8, guest string ownership, full register state and exact stock passthrough");
+    puts("PASS: 27 custom car labels, RET 8, guest string ownership, full register state and exact stock passthrough");
     return 0;
 }

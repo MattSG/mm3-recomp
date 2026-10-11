@@ -6,7 +6,7 @@ extern void sub_00016148(void);
 
 /* The normal catalog enumerator already accepts additional Cars/Tweak/*.txt.
  * Retail compressed locale resources contain no strings for the new IDs.
- * Extend only those nine localization keys; every other lookup retains the
+ * Extend only the variant localization keys; every other lookup retains the
  * original implementation. All installed languages use these vehicle names.
  * The output is constructed by the same guest UTF-16 string helper used by
  * the original lookup's missing-key path, so guest allocation and destruction
@@ -23,7 +23,25 @@ static const struct {
     { "SID_CAR_SHORT_9002", "Mustang GT" },
     { "SID_CAR_MF_9003", "Dodge" },
     { "SID_CAR_MODEL_9003", "Viper Race" },
-    { "SID_CAR_SHORT_9003", "Viper Race" }
+    { "SID_CAR_SHORT_9003", "Viper Race" },
+    { "SID_CAR_MF_9004", "Panoz" },
+    { "SID_CAR_MODEL_9004", "GTR-1" },
+    { "SID_CAR_SHORT_9004", "Panoz GTR-1" },
+    { "SID_CAR_MF_9005", "McLaren" },
+    { "SID_CAR_MODEL_9005", "F1" },
+    { "SID_CAR_SHORT_9005", "McLaren F1" },
+    { "SID_CAR_MF_9006", "Formula" },
+    { "SID_CAR_MODEL_9006", "1" },
+    { "SID_CAR_SHORT_9006", "Formula 1" },
+    { "SID_CAR_MF_9007", "Bugatti" },
+    { "SID_CAR_MODEL_9007", "Chiron" },
+    { "SID_CAR_SHORT_9007", "Bugatti Chiron" },
+    { "SID_CAR_MF_9008", "Bugatti" },
+    { "SID_CAR_MODEL_9008", "Bolide" },
+    { "SID_CAR_SHORT_9008", "Bugatti Bolide" },
+    { "SID_CAR_MF_9009", "Ford" },
+    { "SID_CAR_MODEL_9009", "GT" },
+    { "SID_CAR_SHORT_9009", "Ford GT" }
 };
 
 void sub_0011C194(void)
