@@ -1,3 +1,25 @@
+diff --git a/src/apu/apu_state.h b/src/apu/apu_state.h
+index 3493ba5..09e7a60 100644
+--- a/src/apu/apu_state.h
++++ b/src/apu/apu_state.h
+@@ -159,14 +159,15 @@ static inline void hrtf_filter_process(HrtfFilter *f,
+             int di = (int)d;
+             float dfrac = d - di;
+             float acc = 0.0f;
++            int idx1 = (f->buf_pos - di + HRTF_BUFLEN) % HRTF_BUFLEN;
+             for (int k = 0; k < HRTF_NUM_TAPS; k++) {
+-                int idx1 = (f->buf_pos - di - k + HRTF_BUFLEN) % HRTF_BUFLEN;
+                 float s = buf[idx1];
+                 if (dfrac > 0.0f) {
+-                    int idx2 = (idx1 - 1 + HRTF_BUFLEN) % HRTF_BUFLEN;
++                    int idx2 = idx1 == 0 ? HRTF_BUFLEN - 1 : idx1 - 1;
+                     s = s * (1 - dfrac) + buf[idx2] * dfrac;
+                 }
+                 acc += coeff[k] * s;
++                idx1 = idx1 == 0 ? HRTF_BUFLEN - 1 : idx1 - 1;
+             }
+             out[n][ch] = acc;
+         }
 diff --git a/src/input/xinput_device.c b/src/input/xinput_device.c
 index a91edbe..59c5815 100644
 --- a/src/input/xinput_device.c
@@ -1210,7 +1232,7 @@ index b9de8d0..e85f5d1 100644
      s_tot_words += words;
      s_tot_unknown += unknown;
 diff --git a/src/kernel/xbox_memory_layout.c b/src/kernel/xbox_memory_layout.c
-index a2e99fb..6a3e5b4 100644
+index a2e99fb..87f8f13 100644
 --- a/src/kernel/xbox_memory_layout.c
 +++ b/src/kernel/xbox_memory_layout.c
 @@ -15,6 +15,7 @@
@@ -1221,7 +1243,19 @@ index a2e99fb..6a3e5b4 100644
  #include <stdio.h>
  #include <stdlib.h>
  #include <string.h>
-@@ -234,6 +235,7 @@ static size_t xbox_TiledApertureSize(void)
+@@ -196,8 +197,9 @@ static HANDLE g_contig_mapping = NULL;
+  * gaps and ordinary RAM can sit below that high-water mark. Publish exact
+  * allocations so bus masters resolve only memory the runtime handed out. */
+ #define XBOX_CONTIG_MAX_ALLOCS (XBOX_CONTIG_SIZE / 4096u)
+-/* Offsets and spans stay sorted and immutable for lock-free DMA lookups.
+- * Freed spans can be reused without inserting or moving table entries. */
++/* Exact coverage persists for the process lifetime: free/reuse only split
++ * or coalesce covered spans. Table entries themselves can move under the
++ * allocator lock; DMA caches may retain copied bounds, never entry pointers. */
+ static struct { uint32_t offset, size; volatile LONG in_use; } g_contig_allocs[XBOX_CONTIG_MAX_ALLOCS];
+ static volatile LONG g_contig_alloc_count;
+ /* How much of the tiled aperture can exist.
+@@ -234,6 +236,7 @@ static size_t xbox_TiledApertureSize(void)
  
  static HANDLE g_nv2a_ack_thread = NULL;
  static volatile LONG g_nv2a_ack_stop = 0;
@@ -1229,7 +1263,7 @@ index a2e99fb..6a3e5b4 100644
  
  /*
   * NV2A busy-bit acknowledgement.
-@@ -764,11 +766,12 @@ void xbox_Nv2aFrameCounterFlip(void)
+@@ -764,11 +767,12 @@ void xbox_Nv2aFrameCounterFlip(void)
  
  static void frame_counters_tick(void)
  {
@@ -1243,7 +1277,7 @@ index a2e99fb..6a3e5b4 100644
      if (g_frame_counter_last_ms
              && (now - g_frame_counter_last_ms) < XBOX_FRAME_PERIOD_MS)
          return;
-@@ -806,6 +809,7 @@ static int s_fence_snap_ok[XBOX_MAX_FENCE_MIRRORS];
+@@ -806,6 +810,7 @@ static int s_fence_snap_ok[XBOX_MAX_FENCE_MIRRORS];
  
  static void fence_mirrors_tick(int publish)
  {
@@ -1251,7 +1285,7 @@ index a2e99fb..6a3e5b4 100644
      for (int i = 0; i < g_fence_mirror_count; i++) {
          uint32_t dev, get_ptr;
  
-@@ -831,9 +835,11 @@ static void fence_mirrors_tick(int publish)
+@@ -831,9 +836,11 @@ static void fence_mirrors_tick(int publish)
                  s_fence_snap_ok[i] = 1;
              } else if (s_fence_snap_ok[i] && *fence != s_fence_snap[i]) {
                  *fence = s_fence_snap[i];
@@ -1263,7 +1297,7 @@ index a2e99fb..6a3e5b4 100644
  }
  
  /*
-@@ -861,17 +867,16 @@ int xbox_Nv2aNotifyEvent(uint32_t device_ptr_va, uint32_t event_off, uint32_t no
+@@ -861,17 +868,16 @@ int xbox_Nv2aNotifyEvent(uint32_t device_ptr_va, uint32_t event_off, uint32_t no
  /* The executor ran NO_OPERATION(param): the notify interrupt, on hardware. */
  void xbox_Nv2aNop(uint32_t param)
  {
@@ -1284,7 +1318,7 @@ index a2e99fb..6a3e5b4 100644
      LONG notified = g_notify_count;
      /* the pointer is in the title image, mapped for as long as it runs */
      if (!g_notify_device_ptr || !g_nv2a_memory || !g_memory_base)
-@@ -883,18 +888,24 @@ int xbox_Nv2aNotifyWait(uint32_t object_va)
+@@ -883,18 +889,24 @@ int xbox_Nv2aNotifyWait(uint32_t object_va)
      get = (volatile uint32_t *)((char *)g_nv2a_memory + NV2A_USER_DMA_GET);
      /* The patched NOP running is the interrupt itself; GET reaching PUT
       * covers an executor that passed the slot before it was patched. */
@@ -1318,7 +1352,7 @@ index a2e99fb..6a3e5b4 100644
  static int s_nv2a_trace = 0;
  static int s_nv2a_report = 0;  /* periodic survey/executor report */
  
-@@ -932,12 +943,13 @@ static void framebuffer_probe_tick(void)
+@@ -932,12 +944,13 @@ static void framebuffer_probe_tick(void)
  {
      static DWORD last_ms;
      static uint32_t last_sum;
@@ -1333,7 +1367,7 @@ index a2e99fb..6a3e5b4 100644
      if (last_ms && (now - last_ms) < 1000)
          return;
      last_ms = now;
-@@ -1004,6 +1016,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
+@@ -1004,6 +1017,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
              *(volatile uint32_t *)((char *)regs + NV2A_USER_DMA_GET) = s_get_held_value;
              fence_mirrors_tick(1);
              s_get_held = 0;
@@ -1341,7 +1375,7 @@ index a2e99fb..6a3e5b4 100644
          }
  
          poke_tick();
-@@ -1107,6 +1120,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
+@@ -1107,6 +1121,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
                      *get = put;
                      fence_mirrors_tick(1);
                      s_get_held = 0;        /* a held, older GET must not follow */
@@ -1349,7 +1383,7 @@ index a2e99fb..6a3e5b4 100644
                  }
                  last_put = put; last_put_ms = now_ms;
                  /* GET as well as PUT. A title that stops submitting has either
-@@ -1169,6 +1183,7 @@ static void xbox_Nv2aAckStart(void)
+@@ -1169,6 +1184,7 @@ static void xbox_Nv2aAckStart(void)
  {
  
      poke_init();
@@ -1357,7 +1391,7 @@ index a2e99fb..6a3e5b4 100644
      g_nv2a_ack_stop = 0;
      g_nv2a_ack_thread = CreateThread(NULL, 0, nv2a_ack_thread,
                                       g_nv2a_memory, 0, NULL);
-@@ -2494,13 +2509,22 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
+@@ -2494,13 +2510,22 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
              MEM_RESERVE | MEM_COMMIT,
              PAGE_READWRITE
          );
@@ -1385,7 +1419,7 @@ index a2e99fb..6a3e5b4 100644
          if (g_nv2a_memory) {
              DWORD old_protect;
              if (VirtualProtect((char *)g_nv2a_memory + 0x8000, 0x1000,
-@@ -2935,6 +2959,7 @@ void xbox_MemoryLayoutShutdown(void)
+@@ -2935,6 +2960,7 @@ void xbox_MemoryLayoutShutdown(void)
      g_kernel_memory_owned = 0;
      if (g_nv2a_ack_thread) {
          InterlockedExchange(&g_nv2a_ack_stop, 1);
@@ -1393,6 +1427,87 @@ index a2e99fb..6a3e5b4 100644
          WaitForSingleObject(g_nv2a_ack_thread, 1000);
          CloseHandle(g_nv2a_ack_thread);
          g_nv2a_ack_thread = NULL;
+@@ -3453,14 +3479,22 @@ int xbox_HeapReclaimEnabled(void)
+     return enabled;
+ }
+ 
+-int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
++/* Only positive coverage is permanent. Alignment gaps and ordinary RAM are
++ * not contiguous allocations, and a miss can become positive on the next
++ * allocation. Keep this small hint local to each DMA thread. The allocation
++ * table has no reset path; a future reset must also invalidate these hints. */
++#define XBOX_CONTIG_RANGE_CACHE_SIZE 32
++typedef struct { uint32_t begin, end; } XBOX_CONTIG_RANGE;
++static RECOMP_TLS XBOX_CONTIG_RANGE t_contig_ranges[XBOX_CONTIG_RANGE_CACHE_SIZE];
++static RECOMP_TLS unsigned t_contig_range_last;
++
++static int contig_range_lookup(uint32_t physical_offset, uint64_t end,
++                                uint32_t *range_begin, uint32_t *range_end)
+ {
+     LONG lo = 0, hi, i;
+-    uint64_t end, covered;
++    uint64_t covered;
+     int result = 0;
+ 
+-    if (!size)
+-        size = 1;
+     /* The table is split and coalesced in place; read it under the lock. */
+     EnterCriticalSection(&g_allocator_lock);
+     hi = g_contig_alloc_count;
+@@ -3479,7 +3513,6 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
+      * the code bytes as colour static. A range may run on through adjacent
+      * spans. */
+     if (lo) {
+-        end = (uint64_t)physical_offset + size;
+         i = lo - 1;
+         covered = (uint64_t)g_contig_allocs[i].offset + g_contig_allocs[i].size;
+         while (covered < end && i + 1 < g_contig_alloc_count &&
+@@ -3488,11 +3521,45 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
+             covered += g_contig_allocs[i].size;
+         }
+         result = physical_offset >= g_contig_allocs[lo - 1].offset && end <= covered;
++        if (result) {
++            *range_begin = g_contig_allocs[lo - 1].offset;
++            *range_end = (uint32_t)covered;
++        }
+     }
+     LeaveCriticalSection(&g_allocator_lock);
+     return result;
+ }
+ 
++int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
++{
++    uint64_t end = (uint64_t)physical_offset + (size ? size : 1u);
++    XBOX_CONTIG_RANGE *range;
++    unsigned slot;
++    uint32_t begin, covered;
++    /* Physical offsets are not guest aliases. Validate before consulting a
++     * hint, with a wide end so uint32 wrapping cannot turn a miss into a hit. */
++    if (physical_offset >= XBOX_CONTIG_SIZE || end > XBOX_CONTIG_SIZE)
++        return 0;
++    range = &t_contig_ranges[t_contig_range_last];
++    if (physical_offset >= range->begin && end <= range->end)
++        return 1;
++    slot = ((physical_offset >> 12) ^ (physical_offset >> 17)) &
++           (XBOX_CONTIG_RANGE_CACHE_SIZE - 1);
++    range = &t_contig_ranges[slot];
++    if (physical_offset >= range->begin && end <= range->end) {
++        t_contig_range_last = slot;
++        return 1;
++    }
++    if (!contig_range_lookup(physical_offset, end, &begin, &covered))
++        return 0;
++    /* Copy only the exact continuous span proved while holding the lock.
++     * Free, reuse, and table memmoves cannot revoke that positive coverage. */
++    range->begin = begin;
++    range->end = covered;
++    t_contig_range_last = slot;
++    return 1;
++}
++
+ 
+ /* RECOMP_HEAP_WATCH=<hex address>: report heap blocks handed out over it. */
+ static void heap_watch(const char *how, uint32_t addr, uint32_t size)
 diff --git a/src/kernel/xbox_memory_layout.h b/src/kernel/xbox_memory_layout.h
 index 69f1bf6..eedba25 100644
 --- a/src/kernel/xbox_memory_layout.h
@@ -1446,7 +1561,7 @@ index bd00f3f..575b5f3 100644
              }
          }
 diff --git a/src/video/nv2a_d3d11.c b/src/video/nv2a_d3d11.c
-index b9f3fa2..7472a9a 100644
+index b9f3fa2..d6b1ea9 100644
 --- a/src/video/nv2a_d3d11.c
 +++ b/src/video/nv2a_d3d11.c
 @@ -29,6 +29,7 @@
@@ -1545,10 +1660,159 @@ index b9f3fa2..7472a9a 100644
  static ID3DBlob *compile(const char *entry, const char *target)
  {
      return compile_def(entry, target, NULL);
-@@ -918,6 +977,19 @@ static CRITICAL_SECTION s_spec_cs;
+@@ -903,10 +962,14 @@ typedef struct {
+     uint32_t tex_info[4][3];
+ } PsKey;
+ 
++#include "nv2a_ps_manifest.h"
++typedef char PsKeySizeCheck[sizeof(PsKey) == NV_PS_MANIFEST_WORDS * 4 ? 1 : -1];
++
+ typedef struct {
+     PsKey key;
+-    volatile LONG state;            /* 0 empty, 1 queued, 2 ready, 3 failed */
++    volatile LONG state;            /* 0 empty, 1 queued, 2 ready, 3 failed, 4 claimed */
+     ID3D11PixelShader *ps;          /* valid once state is 2 */
++    int prewarm, promoted;          /* guarded by s_spec_cs */
+ } PsSpec;
+ 
+ #define PS_SPEC_SLOTS 4096          /* power of two */
+@@ -914,9 +977,151 @@ typedef struct {
+ static PsSpec *s_spec;
+ static PsSpec *s_spec_q[PS_SPEC_QUEUE];
+ static unsigned s_spec_head, s_spec_tail;  /* guarded by s_spec_cs */
++static PsSpec *s_spec_warm[NV_PS_MANIFEST_LIMIT];
++static unsigned s_spec_warm_head, s_spec_warm_tail;
+ static CRITICAL_SECTION s_spec_cs;
  static CONDITION_VARIABLE s_spec_cv;
  static volatile LONG s_spec_ready;
- 
++static int s_spec_enabled = -1, s_spec_manifest;
++static wchar_t s_spec_manifest_path[NV_SHADER_CACHE_PATH];
++static uint8_t s_spec_family[32];
++static PsKey s_spec_known[NV_PS_MANIFEST_LIMIT];
++static unsigned s_spec_known_count, s_spec_dirty, s_spec_saved;
++static int s_spec_saving;
++static ULONGLONG s_spec_last_save;
++
++static void spec_family(uint8_t family[32])
++{
++    /* Bump the manifest schema if PsKey field order or SPEC_DECL mapping changes. */
++    static const D3D_SHADER_MACRO domain[] = {
++        { "PS_KEY_LAYOUT", "c_icw8,a_icw8,c_ocw8,a_ocw8,fin0,fin1,rc_control,stage_prog,alpha_func,ps_flags,clip_plane,other_input,dot_map,variant,tex_info4x3:v1" },
++        { "VARIANTS", "SPEC=1;FLATQ=nointerpolation|none;variant=0..3" },
++        { NULL, NULL }
++    };
++    NvShaderHash hash;
++    uint8_t shader[32];
++    nv_shader_cache_key(s_hlsl, sizeof s_hlsl - 1, "nv2a_d3d11", domain,
++                        "ps_main|ps_wdepth", "ps_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, shader);
++    nv_shader_hash_init(&hash);
++    nv_shader_hash_add(&hash, shader, sizeof shader);
++    nv_shader_hash_number(&hash, NV_PS_MANIFEST_SCHEMA);
++    nv_shader_hash_number(&hash, NV_PS_MANIFEST_WORDS);
++    nv_shader_hash_finish(&hash, family);
++}
++
++static PsSpec *spec_find(const PsKey *k)
++{
++    uint32_t h = 2166136261u, i;
++    const uint8_t *p = (const uint8_t *)k;
++    for (i = 0; i < sizeof *k; i++) h = (h ^ p[i]) * 16777619u;
++    for (i = 0; i < PS_SPEC_SLOTS; i++) {
++        PsSpec *e = &s_spec[(h + i) & (PS_SPEC_SLOTS - 1)];
++        if (!InterlockedCompareExchange(&e->state, 0, 0) || !memcmp(&e->key, k, sizeof *k)) return e;
++    }
++    return NULL;
++}
++
++/* Called only by the render thread, or during init before workers exist.
++ * Worker threads never insert/change keys, so the lock-free lookup is safe. */
++static ID3D11PixelShader *spec_request(const PsKey *k, int prewarm)
++{
++    PsSpec *e = spec_find(k);
++    LONG state;
++    if (!e) return NULL;
++    state = InterlockedCompareExchange(&e->state, 0, 0);
++    if (state == 2) return e->ps;
++    if (state == 3 || state == 4) return NULL;
++    EnterCriticalSection(&s_spec_cs);
++    if (!state) {
++        if ((prewarm && s_spec_warm_head < NV_PS_MANIFEST_LIMIT) ||
++            (!prewarm && s_spec_head - s_spec_tail < PS_SPEC_QUEUE)) {
++            e->key = *k;
++            e->prewarm = prewarm;
++            e->promoted = 0;
++            InterlockedExchange(&e->state, 1);
++            if (prewarm) s_spec_warm[s_spec_warm_head++] = e;
++            else s_spec_q[s_spec_head++ % PS_SPEC_QUEUE] = e;
++            WakeConditionVariable(&s_spec_cv);
++        }
++    } else if (!prewarm && e->prewarm && !e->promoted &&
++               e->state == 1 && s_spec_head - s_spec_tail < PS_SPEC_QUEUE) {
++        /* Keep the old low-priority pointer; claiming under the lock makes it
++         * harmless when another worker later encounters it. */
++        e->promoted = 1;
++        s_spec_q[s_spec_head++ % PS_SPEC_QUEUE] = e;
++        WakeConditionVariable(&s_spec_cv);
++    }
++    LeaveCriticalSection(&s_spec_cs);
++    return NULL;
++}
++
++/* s_spec_cs is held. Live work always wins, and each entry is claimed once. */
++static PsSpec *spec_claim(void)
++{
++    PsSpec *e;
++    while (s_spec_tail != s_spec_head) {
++        e = s_spec_q[s_spec_tail++ % PS_SPEC_QUEUE];
++        if (e->state == 1) { InterlockedExchange(&e->state, 4); return e; }
++    }
++    while (s_spec_warm_tail != s_spec_warm_head) {
++        e = s_spec_warm[s_spec_warm_tail++];
++        if (e->state == 1 && !e->promoted) { InterlockedExchange(&e->state, 4); return e; }
++    }
++    return NULL;
++}
++
++static void spec_remember(const PsKey *k)
++{
++    unsigned i;
++    if (!s_spec_manifest) return;
++    EnterCriticalSection(&s_spec_cs);
++    for (i = 0; i < s_spec_known_count; i++)
++        if (!memcmp(&s_spec_known[i], k, sizeof *k)) break;
++    if (i == s_spec_known_count && i < NV_PS_MANIFEST_LIMIT) {
++        s_spec_known[s_spec_known_count++] = *k;
++        s_spec_dirty++;
++    }
++    LeaveCriticalSection(&s_spec_cs);
++}
++
++static void spec_manifest_flush(void)
++{
++    uint32_t snapshot[NV_PS_MANIFEST_LIMIT][NV_PS_MANIFEST_WORDS];
++    unsigned count, generation;
++    ULONGLONG now;
++    int ok;
++    if (!s_spec_manifest) return;
++    EnterCriticalSection(&s_spec_cs);
++    now = GetTickCount64();
++    if (s_spec_dirty == s_spec_saved || s_spec_saving || now - s_spec_last_save < 1000) {
++        LeaveCriticalSection(&s_spec_cs); return;
++    }
++    s_spec_saving = 1;
++    s_spec_last_save = now;
++    generation = s_spec_dirty;
++    count = s_spec_known_count;
++    memcpy(snapshot, s_spec_known, count * sizeof(PsKey));
++    LeaveCriticalSection(&s_spec_cs);
++    /* Hashing and all file I/O stay on the existing low-priority workers. */
++    ok = nv_ps_manifest_write(s_spec_manifest_path, s_spec_family, snapshot, count);
++    EnterCriticalSection(&s_spec_cs);
++    if (ok) s_spec_saved = generation;
++    s_spec_saving = 0;
++    LeaveCriticalSection(&s_spec_cs);
++}
++
 +static void spec_hitch_report(const char *phase, int64_t start, uint32_t variant,
 +                              int cache_hit, HRESULT hr)
 +{
@@ -1561,11 +1825,10 @@ index b9f3fa2..7472a9a 100644
 +            start * 1000.0 / (double)s_hitch_freq.QuadPart,
 +            ms, (unsigned long)GetCurrentThreadId(), variant, cache_hit, (unsigned long)hr);
 +}
-+
+ 
  static DWORD WINAPI spec_worker(LPVOID arg)
  {
-     (void)arg;
-@@ -926,7 +998,9 @@ static DWORD WINAPI spec_worker(LPVOID arg)
+@@ -926,12 +1131,19 @@ static DWORD WINAPI spec_worker(LPVOID arg)
          const PsKey *k;
          char decl[2048];
          ID3DBlob *b;
@@ -1575,8 +1838,21 @@ index b9f3fa2..7472a9a 100644
 +        HRESULT hr;
          D3D_SHADER_MACRO m[4];
          EnterCriticalSection(&s_spec_cs);
-         while (s_spec_head == s_spec_tail)
-@@ -965,9 +1039,17 @@ static DWORD WINAPI spec_worker(LPVOID arg)
+-        while (s_spec_head == s_spec_tail)
+-            SleepConditionVariableCS(&s_spec_cv, &s_spec_cs, INFINITE);
+-        e = s_spec_q[s_spec_tail++ % PS_SPEC_QUEUE];
++        while (!(e = spec_claim())) {
++            DWORD wait = s_spec_manifest && s_spec_dirty != s_spec_saved ? 1000 : INFINITE;
++            if (!SleepConditionVariableCS(&s_spec_cv, &s_spec_cs, wait) && GetLastError() == ERROR_TIMEOUT) {
++                LeaveCriticalSection(&s_spec_cs);
++                spec_manifest_flush();
++                EnterCriticalSection(&s_spec_cs);
++            }
++        }
+         LeaveCriticalSection(&s_spec_cs);
+         k = &e->key;
+         snprintf(decl, sizeof decl,
+@@ -965,45 +1177,87 @@ static DWORD WINAPI spec_worker(LPVOID arg)
          m[1].Name = "SPEC_DECL"; m[1].Definition = decl;
          m[2].Name = flat ? "FLATQ" : NULL; m[2].Definition = flat ? "nointerpolation" : NULL;
          m[3].Name = NULL; m[3].Definition = NULL;
@@ -1597,7 +1873,130 @@ index b9f3fa2..7472a9a 100644
              LONG n;
              InterlockedExchange(&e->state, 2);
              n = InterlockedIncrement(&s_spec_ready);
-@@ -1413,13 +1495,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
+             if (!(n & (n - 1)))
+                 fprintf(stderr, "[D3D11] %ld specialised pixel shaders\n", (long)n);
++            spec_remember(k);
+         } else {
+             InterlockedExchange(&e->state, 3);
+         }
+         if (b) ID3D10Blob_Release(b);
++        spec_manifest_flush();
+     }
+ }
+ 
+-/* The specialised shader for this configuration, or NULL (not ready yet). */
+-static ID3D11PixelShader *spec_ps(const PSConsts *pc, uint32_t variant)
++static void spec_init(void)
+ {
+-    static int enabled = -1;
+-    PsKey k;
+-    uint32_t h = 2166136261u, i;
+-    const uint8_t *p = (const uint8_t *)&k;
+-    PsSpec *e;
+-    if (enabled < 0) {
+-        const char *v = getenv("RECOMP_PS_SPEC");
+-        int threads = 2;
+-        enabled = !(v && *v == '0');
+-        if (enabled) s_spec = (PsSpec *)calloc(PS_SPEC_SLOTS, sizeof *s_spec);
+-        if (!s_spec) enabled = 0;
+-        if (enabled) {
+-            InitializeCriticalSection(&s_spec_cs);
+-            InitializeConditionVariable(&s_spec_cv);
+-            while (threads--) {
+-                HANDLE t = CreateThread(NULL, 0, spec_worker, NULL, 0, NULL);
+-                if (t) { SetThreadPriority(t, THREAD_PRIORITY_BELOW_NORMAL); CloseHandle(t); }
++    const char *v;
++    unsigned workers = 0, i, count = 0;
++    uint32_t records[NV_PS_MANIFEST_LIMIT][NV_PS_MANIFEST_WORDS];
++    if (s_spec_enabled >= 0) return;
++    v = getenv("RECOMP_PS_SPEC");
++    s_spec_enabled = !(v && *v == '0');
++    if (s_spec_enabled) s_spec = (PsSpec *)calloc(PS_SPEC_SLOTS, sizeof *s_spec);
++    if (!s_spec) { s_spec_enabled = 0; return; }
++    InitializeCriticalSection(&s_spec_cs);
++    InitializeConditionVariable(&s_spec_cv);
++    v = getenv("RECOMP_PS_PREWARM");
++    if (!(v && *v == '0')) {
++        spec_family(s_spec_family);
++        s_spec_manifest = nv_ps_manifest_path(s_spec_family, s_spec_manifest_path);
++        if (s_spec_manifest && nv_ps_manifest_read(s_spec_manifest_path, s_spec_family, records, &count)) {
++            /* Variant controls entry-point and macro choice. Other words are
++             * exact guest control words accepted by the existing lazy path. */
++            for (i = 0; i < count; i++) if (records[i][41] > 3) break;
++            if (i != count) count = 0;
++            for (i = 0; i < count; i++) {
++                PsKey k;
++                memcpy(&k, records[i], sizeof k);
++                spec_request(&k, 1);
++                spec_remember(&k);
+             }
++            s_spec_saved = s_spec_dirty; /* Imported keys are already persistent. */
++        }
++    }
++    /* Imports finish before threads or draw lookups can see the table. */
++    for (i = 0; i < 2; i++) {
++        HANDLE t = CreateThread(NULL, 0, spec_worker, NULL, CREATE_SUSPENDED, NULL);
++        if (t) {
++            SetThreadPriority(t, THREAD_PRIORITY_BELOW_NORMAL);
++            if (ResumeThread(t) != (DWORD)-1) workers++;
++            else TerminateThread(t, 0); /* It has never executed user code. */
++            CloseHandle(t);
+         }
+     }
+-    if (!enabled) return NULL;
++    if (!workers) {
++        s_spec_enabled = 0;
++        free(s_spec); s_spec = NULL;
++        DeleteCriticalSection(&s_spec_cs);
++    }
++    if (workers && count)
++        fprintf(stderr, "[D3D11] prewarming %u known pixel shader states\n", s_spec_known_count);
++}
++
++/* The specialised shader for this configuration, or NULL (not ready yet). */
++static ID3D11PixelShader *spec_ps(const PSConsts *pc, uint32_t variant)
++{
++    PsKey k;
++    uint32_t i;
++    spec_init();
++    if (!s_spec_enabled) return NULL;
+     memset(&k, 0, sizeof k);
+     memcpy(k.c_icw, pc->c_icw, sizeof k.c_icw);
+     memcpy(k.a_icw, pc->a_icw, sizeof k.a_icw);
+@@ -1017,23 +1271,7 @@ static ID3D11PixelShader *spec_ps(const PSConsts *pc, uint32_t variant)
+         k.tex_info[i][0] = pc->tex_info[i][0]; k.tex_info[i][1] = pc->tex_info[i][1];
+         k.tex_info[i][2] = pc->tex_info[i][2];
+     }
+-    for (i = 0; i < sizeof k; i++) h = (h ^ p[i]) * 16777619u;
+-    for (i = 0; i < PS_SPEC_SLOTS; i++) {
+-        e = &s_spec[(h + i) & (PS_SPEC_SLOTS - 1)];
+-        if (!e->state) break;
+-        if (!memcmp(&e->key, &k, sizeof k))
+-            return InterlockedCompareExchange(&e->state, 0, 0) == 2 ? e->ps : NULL;
+-    }
+-    if (i == PS_SPEC_SLOTS) return NULL;            /* table full: ubershader */
+-    EnterCriticalSection(&s_spec_cs);
+-    if (s_spec_head - s_spec_tail < PS_SPEC_QUEUE) {
+-        e->key = k;
+-        e->state = 1;
+-        s_spec_q[s_spec_head++ % PS_SPEC_QUEUE] = e;
+-        WakeConditionVariable(&s_spec_cv);
+-    }
+-    LeaveCriticalSection(&s_spec_cs);
+-    return NULL;
++    return spec_request(&k, 0);
+ }
+ 
+ static ID3D11Buffer *make_buffer(UINT bytes, UINT bind)
+@@ -1217,6 +1455,7 @@ int nv2a_d3d_init(void)
+         if (qc && qd) break;
+     }
+     if (s_msaa < 1) s_msaa = 1;
++    spec_init();
+     s_init_state = 1;
+     fprintf(stderr, "[D3D11] renderer ready: %ux%u internal, display aspect %.3f, %ux MSAA, %ux AF\n",
+             (uint32_t)(GUEST_W * s_scale * widen() + 0.5f), (uint32_t)(GUEST_H * s_scale + 0.5f),
+@@ -1413,13 +1652,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
  }
  
  /* Guest rows of a surface as BGRA, with the format's fixed alpha. */
@@ -1614,7 +2013,7 @@ index b9f3fa2..7472a9a 100644
          uint32_t *dst = out + (size_t)y * s->w;
          if (s->bpp == 4) {
              memcpy(dst, row, (size_t)s->w * 4);
-@@ -1454,6 +1536,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
+@@ -1454,6 +1693,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
  static UINT s_up_w[2], s_up_h[2];
  static uint32_t *s_up_pixels, *s_mask_pixels;
  static size_t s_up_cap, s_mask_cap;
@@ -1623,7 +2022,7 @@ index b9f3fa2..7472a9a 100644
  
  /* slot 0: image, slot 1: change mask */
  static ID3D11ShaderResourceView *upload_slot(int k, const uint32_t *pixels, UINT w, UINT h)
-@@ -1489,6 +1573,25 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1489,6 +1730,25 @@ static uint32_t *scratch_pixels(size_t count)
      return s_up_pixels;
  }
  
@@ -1649,7 +2048,7 @@ index b9f3fa2..7472a9a 100644
  /* Guest memory is the authority for what the CPU writes. A shadow copy of
   * each surface's guest bytes says which pixels the CPU changed since the last
   * look; only those replace what the GPU drew. A loading screen drawn by the
-@@ -1496,22 +1599,24 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1496,22 +1756,24 @@ static uint32_t *scratch_pixels(size_t count)
  static void surface_sync_impl(Surface *s, int force)
  {
      uint32_t rowb = s->w * s->bpp, y, x, x0 = 0xFFFFFFFFu, x1 = 0, y0 = 0xFFFFFFFFu, y1 = 0;
@@ -1678,7 +2077,7 @@ index b9f3fa2..7472a9a 100644
          {
              ID3D11ShaderResourceView *srv = upload_image(px, s->w, s->h);
              float x0, x1;
-@@ -1522,7 +1627,7 @@ static void surface_sync_impl(Surface *s, int force)
+@@ -1522,7 +1784,7 @@ static void surface_sync_impl(Surface *s, int force)
          return;
      }
      for (y = 0; y < s->h; y++) {
@@ -1687,7 +2086,7 @@ index b9f3fa2..7472a9a 100644
          uint8_t *sh = s->shadow + (size_t)y * rowb;
          if (!memcmp(row, sh, rowb)) continue;
          if (y0 == 0xFFFFFFFFu) {
-@@ -1552,7 +1657,7 @@ static void surface_sync_impl(Surface *s, int force)
+@@ -1552,7 +1814,7 @@ static void surface_sync_impl(Surface *s, int force)
                  s->phys, s_frame, x0, y0, x1, y1);
      px = scratch_pixels((size_t)s->w * s->h);
      if (!px) return;
@@ -1696,7 +2095,7 @@ index b9f3fa2..7472a9a 100644
      {
          ID3D11ShaderResourceView *srv = upload_slot(0, px, s->w, s->h);
          ID3D11ShaderResourceView *msk = upload_slot(1, s_mask_pixels, s->w, s->h);
-@@ -1572,8 +1677,11 @@ static void surface_sync(Surface *s, int force)
+@@ -1572,8 +1834,11 @@ static void surface_sync(Surface *s, int force)
      if (s_prof_on > 0) s_prof[PROF_SYNC] += qpc() - t0;
  }
  
@@ -1708,7 +2107,7 @@ index b9f3fa2..7472a9a 100644
      if (s_cur_rt == s) unbind_targets();
      if (s->srv) ID3D11ShaderResourceView_Release(s->srv);
      if (s->rtv) ID3D11RenderTargetView_Release(s->rtv);
-@@ -1635,9 +1743,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
+@@ -1635,9 +1900,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
      } else {
          for (i = 0; i < MAX_SURFACES && !victim; i++)
              if (!s_surf[i].tex) victim = &s_surf[i];
@@ -1722,7 +2121,7 @@ index b9f3fa2..7472a9a 100644
          if (!victim) victim = &s_surf[0];
      }
      surface_release(victim);
-@@ -1901,9 +2010,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
+@@ -1901,9 +2167,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
  }
  
  typedef struct TexEntry {
@@ -1734,7 +2133,7 @@ index b9f3fa2..7472a9a 100644
      size_t bytes;
      ID3D11Texture2D *tex;
      ID3D11ShaderResourceView *srv;
-@@ -1954,12 +2063,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
+@@ -1954,12 +2220,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
      return 1;
  }
  
@@ -1790,7 +2189,7 @@ index b9f3fa2..7472a9a 100644
          for (by = 0; by < bh; by++)
              for (bx = 0; bx < bw; bx++) {
                  d3d8_dxt_decode_block(src + ((size_t)by * bw + bx) * L->bpp, t->color, px);
-@@ -1969,6 +2121,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
+@@ -1969,6 +2278,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
              }
          return;
      }
@@ -1802,7 +2201,7 @@ index b9f3fa2..7472a9a 100644
      if (L->kind == K_LIN) {
          for (y = 0; y < h; y++) {
              const uint8_t *row = src + (size_t)y * t->pitch;
-@@ -2057,6 +2214,31 @@ static int host_levels(const TexLayout *L, const NvD3DTexture *t)
+@@ -2057,6 +2371,31 @@ static int host_levels(const TexLayout *L, const NvD3DTexture *t)
      return n > L->levels ? n : L->levels;
  }
  
@@ -1834,7 +2233,7 @@ index b9f3fa2..7472a9a 100644
  static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
  {
      TexLayout L;
-@@ -2064,15 +2246,21 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2064,15 +2403,21 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
      uint32_t key = (p >> 7) ^ (t->format * 2654435761u) ^ (t->pitch << 3) ^ t->width;
      TexEntry *e, **head = &s_tex_bucket[key & (TEX_BUCKETS - 1)];
      uint64_t h, ph = 0;
@@ -1859,7 +2258,7 @@ index b9f3fa2..7472a9a 100644
          e->used = s_frame;
          return e->srv;
      }
-@@ -2082,21 +2270,47 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2082,21 +2427,47 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
          ph = hash_mem((const uint8_t *)pal, t->palette_len * 4);
      }
      if (e && e->hash == h && e->pal_hash == ph) {
@@ -1913,7 +2312,7 @@ index b9f3fa2..7472a9a 100644
          if (L.faces == 6) {
              sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
              sd.TextureCube.MipLevels = (UINT)hl;
-@@ -2104,36 +2318,45 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2104,36 +2475,45 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
              sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
              sd.Texture2D.MipLevels = (UINT)hl;
          }
@@ -1981,7 +2380,7 @@ index b9f3fa2..7472a9a 100644
              w = L.level_w[L.levels - 1]; h = L.level_h[L.levels - 1];
              memcpy(a, px, (size_t)w * h * 4);
              for (; lv < hl; lv++) {
-@@ -2152,10 +2375,26 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2152,10 +2532,26 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
      }
      e->hash = h;
      e->pal_hash = ph;
@@ -2009,7 +2408,7 @@ index b9f3fa2..7472a9a 100644
  }
  
  static ID3D11ShaderResourceView *texture_get(const NvD3DTexture *t)
-@@ -2707,7 +2946,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2707,7 +3103,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          if (!mode_needs_texture(mode) || !t->addr || !t->width || !t->height)
              continue;
          tex_format(t->color, &kind);
@@ -2022,7 +2421,7 @@ index b9f3fa2..7472a9a 100644
          s_draw_textured = 1;
          if (!s_draw_tex_addr) s_draw_tex_addr = t->addr;
          if (rt && rt->sx > rt->sy * 1.001f) s_draw_reads_wide = 1;
-@@ -3073,9 +3316,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -3073,9 +3473,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
      RECOMP_PROFILE_BEGIN("D3D11 draw");
      t_draw = s_prof_on > 0 ? qpc() : 0;
      s_prof_draws++;
@@ -2040,7 +2439,7 @@ index b9f3fa2..7472a9a 100644
      }
      if (pos && s && s->sx > s->sy * 1.001f) {
          /* Menu artwork and controls span the display together. Only the
-@@ -3204,11 +3452,18 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3204,11 +3609,18 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
      float cc[8];
      D3D11_RECT r;
      int zclear = (flags & 1) != 0, sclear = (flags & 2) != 0;
@@ -2061,7 +2460,7 @@ index b9f3fa2..7472a9a 100644
      if (s) {
          if (flags & 0x10) mask |= D3D11_COLOR_WRITE_ENABLE_RED;
          if (flags & 0x20) mask |= D3D11_COLOR_WRITE_ENABLE_GREEN;
-@@ -3217,8 +3472,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3217,8 +3629,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
              mask |= D3D11_COLOR_WRITE_ENABLE_ALPHA;
      }
      if (!d) { zclear = sclear = 0; }
@@ -2073,7 +2472,7 @@ index b9f3fa2..7472a9a 100644
      if (s && mask) s->gpu_dirty = 1;
      zf = (st->surface_format >> 4) & 0xF;
      unpack4(color, cc);
-@@ -3234,8 +3491,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3234,8 +3648,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
      upload_cb(s_cb_clear, cc, sizeof cc);
      if (x1 >= gw) x1 = gw - 1;
      if (y1 >= gh) y1 = gh - 1;
@@ -2085,7 +2484,7 @@ index b9f3fa2..7472a9a 100644
      r.left = (LONG)(x0 * s_aa_x * s_cur_sx + 0.5f);
      r.top = (LONG)(y0 * s_aa_y * s_cur_sy + 0.5f);
      r.right = (LONG)((x1 + 1) * s_aa_x * s_cur_sx + 0.5f);
-@@ -3253,6 +3512,7 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3253,6 +3669,7 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
      ID3D11DeviceContext_PSSetShader(s_ctx, s_clear_ps, NULL, 0);
      ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 0, 1, &s_cb_clear);
      ID3D11DeviceContext_Draw(s_ctx, 4, 0);
@@ -2093,7 +2492,7 @@ index b9f3fa2..7472a9a 100644
  }
  
  /* -------------------------------------------------------------- write-back */
-@@ -3271,6 +3531,13 @@ typedef struct {
+@@ -3271,6 +3688,13 @@ typedef struct {
  } WbSlot;
  static WbSlot s_wb[MAX_SURFACES];
  
@@ -2107,7 +2506,7 @@ index b9f3fa2..7472a9a 100644
  static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
  {
      if (k->stage && (k->w != w || k->h != h)) {
-@@ -3306,6 +3573,7 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
+@@ -3306,6 +3730,7 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
   * then -- the title cannot learn the frame is finished before its pixels are
   * in guest memory. */
  static int s_wb_pending;
@@ -2115,7 +2514,7 @@ index b9f3fa2..7472a9a 100644
  
  static int wb_surface_ok(const Surface *s)
  {
-@@ -3317,8 +3585,10 @@ static int wb_surface_ok(const Surface *s)
+@@ -3317,8 +3742,10 @@ static int wb_surface_ok(const Surface *s)
  static int writeback_finish(int wait)
  {
      int i, left = 0;
@@ -2126,7 +2525,7 @@ index b9f3fa2..7472a9a 100644
      RECOMP_PROFILE_BEGIN("D3D11 write-back");
      for (i = 0; i < MAX_SURFACES; i++) {
          Surface *s = &s_surf[i];
-@@ -3374,6 +3644,15 @@ static int writeback_finish(int wait)
+@@ -3374,6 +3801,15 @@ static int writeback_finish(int wait)
      }
      RECOMP_PROFILE_END();
      s_wb_pending = left;
@@ -2142,7 +2541,7 @@ index b9f3fa2..7472a9a 100644
      return !left;
  }
  
-@@ -3381,10 +3660,8 @@ int nv2a_d3d_writeback_busy(void)
+@@ -3381,10 +3817,8 @@ int nv2a_d3d_writeback_busy(void)
  {
      if (!s_wb_pending || writeback_finish(0))
          return 0;
@@ -2155,7 +2554,7 @@ index b9f3fa2..7472a9a 100644
      return 1;
  }
  
-@@ -3439,13 +3716,16 @@ static uint64_t s_zpass;
+@@ -3439,13 +3873,16 @@ static uint64_t s_zpass;
  static void zpass_collect(void)
  {
      UINT64 n = 0;
@@ -2172,11 +2571,26 @@ index b9f3fa2..7472a9a 100644
  }
  
  void nv2a_d3d_zpass_enable(int on)
+diff --git a/tests/dsp/CMakeLists.txt b/tests/dsp/CMakeLists.txt
+index 1e4ebc0..e9e9ec8 100644
+--- a/tests/dsp/CMakeLists.txt
++++ b/tests/dsp/CMakeLists.txt
+@@ -54,6 +54,10 @@ if(DSP_XEMU_REFERENCE_DIR)
+     "-Doutput=${CMAKE_CURRENT_BINARY_DIR}/dma-results" -P "${CMAKE_CURRENT_SOURCE_DIR}/compare_dma.cmake")
+ endif()
+ if(WIN32)
++  add_executable(hrtf_filter_test hrtf_filter_test.c)
++  target_include_directories(hrtf_filter_test PRIVATE ../../src ../../src/apu)
++  target_compile_definitions(hrtf_filter_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
++  add_test(NAME hrtf_filter COMMAND hrtf_filter_test)
+   add_executable(dsp_apu_test dsp_apu_test.c apu_dsp_under_test.c)
+   target_include_directories(dsp_apu_test PRIVATE ../../src ../../src/apu)
+   target_compile_definitions(dsp_apu_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
 diff --git a/tests/kernel_dispatch/CMakeLists.txt b/tests/kernel_dispatch/CMakeLists.txt
-index a8e9688..39f2d87 100644
+index a8e9688..b00043c 100644
 --- a/tests/kernel_dispatch/CMakeLists.txt
 +++ b/tests/kernel_dispatch/CMakeLists.txt
-@@ -7,5 +7,34 @@ add_subdirectory(../.. xboxrecomp)
+@@ -7,5 +7,38 @@ add_subdirectory(../.. xboxrecomp)
  add_executable(kernel-dispatch-thread-test kernel_dispatch_thread_test.c)
  target_include_directories(kernel-dispatch-thread-test PRIVATE ../../src/kernel)
  target_link_libraries(kernel-dispatch-thread-test PRIVATE xboxrecomp)
@@ -2195,6 +2609,9 @@ index a8e9688..39f2d87 100644
 +target_include_directories(nv2a-fence-wait-test PRIVATE ../../src)
 +add_executable(nv2a-pb-hitch-test nv2a_pb_hitch_test.c)
 +target_include_directories(nv2a-pb-hitch-test PRIVATE ../../src)
++add_executable(contig-range-cache-test contig_range_cache_test.c)
++target_include_directories(contig-range-cache-test PRIVATE ../../src/kernel)
++target_link_libraries(contig-range-cache-test PRIVATE xboxrecomp)
  enable_testing()
  add_test(NAME kernel-dispatch-thread COMMAND kernel-dispatch-thread-test)
 +add_test(NAME kernel-log-quiet COMMAND kernel-log-test)
@@ -2207,6 +2624,7 @@ index a8e9688..39f2d87 100644
 +set_tests_properties(kernel-cs-counters PROPERTIES PASS_REGULAR_EXPRESSION "\\[CS\\] enters=")
 +add_test(NAME nv2a-notify-wait COMMAND nv2a-notify-wait-test)
 +add_test(NAME nv2a-fence-wait COMMAND nv2a-fence-wait-test)
++add_test(NAME contig-range-cache COMMAND contig-range-cache-test)
 +add_test(NAME nv2a-pb-hitch-quiet COMMAND nv2a-pb-hitch-test)
 +set_tests_properties(nv2a-pb-hitch-quiet PROPERTIES FAIL_REGULAR_EXPRESSION "\\[HITCH\\]")
 +add_test(NAME nv2a-pb-hitch-trace COMMAND nv2a-pb-hitch-test trace)
@@ -2800,6 +3218,130 @@ index 0000000..b853df4
 +}
 +
 +#endif
+diff --git a/src/video/nv2a_ps_manifest.h b/src/video/nv2a_ps_manifest.h
+new file mode 100644
+index 0000000..5ddea2c
+--- /dev/null
++++ b/src/video/nv2a_ps_manifest.h
+@@ -0,0 +1,118 @@
++/* Optional, bounded specialised-PS warm-up metadata. Bytecode keeps its own
++ * independently validated cache; any metadata failure leaves lazy compilation. */
++#ifndef NV2A_PS_MANIFEST_H
++#define NV2A_PS_MANIFEST_H
++
++#include "nv2a_shader_cache.h"
++
++#define NV_PS_MANIFEST_SCHEMA 1u
++#define NV_PS_MANIFEST_WORDS 54u
++#define NV_PS_MANIFEST_LIMIT 512u
++#define NV_PS_MANIFEST_HEADER 88u
++
++static uint32_t nv_ps_get32(const uint8_t *p)
++{
++    return (uint32_t)p[0] | (uint32_t)p[1] << 8 |
++           (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
++}
++
++static void nv_ps_put32(uint8_t *p, uint32_t v)
++{
++    unsigned i;
++    for (i = 0; i < 4; i++) p[i] = (uint8_t)(v >> (8 * i));
++}
++
++static int nv_ps_manifest_path(const uint8_t family[32], wchar_t path[NV_SHADER_CACHE_PATH])
++{
++    if (!nv_shader_cache_path(family, path)) return 0;
++    wcscpy_s(path + wcslen(path) - 4, 5, L".psm");
++    return 1;
++}
++
++static int nv_ps_manifest_read(const wchar_t *path, const uint8_t family[32],
++                              uint32_t records[NV_PS_MANIFEST_LIMIT][NV_PS_MANIFEST_WORDS],
++                              unsigned *count)
++{
++    uint8_t header[NV_PS_MANIFEST_HEADER], checksum[32];
++    uint8_t payload[NV_PS_MANIFEST_LIMIT * NV_PS_MANIFEST_WORDS * 4];
++    NvShaderHash hash;
++    LARGE_INTEGER size;
++    DWORD read, bytes;
++    unsigned n, i, j;
++    HANDLE file = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE,
++                             NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
++    int ok = 0;
++    *count = 0;
++    if (file == INVALID_HANDLE_VALUE) return 0;
++    if (!GetFileSizeEx(file, &size) ||
++        !ReadFile(file, header, sizeof header, &read, NULL) || read != sizeof header ||
++        memcmp(header, "NVPSMAN1", 8) || nv_ps_get32(header + 8) != NV_PS_MANIFEST_SCHEMA ||
++        nv_ps_get32(header + 12) != NV_PS_MANIFEST_WORDS * 4 ||
++        nv_ps_get32(header + 20) != 0 || memcmp(header + 24, family, 32)) goto done;
++    n = nv_ps_get32(header + 16);
++    if (n > NV_PS_MANIFEST_LIMIT) goto done;
++    bytes = n * NV_PS_MANIFEST_WORDS * 4;
++    if (size.QuadPart != (LONGLONG)sizeof header + bytes ||
++        !ReadFile(file, payload, bytes, &read, NULL) || read != bytes) goto done;
++    nv_shader_hash_init(&hash);
++    nv_shader_hash_add(&hash, payload, bytes);
++    nv_shader_hash_finish(&hash, checksum);
++    if (memcmp(header + 56, checksum, 32)) goto done;
++    /* Decode only after validating the complete file; never partially import. */
++    for (i = 0; i < n; i++) for (j = 0; j < NV_PS_MANIFEST_WORDS; j++)
++        records[i][j] = nv_ps_get32(payload + (i * NV_PS_MANIFEST_WORDS + j) * 4);
++    *count = n;
++    ok = 1;
++done:
++    CloseHandle(file);
++    return ok;
++}
++
++static int nv_ps_manifest_write(const wchar_t *path, const uint8_t family[32],
++                               const uint32_t records[][NV_PS_MANIFEST_WORDS], unsigned count)
++{
++    static volatile LONG serial;
++    uint8_t header[NV_PS_MANIFEST_HEADER] = {0};
++    uint8_t payload[NV_PS_MANIFEST_LIMIT * NV_PS_MANIFEST_WORDS * 4];
++    wchar_t temporary[NV_SHADER_CACHE_PATH], dir[NV_SHADER_CACHE_PATH];
++    NvShaderHash hash;
++    HANDLE file = INVALID_HANDLE_VALUE;
++    DWORD wrote, bytes;
++    unsigned i, j;
++    int ok;
++    if (count > NV_PS_MANIFEST_LIMIT) return 0;
++    bytes = count * NV_PS_MANIFEST_WORDS * 4;
++    for (i = 0; i < count; i++) for (j = 0; j < NV_PS_MANIFEST_WORDS; j++)
++        nv_ps_put32(payload + (i * NV_PS_MANIFEST_WORDS + j) * 4, records[i][j]);
++    memcpy(header, "NVPSMAN1", 8);
++    nv_ps_put32(header + 8, NV_PS_MANIFEST_SCHEMA);
++    nv_ps_put32(header + 12, NV_PS_MANIFEST_WORDS * 4);
++    nv_ps_put32(header + 16, count);
++    memcpy(header + 24, family, 32);
++    nv_shader_hash_init(&hash);
++    nv_shader_hash_add(&hash, payload, bytes);
++    nv_shader_hash_finish(&hash, header + 56);
++    wcscpy_s(dir, NV_SHADER_CACHE_PATH, path);
++    *wcsrchr(dir, L'\\') = 0;
++    for (i = 3; dir[i]; i++) if (dir[i] == L'\\' || dir[i] == L'/') {
++        wchar_t slash = dir[i]; dir[i] = 0;
++        CreateDirectoryW(dir, NULL); dir[i] = slash;
++    }
++    if (!CreateDirectoryW(dir, NULL) && GetLastError() != ERROR_ALREADY_EXISTS) return 0;
++    for (i = 0; i < 4 && file == INVALID_HANDLE_VALUE; i++) {
++        if (swprintf_s(temporary, NV_SHADER_CACHE_PATH, L"%s.%lu.%lu.%lu.tmp", path,
++                       GetCurrentProcessId(), GetCurrentThreadId(),
++                       (unsigned long)InterlockedIncrement(&serial)) < 0) return 0;
++        file = CreateFileW(temporary, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
++        if (file == INVALID_HANDLE_VALUE && GetLastError() != ERROR_FILE_EXISTS) return 0;
++    }
++    if (file == INVALID_HANDLE_VALUE) return 0;
++    ok = WriteFile(file, header, sizeof header, &wrote, NULL) && wrote == sizeof header;
++    if (ok) ok = WriteFile(file, payload, bytes, &wrote, NULL) && wrote == bytes;
++    CloseHandle(file);
++    if (ok) ok = MoveFileExW(temporary, path, MOVEFILE_REPLACE_EXISTING) != 0;
++    if (!ok) DeleteFileW(temporary);
++    return ok;
++}
++
++#endif
 diff --git a/src/video/nv2a_shader_cache.h b/src/video/nv2a_shader_cache.h
 new file mode 100644
 index 0000000..f833590
@@ -3078,6 +3620,324 @@ index 0000000..f833590
 +}
 +
 +#endif
+diff --git a/tests/dsp/hrtf_filter_test.c b/tests/dsp/hrtf_filter_test.c
+new file mode 100644
+index 0000000..192774a
+--- /dev/null
++++ b/tests/dsp/hrtf_filter_test.c
+@@ -0,0 +1,97 @@
++/* Compare the production HRTF filter with its prior modulo-index reference.
++ * Every coefficient/history/PCM byte must match; no tolerance or reordered
++ * floating arithmetic can hide an audible behavior change. */
++#include "../../src/apu/apu_state.h"
++#include <stdio.h>
++#include <stdint.h>
++#include <stdlib.h>
++
++#define CHECK(condition) do { if (!(condition)) { \
++    fprintf(stderr, "HRTF check line %d: %s\n", __LINE__, #condition); exit(1); } } while (0)
++
++static void reference_process(HrtfFilter *f, float in[][2], float out[][2])
++{
++    for (int n = 0; n < HRTF_SAMPLES_PER_FRAME; n++) {
++        hrtf_filter_step_parameters(f);
++        for (int ch = 0; ch < 2; ch++) {
++            float *buf = f->ch[ch].buf;
++            float *coeff = f->ch[ch].hrir_coeff_cur;
++            buf[f->buf_pos] = in[n][ch];
++            float d = f->itd_cur * (ch == 0 ? +1.0f : -1.0f);
++            if (d < 0.0f) d = 0.0f;
++            int di = (int)d;
++            float dfrac = d - di;
++            float acc = 0.0f;
++            for (int k = 0; k < HRTF_NUM_TAPS; k++) {
++                int idx1 = (f->buf_pos - di - k + HRTF_BUFLEN) % HRTF_BUFLEN;
++                float s = buf[idx1];
++                if (dfrac > 0.0f) {
++                    int idx2 = (idx1 - 1 + HRTF_BUFLEN) % HRTF_BUFLEN;
++                    s = s * (1 - dfrac) + buf[idx2] * dfrac;
++                }
++                acc += coeff[k] * s;
++            }
++            out[n][ch] = acc;
++        }
++        f->buf_pos = (f->buf_pos + 1) % HRTF_BUFLEN;
++    }
++}
++
++static uint32_t random_state = 0x12345678;
++static float value(void)
++{
++    random_state = random_state * 1664525u + 1013904223u;
++    return ((int32_t)(random_state >> 8) - 0x7fffff) / 8388608.0f;
++}
++static void initialize(HrtfFilter *filter, int position, float current, float target)
++{
++    hrtf_filter_init(filter);
++    filter->buf_pos = position;
++    filter->itd_cur = current; filter->itd_tar = target;
++    for (int ch = 0; ch < 2; ++ch) {
++        for (int i = 0; i < HRTF_BUFLEN; ++i) filter->ch[ch].buf[i] = value();
++        for (int i = 0; i < HRTF_NUM_TAPS; ++i) {
++            filter->ch[ch].hrir_coeff_cur[i] = value() / 31;
++            filter->ch[ch].hrir_coeff_tar[i] = value() / 31;
++        }
++    }
++}
++static void input(float data[HRTF_SAMPLES_PER_FRAME][2], unsigned kind)
++{
++    for (int n = 0; n < HRTF_SAMPLES_PER_FRAME; ++n)
++        for (int ch = 0; ch < 2; ++ch)
++            data[n][ch] = kind == 0 ? 0.0f : kind == 1 ? (n == 0 ? 1.0f : 0.0f) : value();
++}
++int main(void)
++{
++    const float delays[] = {-42, -41.999f, -41.5f, -20.75f, -1.5f, -1, -0.5f,
++                            -0.0f, 0, 0.25f, 1, 1.5f, 20.5f, 41.5f, 41.999f, 42};
++    unsigned frames = 0;
++    for (int position = 0; position < HRTF_BUFLEN; ++position)
++    for (unsigned delay = 0; delay < sizeof delays / sizeof delays[0]; ++delay)
++    for (unsigned transition = 0; transition < 4; ++transition)
++    for (unsigned inplace = 0; inplace < 2; ++inplace) {
++        float target = transition == 0 ? delays[delay] : transition == 1 ? -42 : transition == 2 ? 42 : 0;
++        HrtfFilter reference, actual;
++        initialize(&reference, position, delays[delay], target); actual = reference;
++        for (unsigned frame = 0; frame < 4; ++frame) {
++            float left[HRTF_SAMPLES_PER_FRAME][2], right[HRTF_SAMPLES_PER_FRAME][2];
++            float left_out[HRTF_SAMPLES_PER_FRAME][2], right_out[HRTF_SAMPLES_PER_FRAME][2];
++            input(left, frame % 3); memcpy(right, left, sizeof left);
++            if (inplace) {
++                reference_process(&reference, left, left);
++                hrtf_filter_process(&actual, right, right);
++                CHECK(!memcmp(left, right, sizeof left));
++            } else {
++                reference_process(&reference, left, left_out);
++                hrtf_filter_process(&actual, right, right_out);
++                CHECK(!memcmp(left_out, right_out, sizeof left_out));
++                CHECK(!memcmp(left, right, sizeof left));
++            }
++            CHECK(!memcmp(&reference, &actual, sizeof reference));
++            ++frames;
++        }
++    }
++    printf("HRTF exact state/PCM equivalence passed: %u frames\n", frames);
++    return 0;
++}
+diff --git a/tests/kernel_dispatch/contig_range_cache_test.c b/tests/kernel_dispatch/contig_range_cache_test.c
+new file mode 100644
+index 0000000..88b6e78
+--- /dev/null
++++ b/tests/kernel_dispatch/contig_range_cache_test.c
+@@ -0,0 +1,209 @@
++/* Exercise the production allocator and its positive DMA coverage hints.
++ * A private arena replaces only memory-layout initialization, not allocation. */
++#include "kernel.h"
++#include "xbox_memory_layout.h"
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++static RECOMP_TLS unsigned lock_entries;
++static void counted_enter(CRITICAL_SECTION *lock)
++{
++    ++lock_entries;
++    EnterCriticalSection(lock);
++}
++#define EnterCriticalSection counted_enter
++#include "../../src/kernel/xbox_memory_layout.c"
++#undef EnterCriticalSection
++
++void *recomp_lookup(ULONG address) { (void)address; abort(); }
++void *recomp_lookup_manual(ULONG address) { (void)address; abort(); }
++
++#define CHECK(expr) do { if (!(expr)) { \
++    fprintf(stderr, "line %d: %s\n", __LINE__, #expr); exit(1); \
++} } while (0)
++
++static int uncached_range(uint32_t offset, uint32_t size)
++{
++    uint64_t end = (uint64_t)offset + (size ? size : 1u);
++    uint32_t begin, covered;
++    if (offset >= XBOX_CONTIG_SIZE || end > XBOX_CONTIG_SIZE)
++        return 0;
++    return contig_range_lookup(offset, end, &begin, &covered);
++}
++
++static void expect_range(uint32_t offset, uint32_t size, int result)
++{
++    CHECK(uncached_range(offset, size) == result);
++    CHECK(xbox_ContiguousRangeAllocated(offset, size) == result);
++}
++
++typedef struct {
++    HANDLE ready, proceed;
++    uint32_t positive, future;
++    unsigned first_locks, repeat_locks, miss_locks, new_locks;
++    int positive_before, positive_after, missed, found;
++} WORKER;
++
++static DWORD WINAPI check_worker(LPVOID argument)
++{
++    WORKER *w = argument;
++    lock_entries = 0;
++    w->positive_before = xbox_ContiguousRangeAllocated(w->positive, 0x3000);
++    w->first_locks = lock_entries;
++    lock_entries = 0;
++    for (unsigned i = 0; i < 1000; ++i)
++        if (!xbox_ContiguousRangeAllocated(w->positive + (i & 0xFFF), 1))
++            w->positive_before = 0;
++    w->repeat_locks = lock_entries;
++    lock_entries = 0;
++    w->missed = !xbox_ContiguousRangeAllocated(w->future, 1) &&
++                !xbox_ContiguousRangeAllocated(w->future, 1);
++    w->miss_locks = lock_entries;
++    SetEvent(w->ready);
++    WaitForSingleObject(w->proceed, INFINITE);
++    lock_entries = 0;
++    w->positive_after = xbox_ContiguousRangeAllocated(w->positive, 0x3000);
++    CHECK(lock_entries == 0);
++    w->found = xbox_ContiguousRangeAllocated(w->future, 0x1000);
++    w->new_locks = lock_entries;
++    lock_entries = 0;
++    CHECK(xbox_ContiguousRangeAllocated(w->future + 0xFFF, 0));
++    CHECK(lock_entries == 0);
++    return 0;
++}
++
++static double bench(int (*volatile query)(uint32_t, uint32_t), uint32_t offset)
++{
++    LARGE_INTEGER start, end, frequency;
++    volatile unsigned total = 0;
++    QueryPerformanceFrequency(&frequency);
++    QueryPerformanceCounter(&start);
++    for (unsigned i = 0; i < 200000; ++i)
++        total += query(offset + (i & 0xFFF), (i & 63) + 1);
++    QueryPerformanceCounter(&end);
++    CHECK(total == 200000);
++    return 1e9 * (double)(end.QuadPart - start.QuadPart) /
++           (double)frequency.QuadPart / 200000;
++}
++
++static int compare_double(const void *a, const void *b)
++{
++    double x = *(const double *)a, y = *(const double *)b;
++    return (x > y) - (x < y);
++}
++
++int main(void)
++{
++    const size_t reservation = (size_t)XBOX_CONTIG_BASE + XBOX_CONTIG_SIZE;
++    uint8_t *arena = VirtualAlloc(NULL, reservation, MEM_RESERVE, PAGE_READWRITE);
++    uint32_t a, b, c, heap, fill, after_heap, split, fresh;
++    uint32_t isolated[40];
++    WORKER worker = {0};
++    HANDLE thread;
++    double cached[7], locked[7];
++    CHECK(arena);
++    CHECK(VirtualAlloc(arena + XBOX_CONTIG_BASE, XBOX_CONTIG_SIZE,
++                       MEM_COMMIT, PAGE_READWRITE));
++    CHECK(VirtualAlloc(arena + XBOX_HEAP_BASE, 0x10000,
++                       MEM_COMMIT, PAGE_READWRITE));
++    g_memory_offset = (ptrdiff_t)arena;
++    InitializeCriticalSection(&g_allocator_lock);
++    g_allocator_lock_initialized = 1;
++    SetEnvironmentVariableA("RECOMP_CONTIG_TRACE", NULL);
++
++    expect_range(0x1000, 1, 0);
++    expect_range(0, 0, 0);
++    heap = xbox_HeapAlloc(0x2000, 4096);
++    CHECK(heap == XBOX_HEAP_BASE);
++    a = xbox_ContiguousAlloc(1, 4096);
++    b = xbox_ContiguousAlloc(0x2000, 4096);
++    c = xbox_ContiguousAlloc(0x1000, 0x10000);
++    CHECK(a == XBOX_CONTIG_BASE + 0x1000);
++    CHECK(b == a + 0x1000);
++    CHECK(c == XBOX_CONTIG_BASE + 0x10000);
++    expect_range(0x1000, 0x3000, 1); /* Adjacent allocations are continuous. */
++    expect_range(0x1FFF, 0, 1);      /* Zero means one byte, including page tail. */
++    expect_range(0x3FFF, 1, 1);
++    expect_range(0x3FFF, 2, 0);
++    expect_range(0x4000, 1, 0);      /* Alignment holes do not become coverage. */
++    expect_range(0x10000, 0x1000, 1);
++    expect_range(0xFFF0, 32, 0);
++
++    /* Real heap ownership forces the next contiguous allocation to skip it. */
++    fill = xbox_ContiguousAlloc(XBOX_HEAP_BASE - (g_contig_next - XBOX_CONTIG_BASE), 4096);
++    CHECK(fill == c + 0x1000);
++    after_heap = xbox_ContiguousAlloc(0x1000, 4096);
++    CHECK(after_heap == XBOX_CONTIG_BASE + heap + 0x2000);
++    expect_range(heap - 1, 1, 1);
++    expect_range(heap, 1, 0);
++    expect_range(heap - 1, 2, 0);
++    expect_range(heap, 0x2001, 0);
++    expect_range(after_heap - XBOX_CONTIG_BASE, 0x1000, 1);
++    xbox_HeapFree(heap);
++    CHECK(xbox_HeapBlockSize(heap) == 0);
++    expect_range(heap, 0x2000, 0); /* Ordinary heap free does not change ownership. */
++
++    /* A cached union remains covered after entries coalesce and split. */
++    CHECK(xbox_ContiguousFree(a));
++    CHECK(xbox_ContiguousFree(b | 0x20000000u));
++    expect_range(0x1000, 0x3000, 1);
++    split = xbox_ContiguousAlloc(0x1000, 0x2000);
++    CHECK(split == b);
++    CHECK(xbox_ContiguousBlockSize(split) == 0x1000);
++    expect_range(0x1000, 0x3000, 1);
++    expect_range(0x3000, 0x1000, 1); /* Freed tail still backs DMA. */
++
++    /* Eviction and hash collisions must never fill the intervening gaps. */
++    for (unsigned i = 0; i < 40; ++i) {
++        isolated[i] = xbox_ContiguousAlloc(0x1000, 0x10000) - XBOX_CONTIG_BASE;
++        CHECK(isolated[i] && (isolated[i] & 0xFFFF) == 0);
++    }
++    for (unsigned round = 0; round < 3; ++round)
++        for (unsigned i = 0; i < 40; ++i) {
++            expect_range(isolated[i], 0x1000, 1);
++            expect_range(isolated[i] + 0x1000, 1, 0);
++        }
++    expect_range(a, 1, 0); /* This API accepts physical offsets, not aliases. */
++    expect_range(a | 0x20000000u, 1, 0);
++    expect_range(UINT32_MAX - 0x1000, 0x2000, 0);
++    expect_range(0x1000, UINT32_MAX, 0);
++    expect_range(XBOX_CONTIG_SIZE - 1, 2, 0);
++    expect_range(XBOX_CONTIG_SIZE, 0, 0);
++
++    worker.positive = 0x1000;
++    worker.future = ((g_contig_next + 0xFFFF) & ~0xFFFFu) - XBOX_CONTIG_BASE;
++    worker.ready = CreateEventW(NULL, TRUE, FALSE, NULL);
++    worker.proceed = CreateEventW(NULL, TRUE, FALSE, NULL);
++    CHECK(worker.ready && worker.proceed);
++    thread = CreateThread(NULL, 0, check_worker, &worker, 0, NULL);
++    CHECK(thread && WaitForSingleObject(worker.ready, 5000) == WAIT_OBJECT_0);
++    CHECK(worker.positive_before && worker.first_locks == 1);
++    CHECK(worker.repeat_locks == 0 && worker.missed && worker.miss_locks == 2);
++    CHECK(xbox_ContiguousFree(split));
++    CHECK(xbox_ContiguousAlloc(0x1000, 0x2000) == split);
++    fresh = xbox_ContiguousAlloc(0x1000, 0x10000);
++    CHECK(fresh - XBOX_CONTIG_BASE == worker.future);
++    SetEvent(worker.proceed);
++    CHECK(WaitForSingleObject(thread, 5000) == WAIT_OBJECT_0);
++    CHECK(worker.positive_after && worker.found && worker.new_locks == 1);
++    CloseHandle(thread);
++    CloseHandle(worker.ready);
++    CloseHandle(worker.proceed);
++
++    /* Informational medians exercise the actual exported query against the
++     * same exact locked lookup. No timing threshold is a regression gate. */
++    CHECK(xbox_ContiguousRangeAllocated(0x1000, 0x3000));
++    for (unsigned i = 0; i < 7; ++i) {
++        cached[i] = bench(xbox_ContiguousRangeAllocated, 0x1000);
++        locked[i] = bench(uncached_range, 0x1000);
++    }
++    qsort(cached, 7, sizeof cached[0], compare_double);
++    qsort(locked, 7, sizeof locked[0], compare_double);
++    printf("contiguous coverage cache passed; median cached=%.2f ns locked=%.2f ns\n",
++           cached[3], locked[3]);
++    DeleteCriticalSection(&g_allocator_lock);
++    CHECK(VirtualFree(arena, 0, MEM_RELEASE));
++    return 0;
++}
 diff --git a/tests/kernel_dispatch/kernel_cs_test.c b/tests/kernel_dispatch/kernel_cs_test.c
 new file mode 100644
 index 0000000..010fbf0
@@ -4050,6 +4910,536 @@ index 0000000..a35c3fe
 +    free(memory);
 +    puts("PASS: tracing and split submissions preserve packets, calls, ring/bus wraps and command order");
 +    return 0;
++}
+diff --git a/tests/nv2a_ps_prewarm/CMakeLists.txt b/tests/nv2a_ps_prewarm/CMakeLists.txt
+new file mode 100644
+index 0000000..1700404
+--- /dev/null
++++ b/tests/nv2a_ps_prewarm/CMakeLists.txt
+@@ -0,0 +1,9 @@
++cmake_minimum_required(VERSION 3.20)
++project(nv2a_ps_prewarm C)
++enable_testing()
++add_executable(nv2a_ps_prewarm test_main.c)
++target_include_directories(nv2a_ps_prewarm PRIVATE ../../src ../../src/video)
++target_link_libraries(nv2a_ps_prewarm PRIVATE d3d11 dxgi dxguid d3dcompiler)
++foreach(case manifest scheduler persistence disabled cache_off prewarm_off invalid_variant gpu gpu_cache_failure)
++    add_test(NAME nv2a_ps_prewarm_${case} COMMAND nv2a_ps_prewarm ${case})
++endforeach()
+diff --git a/tests/nv2a_ps_prewarm/README.md b/tests/nv2a_ps_prewarm/README.md
+new file mode 100644
+index 0000000..518f6c3
+--- /dev/null
++++ b/tests/nv2a_ps_prewarm/README.md
+@@ -0,0 +1,50 @@
++# Specialised pixel-shader warm-up regression
++
++This suite includes the production renderer, manifest reader/writer and queue.
++The optional manifest records at most 512 exact 54-word shader keys; dynamic
++factors, fog, alpha reference, texture scales and depth constants remain in the
++existing constant buffer. It shares the validated bytecode cache directory and
++uses a separate `.psm` sidecar. Schema, field layout, source, shader target,
++entry-point/variant family and compiler flags determine its namespace.
++
++Build from the game repository after entering `scripts/enter-env.ps1`:
++
++```powershell
++cmake -S tools/xboxrecomp/tests/nv2a_ps_prewarm -B conformance_tmp/stutter-ps-prewarm-test -G Ninja -DCMAKE_BUILD_TYPE=Release
++cmake --build conformance_tmp/stutter-ps-prewarm-test
++ctest --test-dir conformance_tmp/stutter-ps-prewarm-test --output-on-failure
++```
++
++The nine tests cover canonical little-endian round trips at the 512-record
++limit; malformed magic/schema/record length/count/reserved fields/family/SHA;
++truncation and trailing bytes; empty manifests; cache-directory override;
++shader/cache/prewarm bypasses; invalid variants; duplicate imported keys;
++live-priority promotion; queue saturation and retry; concurrent atomic file
++publication; persistence while new keys arrive during blocked file I/O; save
++throttling; and two workers claiming
++promoted jobs while the render thread looks up the same entries. The GPU tests
++compare 32 complete 16x16 images byte for byte with the generic shaders: all four
++flat/W-depth variants, basic diffuse output and a register-combiner program,
++with dynamic factors and alpha reference changed after shader creation. They
++also exercise missing bytecode, unwritable-cache lazy compilation and idle
++worker persistence of a newly observed key.
++
++The image comparison is exact. A separate mathematical sanity check allows one
++8-bit unit for raster interpolation and UNORM conversion (centroid diffuse
++green=0.5 can produce 127 where flat shading produces 128).
++
++Warm-up is enabled by default and uses the existing two workers below normal
++thread priority. Live jobs win whenever a worker claims its next job; an
++already-running compilation is not interrupted. Shader/cache/prewarm overrides
++disable optional metadata I/O. No draw performs filesystem I/O. Workers copy a
++bounded snapshot under the queue lock, then checksum and atomically replace the
++manifest outside it, at most once per second. Failures leave generic/lazy
++rendering available. A force-killed process can lose its last unsaved keys;
++those keys are learned again normally.
++
++The first learning run cannot benefit from unseen states. Later launches can
++create known shaders during startup, including recompiling missing bytecode.
++This does not prewarm the driver's first draw or guarantee zero hitches. Compare
++equivalent routes against a warm bytecode cache with `RECOMP_PS_PREWARM=0` when
++measuring the benefit. The normal shader compiler instrumentation remains opt-in
++through `RECOMP_HITCH_TRACE`.
+diff --git a/tests/nv2a_ps_prewarm/test_main.c b/tests/nv2a_ps_prewarm/test_main.c
+new file mode 100644
+index 0000000..3117757
+--- /dev/null
++++ b/tests/nv2a_ps_prewarm/test_main.c
+@@ -0,0 +1,453 @@
++/* Exercise production manifest, scheduler, workers and GPU-specialised pixels. */
++#define COBJMACROS
++#define WIN32_LEAN_AND_MEAN
++#include <windows.h>
++#include <d3d11_1.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include "nv2a_ps_manifest.h"
++static int hooked_manifest_write(const wchar_t *path, const uint8_t family[32],
++                                 const uint32_t records[][NV_PS_MANIFEST_WORDS], unsigned count);
++#define nv_ps_manifest_write hooked_manifest_write
++#include "../../src/video/nv2a_d3d11.c"
++#undef nv_ps_manifest_write
++
++static HANDLE write_entered, write_release;
++static volatile LONG write_calls;
++static int hooked_manifest_write(const wchar_t *path, const uint8_t family[32],
++                                 const uint32_t records[][NV_PS_MANIFEST_WORDS], unsigned count)
++{
++    InterlockedIncrement(&write_calls);
++    if (write_entered) {
++        SetEvent(write_entered);
++        WaitForSingleObject(write_release, 10000);
++    }
++    return nv_ps_manifest_write(path, family, records, count);
++}
++
++ptrdiff_t xbox_GetMemoryOffset(void) { return 0; }
++HWND xbox_FramebufferWindowHandle(void) { return NULL; }
++int xbox_FramebufferScanSource(uint32_t *va, uint32_t *pitch) { return 0; }
++int xbox_FramebufferOverlay(XboxOverlay *ovl) { return 0; }
++void xbox_FramebufferNoteFlip(uint32_t draws) {}
++const uint32_t (*nv2a_vsh_program(uint32_t *start, uint32_t *version))[4] { return NULL; }
++const float (*nv2a_vsh_constants(uint32_t *version))[4] { return NULL; }
++
++#define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #x); return 1; } } while (0)
++static wchar_t dir[NV_SHADER_CACHE_PATH], path[NV_SHADER_CACHE_PATH];
++static uint8_t family[32];
++static uint32_t records[NV_PS_MANIFEST_LIMIT][NV_PS_MANIFEST_WORDS];
++
++static int setup(void)
++{
++    wchar_t temp[MAX_PATH];
++    CHECK(GetTempPathW(MAX_PATH, temp));
++    CHECK(swprintf_s(dir, NV_SHADER_CACHE_PATH, L"%srecomp-ps-test-%lu", temp, GetCurrentProcessId()) > 0);
++    CHECK(CreateDirectoryW(dir, NULL));
++    CHECK(SetEnvironmentVariableW(L"RECOMP_SHADER_CACHE_DIR", dir));
++    _putenv_s("RECOMP_SHADER_CACHE", "1");
++    _putenv_s("RECOMP_PS_SPEC", "1");
++    _putenv_s("RECOMP_PS_PREWARM", "1");
++    _putenv_s("RECOMP_MSAA", "1");
++    _putenv_s("RECOMP_RENDER_SCALE", "1");
++    spec_family(family);
++    CHECK(nv_ps_manifest_path(family, path));
++    return 0;
++}
++
++static int overwrite(unsigned offset, const void *data, DWORD bytes, int truncate)
++{
++    HANDLE file = CreateFileW(path, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
++    DWORD wrote;
++    CHECK(file != INVALID_HANDLE_VALUE);
++    CHECK(SetFilePointer(file, offset, NULL, FILE_BEGIN) != INVALID_SET_FILE_POINTER);
++    CHECK(WriteFile(file, data, bytes, &wrote, NULL) && wrote == bytes);
++    if (truncate) CHECK(SetEndOfFile(file));
++    CloseHandle(file);
++    return 0;
++}
++
++static DWORD WINAPI manifest_writer(void *arg)
++{
++    unsigned i, count = 64 + (unsigned)(uintptr_t)arg;
++    DWORD successes = 0;
++    for (i = 0; i < 8; i++) if (nv_ps_manifest_write(path, family, records, count)) successes++;
++    return successes;
++}
++
++static int test_manifest(void)
++{
++    uint32_t readback[NV_PS_MANIFEST_LIMIT][NV_PS_MANIFEST_WORDS];
++    uint8_t alternate[32], bytes[4];
++    unsigned i, j, n = 99;
++    for (i = 0; i < NV_PS_MANIFEST_LIMIT; i++) for (j = 0; j < NV_PS_MANIFEST_WORDS; j++)
++        records[i][j] = i * 12345u + j * 6789u;
++    CHECK(nv_ps_manifest_write(path, family, records, NV_PS_MANIFEST_LIMIT));
++    CHECK(nv_ps_manifest_read(path, family, readback, &n));
++    CHECK(n == NV_PS_MANIFEST_LIMIT && !memcmp(records, readback, sizeof records));
++    CHECK(!nv_ps_manifest_write(path, family, records, NV_PS_MANIFEST_LIMIT + 1));
++    memcpy(alternate, family, 32); alternate[3] ^= 1;
++    CHECK(!nv_ps_manifest_read(path, alternate, readback, &n) && n == 0);
++    /* Each bad header/payload must reject all records. */
++    for (i = 0; i < 7; i++) {
++        CHECK(nv_ps_manifest_write(path, family, records, 2));
++        nv_ps_put32(bytes, i == 2 ? NV_PS_MANIFEST_LIMIT + 1 : 0xA5A5A5A5u);
++        CHECK(!overwrite((unsigned[]){0, 8, 16, 12, 20, 24, 56}[i], bytes, 4, 0));
++        CHECK(!nv_ps_manifest_read(path, family, readback, &n) && n == 0);
++    }
++    CHECK(nv_ps_manifest_write(path, family, records, 2));
++    CHECK(!overwrite(NV_PS_MANIFEST_HEADER + 17, bytes, 1, 0));
++    CHECK(!nv_ps_manifest_read(path, family, readback, &n) && n == 0);
++    CHECK(nv_ps_manifest_write(path, family, records, 2));
++    CHECK(!overwrite(NV_PS_MANIFEST_HEADER + 2 * sizeof(PsKey) - 1, bytes, 0, 1));
++    CHECK(!nv_ps_manifest_read(path, family, readback, &n) && n == 0);
++    CHECK(nv_ps_manifest_write(path, family, records, 2));
++    CHECK(!overwrite(NV_PS_MANIFEST_HEADER + 2 * sizeof(PsKey), bytes, 1, 0));
++    CHECK(!nv_ps_manifest_read(path, family, readback, &n) && n == 0);
++    CHECK(nv_ps_manifest_write(path, family, records, 0));
++    CHECK(nv_ps_manifest_read(path, family, readback, &n) && n == 0);
++    {
++        HANDLE writers[4];
++        DWORD code, successes = 0;
++        for (i = 0; i < 4; i++) {
++            writers[i] = CreateThread(NULL, 0, manifest_writer, (void *)(uintptr_t)i, 0, NULL);
++            CHECK(writers[i]);
++        }
++        do {
++            CHECK(nv_ps_manifest_read(path, family, readback, &n));
++            CHECK((n == 0 || (n >= 64 && n <= 67)) && !memcmp(readback, records, n * sizeof(PsKey)));
++        } while (WaitForMultipleObjects(4, writers, TRUE, 0) == WAIT_TIMEOUT);
++        for (i = 0; i < 4; i++) {
++            CHECK(GetExitCodeThread(writers[i], &code) && code <= 8);
++            successes += code;
++            CloseHandle(writers[i]);
++        }
++        CHECK(successes > 0); /* Competing atomic replacements may fail safely. */
++    }
++    _putenv_s("RECOMP_SHADER_CACHE", "0");
++    CHECK(!nv_ps_manifest_path(family, path));
++    _putenv_s("RECOMP_SHADER_CACHE", "1");
++    CHECK(nv_ps_manifest_path(family, path));
++    CHECK(!wcsncmp(path, dir, wcslen(dir)));
++    puts("PASS: canonical bounded manifest, schema/family/checksum/length corruption, cache bypass and directory override");
++    return 0;
++}
++
++static PsKey number_key(unsigned number)
++{
++    PsKey key = {0}; key.fin0 = number; return key;
++}
++
++static void fixture_init(void)
++{
++    s_spec = calloc(PS_SPEC_SLOTS, sizeof *s_spec);
++    InitializeCriticalSection(&s_spec_cs);
++    InitializeConditionVariable(&s_spec_cv);
++    s_spec_head = s_spec_tail = s_spec_warm_head = s_spec_warm_tail = 0;
++}
++
++static volatile LONG counts[PS_SPEC_SLOTS], claimed;
++static DWORD WINAPI claim_worker(void *unused)
++{
++    PsSpec *e;
++    (void)unused;
++    for (;;) {
++        EnterCriticalSection(&s_spec_cs);
++        e = spec_claim();
++        LeaveCriticalSection(&s_spec_cs);
++        if (!e) break;
++        InterlockedIncrement(&counts[e - s_spec]);
++        Sleep(1); /* Ensure live lookups overlap claimed entries/publication. */
++        e->ps = (ID3D11PixelShader *)e;
++        InterlockedExchange(&e->state, 2);
++        InterlockedIncrement(&claimed);
++    }
++    return 0;
++}
++
++static int test_scheduler(void)
++{
++    PsKey key;
++    PsSpec *e;
++    HANDLE threads[2];
++    unsigned i;
++    fixture_init(); CHECK(s_spec);
++    for (i = 0; i < 8; i++) { key = number_key(i); CHECK(!spec_request(&key, 1)); }
++    key = number_key(7); CHECK(!spec_request(&key, 0));
++    key = number_key(900); CHECK(!spec_request(&key, 0));
++    EnterCriticalSection(&s_spec_cs);
++    e = spec_claim(); CHECK(e && e->key.fin0 == 7 && e->state == 4);
++    e = spec_claim(); CHECK(e && e->key.fin0 == 900);
++    for (i = 0; i < 7; i++) { e = spec_claim(); CHECK(e && e->key.fin0 == i); }
++    CHECK(!spec_claim()); /* Promoted low-priority duplicate did not compile. */
++    LeaveCriticalSection(&s_spec_cs);
++    DeleteCriticalSection(&s_spec_cs); free(s_spec);
++    fixture_init(); CHECK(s_spec);
++    for (i = 0; i < NV_PS_MANIFEST_LIMIT; i++) {
++        key = number_key(i); spec_request(&key, 1); spec_request(&key, 1);
++        CHECK(s_spec_warm_head == i + 1); spec_request(&key, 0);
++    }
++    for (i = 0; i < PS_SPEC_QUEUE - NV_PS_MANIFEST_LIMIT; i++) {
++        key = number_key(1000 + i); spec_request(&key, 0);
++    }
++    CHECK(s_spec_head - s_spec_tail == PS_SPEC_QUEUE);
++    key = number_key(3000); CHECK(!spec_request(&key, 0));
++    CHECK(spec_find(&key)->state == 0); /* Saturation leaves a retryable empty slot. */
++    for (i = 0; i < 2; i++) { threads[i] = CreateThread(NULL, 0, claim_worker, NULL, 0, NULL); CHECK(threads[i]); }
++    for (;;) {
++        unsigned queued;
++        EnterCriticalSection(&s_spec_cs); queued = s_spec_head - s_spec_tail; LeaveCriticalSection(&s_spec_cs);
++        if (queued < PS_SPEC_QUEUE) break;
++        Sleep(0);
++    }
++    CHECK(!spec_request(&key, 0)); /* Retry inserts while both workers are active. */
++    CHECK(spec_find(&key)->state != 0);
++    for (i = 0; i < 20000; i++) {
++        key = number_key(i % NV_PS_MANIFEST_LIMIT);
++        e = spec_find(&key);
++        CHECK(spec_request(&key, 0) == (InterlockedCompareExchange(&e->state, 0, 0) == 2 ? e->ps : NULL) || e->state == 2);
++    }
++    CHECK(WaitForMultipleObjects(2, threads, TRUE, 10000) == WAIT_OBJECT_0);
++    CHECK(claimed == PS_SPEC_QUEUE + 1);
++    for (i = 0; i < PS_SPEC_SLOTS; i++) CHECK(counts[i] <= 1);
++    key = number_key(3001); CHECK(!spec_request(&key, 0));
++    CHECK(spec_find(&key)->state == 1);
++    for (i = 0; i < 2; i++) CloseHandle(threads[i]);
++    puts("PASS: live priority, promotion, deduplication, bounded queue retry, two-worker claim/publication versus live lookup");
++    return 0;
++}
++
++static DWORD WINAPI flush_worker(void *unused)
++{
++    (void)unused;
++    spec_manifest_flush();
++    return 0;
++}
++
++static int test_persistence(void)
++{
++    PsKey key = number_key(1);
++    HANDLE worker;
++    unsigned n;
++    fixture_init(); CHECK(s_spec);
++    s_spec_manifest = 1;
++    memcpy(s_spec_family, family, sizeof family);
++    wcscpy_s(s_spec_manifest_path, NV_SHADER_CACHE_PATH, path);
++    spec_remember(&key);
++    write_entered = CreateEventW(NULL, TRUE, FALSE, NULL);
++    write_release = CreateEventW(NULL, TRUE, FALSE, NULL);
++    CHECK(write_entered && write_release);
++    worker = CreateThread(NULL, 0, flush_worker, NULL, 0, NULL); CHECK(worker);
++    CHECK(WaitForSingleObject(write_entered, 10000) == WAIT_OBJECT_0);
++    /* These acquire the same CS while the first writer is blocked outside it. */
++    key = number_key(2); spec_remember(&key);
++    spec_manifest_flush(); CHECK(write_calls == 1);
++    SetEvent(write_release);
++    CHECK(WaitForSingleObject(worker, 10000) == WAIT_OBJECT_0);
++    CHECK(s_spec_dirty != s_spec_saved && !s_spec_saving);
++    CHECK(nv_ps_manifest_read(path, family, records, &n) && n == 1 && records[0][32] == 1);
++    CloseHandle(worker); CloseHandle(write_entered); CloseHandle(write_release);
++    write_entered = write_release = NULL;
++    spec_manifest_flush(); CHECK(write_calls == 1); /* One-second throttle. */
++    s_spec_last_save = 0; /* Make the next interval due without delaying CI. */
++    spec_manifest_flush(); CHECK(write_calls == 2 && s_spec_dirty == s_spec_saved);
++    CHECK(nv_ps_manifest_read(path, family, records, &n) && n == 2 && records[1][32] == 2);
++    puts("PASS: blocked file I/O leaves queue lock free, concurrent snapshots serialize, new dirty generation survives, save throttle");
++    return 0;
++}
++
++static void fixture_key(PSConsts *pc, PsKey *key, unsigned state, unsigned variant)
++{
++    memset(pc, 0, sizeof *pc); memset(key, 0, sizeof *key);
++    pc->alpha_func = key->alpha_func = 0x204;
++    if (state) {
++        pc->ps_flags = key->ps_flags = 3;
++        pc->rc_control = key->rc_control = 1;
++        pc->c_icw[0] = key->c_icw[0] = 0x01040000;
++        pc->a_icw[0] = key->a_icw[0] = 0x11140000;
++        pc->c_ocw[0] = key->c_ocw[0] = 0xC00;
++        pc->a_ocw[0] = key->a_ocw[0] = 0xC00;
++        pc->fin0 = key->fin0 = 0x0C;
++        pc->fin1 = key->fin1 = 0x1C00;
++    }
++    pc->zp1[0] = 1.0f / 16777216.0f; pc->zp1[1] = 16777215.0f;
++    key->variant = variant;
++}
++
++static int write_fixture(unsigned duplicate, unsigned invalid)
++{
++    PSConsts pc; PsKey key;
++    unsigned i;
++    for (i = 0; i < 8; i++) {
++        fixture_key(&pc, &key, i / 4, i % 4);
++        memcpy(records[i], &key, sizeof key);
++    }
++    if (duplicate) memcpy(records[8], records[0], sizeof(PsKey));
++    if (invalid) records[3][41] = 4;
++    CHECK(nv_ps_manifest_write(path, family, records, 8 + duplicate));
++    return 0;
++}
++
++static int test_gate(const char *which)
++{
++    CHECK(!write_fixture(1, !strcmp(which, "invalid_variant")));
++    if (!strcmp(which, "disabled")) _putenv_s("RECOMP_PS_SPEC", "0");
++    if (!strcmp(which, "cache_off")) _putenv_s("RECOMP_SHADER_CACHE", "0");
++    if (!strcmp(which, "prewarm_off")) _putenv_s("RECOMP_PS_PREWARM", "0");
++    CHECK(nv2a_d3d_init());
++    if (!strcmp(which, "disabled")) CHECK(!s_spec_enabled && !s_spec);
++    else {
++        PSConsts pc; PsKey key;
++        CHECK(s_spec_enabled && s_spec_warm_head == 0 && s_spec_known_count == 0);
++        CHECK(!strcmp(which, "invalid_variant") || !s_spec_manifest);
++        fixture_key(&pc, &key, 0, 0);
++        CHECK(spec_ps(&pc, 0) == NULL); /* First lookup still uses generic PS. */
++        CHECK(spec_find(&key)->state != 0); /* Lazy request survives all bypasses. */
++        {
++            ULONGLONG deadline = GetTickCount64() + 10000;
++            while (!spec_ps(&pc, 0)) { CHECK(GetTickCount64() < deadline); Sleep(1); }
++        }
++    }
++    printf("PASS: %s bypass/rejection keeps generic/lazy shader fallback\n", which);
++    return 0;
++}
++
++static int render_pixels(ID3D11PixelShader *ps, ID3D11VertexShader *vs, const PSConsts *pc,
++                         ID3D11RenderTargetView *rtv, ID3D11Texture2D *target,
++                         ID3D11Texture2D *staging, uint32_t pixels[256])
++{
++    D3D11_VIEWPORT viewport = {0, 0, 16, 16, 0, 1};
++    D3D11_RECT rect = {0, 0, 16, 16};
++    D3D11_MAPPED_SUBRESOURCE mapped;
++    float clear[4] = {0.125f, 0.25f, 0.5f, 1};
++    unsigned y;
++    upload_cb(s_cb_ps, pc, sizeof *pc);
++    ID3D11DeviceContext_OMSetRenderTargets(s_ctx, 1, &rtv, NULL);
++    ID3D11DeviceContext_ClearRenderTargetView(s_ctx, rtv, clear);
++    ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
++    ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
++    ID3D11DeviceContext_RSSetState(s_ctx, s_rs_plain);
++    ID3D11DeviceContext_RSSetViewports(s_ctx, 1, &viewport);
++    ID3D11DeviceContext_RSSetScissorRects(s_ctx, 1, &rect);
++    ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
++    ID3D11DeviceContext_VSSetShader(s_ctx, vs, NULL, 0);
++    ID3D11DeviceContext_PSSetShader(s_ctx, ps, NULL, 0);
++    ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 1, 1, &s_cb_ps);
++    ID3D11DeviceContext_Draw(s_ctx, 3, 0);
++    ID3D11DeviceContext_CopyResource(s_ctx, (ID3D11Resource *)staging, (ID3D11Resource *)target);
++    CHECK(SUCCEEDED(ID3D11DeviceContext_Map(s_ctx, (ID3D11Resource *)staging, 0, D3D11_MAP_READ, 0, &mapped)));
++    for (y = 0; y < 16; y++) memcpy(pixels + y * 16, (const uint8_t *)mapped.pData + y * mapped.RowPitch, 64);
++    ID3D11DeviceContext_Unmap(s_ctx, (ID3D11Resource *)staging, 0);
++    return 0;
++}
++
++static int test_gpu(int cache_failure)
++{
++    static const char vs_source[] =
++        "#ifndef FLATQ\n#define FLATQ centroid\n#endif\n"
++        "struct O{float4 p:SV_Position;FLATQ float4 d0:COLOR0;FLATQ float4 d1:COLOR1;"
++        "centroid float4 f:FOG;centroid float4 t0:TEXCOORD0;centroid float4 t1:TEXCOORD1;"
++        "centroid float4 t2:TEXCOORD2;centroid float4 t3:TEXCOORD3;};"
++        "O main(uint id:SV_VertexID){O o=(O)0;float2 p=id==0?float2(-1,-1):id==1?float2(-1,3):float2(3,-1);"
++        "o.p=float4(p,0,1);o.d0=float4(.25,.5,.75,1);o.f=float4(1,8388608,0,0);return o;}";
++    static const D3D_SHADER_MACRO flat[] = {{"FLATQ", "nointerpolation"}, {NULL, NULL}};
++    ID3D11Texture2D *target = NULL, *staging = NULL;
++    ID3D11RenderTargetView *rtv = NULL;
++    ID3D11VertexShader *vs[2] = {0};
++    D3D11_TEXTURE2D_DESC td = {0};
++    uint32_t generic[256], warm[256];
++    uint32_t dynamic[4][4];
++    PSConsts pc; PsKey key;
++    ID3DBlob *blob = NULL, *error = NULL;
++    unsigned i, j;
++    ULONGLONG deadline;
++    if (cache_failure) {
++        HANDLE file;
++        wchar_t blocked[NV_SHADER_CACHE_PATH];
++        CHECK(swprintf_s(blocked, NV_SHADER_CACHE_PATH, L"%s\\blocked", dir) > 0);
++        file = CreateFileW(blocked, GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
++        CHECK(file != INVALID_HANDLE_VALUE); CloseHandle(file);
++        CHECK(SetEnvironmentVariableW(L"RECOMP_SHADER_CACHE_DIR", blocked));
++    } else CHECK(!write_fixture(1, 0));
++    CHECK(nv2a_d3d_init());
++    CHECK(s_spec_enabled);
++    if (!cache_failure) CHECK(s_spec_known_count == 8 && s_spec_warm_head == 8);
++    /* Render-thread lookup races existing workers exactly as normal draws do. */
++    deadline = GetTickCount64() + 30000;
++    for (i = 0; i < 8; i++) {
++        fixture_key(&pc, &key, i / 4, i % 4);
++        while (!spec_ps(&pc, i % 4)) { CHECK(GetTickCount64() < deadline); Sleep(1); }
++    }
++    CHECK(s_spec_ready == 8); /* Duplicated manifest state compiled only once. */
++    for (i = 0; i < 2; i++) {
++        CHECK(SUCCEEDED(D3DCompile(vs_source, sizeof vs_source - 1, "test-vs", i ? flat : NULL,
++                                  NULL, "main", "vs_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &blob, &error)));
++        CHECK(SUCCEEDED(ID3D11Device_CreateVertexShader(s_dev, ID3D10Blob_GetBufferPointer(blob),
++                                    ID3D10Blob_GetBufferSize(blob), NULL, &vs[i])));
++        ID3D10Blob_Release(blob); blob = NULL;
++        if (error) { ID3D10Blob_Release(error); error = NULL; }
++    }
++    td.Width = td.Height = 16; td.MipLevels = td.ArraySize = 1;
++    td.Format = DXGI_FORMAT_B8G8R8A8_UNORM; td.SampleDesc.Count = 1;
++    td.BindFlags = D3D11_BIND_RENDER_TARGET;
++    CHECK(SUCCEEDED(ID3D11Device_CreateTexture2D(s_dev, &td, NULL, &target)));
++    CHECK(SUCCEEDED(ID3D11Device_CreateRenderTargetView(s_dev, (ID3D11Resource *)target, NULL, &rtv)));
++    td.BindFlags = 0; td.Usage = D3D11_USAGE_STAGING; td.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
++    CHECK(SUCCEEDED(ID3D11Device_CreateTexture2D(s_dev, &td, NULL, &staging)));
++    for (i = 0; i < 8; i++) for (j = 0; j < 4; j++) {
++        fixture_key(&pc, &key, i / 4, i % 4);
++        pc.cf0[0][0] = 0.25f * (j + 1); pc.cf0[0][1] = 0.5f;
++        pc.cf0[0][2] = 0.75f; pc.cf0[0][3] = j & 1 ? 0.25f : 1.0f;
++        pc.alpha_ref = j & 2 ? 128 : 0;
++        CHECK(!render_pixels(s_psv[i % 4], vs[i & 1], &pc, rtv, target, staging, generic));
++        CHECK(!render_pixels(spec_ps(&pc, i % 4), vs[i & 1], &pc, rtv, target, staging, warm));
++        CHECK(!memcmp(generic, warm, sizeof generic));
++        {
++            static const uint32_t combiner_expected[] = {0xFF10408Fu, 0x4020408Fu, 0xFF30408Fu, 0xFF204080u};
++            uint32_t expected = i < 4 ? 0xFF4080BFu : combiner_expected[j];
++            unsigned channel;
++            /* Raster interpolation/UNORM conversion can round a half unit
++             * down: centroid diffuse 0.5 produced 127, flat produced 128.
++             * The generic-versus-specialised image check above stays exact. */
++            for (channel = 0; channel < 4; channel++) {
++                int difference = (int)((warm[0] >> (channel * 8)) & 255) -
++                                 (int)((expected >> (channel * 8)) & 255);
++                if (difference < -1 || difference > 1)
++                    fprintf(stderr, "GPU pixel=%08X expected=%08X state=%u variant=%u sample=%u\n",
++                            warm[0], expected, i / 4, i % 4, j);
++                CHECK(difference >= -1 && difference <= 1);
++            }
++            if (i >= 4) dynamic[i % 4][j] = warm[0];
++        }
++    }
++    for (i = 0; i < 4; i++) for (j = 1; j < 4; j++)
++        CHECK(dynamic[i][j] != dynamic[i][j - 1]); /* Factors and alpha reference remain dynamic. */
++    if (!cache_failure) {
++        unsigned n;
++        /* A new live key must be remembered and saved by idle workers. */
++        fixture_key(&pc, &key, 0, 0); pc.dot_map = key.dot_map = 1;
++        while (!spec_ps(&pc, 0)) { CHECK(GetTickCount64() < deadline); Sleep(1); }
++        for (;;) {
++            if (nv_ps_manifest_read(path, family, records, &n) && n == 9) break;
++            CHECK(GetTickCount64() < deadline); Sleep(10);
++        }
++        CHECK(s_spec_known_count == 9);
++    }
++    ID3D11RenderTargetView_Release(rtv); ID3D11Texture2D_Release(target); ID3D11Texture2D_Release(staging);
++    for (i = 0; i < 2; i++) ID3D11VertexShader_Release(vs[i]);
++    printf("PASS: 32 exact GPU comparisons, all four variants, dynamic factors/alpha_ref, %s\n",
++           cache_failure ? "unwritable-cache lazy fallback" : "import deduplication/concurrent live lookup/idle persistence");
++    return 0;
++}
++
++int main(int argc, char **argv)
++{
++    CHECK(argc == 2); CHECK(!setup());
++    if (!strcmp(argv[1], "manifest")) return test_manifest();
++    if (!strcmp(argv[1], "scheduler")) return test_scheduler();
++    if (!strcmp(argv[1], "persistence")) return test_persistence();
++    if (!strcmp(argv[1], "gpu")) return test_gpu(0);
++    if (!strcmp(argv[1], "gpu_cache_failure")) return test_gpu(1);
++    return test_gate(argv[1]);
 +}
 diff --git a/tests/nv2a_shader_cache/CMakeLists.txt b/tests/nv2a_shader_cache/CMakeLists.txt
 new file mode 100644

@@ -126,6 +126,7 @@ the availability change does not write unlock keys to your save.
 | `RECOMP_DRAW_DISTANCE` | `2` | View/LOD distance multiplier (1 = Xbox, up to 4). |
 | `RECOMP_SHARP_POINT` | `1` | `0`: plain point filtering for fonts and menu art instead of sharp outlines. |
 | `RECOMP_PS_SPEC` | `1` | `0`: skip specialised pixel shaders (slow; for debugging). |
+| `RECOMP_PS_PREWARM` | `1` | Prepare previously used pixel shader states during startup; `0` disables learning and prewarming. |
 | `RECOMP_SHADER_CACHE` | `1` | Save compiled shaders between launches; `0` disables the cache. |
 | `RECOMP_SHADER_CACHE_DIR` | built-in | Shader cache folder; defaults to `%LOCALAPPDATA%\xboxrecomp\ShaderCache`. |
 | `MM3_SAVE_DIR` | built-in | Folder holding the HDD/save partition images. |
@@ -155,14 +156,24 @@ benchmark (frame-time percentiles, lows, jitter, executor time, GPU use).
 same path into the first race and checks every AI car leaves the line forwards (exit 0 = pass).
 
 Compiled shaders are cached automatically. New specialised gameplay shaders
-compile in the background; later launches reuse their bytecode. Changes to
-shader source or compiler settings invalidate the matching cache entry.
+compile in the background. The runtime remembers up to 512 exact shader states
+and prepares them during later startups using the existing two background
+workers; shaders requested by current draws take priority. The first visit to
+a new state still uses the generic shader while compilation finishes. Changes
+to shader source or compiler settings invalidate the matching cache entries.
+Disabling the shader cache also disables state learning and prewarming.
 
 The renderer selects the high-performance GPU on laptops with integrated and
 dedicated graphics. Guest workers and shader compilation run on separate host
 threads; rendering keeps the ordering that the game expects. Texture conversion
 uses contiguous tile/block copies, and repeated guest locks reuse a thread-local
-lookup. Normal play skips shared diagnostic counters and redundant GPU flushes.
+lookup. Audio DMA also reuses successful address lookups per thread, avoiding
+allocator locks while preserving gaps and newly allocated ranges. Optimized
+MSVC builds allow automatic inlining in the DSP interpreter; positional-audio
+filtering reuses ring indices while retaining the same floating-point operations.
+`MM3_DSP_AUTO_INLINE=OFF` restores the compiler's default inlining setting for
+build comparisons. Normal play skips shared diagnostic counters and redundant
+GPU flushes.
 Supported DXT textures upload their original compressed blocks for GPU decoding,
 reducing upload traffic and texture memory. Short mip chains retain CPU conversion
 and generated mip levels. Native BC decoding follows Direct3D's precision rules

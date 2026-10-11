@@ -14,6 +14,7 @@ option(MM3_UNLOCK_ALL_CARS "Make every installed car selectable" ON)
 option(MM3_FRONTEND_WATCH "Trace writes to the RootLevel child pointer" OFF)
 option(MM3_TRACY "Profile the host rendering pipeline with Tracy" OFF)
 option(MM3_NATIVE_FENCE_WAIT "Wait on native GPU notifications in the direct guest fence loop" ON)
+option(MM3_DSP_AUTO_INLINE "Allow automatic inlining in the optimized DSP interpreter" ON)
 if(MM3_TRACY)
     enable_language(CXX)
     set(MM3_TRACY_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tools/bin/tracy-0.14.1" CACHE PATH "Tracy 0.14.1 sources")
@@ -23,6 +24,14 @@ if(MM3_TRACY)
 endif()
 
 add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)
+if(MSVC AND MM3_DSP_AUTO_INLINE)
+    # RelWithDebInfo defaults to /Ob1, which leaves small non-inline interpreter
+    # helpers as calls. Override only this measured hot source, retaining its
+    # existing arithmetic and Debug build behavior.
+    set_property(SOURCE "${XBOXRECOMP_DIR}/src/apu/dsp/interp/dsp_cpu.c"
+        TARGET_DIRECTORY xbox_apu APPEND PROPERTY
+        COMPILE_OPTIONS "$<$<NOT:$<CONFIG:Debug>>:/Ob2>")
+endif()
 if(MM3_TRACY)
     foreach(profile_target xbox_kernel xbox_video)
         target_link_libraries(${profile_target} PRIVATE Tracy::TracyClient)
