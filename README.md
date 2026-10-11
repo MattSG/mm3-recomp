@@ -145,6 +145,7 @@ the availability change does not write unlock keys to your save.
 | `RECOMP_KERNEL_SUMMARY` | `1`: collect and print periodic kernel-call totals (off during normal play). |
 | `RECOMP_CS_COUNTERS` | `1`: count critical-section entries/exits for contention diagnostics (off during normal play). |
 | `RECOMP_HITCH_TRACE` | `1`: report slow command submissions, shader compilation, GPU waits, and file reads with QPC timestamps (off during normal play). |
+| `RECOMP_PB_CAPTURE=<prefix>` | Diagnose the first bounded-parser limit by saving fetched command words, parser state, and guest RAM; disabled during normal play. |
 | `RECOMP_PRESENT_CAPTURE=<prefix>` | With `<prefix>.flag` containing N, save the next N frames as `<prefix>-*.bmp`. |
 | `RECOMP_CAPTURE_SURFACE` | Capture at internal resolution instead of the window. |
 | `RECOMP_XA2_PCM_DUMP=<file>` | Dump the mixed audio (s16 stereo 48 kHz). |
@@ -174,6 +175,22 @@ filtering reuses ring indices while retaining the same floating-point operations
 `MM3_DSP_AUTO_INLINE=OFF` restores the compiler's default inlining setting for
 build comparisons. Normal play skips shared diagnostic counters and redundant
 GPU flushes.
+Pixel shader constants reuse their last successful upload only when all bytes,
+including dynamic lighting, fog, alpha and texture scales, are identical.
+GPU readbacks use one completion query per copy batch before mapping the pixels;
+query failures retain the original per-surface polling path. Pushbuffer packets
+and called command lists pause at the published PUT position and resume with
+their packet and return state intact. A bounded parser pass cannot acknowledge
+commands it has not consumed.
+MM3 fences complete from executed semaphore-release commands after pending
+readbacks finish. Advancing the game's next-fence counter does not complete
+an unsubmitted command.
+Both queue-pointer views follow actual command consumption. GPU notifications
+become visible after their matching consumed position and readbacks, so a ring
+wrap cannot wake the producer with a read pointer from the previous lap.
+Native waits retain the game's final queue and GPU-idle checks.
+Collision-call fallbacks preserve the argument block reused by the following
+helper, preventing a second stack cleanup from consuming saved registers.
 Supported DXT textures upload their original compressed blocks for GPU decoding,
 reducing upload traffic and texture memory. Short mip chains retain CPU conversion
 and generated mip levels. Native BC decoding follows Direct3D's precision rules

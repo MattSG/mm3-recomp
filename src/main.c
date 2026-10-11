@@ -219,8 +219,14 @@ int main(void)
     xbox_kernel_init();
     xbox_path_init(MM3_GAME_DIR, getenv("MM3_SAVE_DIR"));
     xbox_kernel_bridge_init();
-    if (xbox_Nv2aMirrorFence(0x00351F48u, 0x2Cu, 0x30u) != 0)
-        fprintf(stderr, "NV2A fence mirror registration failed\n");
+    if (xbox_Nv2aMirrorFence(0x00351F48u, 0x2Cu, 0x30u) != 0 ||
+        xbox_Nv2aCommandFence(0x00351F48u, 0xCu, 0u) != 0) {
+        fprintf(stderr, "NV2A command fence registration failed\n");
+        xbox_kernel_shutdown();
+        xbox_MemoryLayoutShutdown();
+        free(xbe_data);
+        return 1;
+    }
     /* D3D's GPU-notify KEVENT (device+0x196C, waited on in 0x344640),
      * raised by the NOP(5) it patches into the push buffer */
     xbox_Nv2aNotifyEvent(0x00351F48u, 0x196Cu, 5u);

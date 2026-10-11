@@ -930,11 +930,57 @@ index 9760735..f9ec82c 100644
          case STATUS_NO_SUCH_FILE:               return ERROR_FILE_NOT_FOUND;
          case STATUS_END_OF_FILE:                return ERROR_HANDLE_EOF;
          case STATUS_INVALID_HANDLE:             return ERROR_INVALID_HANDLE;
+diff --git a/src/kernel/nv2a_pb_exec.c b/src/kernel/nv2a_pb_exec.c
+index 5275e59..0921f13 100644
+--- a/src/kernel/nv2a_pb_exec.c
++++ b/src/kernel/nv2a_pb_exec.c
+@@ -172,6 +172,9 @@ static int surface_write_refused(uint32_t base, uint32_t bytes, const char *what
+ #define NV097_FLIP_INCREMENT_WRITE        0x012C
+ #define NV097_FLIP_STALL                  0x0130
+ #define NV097_NO_OPERATION                0x0100
++#define NV097_SET_CONTEXT_DMA_SEMAPHORE    0x01A8
++#define NV097_SET_SEMAPHORE_OFFSET         0x1D6C
++#define NV097_BACK_END_WRITE_SEMAPHORE_RELEASE 0x1D70
+ #define NV097_ARRAY_ELEMENT16             0x1800
+ /* Draw a run of vertices straight out of the arrays, with no index list:
+  * bits 0..23 are the first vertex, bits 24..31 the count minus one. It may
+@@ -3424,6 +3427,7 @@ static void tex_stage_method(uint32_t method, uint32_t param)
+ void nv2a_pb_exec_method(uint32_t subch, uint32_t method, uint32_t param)
+ {
+     static int inited;
++    static uint32_t semaphore_dma, semaphore_offset;
+     if (!inited) {
+         inited = 1;
+         s_gpu.color_mask = 0x01010101u;           /* all channels, as reset */
+@@ -3484,6 +3488,15 @@ void nv2a_pb_exec_method(uint32_t subch, uint32_t method, uint32_t param)
+         return;
+     }
+     switch (method) {
++    case NV097_SET_CONTEXT_DMA_SEMAPHORE:
++        semaphore_dma = param;
++        return;
++    case NV097_SET_SEMAPHORE_OFFSET:
++        semaphore_offset = param;
++        return;
++    case NV097_BACK_END_WRITE_SEMAPHORE_RELEASE:
++        xbox_Nv2aSemaphoreRelease(semaphore_dma, semaphore_offset, param);
++        return;
+     case NV097_SET_SURFACE_CLIP_HORIZONTAL:
+         s_gpu.clip_x = param & 0xFFFF;
+         s_gpu.clip_w = (param >> 16) & 0xFFFF;
 diff --git a/src/kernel/nv2a_pb_scan.c b/src/kernel/nv2a_pb_scan.c
-index b9de8d0..e85f5d1 100644
+index b9de8d0..ac83ecc 100644
 --- a/src/kernel/nv2a_pb_scan.c
 +++ b/src/kernel/nv2a_pb_scan.c
-@@ -48,6 +48,86 @@ extern void nv2a_pb_exec_method(uint32_t subch, uint32_t method, uint32_t param)
+@@ -27,6 +27,7 @@
+ #include <stdlib.h>
+ #include <string.h>
+ #include "kernel.h"
++#include "xbox_memory_layout.h"
+ 
+ extern ptrdiff_t xbox_GetMemoryOffset(void);
+ 
+@@ -48,6 +49,86 @@ extern void nv2a_pb_exec_method(uint32_t subch, uint32_t method, uint32_t param)
  extern void nv2a_pb_exec_report(void);
  static int s_exec_enabled = -1;
  
@@ -1021,52 +1067,53 @@ index b9de8d0..e85f5d1 100644
  static void note(uint32_t subch, uint32_t method)
  {
      for (int i = 0; i < s_seen_count; i++) {
-@@ -177,60 +257,136 @@ void nv2a_pb_scan_report(void)
-  * same way: through the contiguous window. */
+@@ -164,100 +245,454 @@ void nv2a_pb_scan_report(void)
+     fflush(stderr);
+ }
+ 
+-/* Walk commands from va to end_va. Returns the words consumed.
+- *
+- * A CALL runs a subroutine -- a pushbuffer somewhere else in memory -- up to
+- * its RETURN, then carries on after the CALL. This used to skip CALLs, which
+- * was invisible until a title used them for real: RenderWare on the Xbox
+- * compiles static geometry into pushbuffers and draws it with a CALL, so the
+- * whole race track went missing from Burnout 3's main view while the
+- * geometry it submits inline (environment maps, the HUD) drew fine.
+- * The NV2A has one level of subroutine, so a CALL inside a call is not
+- * followed. Addresses are physical, like PUT's, and reach guest memory the
+- * same way: through the contiguous window. */
  static int s_scan = -1;
  
+-static uint32_t pb_walk(uint32_t va, uint32_t end_va, int in_call,
+-                        uint32_t *jumps, uint32_t *unknown)
 +/* DMA_PUT may expose only part of a method packet. PFIFO resumes the
-+ * remaining parameters rather than interpreting them as new headers. */
++ * remaining parameters rather than interpreting them as new headers.
++ * The same PUT boundary applies while a subroutine is active: CALL saves
++ * one return address, not a separate FIFO with an invented four-MiB end. */
 +typedef struct {
 +    uint32_t next_va, packet_va, subch, method, remaining;
 +    int active, noninc;
 +} PB_PACKET_CONTINUATION;
 +static PB_PACKET_CONTINUATION s_packet;
++typedef struct {
++    uint32_t next_start, pc, return_va, last_control, last_target;
++    int active, in_call;
++} PB_FIFO_CONTINUATION;
++static PB_FIFO_CONTINUATION s_fifo;
 +static unsigned s_parse_split_reports, s_parse_limit_reports;
 +
-+static uint32_t pb_advance(uint32_t va, int in_call)
-+{
-+    /* Called lists retain their bounded logical span; root FIFO comparisons
-+     * use the same 26-bit canonical address as DMA_PUT and memory reads. */
-+    return in_call ? va + 4 : pb_contiguous_va(va + 4);
-+}
-+
- static uint32_t pb_walk(uint32_t va, uint32_t end_va, int in_call,
--                        uint32_t *jumps, uint32_t *unknown)
-+                        uint32_t *jumps, uint32_t *unknown, PB_HITCH *hitch)
++static uint32_t pb_advance(uint32_t va)
  {
-     const uint8_t *mem = (const uint8_t *)xbox_GetMemoryOffset();
-     uint32_t words = 0;
-+    uint32_t last_control = 0, last_target = 0;
-+    int returned = 0;
+-    const uint8_t *mem = (const uint8_t *)xbox_GetMemoryOffset();
+-    uint32_t words = 0;
++    return pb_contiguous_va(va + 4);
++}
  
-     while ((in_call ? va < end_va : va != end_va) && words < 0x100000u) {
+-    while ((in_call ? va < end_va : va != end_va) && words < 0x100000u) {
 -        uint32_t w = *(const uint32_t *)pb_word_ptr(mem, va);
 -        va += 4;
 -        words++;
-+        uint32_t count, subch, method, packet_va;
-+        int noninc;
-+        if (!in_call && s_packet.active) {
-+            count = s_packet.remaining; subch = s_packet.subch;
-+            method = s_packet.method; noninc = s_packet.noninc;
-+            packet_va = s_packet.packet_va;
-+            s_packet.active = 0;
-+        } else {
-+            uint32_t w = *(const uint32_t *)pb_word_ptr(mem, va);
-+            packet_va = pb_contiguous_va(va);
-+            va = pb_advance(va, in_call);
-+            words++;
- 
+-
 -        if ((w & 3u) == 1u || (w & 0xE0000003u) == 0x20000000u) {
 -            uint32_t target = (w & 3u) == 1u ? (w & 0xFFFFFFFCu)
 -                                             : (w & 0x1FFFFFFCu);
@@ -1074,44 +1121,317 @@ index b9de8d0..e85f5d1 100644
 -            va = pb_contiguous_va(target);
 -            if (in_call) end_va = va + 0x400000u;
 -            continue;
--        }
++/* An isolated parser capture records the bytes actually fetched, before GPU
++ * callbacks can change RAM. Keep the complete bounded pass, not just its last
++ * headers: a bogus control address can lead to a million empty words. Nothing
++ * allocates, reads extra RAM, timestamps or performs I/O when disabled. */
++typedef struct {
++    uint32_t va, word, method, remaining, flags, return_va;
++} PB_CAPTURE_READ;
++static struct {
++    const char *prefix;
++    PB_CAPTURE_READ *first, recent[256];
++    uint8_t *ring;
++    uint32_t ring_va, ring_bytes, ring_capacity;
++    XBOX_NV2A_CAPTURE_STATE initial_state;
++    uint32_t first_count, recent_count, recent_next, start, end, pc;
++    PB_PACKET_CONTINUATION packet;
++    PB_FIFO_CONTINUATION fifo;
++    int configured, recording, done;
++} s_capture;
++
++static void pb_capture_begin(uint32_t start, uint32_t end, uint32_t pc)
++{
++    if (!s_capture.configured) {
++        const char *setting = getenv("RECOMP_PB_CAPTURE");
++        s_capture.configured = 1;
++        if (setting && *setting) {
++            s_capture.first = malloc(0x100000u * sizeof *s_capture.first);
++            if (s_capture.first) s_capture.prefix = setting;
++        }
++    }
++    s_capture.recording = s_capture.prefix && !s_capture.done;
++    if (!s_capture.recording) return;
++    s_capture.first_count = 0;
++    s_capture.start = start; s_capture.end = end; s_capture.pc = pc;
++    s_capture.packet = s_packet; s_capture.fifo = s_fifo;
++    /* This is evidence only: execution continues reading live guest RAM.
++     * Preserve a bounded copy of the producer's configured ring before any
++     * executor callbacks, to distinguish stale submissions from later reuse. */
++    xbox_Nv2aCaptureSnapshot(&s_capture.initial_state);
++    s_capture.ring_bytes = 0;
++    for (uint32_t i = 0; i < s_capture.initial_state.mirror_count &&
++                         i < XBOX_NV2A_CAPTURE_MIRRORS; i++) {
++        const XBOX_NV2A_CAPTURE_MIRROR *m = &s_capture.initial_state.mirrors[i];
++        uint32_t low, high, bytes;
++        uint8_t *copy;
++        if (m->device_bytes < 0x2C) continue;
++        memcpy(&low, m->device + 0x24, sizeof low);
++        memcpy(&high, m->device + 0x28, sizeof high);
++        if (low < XBOX_CONTIG_BASE || high < low ||
++            high > XBOX_CONTIG_BASE + XBOX_CONTIG_SIZE - 4u) continue;
++        bytes = high - low + 4u; /* Include the boundary's possible JUMP word. */
++        if (bytes > 4u * 1024u * 1024u) continue;
++        if (s_capture.ring_capacity < bytes) {
++            copy = realloc(s_capture.ring, bytes);
++            if (!copy) continue;
++            s_capture.ring = copy; s_capture.ring_capacity = bytes;
+         }
 -        if ((w & 0xFFFF0003u) == 0x00020000u) {  /* RETURN */
 -            if (in_call)
 -                break;
 -            continue;
--        }
++        memcpy(s_capture.ring, (const uint8_t *)xbox_GetMemoryOffset() + low, bytes);
++        s_capture.ring_va = low; s_capture.ring_bytes = bytes;
++        break;
++    }
++}
++
++static void pb_capture_read(uint32_t va, uint32_t word, uint32_t method,
++                            uint32_t remaining, int payload, int in_call,
++                            uint32_t return_va)
++{
++    PB_CAPTURE_READ entry;
++    entry.va = va; entry.word = word; entry.method = method;
++    entry.remaining = remaining;
++    entry.flags = (payload ? 1u : 0u) | (in_call ? 2u : 0u);
++    entry.return_va = return_va;
++    if (s_capture.first_count < 0x100000u)
++        s_capture.first[s_capture.first_count++] = entry;
++    s_capture.recent[s_capture.recent_next] = entry;
++    s_capture.recent_next = (s_capture.recent_next + 1) & 255u;
++    if (s_capture.recent_count < 256) s_capture.recent_count++;
++}
++
++static int pb_capture_write(const char *suffix, const void *data, size_t size)
++{
++    char path[4096];
++    FILE *file;
++    int result, length = snprintf(path, sizeof path, "%s%s", s_capture.prefix, suffix);
++    if (length < 0 || length >= (int)sizeof path) return 0;
++    file = fopen(path, "wb");
++    if (!file) return 0;
++    result = fwrite(data, 1, size, file) == size;
++    if (fclose(file) != 0) result = 0;
++    return result;
++}
++
++static uint32_t pb_capture_device_word(const XBOX_NV2A_CAPTURE_MIRROR *m,
++                                       uint32_t offset)
++{
++    uint32_t value = 0;
++    if (m->device_bytes >= offset + sizeof value)
++        memcpy(&value, m->device + offset, sizeof value);
++    return value;
++}
++
++static int pb_capture_state_json(char *buffer, size_t capacity,
++                                 const XBOX_NV2A_CAPTURE_STATE *state)
++{
++    int n, used = 0;
++#define PB_CAPTURE_JSON(...) do { \
++    n = snprintf(buffer + used, capacity - (size_t)used, __VA_ARGS__); \
++    if (n < 0 || (size_t)n >= capacity - (size_t)used) return 0; \
++    used += n; \
++} while (0)
++    PB_CAPTURE_JSON("{\"version\":%u,\"bytes\":%u,\"mmio_valid\":%u,"
++        "\"user_put\":%u,\"user_get\":%u,\"pfifo_put\":%u,\"pfifo_get\":%u,"
++        "\"pfifo_subroutine\":%u,\"get_held\":%u,\"get_held_value\":%u,"
++        "\"scan_incomplete\":%u,\"notify_count\":%u,\"notify_param\":%u,"
++        "\"notify_device_ptr\":%u,\"notify_event_offset\":%u,"
++        "\"counter_mirrors\":%u,\"frame_counters\":%u,\"mirrors\":[",
++        state->version, state->bytes, state->mmio_valid, state->user_put,
++        state->user_get, state->pfifo_put, state->pfifo_get, state->pfifo_subroutine,
++        state->get_held, state->get_held_value, state->scan_incomplete,
++        state->notify_count, state->notify_param, state->notify_device_ptr,
++        state->notify_event_offset, state->counter_mirrors, state->frame_counters);
++    for (uint32_t i = 0; i < state->mirror_count && i < XBOX_NV2A_CAPTURE_MIRRORS; i++) {
++        const XBOX_NV2A_CAPTURE_MIRROR *m = &state->mirrors[i];
++        PB_CAPTURE_JSON("%s{\"device_ptr_va\":%u,\"device_va\":%u,"
++            "\"device_valid\":%u,\"device_bytes\":%u,\"put_offset\":%u,"
++            "\"get_ptr_offset\":%u,\"put_value\":%u,\"fence_va\":%u,"
++            "\"fence_value\":%u,\"fence_valid\":%u,\"channel_va\":%u,"
++            "\"channel_valid\":%u,\"channel_put\":%u,\"channel_get\":%u,"
++            "\"pfifo_va\":%u,\"pfifo_valid\":%u,\"pfifo_subroutine\":%u,"
++            "\"command_mode\":%u,\"command_dma\":%u,\"command_offset\":%u,"
++            "\"command_pending\":%u,\"command_value\":%u,"
++            "\"command_fence_va\":%u,\"command_queue_count\":%u,"
++            "\"cursor\":%u,\"limit\":%u,\"flags\":%u,\"ring_low\":%u,"
++            "\"ring_high\":%u,\"next_fence\":%u,\"fence_pointer\":%u,"
++            "\"fence_index\":%u,\"fence_mask\":%u,\"ring_used\":%u,"
++            "\"fence_table\":%u}", i ? "," : "",
++            m->device_ptr_va, m->device_va, m->device_valid, m->device_bytes,
++            m->put_offset, m->get_ptr_offset, m->put_value, m->fence_va,
++            m->fence_value, m->fence_valid, m->channel_va, m->channel_valid,
++            m->channel_put, m->channel_get, m->pfifo_va, m->pfifo_valid,
++            m->pfifo_subroutine, m->command_mode, m->command_dma, m->command_offset,
++            m->command_pending, m->command_value, m->command_fence_va,
++            m->command_queue_count, pb_capture_device_word(m, 0),
++            pb_capture_device_word(m, 4), pb_capture_device_word(m, 8),
++            pb_capture_device_word(m, 0x24), pb_capture_device_word(m, 0x28),
++            pb_capture_device_word(m, 0x2C), pb_capture_device_word(m, 0x30),
++            pb_capture_device_word(m, 0x34), pb_capture_device_word(m, 0x38),
++            pb_capture_device_word(m, 0x40), pb_capture_device_word(m, 0x48));
++    }
++    PB_CAPTURE_JSON("]}");
++#undef PB_CAPTURE_JSON
++    return used;
++}
++
++static void pb_capture_limit(uint32_t words)
++{
++    char metadata[3072];
++    PB_CAPTURE_READ recent[256];
++    XBOX_NV2A_CAPTURE_STATE final_state;
++    char producer[16384];
++    const uint8_t *mem;
++    int ram_ok, first_ok, recent_ok, json_ok, length;
++    int ring_ok, initial_state_ok, final_state_ok, producer_ok;
++#ifdef _WIN32
++    DWORD previous_error;
++#endif
++    if (!s_capture.recording || s_capture.done) return;
++#ifdef _WIN32
++    previous_error = GetLastError();
++#endif
++    s_capture.done = 1; s_capture.recording = 0;
++    xbox_Nv2aCaptureSnapshot(&final_state);
++    mem = (const uint8_t *)xbox_GetMemoryOffset();
++    for (uint32_t i = 0; i < s_capture.recent_count; i++)
++        recent[i] = s_capture.recent[(s_capture.recent_next + 256u -
++                                     s_capture.recent_count + i) & 255u];
++    ram_ok = pb_capture_write(".ram.bin", mem + XBOX_CONTIG_BASE, XBOX_CONTIG_SIZE);
++    first_ok = pb_capture_write(".reads.bin", s_capture.first,
++                               s_capture.first_count * sizeof *s_capture.first);
++    recent_ok = pb_capture_write(".recent.bin", recent,
++                                s_capture.recent_count * sizeof *recent);
++    ring_ok = s_capture.ring_bytes && pb_capture_write(".initial-ring.bin",
++                                  s_capture.ring, s_capture.ring_bytes);
++    initial_state_ok = pb_capture_write(".state-initial.bin",
++                    &s_capture.initial_state, sizeof s_capture.initial_state);
++    final_state_ok = pb_capture_write(".state-final.bin", &final_state, sizeof final_state);
++    memcpy(producer, "{\"initial\":", 11);
++    length = pb_capture_state_json(producer + 11, sizeof producer - 11,
++                                   &s_capture.initial_state);
++    producer_ok = 0;
++    if (length && 11u + (size_t)length + 11u < sizeof producer) {
++        size_t used = 11u + (size_t)length;
++        memcpy(producer + used, ",\"final\":", 9); used += 9;
++        length = pb_capture_state_json(producer + used, sizeof producer - used - 2,
++                                       &final_state);
++        if (length) {
++            used += (size_t)length;
++            memcpy(producer + used, "}\n", 2); used += 2;
++            producer_ok = pb_capture_write(".producer.json", producer, used);
+         }
 -        if ((w & 3u) == 2u) {                    /* CALL */
 -            if (!in_call) {
 -                uint32_t sub = pb_contiguous_va(w & 0xFFFFFFFCu);
 -                s_tot_calls++;
 -                words += pb_walk(sub, sub + 0x400000u, 1, jumps, unknown);
++    }
++    length = snprintf(metadata, sizeof metadata,
++        "{\n\"version\":1,\"contiguous_base\":%u,\"ram_bytes\":%u,"
++        "\"record_bytes\":%u,\"record_fields\":[\"va\",\"word\",\"method\","
++        "\"remaining\",\"flags\",\"return_va\"],\"payload_flag\":1,\"in_call_flag\":2,\n"
++        "\"start\":%u,\"end\":%u,\"initial_pc\":%u,\"words\":%u,"
++        "\"first_reads\":%u,\"recent_reads\":%u,\n"
++        "\"initial_fifo\":{\"active\":%d,\"in_call\":%d,\"return_va\":%u,"
++        "\"last_control\":%u,\"last_target\":%u},\n"
++        "\"initial_packet\":{\"active\":%d,\"noninc\":%d,\"packet_va\":%u,"
++        "\"method\":%u,\"subch\":%u,\"remaining\":%u},\n"
++        "\"final_fifo\":{\"pc\":%u,\"in_call\":%d,\"return_va\":%u,"
++        "\"last_control\":%u,\"last_target\":%u},\n"
++        "\"final_packet\":{\"active\":%d,\"noninc\":%d,\"packet_va\":%u,"
++        "\"method\":%u,\"subch\":%u,\"remaining\":%u},\n"
++        "\"ram_ok\":%d,\"first_ok\":%d,\"recent_ok\":%d,\n"
++        "\"initial_ring_va\":%u,\"initial_ring_bytes\":%u,\"initial_ring_ok\":%d,"
++        "\"state_bytes\":%u,\"initial_state_ok\":%d,\"final_state_ok\":%d,"
++        "\"producer_ok\":%d\n}\n",
++        (unsigned)XBOX_CONTIG_BASE, (unsigned)XBOX_CONTIG_SIZE,
++        (unsigned)sizeof(PB_CAPTURE_READ), s_capture.start, s_capture.end, s_capture.pc,
++        words, s_capture.first_count, s_capture.recent_count,
++        s_capture.fifo.active, s_capture.fifo.in_call, s_capture.fifo.return_va,
++        s_capture.fifo.last_control, s_capture.fifo.last_target,
++        s_capture.packet.active, s_capture.packet.noninc, s_capture.packet.packet_va,
++        s_capture.packet.method, s_capture.packet.subch, s_capture.packet.remaining,
++        s_fifo.pc, s_fifo.in_call, s_fifo.return_va, s_fifo.last_control, s_fifo.last_target,
++        s_packet.active, s_packet.noninc, s_packet.packet_va,
++        s_packet.method, s_packet.subch, s_packet.remaining, ram_ok, first_ok, recent_ok,
++        s_capture.ring_va, s_capture.ring_bytes, ring_ok, (unsigned)sizeof final_state,
++        initial_state_ok, final_state_ok, producer_ok);
++    json_ok = length >= 0 && length < (int)sizeof metadata &&
++              pb_capture_write(".json", metadata, (size_t)length);
++    fprintf(stderr, "[PB_CAPTURE] prefix=%s words=%u reads=%u ram_ok=%d "
++                    "first_ok=%d recent_ok=%d json_ok=%d\n",
++            s_capture.prefix, words, s_capture.first_count,
++            ram_ok, first_ok, recent_ok, json_ok);
++    free(s_capture.first); s_capture.first = NULL;
++    free(s_capture.ring); s_capture.ring = NULL; s_capture.ring_capacity = 0;
++#ifdef _WIN32
++    SetLastError(previous_error);
++#endif
++}
++
++/* Walk one PFIFO, including its single-level CALL/RETURN state. The work cap
++ * is a host scheduling bound, not an acknowledgment of unexecuted commands.
++ * A caller must retry the saved PC until it reaches the actual DMA_PUT. */
++static uint32_t pb_walk(uint32_t va, uint32_t end_va,
++                        uint32_t *jumps, uint32_t *unknown, PB_HITCH *hitch)
++{
++    const uint8_t *mem = (const uint8_t *)xbox_GetMemoryOffset();
++    uint32_t words = 0;
++    uint32_t last_control = s_fifo.last_control, last_target = s_fifo.last_target;
++    uint32_t return_va = s_fifo.return_va;
++    int in_call = s_fifo.in_call;
++
++    while (va != end_va && words < 0x100000u) {
++        uint32_t count, subch, method, packet_va;
++        int noninc;
++        if (s_packet.active) {
++            count = s_packet.remaining; subch = s_packet.subch;
++            method = s_packet.method; noninc = s_packet.noninc;
++            packet_va = s_packet.packet_va;
++            s_packet.active = 0;
++        } else {
++            uint32_t w = *(const uint32_t *)pb_word_ptr(mem, va);
++            if (s_capture.recording)
++                pb_capture_read(va, w, 0, 0, 0, in_call, return_va);
++            packet_va = pb_contiguous_va(va);
++            va = pb_advance(va);
++            words++;
++
 +            if ((w & 3u) == 1u || (w & 0xE0000003u) == 0x20000000u) {
 +                uint32_t target = (w & 3u) == 1u ? (w & 0xFFFFFFFCu)
 +                                                 : (w & 0x1FFFFFFCu);
 +                last_control = w; last_target = pb_contiguous_va(target);
 +                (*jumps)++;
 +                va = last_target;
-+                if (in_call) end_va = va + 0x400000u;
 +                continue;
 +            }
-+            if ((w & 0xFFFF0003u) == 0x00020000u) {  /* RETURN */
-+                if (in_call) { returned = 1; break; }
++            if (w == 0x00020000u) {                 /* exact RETURN */
++                if (in_call) {
++                    va = return_va;
++                    in_call = 0;
++                }
 +                continue;
 +            }
 +            if ((w & 3u) == 2u) {                    /* CALL */
 +                last_control = w; last_target = pb_contiguous_va(w & 0xFFFFFFFCu);
 +                if (!in_call) {
-+                    uint32_t sub = last_target;
 +                    s_tot_calls++;
-+                    words += pb_walk(sub, sub + 0x400000u, 1, jumps, unknown, hitch);
++                    return_va = va;
++                    in_call = 1;
++                    va = last_target;
 +                }
-+                continue;
-+            }
-+            if ((w & 0x00030003u) != 0u) {
-+                (*unknown)++;
 +                continue;
              }
 -            continue;
++            if ((w & 0xE0030003u) != 0u &&
++                (w & 0xE0030003u) != 0x40000000u) {
++                (*unknown)++;
++                continue;
++            }
 +            count = (w >> 18) & 0x7FFu;
 +            subch = (w >> 13) & 7u;
 +            method = w & 0x1FFCu;
@@ -1122,14 +1442,16 @@ index b9de8d0..e85f5d1 100644
 -            uint32_t subch  = (w >> 13) & 7u;
 -            uint32_t method =  w & 0x1FFCu;
 -            int noninc = (w & 0xE0000000u) == 0x40000000u;
+-
+-            for (uint32_t i = 0; i < count && (in_call ? va < end_va : va != end_va); i++) {
+-                uint32_t m = noninc ? method : method + i * 4;
 +        {
 +            uint32_t first_param = 0, i;
 +            int64_t packet_start = hitch && count ? pb_hitch_clock() : 0;
 +            int contains_flip = 0;
- 
--            for (uint32_t i = 0; i < count && (in_call ? va < end_va : va != end_va); i++) {
-+            for (i = 0; i < count && (in_call ? va < end_va : va != end_va); i++) {
-                 uint32_t m = noninc ? method : method + i * 4;
++
++            for (i = 0; i < count && va != end_va && words < 0x100000u; i++) {
++                uint32_t m = noninc ? method : (method + i * 4) & 0x1FFCu;
 +                if (hitch && m == 0x0130) contains_flip = 1;
                  if (s_scan)  /* the inventory is a linear search: survey runs only */
                      note(subch, m);
@@ -1140,19 +1462,21 @@ index b9de8d0..e85f5d1 100644
 -                    nv2a_pb_exec_method(subch, m,
 -                                        *(const uint32_t *)pb_word_ptr(mem, va));
 -                va += 4;
-+                if (s_exec_enabled) {
++                if (s_exec_enabled || s_capture.recording) {
 +                    uint32_t param = *(const uint32_t *)pb_word_ptr(mem, va);
 +                    if (hitch && !i) first_param = param;
-+                    nv2a_pb_exec_method(subch, m, param);
++                    if (s_capture.recording)
++                        pb_capture_read(va, param, m, count - i, 1, in_call, return_va);
++                    if (s_exec_enabled) nv2a_pb_exec_method(subch, m, param);
 +                }
-+                va = pb_advance(va, in_call);
++                va = pb_advance(va);
                  words++;
              }
 -            continue;
-+            if (i < count && !in_call) {
++            if (i < count) {
 +                s_packet.active = 1; s_packet.next_va = va;
 +                s_packet.packet_va = packet_va; s_packet.subch = subch;
-+                s_packet.method = noninc ? method : method + i * 4;
++                s_packet.method = noninc ? method : (method + i * 4) & 0x1FFCu;
 +                s_packet.remaining = count - i; s_packet.noninc = noninc;
 +                if (hitch && s_parse_split_reports++ < 64) {
 +                    int64_t now = pb_hitch_clock();
@@ -1183,7 +1507,10 @@ index b9de8d0..e85f5d1 100644
          }
 -        (*unknown)++;
 +    }
-+    if (hitch && (words >= 0x100000u || (in_call && !returned)) &&
++    s_fifo.pc = va; s_fifo.in_call = in_call; s_fifo.return_va = return_va;
++    s_fifo.last_control = last_control; s_fifo.last_target = last_target;
++    if (va != end_va && words >= 0x100000u) pb_capture_limit(words);
++    if (hitch && va != end_va && words >= 0x100000u &&
 +        s_parse_limit_reports++ < 16) {
 +        int64_t now = pb_hitch_clock();
 +        fprintf(stderr, "[PB_PARSE] phase=parse_limit qpc_ms=%.3f pc=%08X "
@@ -1193,10 +1520,13 @@ index b9de8d0..e85f5d1 100644
      }
      return words;
  }
-@@ -238,6 +394,10 @@ static uint32_t pb_walk(uint32_t va, uint32_t end_va, int in_call,
- void nv2a_pb_scan(uint32_t start_va, uint32_t end_va)
+ 
+-void nv2a_pb_scan(uint32_t start_va, uint32_t end_va)
++int nv2a_pb_scan(uint32_t start_va, uint32_t end_va)
  {
      uint32_t words, jumps = 0, unknown = 0;
++    uint32_t pc;
++    int completed;
 +    PB_HITCH trace, *hitch = NULL;
 +
 +    start_va = pb_contiguous_va(start_va);
@@ -1204,13 +1534,23 @@ index b9de8d0..e85f5d1 100644
  
      if (s_exec_enabled < 0)
          s_exec_enabled = getenv("RECOMP_PB_EXEC") != NULL;
-@@ -248,13 +408,25 @@ void nv2a_pb_scan(uint32_t start_va, uint32_t end_va)
-     if (end_va > start_va && end_va - start_va > 0x400000u) /* forward span only */
-         end_va = start_va + 0x400000u;
- 
+     if (s_scan < 0)
+         s_scan = getenv("RECOMP_PB_SCAN") != NULL;
+     if (!(s_scan || s_exec_enabled) || end_va == start_va)
+-        return;
+-    if (end_va > start_va && end_va - start_va > 0x400000u) /* forward span only */
+-        end_va = start_va + 0x400000u;
++        return 1;
++
 +    /* A fresh/discontinuous scan does not inherit another FIFO's fragment. */
-+    if (s_packet.active && s_packet.next_va != start_va)
++    if (s_fifo.active && s_fifo.next_start == start_va) {
++        pc = s_fifo.pc;
++    } else {
++        pc = start_va;
 +        s_packet.active = 0;
++        memset(&s_fifo, 0, sizeof s_fifo);
++    }
++    pb_capture_begin(start_va, end_va, pc);
 +
 +    if (pb_hitch_enabled()) {
 +        hitch = &trace;
@@ -1218,21 +1558,28 @@ index b9de8d0..e85f5d1 100644
 +        trace.cpu_started = pb_hitch_cpu();
 +        trace.started = pb_hitch_clock();
 +    }
-+
+ 
      {
          extern void nv2a_d3d_kick(void);
          nv2a_d3d_kick();
      }
      RECOMP_PROFILE_BEGIN("GPU submission");
 -    words = pb_walk(start_va, end_va, 0, &jumps, &unknown);
-+    words = pb_walk(start_va, end_va, 0, &jumps, &unknown, hitch);
++    words = pb_walk(pc, end_va, &jumps, &unknown, hitch);
      RECOMP_PROFILE_END();
 +    if (hitch) pb_hitch_report(hitch, start_va, end_va, words);
  
      s_tot_words += words;
      s_tot_unknown += unknown;
+     s_tot_jumps += jumps;
+     s_tot_segments++;
++    completed = s_fifo.pc == end_va;
++    s_fifo.next_start = completed ? end_va : start_va;
++    s_fifo.active = !completed || s_fifo.in_call || s_packet.active;
++    return completed;
+ }
 diff --git a/src/kernel/xbox_memory_layout.c b/src/kernel/xbox_memory_layout.c
-index a2e99fb..87f8f13 100644
+index a2e99fb..fbca9f7 100644
 --- a/src/kernel/xbox_memory_layout.c
 +++ b/src/kernel/xbox_memory_layout.c
 @@ -15,6 +15,7 @@
@@ -1263,7 +1610,102 @@ index a2e99fb..87f8f13 100644
  
  /*
   * NV2A busy-bit acknowledgement.
-@@ -764,11 +767,12 @@ void xbox_Nv2aFrameCounterFlip(void)
+@@ -341,16 +344,45 @@ static const struct { uint32_t offset; uint32_t idle_mask; } NV2A_IDLE[] = {
+  * the ring base, and the free-space subtraction then goes negative and is
+  * clamped to zero. The reserve wants 0x2000 bytes, gets 0, and spins.
+  *
+- * Not acknowledged here, only reported. DDS9 reads the USER pair and never
+- * reaches the fallback, so every value in this block is zero for the one
+- * title that was traced -- mirroring PUT to GET would be a guess dressed as
+- * a handshake. The watchdog prints them so the next title to spin here is
+- * diagnosed from data instead.
++ * Titles using xbox_Nv2aDmaPublish keep these pointers synchronized with the
++ * USER channel. PUT is published before USER PUT; GET advances only after the
++ * corresponding words have executed and prior readbacks have completed.
+  */
+ #define NV2A_PFIFO_DMA_PUT        0x003240u
+ #define NV2A_PFIFO_DMA_GET        0x003244u
+ #define NV2A_PFIFO_REF            0x003248u
+ #define NV2A_PFIFO_DMA_SUBROUTINE 0x00324Cu
++#define NV2A_PGRAPH_STATUS        0x400700u
++
++/* Serialize only the register stores. Neither GPU calls nor waits run while
++ * holding this lock, so publication cannot clear a newer submission's busy
++ * state or overwrite a concurrently completed GET with an older value. */
++static SRWLOCK g_nv2a_dma_lock = SRWLOCK_INIT;
++static volatile LONG g_nv2a_dma_sync;
++
++void xbox_Nv2aDmaPublish(uint32_t put_va, uint32_t value)
++{
++    volatile uint32_t *regs = (volatile uint32_t *)g_nv2a_memory;
++    if (!regs || put_va != XBOX_NV2A_BASE + NV2A_USER_DMA_PUT) {
++        /* Software channels keep exactly the original guest store, including
++         * its normal fault behavior if the supplied address is invalid. */
++        *(volatile uint32_t *)((uintptr_t)put_va + g_memory_offset) = value;
++        return;
++    }
++    AcquireSRWLockExclusive(&g_nv2a_dma_lock);
++    if (!g_nv2a_dma_sync) {
++        *(volatile uint32_t *)((char *)regs + NV2A_PFIFO_DMA_GET) =
++            *(volatile uint32_t *)((char *)regs + NV2A_USER_DMA_GET);
++        InterlockedExchange(&g_nv2a_dma_sync, 1);
++    }
++    *(volatile uint32_t *)((char *)regs + NV2A_PFIFO_DMA_PUT) = value;
++    *(volatile uint32_t *)((char *)regs + NV2A_PGRAPH_STATUS) =
++        value != *(volatile uint32_t *)((char *)regs + NV2A_PFIFO_DMA_GET);
++    /* This is the publication observed by the executor. The cache pointers
++     * and busy state must already describe it when the guest checks them. */
++    *(volatile uint32_t *)((char *)regs + NV2A_USER_DMA_PUT) = value;
++    ReleaseSRWLockExclusive(&g_nv2a_dma_lock);
++}
+ 
+ /*
+  * Free-running counters in the MCPX aperture.
+@@ -576,10 +608,19 @@ static int g_apu_mmio_trapped = 0;
+  */
+ #define XBOX_MAX_FENCE_MIRRORS 4
+ 
++typedef struct XBOX_COMMAND_FENCE {
++    struct XBOX_COMMAND_FENCE *next;
++    uint32_t target, value;
++    int native_heap;
++} XBOX_COMMAND_FENCE;
++
+ static struct {
+     uint32_t device_ptr_va;
+     uint32_t put_off;
+     uint32_t get_ptr_off;
++    int command_mode, command_pending;
++    uint32_t command_dma, command_offset, command_value, command_fence_va;
++    XBOX_COMMAND_FENCE *command_head, *command_tail;
+ } g_fence_mirrors[XBOX_MAX_FENCE_MIRRORS];
+ static int g_fence_mirror_count = 0;
+ 
+@@ -597,6 +638,23 @@ int xbox_Nv2aMirrorFence(uint32_t device_ptr_va,
+             device_ptr_va, put_off, get_ptr_off);
+     return 0;
+ }
++
++int xbox_Nv2aCommandFence(uint32_t device_ptr_va,
++                          uint32_t dma_context, uint32_t semaphore_offset)
++{
++    for (int i = 0; i < g_fence_mirror_count; i++) {
++        if (g_fence_mirrors[i].device_ptr_va != device_ptr_va) continue;
++        if (g_fence_mirrors[i].command_pending) return -1;
++        g_fence_mirrors[i].command_dma = dma_context;
++        g_fence_mirrors[i].command_offset = semaphore_offset;
++        g_fence_mirrors[i].command_pending = 0;
++        /* Configure before entering guest code. From this point the next
++         * submitted counter is never an indication of completed GPU work. */
++        g_fence_mirrors[i].command_mode = 1;
++        return 0;
++    }
++    return -1;
++}
+ /* A guest address is usable only once the window is mapped and it lands
+  * inside it; the chain is followed fresh every poll because the title may not
+  * have built it yet. */
+@@ -764,11 +822,12 @@ void xbox_Nv2aFrameCounterFlip(void)
  
  static void frame_counters_tick(void)
  {
@@ -1277,7 +1719,7 @@ index a2e99fb..87f8f13 100644
      if (g_frame_counter_last_ms
              && (now - g_frame_counter_last_ms) < XBOX_FRAME_PERIOD_MS)
          return;
-@@ -806,6 +810,7 @@ static int s_fence_snap_ok[XBOX_MAX_FENCE_MIRRORS];
+@@ -806,9 +865,12 @@ static int s_fence_snap_ok[XBOX_MAX_FENCE_MIRRORS];
  
  static void fence_mirrors_tick(int publish)
  {
@@ -1285,27 +1727,146 @@ index a2e99fb..87f8f13 100644
      for (int i = 0; i < g_fence_mirror_count; i++) {
          uint32_t dev, get_ptr;
  
-@@ -831,9 +836,11 @@ static void fence_mirrors_tick(int publish)
++        if (g_fence_mirrors[i].command_mode) continue;
++
+         if (!fence_readable(g_fence_mirrors[i].device_ptr_va, 4))
+             continue;
+         dev = *(volatile uint32_t *)((uintptr_t)g_fence_mirrors[i].device_ptr_va
+@@ -831,9 +893,113 @@ static void fence_mirrors_tick(int publish)
                  s_fence_snap_ok[i] = 1;
              } else if (s_fence_snap_ok[i] && *fence != s_fence_snap[i]) {
                  *fence = s_fence_snap[i];
 +                changed = 1;
++            }
++        }
++    }
++    if (changed) xbox_nv2a_wake_publish(&g_nv2a_wake);
++}
++
++/* The title increments its next-fence counter before publishing DMA_PUT.
++ * Only an executed semaphore release gives a command-mode mirror a value.
++ * Retain the target at execution too: delayed completion must not follow a
++ * subsequently replaced device/get pointer and write an unrelated object. */
++static void command_fences_publish(void);
++
++void xbox_Nv2aSemaphoreRelease(uint32_t dma_context,
++                                uint32_t semaphore_offset, uint32_t value)
++{
++    for (int i = 0; i < g_fence_mirror_count; i++) {
++        uint32_t dev, target;
++        if (!g_fence_mirrors[i].command_mode ||
++            g_fence_mirrors[i].command_dma != dma_context ||
++            g_fence_mirrors[i].command_offset != semaphore_offset ||
++            !fence_readable(g_fence_mirrors[i].device_ptr_va, 4)) continue;
++        dev = *(volatile uint32_t *)((uintptr_t)g_fence_mirrors[i].device_ptr_va
++                                     + g_memory_offset);
++        if (!fence_readable(dev, 1) ||
++            !fence_readable(dev + g_fence_mirrors[i].get_ptr_off, 4)) continue;
++        target = *(volatile uint32_t *)((uintptr_t)(dev + g_fence_mirrors[i].get_ptr_off)
++                                        + g_memory_offset);
++        if (!fence_readable(target, 4)) continue;
++        /* Consecutive releases to one address can retain the last value in
++         * execution order, including uint32 wrap. A target change must retain
++         * both writes; the fixed MM3 target needs no allocation at all. */
++        if (g_fence_mirrors[i].command_pending) {
++            XBOX_COMMAND_FENCE *tail = g_fence_mirrors[i].command_tail;
++            uint32_t last_target = tail ? tail->target :
++                g_fence_mirrors[i].command_fence_va;
++            if (last_target == target) {
++                if (tail) tail->value = value;
++                else g_fence_mirrors[i].command_value = value;
++                continue;
++            }
++            XBOX_COMMAND_FENCE *next = malloc(sizeof *next);
++            int native_heap = 0;
++            /* Allocation failure must neither drop a target nor publish a
++             * partial pass's fences against an older GET. Use the native heap
++             * if the CRT allocation fails; exhausted heaps retain the queue
++             * while yielding/retrying rather than inventing completion. */
++            while (!next) {
++                next = HeapAlloc(GetProcessHeap(), 0, sizeof *next);
++                if (next) { native_heap = 1; break; }
++                SwitchToThread();
++                next = malloc(sizeof *next);
              }
++            next->native_heap = native_heap;
++            next->target = target; next->value = value; next->next = NULL;
++            if (tail) tail->next = next;
++            else g_fence_mirrors[i].command_head = next;
++            g_fence_mirrors[i].command_tail = next;
++            continue;
++        }
++        g_fence_mirrors[i].command_value = value;
++        g_fence_mirrors[i].command_fence_va = target;
++        g_fence_mirrors[i].command_pending = 1;
++    }
++}
++
++static int command_fences_pending(void)
++{
++    for (int i = 0; i < g_fence_mirror_count; i++)
++        if (g_fence_mirrors[i].command_pending) return 1;
++    return 0;
++}
++
++/* Caller has completed the preceding readbacks and published a consumed GET.
++ * Partial-pass releases stay queued so guest free-space checks never combine
++ * a newer fence completion with an old-lap GET. */
++static void command_fences_publish(void)
++{
++    int changed = 0;
++    for (int i = 0; i < g_fence_mirror_count; i++) {
++        volatile uint32_t *fence;
++        XBOX_COMMAND_FENCE *next;
++        int valid = 1;
++        if (!g_fence_mirrors[i].command_pending ||
++            !fence_readable(g_fence_mirrors[i].command_fence_va, 4)) continue;
++        for (next = g_fence_mirrors[i].command_head; next; next = next->next)
++            if (!fence_readable(next->target, 4)) { valid = 0; break; }
++        if (!valid) continue;
++        fence = (volatile uint32_t *)((uintptr_t)g_fence_mirrors[i].command_fence_va
++                                       + g_memory_offset);
++        if (*fence != g_fence_mirrors[i].command_value) {
++            *fence = g_fence_mirrors[i].command_value;
++            changed = 1;
          }
++        next = g_fence_mirrors[i].command_head;
++        while (next) {
++            XBOX_COMMAND_FENCE *done = next;
++            fence = (volatile uint32_t *)((uintptr_t)next->target + g_memory_offset);
++            if (*fence != next->value) { *fence = next->value; changed = 1; }
++            next = next->next;
++            if (done->native_heap) HeapFree(GetProcessHeap(), 0, done);
++            else free(done);
++        }
++        g_fence_mirrors[i].command_head = g_fence_mirrors[i].command_tail = NULL;
++        g_fence_mirrors[i].command_pending = 0;
      }
 +    if (changed) xbox_nv2a_wake_publish(&g_nv2a_wake);
  }
  
  /*
-@@ -861,17 +868,16 @@ int xbox_Nv2aNotifyEvent(uint32_t device_ptr_va, uint32_t event_off, uint32_t no
- /* The executor ran NO_OPERATION(param): the notify interrupt, on hardware. */
+@@ -849,6 +1015,9 @@ static void fence_mirrors_tick(int publish)
+  */
+ static uint32_t g_notify_device_ptr, g_notify_event_off, g_notify_param;
+ static volatile LONG g_notify_count;
++/* Executor-owned sequence. An executed NOP becomes guest-visible only with
++ * its consumed GET checkpoint, never while unread words still use that GET. */
++static uint32_t s_notify_executed;
+ 
+ int xbox_Nv2aNotifyEvent(uint32_t device_ptr_va, uint32_t event_off, uint32_t nop_param)
+ {
+@@ -858,20 +1027,16 @@ int xbox_Nv2aNotifyEvent(uint32_t device_ptr_va, uint32_t event_off, uint32_t no
+     return 0;
+ }
+ 
+-/* The executor ran NO_OPERATION(param): the notify interrupt, on hardware. */
++/* Record NO_OPERATION(param); completion publishes its interrupt after GET. */
  void xbox_Nv2aNop(uint32_t param)
  {
 -    if (param && param == g_notify_param)
-+    if (param && param == g_notify_param) {
-         InterlockedIncrement(&g_notify_count);
-+        xbox_nv2a_wake_publish(&g_nv2a_wake);
-+    }
+-        InterlockedIncrement(&g_notify_count);
++    if (param && param == g_notify_param) ++s_notify_executed;
  }
  
  int xbox_Nv2aNotifyWait(uint32_t object_va)
@@ -1318,24 +1879,20 @@ index a2e99fb..87f8f13 100644
      LONG notified = g_notify_count;
      /* the pointer is in the title image, mapped for as long as it runs */
      if (!g_notify_device_ptr || !g_nv2a_memory || !g_memory_base)
-@@ -883,18 +889,24 @@ int xbox_Nv2aNotifyWait(uint32_t object_va)
+@@ -881,18 +1046,54 @@ int xbox_Nv2aNotifyWait(uint32_t object_va)
+         return 0;
+     put = (volatile uint32_t *)((char *)g_nv2a_memory + NV2A_USER_DMA_PUT);
      get = (volatile uint32_t *)((char *)g_nv2a_memory + NV2A_USER_DMA_GET);
-     /* The patched NOP running is the interrupt itself; GET reaching PUT
-      * covers an executor that passed the slot before it was patched. */
+-    /* The patched NOP running is the interrupt itself; GET reaching PUT
+-     * covers an executor that passed the slot before it was patched. */
 -    while (*get != *put && g_notify_count == notified &&
--           !InterlockedCompareExchange(&g_nv2a_ack_stop, 0, 0)) {
--#ifdef _WIN32
--        if (++spins & 63) YieldProcessor();
--        else SwitchToThread();
--#else
--        SwitchToThread();
--#endif
--    }
++    /* The completed NOP sequence is published after its consumed GET;
++     * GET reaching PUT also covers a slot passed before it was patched. */
 +    xbox_nv2a_notify_wait(&g_nv2a_wake, get, put,
 +                         &g_notify_count, notified, &g_nv2a_ack_stop);
-     return 1;
- }
- 
++    return 1;
++}
++
 +void xbox_Nv2aFenceWait(uint32_t fence_va, uint32_t submitted,
 +                         uint32_t allowed_distance)
 +{
@@ -1349,10 +1906,42 @@ index a2e99fb..87f8f13 100644
 +                         &g_nv2a_ack_stop);
 +}
 +
- static int s_nv2a_trace = 0;
- static int s_nv2a_report = 0;  /* periodic survey/executor report */
++static int nv2a_dma_pending(volatile uint32_t *regs)
++{
++    return *(volatile uint32_t *)((char *)regs + NV2A_PFIFO_DMA_PUT) !=
++           *(volatile uint32_t *)((char *)regs + NV2A_PFIFO_DMA_GET) ||
++           *(volatile uint32_t *)((char *)regs + NV2A_PGRAPH_STATUS) != 0;
++}
++
++void xbox_Nv2aDmaWait(uint32_t pfifo_base_va)
++{
++    volatile uint32_t *regs = (volatile uint32_t *)g_nv2a_memory;
++    unsigned spins = 0;
++    if (!regs || !g_nv2a_dma_sync || !g_nv2a_ack_thread ||
++        pfifo_base_va != XBOX_NV2A_BASE) return;
++    while (nv2a_dma_pending(regs) &&
+            !InterlockedCompareExchange(&g_nv2a_ack_stop, 0, 0)) {
+ #ifdef _WIN32
+-        if (++spins & 63) YieldProcessor();
+-        else SwitchToThread();
++        if (++spins & 63) { YieldProcessor(); continue; }
+ #else
+-        SwitchToThread();
++        (void)spins;
+ #endif
++        LONG observed = xbox_nv2a_wake_snapshot(&g_nv2a_wake);
++        /* Generation precedes the final predicate check, so completion in
++         * the check-to-wait interval cannot be missed. Raw guest writes are
++         * noticed by the existing bounded one-millisecond wait fallback. */
++        if (!nv2a_dma_pending(regs) ||
++            InterlockedCompareExchange(&g_nv2a_ack_stop, 0, 0)) break;
++        xbox_nv2a_wake_wait(&g_nv2a_wake, observed);
+     }
+-    return 1;
+ }
  
-@@ -932,12 +944,13 @@ static void framebuffer_probe_tick(void)
+ static int s_nv2a_trace = 0;
+@@ -932,12 +1133,13 @@ static void framebuffer_probe_tick(void)
  {
      static DWORD last_ms;
      static uint32_t last_sum;
@@ -1367,31 +1956,204 @@ index a2e99fb..87f8f13 100644
      if (last_ms && (now - last_ms) < 1000)
          return;
      last_ms = now;
-@@ -1004,6 +1017,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
-             *(volatile uint32_t *)((char *)regs + NV2A_USER_DMA_GET) = s_get_held_value;
-             fence_mirrors_tick(1);
-             s_get_held = 0;
-+            xbox_nv2a_wake_publish(&g_nv2a_wake);
+@@ -958,6 +1160,115 @@ static void framebuffer_probe_tick(void)
+ 
+ static volatile int s_get_held;
+ static uint32_t s_get_held_value;
++static uint32_t s_get_held_notify;
++static int s_scan_incomplete;
++
++static int capture_word(uint32_t base, uint32_t offset, uint32_t *out)
++{
++    uint64_t wide = (uint64_t)base + offset;
++    uint32_t va;
++    if (wide > UINT32_MAX) return 0;
++    va = (uint32_t)wide;
++    if (g_nv2a_memory && va >= XBOX_NV2A_BASE &&
++        (uint64_t)va + 4 <= (uint64_t)XBOX_NV2A_BASE + XBOX_NV2A_SIZE) {
++        *out = *(volatile uint32_t *)((char *)g_nv2a_memory + (va - XBOX_NV2A_BASE));
++        return 1;
++    }
++    if (!fence_readable(va, 4)) return 0;
++    *out = *(volatile uint32_t *)((uintptr_t)va + g_memory_offset);
++    return 1;
++}
++
++void xbox_Nv2aCaptureSnapshot(XBOX_NV2A_CAPTURE_STATE *out)
++{
++    if (!out) return;
++    memset(out, 0, sizeof *out);
++    out->version = 1; out->bytes = (uint32_t)sizeof *out;
++    out->mmio_valid = capture_word(XBOX_NV2A_BASE, NV2A_USER_DMA_PUT, &out->user_put);
++    capture_word(XBOX_NV2A_BASE, NV2A_USER_DMA_GET, &out->user_get);
++    capture_word(XBOX_NV2A_BASE, NV2A_PFIFO_DMA_PUT, &out->pfifo_put);
++    capture_word(XBOX_NV2A_BASE, NV2A_PFIFO_DMA_GET, &out->pfifo_get);
++    capture_word(XBOX_NV2A_BASE, NV2A_PFIFO_DMA_SUBROUTINE, &out->pfifo_subroutine);
++    out->get_held = s_get_held; out->get_held_value = s_get_held_value;
++    out->scan_incomplete = s_scan_incomplete;
++    out->notify_count = (uint32_t)g_notify_count;
++    out->notify_param = g_notify_param;
++    out->notify_device_ptr = g_notify_device_ptr;
++    out->notify_event_offset = g_notify_event_off;
++    out->counter_mirrors = (uint32_t)g_counter_mirror_count;
++    out->frame_counters = (uint32_t)g_frame_counter_count;
++    out->mirror_count = (uint32_t)g_fence_mirror_count;
++    for (int i = 0; i < g_fence_mirror_count; i++) {
++        XBOX_NV2A_CAPTURE_MIRROR *m = &out->mirrors[i];
++        XBOX_COMMAND_FENCE *next;
++        m->device_ptr_va = g_fence_mirrors[i].device_ptr_va;
++        m->put_offset = g_fence_mirrors[i].put_off;
++        m->get_ptr_offset = g_fence_mirrors[i].get_ptr_off;
++        m->command_mode = g_fence_mirrors[i].command_mode;
++        m->command_dma = g_fence_mirrors[i].command_dma;
++        m->command_offset = g_fence_mirrors[i].command_offset;
++        m->command_pending = g_fence_mirrors[i].command_pending;
++        m->command_value = g_fence_mirrors[i].command_value;
++        m->command_fence_va = g_fence_mirrors[i].command_fence_va;
++        m->command_queue_count = m->command_pending;
++        for (next = g_fence_mirrors[i].command_head; next; next = next->next)
++            ++m->command_queue_count;
++        if (!capture_word(m->device_ptr_va, 0, &m->device_va) ||
++            !fence_readable(m->device_va, 1)) continue;
++        m->device_valid = 1;
++        if (fence_readable(m->device_va, sizeof m->device)) {
++            memcpy(m->device, (const void *)((uintptr_t)m->device_va + g_memory_offset),
++                   sizeof m->device);
++            m->device_bytes = sizeof m->device;
++        }
++        capture_word(m->device_va, m->put_offset, &m->put_value);
++        if (capture_word(m->device_va, m->get_ptr_offset, &m->fence_va))
++            m->fence_valid = capture_word(m->fence_va, 0, &m->fence_value);
++        /* XDK channel pointers are also contained in the raw device block.
++         * Resolve the pointed-to registers while the snapshot is taken, as
++         * they can name a software channel rather than the NV2A aperture. */
++        if (capture_word(m->device_va, 0x17C0, &m->channel_va)) {
++            m->channel_valid = capture_word(m->channel_va, 0x40, &m->channel_put);
++            m->channel_valid &= capture_word(m->channel_va, 0x44, &m->channel_get);
++        }
++        if (capture_word(m->device_va, 0x4F8, &m->pfifo_va))
++            m->pfifo_valid = capture_word(m->pfifo_va, NV2A_PFIFO_DMA_SUBROUTINE,
++                                          &m->pfifo_subroutine);
++    }
++}
++
++static void nv2a_publish_consumed(volatile uint32_t *regs, uint32_t get,
++                                  uint32_t notify_sequence)
++{
++    AcquireSRWLockExclusive(&g_nv2a_dma_lock);
++    *(volatile uint32_t *)((char *)regs + NV2A_USER_DMA_GET) = get;
++    if (g_nv2a_dma_sync) {
++        *(volatile uint32_t *)((char *)regs + NV2A_PFIFO_DMA_GET) = get;
++        *(volatile uint32_t *)((char *)regs + NV2A_PGRAPH_STATUS) =
++            get != *(volatile uint32_t *)((char *)regs + NV2A_PFIFO_DMA_PUT);
++    }
++    ReleaseSRWLockExclusive(&g_nv2a_dma_lock);
++    fence_mirrors_tick(1);
++    if (!s_scan_incomplete) command_fences_publish();
++    /* A later PUT need not be consumed for this actual NOP to complete, but
++     * this checkpoint's GET must be visible before the notify waiter returns. */
++    if ((uint32_t)g_notify_count != notify_sequence)
++        InterlockedExchange(&g_notify_count, (LONG)notify_sequence);
++    xbox_nv2a_wake_publish(&g_nv2a_wake);
++}
++
++static void nv2a_publish_readback_complete(volatile uint32_t *regs)
++{
++    extern int nv2a_d3d_writeback_busy(void);
++    if (!(s_get_held || (!s_scan_incomplete && command_fences_pending())) ||
++        nv2a_d3d_writeback_busy())
++        return;
++    if (s_get_held) {
++        s_get_held = 0;
++        nv2a_publish_consumed(regs, s_get_held_value, s_get_held_notify);
++    }
++    if (!s_scan_incomplete) command_fences_publish();
++}
+ 
+ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
+ {
+@@ -991,7 +1302,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
+          *
+          * The advance now happens after the scan, further down, which is
+          * also the only ordering that gives the title real back-pressure. */
+-        if (!s_get_held) {
++        if (!s_get_held && !s_scan_incomplete) {
+             fence_mirrors_tick(0);
+             /* nothing left to execute: as before, all of it is done */
+             if (*(volatile uint32_t *)((char *)regs + NV2A_USER_DMA_GET) ==
+@@ -1000,11 +1311,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
          }
+         /* What was executed behind a flip becomes visible -- DMA_GET and any
+          * fence release -- once the flip's surfaces are in guest memory. */
+-        if (s_get_held && !nv2a_d3d_writeback_busy()) {
+-            *(volatile uint32_t *)((char *)regs + NV2A_USER_DMA_GET) = s_get_held_value;
+-            fence_mirrors_tick(1);
+-            s_get_held = 0;
+-        }
++        nv2a_publish_readback_complete(regs);
  
          poke_tick();
-@@ -1107,6 +1121,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
-                     *get = put;
-                     fence_mirrors_tick(1);
-                     s_get_held = 0;        /* a held, older GET must not follow */
-+                    xbox_nv2a_wake_publish(&g_nv2a_wake);
+         counter_mirrors_tick();
+@@ -1032,9 +1339,10 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
+             DWORD now_ms = GetTickCount();
+             uint32_t put = *(volatile uint32_t *)((char *)regs + NV2A_USER_DMA_PUT);
+             if (put != last_put || (now_ms - last_put_ms) > 2000) {
++                int consumed = 1;
+                 /* Survey the segment the title just submitted, once. */
+                 {
+-                    extern void nv2a_pb_scan(uint32_t, uint32_t);
++                    extern int nv2a_pb_scan(uint32_t, uint32_t);
+                     extern void nv2a_pb_scan_report(void);
+                     static DWORD last_report;
+ 
+@@ -1068,7 +1376,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
+                 if (last_put && put != last_put) {
+                     LARGE_INTEGER t0, t1;
+                     QueryPerformanceCounter(&t0);
+-                    nv2a_pb_scan(XBOX_CONTIG_BASE | (last_put & 0x0FFFFFFFu),
++                    consumed = nv2a_pb_scan(XBOX_CONTIG_BASE | (last_put & 0x0FFFFFFFu),
+                                  XBOX_CONTIG_BASE | (put & 0x0FFFFFFFu));
+                     QueryPerformanceCounter(&t1);
+                     if (nv2a_d3d_prof_enabled())
+@@ -1097,18 +1405,21 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
                  }
-                 last_put = put; last_put_ms = now_ms;
+                 /* Consumed, now that it has actually been executed -- and,
+                  * behind a flip, read back (see above). */
+-                if (nv2a_d3d_writeback_busy()) {
++                /* A bounded parser pass can yield before PUT. Keep both the
++                 * submission origin and its fence snapshot until its saved
++                 * cursor reaches PUT; unread commands must not be recycled. */
++                s_scan_incomplete = !consumed;
++                if (!consumed) {
++                    /* Retry next tick, allowing clocks/presentation to run. */
++                } else if (nv2a_d3d_writeback_busy()) {
+                     s_get_held = 1;
+                     s_get_held_value = put;
++                    s_get_held_notify = s_notify_executed;
+                 } else {
+-                    volatile uint32_t *get =
+-                        (volatile uint32_t *)((char *)regs
+-                                              + NV2A_USER_DMA_GET);
+-                    *get = put;
+-                    fence_mirrors_tick(1);
+                     s_get_held = 0;        /* a held, older GET must not follow */
++                    nv2a_publish_consumed(regs, put, s_notify_executed);
+                 }
+-                last_put = put; last_put_ms = now_ms;
++                if (consumed) { last_put = put; last_put_ms = now_ms; }
                  /* GET as well as PUT. A title that stops submitting has either
-@@ -1169,6 +1184,7 @@ static void xbox_Nv2aAckStart(void)
+                  * finished or is spinning on the GPU catching up, and only GET
+                  * tells those apart -- D3D waits for GET to reach PUT before it
+@@ -1169,6 +1480,8 @@ static void xbox_Nv2aAckStart(void)
  {
  
      poke_init();
++    g_nv2a_dma_sync = 0;
 +    xbox_nv2a_wake_init(&g_nv2a_wake);
      g_nv2a_ack_stop = 0;
      g_nv2a_ack_thread = CreateThread(NULL, 0, nv2a_ack_thread,
                                       g_nv2a_memory, 0, NULL);
-@@ -2494,13 +2510,22 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
+@@ -2494,13 +2807,22 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
              MEM_RESERVE | MEM_COMMIT,
              PAGE_READWRITE
          );
@@ -1419,7 +2181,7 @@ index a2e99fb..87f8f13 100644
          if (g_nv2a_memory) {
              DWORD old_protect;
              if (VirtualProtect((char *)g_nv2a_memory + 0x8000, 0x1000,
-@@ -2935,6 +2960,7 @@ void xbox_MemoryLayoutShutdown(void)
+@@ -2935,6 +3257,7 @@ void xbox_MemoryLayoutShutdown(void)
      g_kernel_memory_owned = 0;
      if (g_nv2a_ack_thread) {
          InterlockedExchange(&g_nv2a_ack_stop, 1);
@@ -1427,7 +2189,7 @@ index a2e99fb..87f8f13 100644
          WaitForSingleObject(g_nv2a_ack_thread, 1000);
          CloseHandle(g_nv2a_ack_thread);
          g_nv2a_ack_thread = NULL;
-@@ -3453,14 +3479,22 @@ int xbox_HeapReclaimEnabled(void)
+@@ -3453,14 +3776,22 @@ int xbox_HeapReclaimEnabled(void)
      return enabled;
  }
  
@@ -1454,7 +2216,7 @@ index a2e99fb..87f8f13 100644
      /* The table is split and coalesced in place; read it under the lock. */
      EnterCriticalSection(&g_allocator_lock);
      hi = g_contig_alloc_count;
-@@ -3479,7 +3513,6 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
+@@ -3479,7 +3810,6 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
       * the code bytes as colour static. A range may run on through adjacent
       * spans. */
      if (lo) {
@@ -1462,7 +2224,7 @@ index a2e99fb..87f8f13 100644
          i = lo - 1;
          covered = (uint64_t)g_contig_allocs[i].offset + g_contig_allocs[i].size;
          while (covered < end && i + 1 < g_contig_alloc_count &&
-@@ -3488,11 +3521,45 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
+@@ -3488,11 +3818,45 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
              covered += g_contig_allocs[i].size;
          }
          result = physical_offset >= g_contig_allocs[lo - 1].offset && end <= covered;
@@ -1509,11 +2271,59 @@ index a2e99fb..87f8f13 100644
  /* RECOMP_HEAP_WATCH=<hex address>: report heap blocks handed out over it. */
  static void heap_watch(const char *how, uint32_t addr, uint32_t size)
 diff --git a/src/kernel/xbox_memory_layout.h b/src/kernel/xbox_memory_layout.h
-index 69f1bf6..eedba25 100644
+index 69f1bf6..d9e5d9a 100644
 --- a/src/kernel/xbox_memory_layout.h
 +++ b/src/kernel/xbox_memory_layout.h
-@@ -205,6 +205,10 @@ int xbox_Nv2aNotifyEvent(uint32_t device_ptr_va, uint32_t event_off, uint32_t no
-  * above is the notify D3D waits for, and ends that wait. */
+@@ -195,16 +195,56 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size);
+ 
+ int xbox_Nv2aMirrorFence(uint32_t device_ptr_va,
+                          uint32_t put_off, uint32_t get_ptr_off);
++/* Configure an existing mirror before entering guest code. It then accepts
++ * only matching executed NV097 semaphore releases, never the next counter. */
++int xbox_Nv2aCommandFence(uint32_t device_ptr_va,
++                          uint32_t dma_context, uint32_t semaphore_offset);
++/* Executor callback; completion retains the target/value until readback. */
++void xbox_Nv2aSemaphoreRelease(uint32_t dma_context,
++                                uint32_t semaphore_offset, uint32_t value);
++/* Publish an owned USER PUT with its PFIFO cache/busy state first. Other
++ * addresses retain the original software-channel store. */
++void xbox_Nv2aDmaPublish(uint32_t put_va, uint32_t value);
++/* Host wait for exact CACHE1 PUT == GET and PGRAPH idle. The caller keeps
++ * the original final reads/branches; unknown apertures retain guest polling. */
++void xbox_Nv2aDmaWait(uint32_t pfifo_base_va);
++
++/* Opt-in parser diagnostics only. Roots come from registered fence mirrors;
++ * the raw device bytes let a title's producer layout be decoded off-line. */
++#define XBOX_NV2A_CAPTURE_MIRRORS 4
++#define XBOX_NV2A_CAPTURE_DEVICE_BYTES 0x2200
++typedef struct {
++    uint32_t device_ptr_va, device_va, device_valid, device_bytes;
++    uint32_t put_offset, get_ptr_offset, put_value, fence_va, fence_value, fence_valid;
++    uint32_t channel_va, channel_valid, channel_put, channel_get;
++    uint32_t pfifo_va, pfifo_valid, pfifo_subroutine;
++    uint32_t command_mode, command_dma, command_offset, command_pending;
++    uint32_t command_value, command_fence_va, command_queue_count;
++    uint8_t device[XBOX_NV2A_CAPTURE_DEVICE_BYTES];
++} XBOX_NV2A_CAPTURE_MIRROR;
++typedef struct {
++    uint32_t version, bytes, mmio_valid, user_put, user_get;
++    uint32_t pfifo_put, pfifo_get, pfifo_subroutine;
++    uint32_t get_held, get_held_value, scan_incomplete;
++    uint32_t notify_count, notify_param, notify_device_ptr, notify_event_offset;
++    uint32_t counter_mirrors, frame_counters, mirror_count;
++    XBOX_NV2A_CAPTURE_MIRROR mirrors[XBOX_NV2A_CAPTURE_MIRRORS];
++} XBOX_NV2A_CAPTURE_STATE;
++void xbox_Nv2aCaptureSnapshot(XBOX_NV2A_CAPTURE_STATE *out);
+ 
+ /* The KEVENT at *(device_ptr_va) + event_off is the title D3D's GPU-notify
+  * event; KeWaitForSingleObject on it waits for the executor to consume all
+  * submitted push-buffer instead (see xbox_memory_layout.c). NotifyWait
+  * returns 0 when object_va is not that event. */
+ int xbox_Nv2aNotifyEvent(uint32_t device_ptr_va, uint32_t event_off, uint32_t nop_param);
+-/* The executor ran NO_OPERATION with this parameter; the one registered
+- * above is the notify D3D waits for, and ends that wait. */
++/* Record an executed matching NO_OPERATION. Its notification ends the wait
++ * only after the associated consumed GET and prior readbacks are published. */
  void xbox_Nv2aNop(uint32_t param);
  int xbox_Nv2aNotifyWait(uint32_t object_va);
 +/* Host wait for a direct guest fence poll. The caller retains its original
@@ -1561,7 +2371,7 @@ index bd00f3f..575b5f3 100644
              }
          }
 diff --git a/src/video/nv2a_d3d11.c b/src/video/nv2a_d3d11.c
-index b9f3fa2..d6b1ea9 100644
+index b9f3fa2..7b9ed3c 100644
 --- a/src/video/nv2a_d3d11.c
 +++ b/src/video/nv2a_d3d11.c
 @@ -29,6 +29,7 @@
@@ -1572,7 +2382,15 @@ index b9f3fa2..d6b1ea9 100644
  #include "fb_present.h"
  #include "platform/recomp_profile.h"
  #include "../d3d/d3d8_swizzle.h"
-@@ -92,6 +93,58 @@ static int64_t qpc(void)
+@@ -83,6 +84,7 @@ static const char *const s_prof_name[PROF_COUNT] = {
+     "vertex", "texture", "draw", "cpu-sync", "writeback", "present", "pace", "exec(all)" };
+ static int64_t s_prof[PROF_COUNT];
+ static uint64_t s_prof_verts, s_prof_draws;
++static uint64_t s_prof_ps_uploads, s_prof_ps_reused;
+ static int s_prof_on = -1;
+ 
+ static int64_t qpc(void)
+@@ -92,6 +94,58 @@ static int64_t qpc(void)
      return t.QuadPart;
  }
  
@@ -1631,7 +2449,23 @@ index b9f3fa2..d6b1ea9 100644
  void nv2a_d3d_prof_add(int slot, int64_t ticks, uint32_t verts)
  {
      s_prof[slot] += ticks;
-@@ -868,12 +921,13 @@ typedef struct {
+@@ -123,11 +177,13 @@ static void prof_report(void)
+     for (i = 0; i < PROF_COUNT; i++)
+         fprintf(stderr, " %s %.2f", s_prof_name[i],
+                 s_prof[i] * 1000.0 / (double)freq.QuadPart / (double)frames);
+-    fprintf(stderr, " ms/frame | %llu verts %llu draws/frame\n",
+-            (unsigned long long)(s_prof_verts / frames), (unsigned long long)(s_prof_draws / frames));
++    fprintf(stderr, " ms/frame | %llu verts %llu draws/frame | ps-constants %llu uploaded %llu reused/frame\n",
++            (unsigned long long)(s_prof_verts / frames), (unsigned long long)(s_prof_draws / frames),
++            (unsigned long long)(s_prof_ps_uploads / frames), (unsigned long long)(s_prof_ps_reused / frames));
+     fflush(stderr);
+     memset(s_prof, 0, sizeof s_prof);
+     s_prof_verts = s_prof_draws = 0;
++    s_prof_ps_uploads = s_prof_ps_reused = 0;
+     frames = 0;
+     worst = 0;
+     last = now;
+@@ -868,12 +924,13 @@ typedef struct {
  
  static void display_config(int now);
  
@@ -1648,7 +2482,7 @@ index b9f3fa2..d6b1ea9 100644
      if (FAILED(hr)) {
          fprintf(stderr, "[D3D11] shader %s: %s\n", entry,
                  err ? (const char *)ID3D10Blob_GetBufferPointer(err) : "?");
-@@ -883,6 +937,11 @@ static ID3DBlob *compile_def(const char *entry, const char *target, const D3D_SH
+@@ -883,6 +940,11 @@ static ID3DBlob *compile_def(const char *entry, const char *target, const D3D_SH
      return SUCCEEDED(hr) ? code : NULL;
  }
  
@@ -1660,7 +2494,7 @@ index b9f3fa2..d6b1ea9 100644
  static ID3DBlob *compile(const char *entry, const char *target)
  {
      return compile_def(entry, target, NULL);
-@@ -903,10 +962,14 @@ typedef struct {
+@@ -903,10 +965,14 @@ typedef struct {
      uint32_t tex_info[4][3];
  } PsKey;
  
@@ -1676,7 +2510,7 @@ index b9f3fa2..d6b1ea9 100644
  } PsSpec;
  
  #define PS_SPEC_SLOTS 4096          /* power of two */
-@@ -914,9 +977,151 @@ typedef struct {
+@@ -914,9 +980,151 @@ typedef struct {
  static PsSpec *s_spec;
  static PsSpec *s_spec_q[PS_SPEC_QUEUE];
  static unsigned s_spec_head, s_spec_tail;  /* guarded by s_spec_cs */
@@ -1828,7 +2662,7 @@ index b9f3fa2..d6b1ea9 100644
  
  static DWORD WINAPI spec_worker(LPVOID arg)
  {
-@@ -926,12 +1131,19 @@ static DWORD WINAPI spec_worker(LPVOID arg)
+@@ -926,12 +1134,19 @@ static DWORD WINAPI spec_worker(LPVOID arg)
          const PsKey *k;
          char decl[2048];
          ID3DBlob *b;
@@ -1852,7 +2686,7 @@ index b9f3fa2..d6b1ea9 100644
          LeaveCriticalSection(&s_spec_cs);
          k = &e->key;
          snprintf(decl, sizeof decl,
-@@ -965,45 +1177,87 @@ static DWORD WINAPI spec_worker(LPVOID arg)
+@@ -965,45 +1180,87 @@ static DWORD WINAPI spec_worker(LPVOID arg)
          m[1].Name = "SPEC_DECL"; m[1].Definition = decl;
          m[2].Name = flat ? "FLATQ" : NULL; m[2].Definition = flat ? "nointerpolation" : NULL;
          m[3].Name = NULL; m[3].Definition = NULL;
@@ -1931,8 +2765,9 @@ index b9f3fa2..d6b1ea9 100644
 +                spec_remember(&k);
              }
 +            s_spec_saved = s_spec_dirty; /* Imported keys are already persistent. */
-+        }
-+    }
+         }
+     }
+-    if (!enabled) return NULL;
 +    /* Imports finish before threads or draw lookups can see the table. */
 +    for (i = 0; i < 2; i++) {
 +        HANDLE t = CreateThread(NULL, 0, spec_worker, NULL, CREATE_SUSPENDED, NULL);
@@ -1941,9 +2776,8 @@ index b9f3fa2..d6b1ea9 100644
 +            if (ResumeThread(t) != (DWORD)-1) workers++;
 +            else TerminateThread(t, 0); /* It has never executed user code. */
 +            CloseHandle(t);
-         }
-     }
--    if (!enabled) return NULL;
++        }
++    }
 +    if (!workers) {
 +        s_spec_enabled = 0;
 +        free(s_spec); s_spec = NULL;
@@ -1963,7 +2797,7 @@ index b9f3fa2..d6b1ea9 100644
      memset(&k, 0, sizeof k);
      memcpy(k.c_icw, pc->c_icw, sizeof k.c_icw);
      memcpy(k.a_icw, pc->a_icw, sizeof k.a_icw);
-@@ -1017,23 +1271,7 @@ static ID3D11PixelShader *spec_ps(const PSConsts *pc, uint32_t variant)
+@@ -1017,23 +1274,7 @@ static ID3D11PixelShader *spec_ps(const PSConsts *pc, uint32_t variant)
          k.tex_info[i][0] = pc->tex_info[i][0]; k.tex_info[i][1] = pc->tex_info[i][1];
          k.tex_info[i][2] = pc->tex_info[i][2];
      }
@@ -1988,7 +2822,43 @@ index b9f3fa2..d6b1ea9 100644
  }
  
  static ID3D11Buffer *make_buffer(UINT bytes, UINT bind)
-@@ -1217,6 +1455,7 @@ int nv2a_d3d_init(void)
+@@ -1050,13 +1291,34 @@ static ID3D11Buffer *make_buffer(UINT bytes, UINT bind)
+     return b;
+ }
+ 
+-static void upload_cb(ID3D11Buffer *b, const void *data, size_t bytes)
++static int upload_cb(ID3D11Buffer *b, const void *data, size_t bytes)
+ {
+     D3D11_MAPPED_SUBRESOURCE m;
+     if (SUCCEEDED(ID3D11DeviceContext_Map(s_ctx, (ID3D11Resource *)b, 0,
+                                          D3D11_MAP_WRITE_DISCARD, 0, &m))) {
+         memcpy(m.pData, data, bytes);
+         ID3D11DeviceContext_Unmap(s_ctx, (ID3D11Resource *)b, 0);
++        return 1;
++    }
++    return 0;
++}
++
++/* The pixel constant buffer has one writer and process-lifetime storage.
++ * Repeated draws often keep exactly the same constants. Compare all bytes,
++ * including dynamic factors/fog/alpha values, and remember only successful
++ * uploads: a failed Map must retry even if the next draw has the same state. */
++static PSConsts s_uploaded_pc;
++static int s_uploaded_pc_valid;
++static void upload_ps_constants(const PSConsts *pc)
++{
++    if (s_uploaded_pc_valid && !memcmp(&s_uploaded_pc, pc, sizeof *pc)) {
++        if (s_prof_on > 0) s_prof_ps_reused++;
++        return;
++    }
++    if (upload_cb(s_cb_ps, pc, sizeof *pc)) {
++        memcpy(&s_uploaded_pc, pc, sizeof *pc);
++        s_uploaded_pc_valid = 1;
++        if (s_prof_on > 0) s_prof_ps_uploads++;
+     }
+ }
+ 
+@@ -1217,6 +1479,7 @@ int nv2a_d3d_init(void)
          if (qc && qd) break;
      }
      if (s_msaa < 1) s_msaa = 1;
@@ -1996,7 +2866,7 @@ index b9f3fa2..d6b1ea9 100644
      s_init_state = 1;
      fprintf(stderr, "[D3D11] renderer ready: %ux%u internal, display aspect %.3f, %ux MSAA, %ux AF\n",
              (uint32_t)(GUEST_W * s_scale * widen() + 0.5f), (uint32_t)(GUEST_H * s_scale + 0.5f),
-@@ -1413,13 +1652,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
+@@ -1413,13 +1676,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
  }
  
  /* Guest rows of a surface as BGRA, with the format's fixed alpha. */
@@ -2013,7 +2883,7 @@ index b9f3fa2..d6b1ea9 100644
          uint32_t *dst = out + (size_t)y * s->w;
          if (s->bpp == 4) {
              memcpy(dst, row, (size_t)s->w * 4);
-@@ -1454,6 +1693,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
+@@ -1454,6 +1717,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
  static UINT s_up_w[2], s_up_h[2];
  static uint32_t *s_up_pixels, *s_mask_pixels;
  static size_t s_up_cap, s_mask_cap;
@@ -2022,7 +2892,7 @@ index b9f3fa2..d6b1ea9 100644
  
  /* slot 0: image, slot 1: change mask */
  static ID3D11ShaderResourceView *upload_slot(int k, const uint32_t *pixels, UINT w, UINT h)
-@@ -1489,6 +1730,25 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1489,6 +1754,25 @@ static uint32_t *scratch_pixels(size_t count)
      return s_up_pixels;
  }
  
@@ -2048,7 +2918,7 @@ index b9f3fa2..d6b1ea9 100644
  /* Guest memory is the authority for what the CPU writes. A shadow copy of
   * each surface's guest bytes says which pixels the CPU changed since the last
   * look; only those replace what the GPU drew. A loading screen drawn by the
-@@ -1496,22 +1756,24 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1496,22 +1780,24 @@ static uint32_t *scratch_pixels(size_t count)
  static void surface_sync_impl(Surface *s, int force)
  {
      uint32_t rowb = s->w * s->bpp, y, x, x0 = 0xFFFFFFFFu, x1 = 0, y0 = 0xFFFFFFFFu, y1 = 0;
@@ -2077,7 +2947,7 @@ index b9f3fa2..d6b1ea9 100644
          {
              ID3D11ShaderResourceView *srv = upload_image(px, s->w, s->h);
              float x0, x1;
-@@ -1522,7 +1784,7 @@ static void surface_sync_impl(Surface *s, int force)
+@@ -1522,7 +1808,7 @@ static void surface_sync_impl(Surface *s, int force)
          return;
      }
      for (y = 0; y < s->h; y++) {
@@ -2086,7 +2956,7 @@ index b9f3fa2..d6b1ea9 100644
          uint8_t *sh = s->shadow + (size_t)y * rowb;
          if (!memcmp(row, sh, rowb)) continue;
          if (y0 == 0xFFFFFFFFu) {
-@@ -1552,7 +1814,7 @@ static void surface_sync_impl(Surface *s, int force)
+@@ -1552,7 +1838,7 @@ static void surface_sync_impl(Surface *s, int force)
                  s->phys, s_frame, x0, y0, x1, y1);
      px = scratch_pixels((size_t)s->w * s->h);
      if (!px) return;
@@ -2095,7 +2965,7 @@ index b9f3fa2..d6b1ea9 100644
      {
          ID3D11ShaderResourceView *srv = upload_slot(0, px, s->w, s->h);
          ID3D11ShaderResourceView *msk = upload_slot(1, s_mask_pixels, s->w, s->h);
-@@ -1572,8 +1834,11 @@ static void surface_sync(Surface *s, int force)
+@@ -1572,8 +1858,11 @@ static void surface_sync(Surface *s, int force)
      if (s_prof_on > 0) s_prof[PROF_SYNC] += qpc() - t0;
  }
  
@@ -2107,7 +2977,7 @@ index b9f3fa2..d6b1ea9 100644
      if (s_cur_rt == s) unbind_targets();
      if (s->srv) ID3D11ShaderResourceView_Release(s->srv);
      if (s->rtv) ID3D11RenderTargetView_Release(s->rtv);
-@@ -1635,9 +1900,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
+@@ -1635,9 +1924,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
      } else {
          for (i = 0; i < MAX_SURFACES && !victim; i++)
              if (!s_surf[i].tex) victim = &s_surf[i];
@@ -2121,7 +2991,7 @@ index b9f3fa2..d6b1ea9 100644
          if (!victim) victim = &s_surf[0];
      }
      surface_release(victim);
-@@ -1901,9 +2167,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
+@@ -1901,9 +2191,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
  }
  
  typedef struct TexEntry {
@@ -2133,7 +3003,7 @@ index b9f3fa2..d6b1ea9 100644
      size_t bytes;
      ID3D11Texture2D *tex;
      ID3D11ShaderResourceView *srv;
-@@ -1954,12 +2220,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
+@@ -1954,12 +2244,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
      return 1;
  }
  
@@ -2189,7 +3059,7 @@ index b9f3fa2..d6b1ea9 100644
          for (by = 0; by < bh; by++)
              for (bx = 0; bx < bw; bx++) {
                  d3d8_dxt_decode_block(src + ((size_t)by * bw + bx) * L->bpp, t->color, px);
-@@ -1969,6 +2278,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
+@@ -1969,6 +2302,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
              }
          return;
      }
@@ -2201,7 +3071,7 @@ index b9f3fa2..d6b1ea9 100644
      if (L->kind == K_LIN) {
          for (y = 0; y < h; y++) {
              const uint8_t *row = src + (size_t)y * t->pitch;
-@@ -2057,6 +2371,31 @@ static int host_levels(const TexLayout *L, const NvD3DTexture *t)
+@@ -2057,6 +2395,31 @@ static int host_levels(const TexLayout *L, const NvD3DTexture *t)
      return n > L->levels ? n : L->levels;
  }
  
@@ -2233,7 +3103,7 @@ index b9f3fa2..d6b1ea9 100644
  static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
  {
      TexLayout L;
-@@ -2064,15 +2403,21 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2064,15 +2427,21 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
      uint32_t key = (p >> 7) ^ (t->format * 2654435761u) ^ (t->pitch << 3) ^ t->width;
      TexEntry *e, **head = &s_tex_bucket[key & (TEX_BUCKETS - 1)];
      uint64_t h, ph = 0;
@@ -2258,7 +3128,7 @@ index b9f3fa2..d6b1ea9 100644
          e->used = s_frame;
          return e->srv;
      }
-@@ -2082,21 +2427,47 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2082,21 +2451,47 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
          ph = hash_mem((const uint8_t *)pal, t->palette_len * 4);
      }
      if (e && e->hash == h && e->pal_hash == ph) {
@@ -2312,7 +3182,7 @@ index b9f3fa2..d6b1ea9 100644
          if (L.faces == 6) {
              sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
              sd.TextureCube.MipLevels = (UINT)hl;
-@@ -2104,36 +2475,45 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2104,36 +2499,45 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
              sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
              sd.Texture2D.MipLevels = (UINT)hl;
          }
@@ -2380,7 +3250,7 @@ index b9f3fa2..d6b1ea9 100644
              w = L.level_w[L.levels - 1]; h = L.level_h[L.levels - 1];
              memcpy(a, px, (size_t)w * h * 4);
              for (; lv < hl; lv++) {
-@@ -2152,10 +2532,26 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2152,10 +2556,26 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
      }
      e->hash = h;
      e->pal_hash = ph;
@@ -2408,7 +3278,7 @@ index b9f3fa2..d6b1ea9 100644
  }
  
  static ID3D11ShaderResourceView *texture_get(const NvD3DTexture *t)
-@@ -2707,7 +3103,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2707,7 +3127,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          if (!mode_needs_texture(mode) || !t->addr || !t->width || !t->height)
              continue;
          tex_format(t->color, &kind);
@@ -2421,7 +3291,16 @@ index b9f3fa2..d6b1ea9 100644
          s_draw_textured = 1;
          if (!s_draw_tex_addr) s_draw_tex_addr = t->addr;
          if (rt && rt->sx > rt->sy * 1.001f) s_draw_reads_wide = 1;
-@@ -3073,9 +3473,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -2816,7 +3240,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+         pc.zp1[0] = 1.0f / ((float)zm + 1.0f);
+         pc.zp1[1] = (float)zm;
+     }
+-    upload_cb(s_cb_ps, &pc, sizeof pc);
++    upload_ps_constants(&pc);
+ 
+     if (st->poly_offset_fill && !(st->z_perspective && d)) {
+         /* The slope term multiplies the depth change per pixel. At an
+@@ -3073,9 +3497,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
      RECOMP_PROFILE_BEGIN("D3D11 draw");
      t_draw = s_prof_on > 0 ? qpc() : 0;
      s_prof_draws++;
@@ -2439,7 +3318,7 @@ index b9f3fa2..d6b1ea9 100644
      }
      if (pos && s && s->sx > s->sy * 1.001f) {
          /* Menu artwork and controls span the display together. Only the
-@@ -3204,11 +3609,18 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3204,11 +3633,18 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
      float cc[8];
      D3D11_RECT r;
      int zclear = (flags & 1) != 0, sclear = (flags & 2) != 0;
@@ -2460,7 +3339,7 @@ index b9f3fa2..d6b1ea9 100644
      if (s) {
          if (flags & 0x10) mask |= D3D11_COLOR_WRITE_ENABLE_RED;
          if (flags & 0x20) mask |= D3D11_COLOR_WRITE_ENABLE_GREEN;
-@@ -3217,8 +3629,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3217,8 +3653,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
              mask |= D3D11_COLOR_WRITE_ENABLE_ALPHA;
      }
      if (!d) { zclear = sclear = 0; }
@@ -2472,7 +3351,7 @@ index b9f3fa2..d6b1ea9 100644
      if (s && mask) s->gpu_dirty = 1;
      zf = (st->surface_format >> 4) & 0xF;
      unpack4(color, cc);
-@@ -3234,8 +3648,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3234,8 +3672,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
      upload_cb(s_cb_clear, cc, sizeof cc);
      if (x1 >= gw) x1 = gw - 1;
      if (y1 >= gh) y1 = gh - 1;
@@ -2484,7 +3363,7 @@ index b9f3fa2..d6b1ea9 100644
      r.left = (LONG)(x0 * s_aa_x * s_cur_sx + 0.5f);
      r.top = (LONG)(y0 * s_aa_y * s_cur_sy + 0.5f);
      r.right = (LONG)((x1 + 1) * s_aa_x * s_cur_sx + 0.5f);
-@@ -3253,6 +3669,7 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3253,6 +3693,7 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
      ID3D11DeviceContext_PSSetShader(s_ctx, s_clear_ps, NULL, 0);
      ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 0, 1, &s_cb_clear);
      ID3D11DeviceContext_Draw(s_ctx, 4, 0);
@@ -2492,29 +3371,97 @@ index b9f3fa2..d6b1ea9 100644
  }
  
  /* -------------------------------------------------------------- write-back */
-@@ -3271,6 +3688,13 @@ typedef struct {
+@@ -3270,6 +3711,27 @@ typedef struct {
+     ID3D11RenderTargetView *down_rtv;
  } WbSlot;
  static WbSlot s_wb[MAX_SURFACES];
- 
++static int s_wb_pending;
++static uint32_t s_wb_mask;
++static ID3D11Query *s_wb_event;
++static int s_wb_event_pending;
++static int64_t s_wb_hitch_pending, s_wb_hitch_last, s_wb_hitch_gap;
++static uint64_t s_wb_hitch_polls;
++
 +/* A readback belongs to the surface that queued it, not the reusable cache
 + * slot. A replacement of the same size must not inherit old GPU pixels. */
 +static void writeback_drop_surface(Surface *s)
 +{
-+    s_wb[s - s_surf].pending = 0;
++    unsigned slot = (unsigned)(s - s_surf);
++    s_wb[slot].pending = 0;
++    s_wb_mask &= ~(1u << slot);
++    s_wb_pending = s_wb_mask != 0;
++    if (!s_wb_pending) {
++        s_wb_event_pending = 0;
++        s_wb_hitch_pending = s_wb_hitch_last = s_wb_hitch_gap = 0;
++        s_wb_hitch_polls = 0;
++    }
 +}
-+
+ 
  static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
  {
-     if (k->stage && (k->w != w || k->h != h)) {
-@@ -3306,6 +3730,7 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
+@@ -3289,12 +3751,14 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
+             return 0;
+         k->w = w; k->h = h;
+     }
+-    if (need_down && !k->down) {
+-        k->down = make_texture(w, h, 1, 1, DXGI_FORMAT_B8G8R8A8_UNORM,
+-                               D3D11_BIND_RENDER_TARGET, 0);
+-        if (!k->down) return 0;
+-        ID3D11Device_CreateRenderTargetView(s_dev, (ID3D11Resource *)k->down, NULL,
+-                                            &k->down_rtv);
++    if (need_down) {
++        if (!k->down) {
++            k->down = make_texture(w, h, 1, 1, DXGI_FORMAT_B8G8R8A8_UNORM,
++                                  D3D11_BIND_RENDER_TARGET, 0);
++            if (!k->down) return 0;
++        }
++        if (!k->down_rtv && FAILED(ID3D11Device_CreateRenderTargetView(s_dev,
++                (ID3D11Resource *)k->down, NULL, &k->down_rtv))) return 0;
+     }
+     return 1;
+ }
+@@ -3305,21 +3769,63 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
+  * (nv2a_d3d_writeback_busy), holding back DMA_GET and fence releases until
   * then -- the title cannot learn the frame is finished before its pixels are
   * in guest memory. */
- static int s_wb_pending;
-+static int64_t s_wb_hitch_pending;
- 
+-static int s_wb_pending;
+-
  static int wb_surface_ok(const Surface *s)
  {
-@@ -3317,8 +3742,10 @@ static int wb_surface_ok(const Surface *s)
+     return s->tex && !s->swizzled && (s->bpp == 2 || s->bpp == 4) &&
+            surface_find(s->phys) == s && s->shadow && guest_ok(s->va, (size_t)s->pitch * s->h);
+ }
+ 
++static void writeback_trace_finish(int wait, int left, int64_t begin)
++{
++    int64_t end;
++    hitch_trace_report(wait ? "readback_blocking" : "readback_poll", begin);
++    if (!begin) return; /* No extra clocks or counters on the default path. */
++    if (s_wb_hitch_pending) {
++        int64_t gap = begin - s_wb_hitch_last;
++        if (gap > s_wb_hitch_gap) s_wb_hitch_gap = gap;
++        s_wb_hitch_last = begin;
++        if (!wait) s_wb_hitch_polls++;
++    } else if (left) {
++        /* Begin at the first unfinished poll, excluding intentional vblank. */
++        s_wb_hitch_pending = s_wb_hitch_last = begin;
++        s_wb_hitch_gap = 0;
++        s_wb_hitch_polls = wait ? 0 : 1;
++    }
++    if (left) return;
++    end = hitch_trace_elapsed(s_wb_hitch_pending);
++    if (end) fprintf(stderr, "[HITCH] phase=readback_pending qpc_ms=%.3f start_qpc_ms=%.3f "
++                    "duration_ms=%.3f thread=%lu poll_count=%llu max_poll_gap_ms=%.3f\n",
++                    end * 1000.0 / s_hitch_freq.QuadPart,
++                    s_wb_hitch_pending * 1000.0 / s_hitch_freq.QuadPart,
++                    (end - s_wb_hitch_pending) * 1000.0 / s_hitch_freq.QuadPart,
++                    GetCurrentThreadId(), (unsigned long long)s_wb_hitch_polls,
++                    s_wb_hitch_gap * 1000.0 / s_hitch_freq.QuadPart);
++    s_wb_hitch_pending = s_wb_hitch_last = s_wb_hitch_gap = 0;
++    s_wb_hitch_polls = 0;
++}
++
+ /* Read back what is ready; wait: block until all of it is. 1 when none left. */
  static int writeback_finish(int wait)
  {
      int i, left = 0;
@@ -2523,25 +3470,52 @@ index b9f3fa2..d6b1ea9 100644
          return 1;
 +    trace_begin = hitch_trace_begin();
      RECOMP_PROFILE_BEGIN("D3D11 write-back");
++    if (!wait && s_wb_event_pending) {
++        BOOL done = FALSE;
++        HRESULT hr = ID3D11DeviceContext_GetData(s_ctx, (ID3D11Asynchronous *)s_wb_event,
++                                               &done, sizeof done, D3D11_ASYNC_GETDATA_DONOTFLUSH);
++        if (hr == S_FALSE || (hr == S_OK && !done)) {
++            RECOMP_PROFILE_END();
++            writeback_trace_finish(0, 1, trace_begin);
++            return 0;
++        }
++        /* EVENT completion covers every preceding staging copy. A query
++         * failure keeps the original per-resource Map fallback available. */
++        s_wb_event_pending = 0;
++    }
      for (i = 0; i < MAX_SURFACES; i++) {
          Surface *s = &s_surf[i];
-@@ -3374,6 +3801,15 @@ static int writeback_finish(int wait)
+         WbSlot *k = &s_wb[i];
+@@ -3328,16 +3834,18 @@ static int writeback_finish(int wait)
+         uint32_t x, y, rowb;
+         int amode, r565;
+         HRESULT hr;
+-        if (!k->pending)
++        if (!(s_wb_mask & (1u << i)))
+             continue;
+         if (!wb_surface_ok(s) || k->w != s->w || k->h != s->h) {
+             k->pending = 0;                       /* dropped (resize) */
++            s_wb_mask &= ~(1u << i);
+             continue;
+         }
+         hr = ID3D11DeviceContext_Map(s_ctx, (ID3D11Resource *)k->stage, 0, D3D11_MAP_READ,
+                                      wait ? 0 : D3D11_MAP_FLAG_DO_NOT_WAIT, &m);
+         if (hr == DXGI_ERROR_WAS_STILL_DRAWING) { left = 1; continue; }
+         k->pending = 0;
++        s_wb_mask &= ~(1u << i);
+         if (FAILED(hr))
+             continue;
+         dst = (uint8_t *)guest(s->va);
+@@ -3374,6 +3882,8 @@ static int writeback_finish(int wait)
      }
      RECOMP_PROFILE_END();
      s_wb_pending = left;
-+    hitch_trace_report(wait ? "readback_blocking" : "readback_poll", trace_begin);
-+    if (left) {
-+        /* Exclude the intentional vblank wait: pending latency begins only
-+         * when the first nonblocking Map actually finds unfinished copies. */
-+        if (!s_wb_hitch_pending) s_wb_hitch_pending = trace_begin;
-+    } else {
-+        hitch_trace_report("readback_pending", s_wb_hitch_pending);
-+        s_wb_hitch_pending = 0;
-+    }
++    if (!left) s_wb_event_pending = 0;
++    writeback_trace_finish(wait, left, trace_begin);
      return !left;
  }
  
-@@ -3381,10 +3817,8 @@ int nv2a_d3d_writeback_busy(void)
+@@ -3381,10 +3891,8 @@ int nv2a_d3d_writeback_busy(void)
  {
      if (!s_wb_pending || writeback_finish(0))
          return 0;
@@ -2554,7 +3528,29 @@ index b9f3fa2..d6b1ea9 100644
      return 1;
  }
  
-@@ -3439,13 +3873,16 @@ static uint64_t s_zpass;
+@@ -3420,10 +3928,20 @@ static void writeback_surfaces(void)
+         }
+         s->gpu_dirty = 0;                        /* later draws dirty it again */
+         k->pending = 1;
++        s_wb_mask |= 1u << i;
+         s_wb_pending = 1;
+     }
+-    if (s_wb_pending)
++    if (s_wb_pending) {
++        if (!s_wb_event) {
++            D3D11_QUERY_DESC d = { D3D11_QUERY_EVENT, 0 };
++            ID3D11Device_CreateQuery(s_dev, &d, &s_wb_event);
++        }
++        if (s_wb_event) {
++            ID3D11DeviceContext_End(s_ctx, (ID3D11Asynchronous *)s_wb_event);
++            s_wb_event_pending = 1;
++        }
+         ID3D11DeviceContext_Flush(s_ctx);
++    }
+     RECOMP_PROFILE_END();
+ }
+ 
+@@ -3439,13 +3957,16 @@ static uint64_t s_zpass;
  static void zpass_collect(void)
  {
      UINT64 n = 0;
@@ -2587,10 +3583,10 @@ index 1e4ebc0..e9e9ec8 100644
    target_include_directories(dsp_apu_test PRIVATE ../../src ../../src/apu)
    target_compile_definitions(dsp_apu_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
 diff --git a/tests/kernel_dispatch/CMakeLists.txt b/tests/kernel_dispatch/CMakeLists.txt
-index a8e9688..b00043c 100644
+index a8e9688..3d2e894 100644
 --- a/tests/kernel_dispatch/CMakeLists.txt
 +++ b/tests/kernel_dispatch/CMakeLists.txt
-@@ -7,5 +7,38 @@ add_subdirectory(../.. xboxrecomp)
+@@ -7,5 +7,47 @@ add_subdirectory(../.. xboxrecomp)
  add_executable(kernel-dispatch-thread-test kernel_dispatch_thread_test.c)
  target_include_directories(kernel-dispatch-thread-test PRIVATE ../../src/kernel)
  target_link_libraries(kernel-dispatch-thread-test PRIVATE xboxrecomp)
@@ -2612,6 +3608,12 @@ index a8e9688..b00043c 100644
 +add_executable(contig-range-cache-test contig_range_cache_test.c)
 +target_include_directories(contig-range-cache-test PRIVATE ../../src/kernel)
 +target_link_libraries(contig-range-cache-test PRIVATE xboxrecomp)
++add_executable(nv2a-command-fence-test nv2a_command_fence_test.c)
++target_include_directories(nv2a-command-fence-test PRIVATE ../../src/kernel)
++target_link_libraries(nv2a-command-fence-test PRIVATE xboxrecomp)
++add_executable(nv2a-dma-sync-test nv2a_dma_sync_test.c)
++target_include_directories(nv2a-dma-sync-test PRIVATE ../../src/kernel)
++target_link_libraries(nv2a-dma-sync-test PRIVATE xboxrecomp)
  enable_testing()
  add_test(NAME kernel-dispatch-thread COMMAND kernel-dispatch-thread-test)
 +add_test(NAME kernel-log-quiet COMMAND kernel-log-test)
@@ -2625,15 +3627,18 @@ index a8e9688..b00043c 100644
 +add_test(NAME nv2a-notify-wait COMMAND nv2a-notify-wait-test)
 +add_test(NAME nv2a-fence-wait COMMAND nv2a-fence-wait-test)
 +add_test(NAME contig-range-cache COMMAND contig-range-cache-test)
++add_test(NAME nv2a-command-fence COMMAND nv2a-command-fence-test)
++add_test(NAME nv2a-dma-sync COMMAND nv2a-dma-sync-test)
++add_test(NAME nv2a-pb-capture COMMAND nv2a-pb-hitch-test capture "${CMAKE_CURRENT_BINARY_DIR}/pb-capture-test")
 +add_test(NAME nv2a-pb-hitch-quiet COMMAND nv2a-pb-hitch-test)
 +set_tests_properties(nv2a-pb-hitch-quiet PROPERTIES FAIL_REGULAR_EXPRESSION "\\[HITCH\\]")
 +add_test(NAME nv2a-pb-hitch-trace COMMAND nv2a-pb-hitch-test trace)
 +set_tests_properties(nv2a-pb-hitch-trace PROPERTIES PASS_REGULAR_EXPRESSION "cpu_ms=40[.]000.*max_ms=80[.]000.*method=17FC")
 diff --git a/tests/kernel_dispatch/README.md b/tests/kernel_dispatch/README.md
-index dd7efb0..9196f4d 100644
+index dd7efb0..5032532 100644
 --- a/tests/kernel_dispatch/README.md
 +++ b/tests/kernel_dispatch/README.md
-@@ -1,14 +1,58 @@
+@@ -1,14 +1,134 @@
 -# Kernel dispatch thread regression
 +# Kernel dispatch regressions
  
@@ -2676,6 +3681,44 @@ index dd7efb0..9196f4d 100644
 +interval, wakeups without completion, shutdown, and timeout/API fallback. The
 +host helper never modifies the guest fence value.
 +
++The contiguous-range cache test uses real allocations, frees, splits and
++coalescing. Positive thread-local hints retain only bounds proven covered by
++the allocation table; misses always check the locked table. Cases include
++adjacent allocations, holes, physical aliases, range overflow, cache collisions,
++and allocations made by another thread after an earlier miss. Freeing a block
++does not erase its permanent physical ownership or invalidate that coverage.
++
++The command-fence test dispatches actual NV097 semaphore methods through the
++executor. `xbox_Nv2aCommandFence` configures an existing fence mirror before
++guest entry: only the matching DMA context, semaphore offset and executed
++release value can complete it. The next guest counter cannot complete work
++during startup or an idle tick. Releases retain their targets at execution,
++preserve ordering across target changes and unsigned wrap, and wait for prior
++readbacks and a fully consumed GET checkpoint. Incomplete parser passes retain
++their releases. Other titles keep the generic counter-snapshot mirror behavior.
++The native-heap allocation fallback is tested without an early fence, GET,
++notification or GPU-readback publication.
++
++The DMA synchronization test exercises the real publication and completion
++functions. `xbox_Nv2aDmaPublish` writes the owned PFIFO PUT and PGRAPH busy state
++before exposing USER PUT. The first publication adopts the actual USER GET;
++later completions advance USER/PFIFO GET to their captured consumed boundary.
++A brief shared lock prevents an older completion from clearing a newer PUT's
++busy state. Publishing an already completed PUT stays idle, while a software
++channel keeps its original store. `xbox_Nv2aDmaWait` waits only for the original
++CACHE1 PUT/GET equality and zero PGRAPH status, with the original final guest
++reads retained. Tests cover concurrent stores, older completions, raw register
++updates, unknown apertures, shutdown and completion before native registration.
++
++Matching NOPs are recorded during execution without waking the guest. Their
++exact notification sequence is published after the corresponding consumed GET
++and prior readbacks. A held older GET retains its own sequence, so its release
++cannot expose a NOP from a newer incomplete pass. Tests assert both GET stores
++at notification wake time, a newer live PUT, incomplete-pass deferral and
++notification-count wrap. Native notification, fence and DMA waits snapshot the
++wake generation before rechecking their predicates; a wake alone never changes
++the guest completion rules.
++
 +The pushbuffer hitch test feeds increasing/non-increasing packets, a CALL and
 +RETURN, and a jump through the real decoder with tracing both off and on.
 +Deterministic clocks verify a slow draw is identified separately from normal
@@ -2685,15 +3728,53 @@ index dd7efb0..9196f4d 100644
 +updates, including values that resemble CALL/JUMP/RETURN headers. Further
 +cases cover real ring jumps, called lists and root payloads crossing the
 +64 MiB physical boundary, discontinuous scans, and empty packets.
++Called lists stop at the actual PUT even before a header or within its payload,
++and later publication resumes the saved return address. Reserved header bits,
++exact RETURN decoding and method-address wrapping follow
++[xemu's PFIFO implementation](https://github.com/xemu-project/xemu/blob/master/hw/xbox/nv2a/pfifo.c).
++Work-limit tests stop in root and called payloads, report incomplete consumption,
++and resume once without duplicating commands, including a larger PUT on retry.
++
++The `nv2a-pb-capture` case checks the opt-in `RECOMP_PB_CAPTURE=<path-prefix>`
++diagnostic. On the first parser work-limit hit it writes these version-1
++artifacts, then stops recording:
++
++| Suffix | Contents |
++| --- | --- |
++| `.json` | Parser start/end, saved packet/CALL state, record sizes/counts, ring bounds and individual write-success flags. |
++| `.reads.bin` | First 1,048,576 words fetched in that pass, before executor callbacks; each 24-byte record contains six little-endian `uint32_t` fields: `va`, `word`, `method`, `remaining`, `flags`, `return_va`. Flag 1 marks a payload and flag 2 marks an active CALL. |
++| `.recent.bin` | Last 256 fetched records in chronological order, using the same schema. |
++| `.ram.bin` | The 64 MiB contiguous RAM window at the limit hit; guest address `0x80000000` is byte zero. |
++| `.initial-ring.bin` | Configured producer ring copied before the pass, including its boundary JUMP word; `initial_ring_va` and `initial_ring_bytes` locate it. The copy is limited to 4 MiB. |
++| `.state-initial.bin`, `.state-final.bin` | `XBOX_NV2A_CAPTURE_STATE` snapshots before execution and at the limit. |
++| `.producer.json` | Named initial/final USER/PFIFO pointers, held GET, notification state and registered fence/device fields. |
++
++The state snapshots are zero-initialized, read-only diagnostic structures from
++`xbox_memory_layout.h`. Version 1 is 35,272 bytes: an 18-word header followed by
++four mirrors, each with 24 metadata words and a `0x2200`-byte raw device block.
++The header carries the version and total byte size. Validity flags and
++`device_bytes` distinguish unavailable data from a real zero. Registered device
++pointers supply the roots; the helper does not hardcode the MM3 image global.
++The snapshots and ring copies do not suspend the producer and are not atomic;
++the fetched-word ledger is the evidence of what execution actually read.
++
++Capture mode allocates and copies extra memory and can write roughly 89 MiB
++at its first limit, so use it for an isolated diagnosis rather than performance
++measurements. With capture disabled there are no capture allocations, extra RAM
++copies, snapshot calls or file writes. The regression verifies pre-callback
++word preservation, lengths/schema and unchanged host LastError, then removes
++only its own artifacts.
 +
  On Windows with Visual Studio:
  
  ```
  cmake -S tests/kernel_dispatch -B build/kernel-dispatch -A x64
 -cmake --build build/kernel-dispatch --config Release --target kernel-dispatch-thread-test
-+cmake --build build/kernel-dispatch --config Release --target kernel-dispatch-thread-test kernel-log-test kernel-file-sharing-test kernel-cs-test nv2a-notify-wait-test nv2a-fence-wait-test nv2a-pb-hitch-test
++cmake --build build/kernel-dispatch --config Release --target kernel-dispatch-thread-test kernel-log-test kernel-file-sharing-test kernel-cs-test nv2a-notify-wait-test nv2a-fence-wait-test contig-range-cache-test nv2a-command-fence-test nv2a-dma-sync-test nv2a-pb-hitch-test
  ctest --test-dir build/kernel-dispatch -C Release --output-on-failure
  ```
++
++These ten executables provide all fifteen registered CTest cases.
 diff --git a/tests/nv2a_targets/test_targets.c b/tests/nv2a_targets/test_targets.c
 index 9ba2f39..9c5a4d3 100644
 --- a/tests/nv2a_targets/test_targets.c
@@ -4371,6 +5452,555 @@ index 0000000..60420ee
 +           argc > 1 ? argv[1] : "quiet");
 +    return 0;
 +}
+diff --git a/tests/kernel_dispatch/nv2a_command_fence_test.c b/tests/kernel_dispatch/nv2a_command_fence_test.c
+new file mode 100644
+index 0000000..c57fdd2
+--- /dev/null
++++ b/tests/kernel_dispatch/nv2a_command_fence_test.c
+@@ -0,0 +1,274 @@
++/* Exercise real executor dispatch and the production completion publisher.
++ * Only guest arena setup and GPU readback readiness are supplied by the test. */
++#include "kernel.h"
++#include "xbox_memory_layout.h"
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++
++static int readback_busy;
++static unsigned readback_polls;
++static int fail_next_malloc;
++static void *test_malloc(size_t bytes)
++{
++    if (fail_next_malloc) { fail_next_malloc = 0; return NULL; }
++    return malloc(bytes);
++}
++static int test_writeback_busy(void)
++{
++    ++readback_polls;
++    return readback_busy;
++}
++#define nv2a_d3d_writeback_busy test_writeback_busy
++#define malloc test_malloc
++#include "../../src/kernel/xbox_memory_layout.c"
++#undef malloc
++#undef nv2a_d3d_writeback_busy
++
++void *recomp_lookup(ULONG address) { (void)address; abort(); }
++void *recomp_lookup_manual(ULONG address) { (void)address; abort(); }
++extern void nv2a_pb_exec_method(uint32_t, uint32_t, uint32_t);
++
++#define CHECK(expr) do { if (!(expr)) { \
++    fprintf(stderr, "line %d: %s\n", __LINE__, #expr); exit(1); \
++} } while (0)
++
++static volatile uint32_t *guest(uint32_t va)
++{
++    return (volatile uint32_t *)((uintptr_t)va + g_memory_offset);
++}
++static void method(uint32_t address, uint32_t value)
++{
++    nv2a_pb_exec_method(0, address, value);
++}
++
++int main(void)
++{
++    uint8_t *arena = VirtualAlloc(NULL, 0x100000, MEM_RESERVE | MEM_COMMIT,
++                                  PAGE_READWRITE);
++    uint8_t *registers = calloc(1, 0x1000000);
++    volatile uint32_t *regs = (volatile uint32_t *)registers;
++    volatile uint32_t *get = (volatile uint32_t *)(registers + NV2A_USER_DMA_GET);
++    volatile uint32_t *put = (volatile uint32_t *)(registers + NV2A_USER_DMA_PUT);
++    LONG generation;
++    unsigned polls;
++    XBOX_NV2A_CAPTURE_STATE snapshot;
++    CHECK(arena && registers);
++    g_memory_base = arena;
++    g_memory_size = 0x100000;
++    g_memory_offset = (ptrdiff_t)arena;
++    xbox_nv2a_wake_init(&g_nv2a_wake);
++    *guest(0x10000) = 0x20000;
++    *guest(0x20030) = 0x30000;
++    *guest(0x2002C) = 99; /* The next submitted counter is not completed work. */
++    *guest(0x30000) = 23;
++    *get = 111; *put = 999;
++    CHECK(xbox_Nv2aCommandFence(0x10000, 0xC, 0) == -1);
++    CHECK(xbox_Nv2aMirrorFence(0x10000, 0x2C, 0x30) == 0);
++    CHECK(xbox_Nv2aCommandFence(0x10000, 0xC, 0) == 0);
++
++    /* Startup/idle cannot invent a first release, even before DMA_PUT moves. */
++    generation = xbox_nv2a_wake_snapshot(&g_nv2a_wake);
++    fence_mirrors_tick(0); fence_mirrors_tick(1);
++    nv2a_publish_readback_complete(regs);
++    CHECK(*guest(0x30000) == 23 && *get == 111 && !readback_polls);
++    CHECK(xbox_nv2a_wake_snapshot(&g_nv2a_wake) == generation);
++
++    /* Actual dispatch filters the configured DMA, offset and 3D subchannel. */
++    method(0x01A8, 0xD); method(0x1D6C, 0); method(0x1D70, 100);
++    nv2a_pb_exec_method(1, 0x01A8, 0xC);
++    method(0x1D70, 101);
++    method(0x01A8, 0xC); method(0x1D6C, 4); method(0x1D70, 102);
++    nv2a_pb_exec_method(1, 0x1D6C, 0);
++    method(0x1D70, 103);
++    CHECK(!command_fences_pending());
++    method(0x1D6C, 0);
++    nv2a_pb_exec_method(1, 0x1D70, 104);
++    CHECK(!command_fences_pending());
++
++    /* Zero is a real release; a busy prior readback defers its publication. */
++    readback_busy = 1;
++    method(0x1D70, 0);
++    CHECK(command_fences_pending());
++    nv2a_publish_readback_complete(regs);
++    *guest(0x2002C) = 12345;
++    fence_mirrors_tick(0); fence_mirrors_tick(1);
++    CHECK(*guest(0x30000) == 23 && *get == 111);
++    CHECK(xbox_nv2a_wake_snapshot(&g_nv2a_wake) == generation);
++    readback_busy = 0;
++    nv2a_publish_readback_complete(regs);
++    CHECK(*guest(0x30000) == 0 && *guest(0x2002C) == 12345 && *get == 111);
++    CHECK(!command_fences_pending());
++    CHECK(xbox_nv2a_wake_snapshot(&g_nv2a_wake) == generation + 1);
++    polls = readback_polls;
++    nv2a_publish_readback_complete(regs);
++    CHECK(readback_polls == polls); /* No work adds no driver polls. */
++
++    /* Latest execution order wins across wrap, never a numeric MAX. */
++    *guest(0x30000) = 1;
++    method(0x1D70, UINT32_MAX); method(0x1D70, 0);
++    nv2a_publish_readback_complete(regs);
++    CHECK(*guest(0x30000) == 0);
++    method(0x1D70, UINT32_MAX - 1); method(0x1D70, 1);
++    nv2a_publish_readback_complete(regs);
++    CHECK(*guest(0x30000) == 1);
++    method(0x1D70, 3); method(0x1D70, 5);
++    nv2a_publish_readback_complete(regs);
++    CHECK(*guest(0x30000) == 5);
++
++    /* Retain the target at execution, not a later device/get-pointer chain. */
++    *guest(0x22030) = 0x31000;
++    *guest(0x31000) = 0xDEADBEEF;
++    readback_busy = 1;
++    method(0x1D70, 7);
++    *guest(0x10000) = 0x22000;
++    *guest(0x20030) = 0x31000;
++    nv2a_publish_readback_complete(regs);
++    CHECK(*guest(0x30000) == 5 && *guest(0x31000) == 0xDEADBEEF);
++    readback_busy = 0;
++    nv2a_publish_readback_complete(regs);
++    CHECK(*guest(0x30000) == 7 && *guest(0x31000) == 0xDEADBEEF);
++    method(0x1D70, 9);
++    nv2a_publish_readback_complete(regs);
++    CHECK(*guest(0x31000) == 9);
++
++    /* Multiple targets before one readback completion must all be retained.
++     * Returning to the first target is a new ordered write, not a reorder. */
++    readback_busy = 1;
++    method(0x1D70, 10);
++    CHECK(xbox_Nv2aCommandFence(0x10000, 0xC, 0) == -1);
++    *guest(0x22030) = 0x30000;
++    method(0x1D70, 11);
++    *guest(0x22030) = 0x31000;
++    method(0x1D70, 12);
++    method(0x1D70, 14); /* Consecutive writes coalesce only at the tail. */
++    CHECK(g_fence_mirrors[0].command_head && g_fence_mirrors[0].command_tail);
++    CHECK(g_fence_mirrors[0].command_head->target == 0x30000);
++    CHECK(g_fence_mirrors[0].command_tail->target == 0x31000);
++    CHECK(g_fence_mirrors[0].command_tail->value == 14);
++    xbox_Nv2aCaptureSnapshot(&snapshot);
++    CHECK(snapshot.version == 1 && snapshot.bytes == sizeof snapshot);
++    CHECK(snapshot.mirrors[0].command_queue_count == 3);
++    CHECK(snapshot.mirrors[0].device_bytes == XBOX_NV2A_CAPTURE_DEVICE_BYTES);
++    nv2a_publish_readback_complete(regs);
++    CHECK(*guest(0x30000) == 7 && *guest(0x31000) == 9);
++    readback_busy = 0;
++    nv2a_publish_readback_complete(regs);
++    CHECK(*guest(0x30000) == 11 && *guest(0x31000) == 14);
++    CHECK(!g_fence_mirrors[0].command_head && !g_fence_mirrors[0].command_tail);
++
++    /* A target-change CRT allocation failure uses the native heap without
++     * publishing any fence/GET/notification or polling prior GPU work. */
++    method(0x1D70, 18);
++    *guest(0x22030) = 0x30000;
++    fail_next_malloc = 1;
++    polls = readback_polls;
++    generation = xbox_nv2a_wake_snapshot(&g_nv2a_wake);
++    method(0x1D70, 20);
++    CHECK(!fail_next_malloc && g_fence_mirrors[0].command_tail->native_heap);
++    CHECK(*guest(0x31000) == 14 && *guest(0x30000) == 11 && *get == 111);
++    CHECK(readback_polls == polls && !g_notify_count &&
++          xbox_nv2a_wake_snapshot(&g_nv2a_wake) == generation);
++    nv2a_publish_readback_complete(regs);
++    CHECK(*guest(0x31000) == 18 && *guest(0x30000) == 20 && *get == 111);
++    *guest(0x22030) = 0x31000;
++    *guest(0x31000) = 9;
++
++    /* Unreadable chains cannot change guest bytes or invent pending work. */
++    *guest(0x10000) = 0;
++    method(0x1D70, 11);
++    *guest(0x10000) = 0xFFFFFFF0;
++    method(0x1D70, 11);
++    *guest(0x10000) = 0x22000;
++    *guest(0x22030) = 0;
++    method(0x1D70, 11);
++    CHECK(!command_fences_pending() && *guest(0x31000) == 9);
++    *guest(0x22030) = 0x31000;
++
++    /* A cap retains even an executed fence. Publishing it alongside an old
++     * GET could let guest reserve logic reuse the unread part of that lap. */
++    s_scan_incomplete = 1;
++    readback_busy = 1;
++    method(0x1D70, 13);
++    nv2a_publish_readback_complete(regs);
++    CHECK(*guest(0x31000) == 9 && *get == 111);
++    readback_busy = 0;
++    nv2a_publish_readback_complete(regs);
++    CHECK(*guest(0x31000) == 9 && *get == 111 && s_scan_incomplete);
++    s_get_held = 1; s_get_held_value = 222;
++    readback_busy = 1;
++    method(0x1D70, 15);
++    nv2a_publish_readback_complete(regs);
++    CHECK(s_get_held && *get == 111 && *guest(0x31000) == 9);
++    readback_busy = 0;
++    nv2a_publish_readback_complete(regs);
++    CHECK(!s_get_held && *get == 222 && *put == 999 && s_scan_incomplete);
++    CHECK(*guest(0x31000) == 9 && command_fences_pending());
++    s_scan_incomplete = 0;
++    nv2a_publish_readback_complete(regs);
++    CHECK(*guest(0x31000) == 15 && !command_fences_pending());
++
++    /* Publication failure retains the exact target/value for a later retry. */
++    method(0x1D70, 17);
++    g_memory_size = 0x29000;
++    nv2a_publish_readback_complete(regs);
++    CHECK(command_fences_pending() && *guest(0x31000) == 15);
++    g_memory_size = 0x100000;
++    nv2a_publish_readback_complete(regs);
++    CHECK(!command_fences_pending() && *guest(0x31000) == 17);
++
++    /* Other titles retain the original generic counter-snapshot behavior. */
++    *guest(0x12000) = 0x24000;
++    *guest(0x24030) = 0x34000;
++    *guest(0x2402C) = 76;
++    *guest(0x34000) = 55;
++    CHECK(xbox_Nv2aMirrorFence(0x12000, 0x2C, 0x30) == 0);
++    fence_mirrors_tick(0);
++    *guest(0x2402C) = 77;
++    fence_mirrors_tick(1);
++    CHECK(*guest(0x34000) == 76 && *guest(0x31000) == 17);
++
++    /* Diagnostics distinguish the real aperture from a guest software
++     * channel, retain raw device fields, and never query/read back the GPU. */
++    g_nv2a_memory = registers;
++    *guest(0x22008) = 0x2000;
++    *guest(0x237C0) = 0x14000;
++    *guest(0x14040) = 0x4444; *guest(0x14044) = 0x5555;
++    *guest(0x224F8) = XBOX_NV2A_BASE;
++    *(uint32_t *)(registers + NV2A_PFIFO_DMA_SUBROUTINE) = 0x7777;
++    CHECK(xbox_Nv2aNotifyEvent(0x10000, 0x196C, 5) == 0);
++    g_notify_count = 7;
++    s_scan_incomplete = 1;
++    polls = readback_polls;
++    SetLastError(0x12345678);
++    xbox_Nv2aCaptureSnapshot(&snapshot);
++    CHECK(GetLastError() == 0x12345678 && readback_polls == polls);
++    CHECK(snapshot.mmio_valid && snapshot.user_put == 999 && snapshot.user_get == 222);
++    CHECK(snapshot.scan_incomplete == 1 && !snapshot.get_held);
++    CHECK(snapshot.notify_count == 7 && snapshot.notify_param == 5);
++    CHECK(snapshot.mirror_count == 2 && !snapshot.counter_mirrors && !snapshot.frame_counters);
++    CHECK(snapshot.mirrors[0].device_ptr_va == 0x10000 && snapshot.mirrors[0].device_va == 0x22000);
++    CHECK(snapshot.mirrors[0].channel_valid && snapshot.mirrors[0].channel_va == 0x14000);
++    CHECK(snapshot.mirrors[0].channel_put == 0x4444 && snapshot.mirrors[0].channel_get == 0x5555);
++    CHECK(snapshot.mirrors[0].pfifo_valid && snapshot.mirrors[0].pfifo_subroutine == 0x7777);
++    CHECK(*(uint32_t *)(snapshot.mirrors[0].device + 8) == 0x2000);
++    CHECK(snapshot.mirrors[0].fence_valid && snapshot.mirrors[0].fence_value == 17);
++    CHECK(snapshot.mirrors[0].command_mode && !snapshot.mirrors[0].command_queue_count);
++    *guest(0x237C0) = XBOX_NV2A_BASE + 0x800000;
++    xbox_Nv2aCaptureSnapshot(&snapshot);
++    CHECK(snapshot.mirrors[0].channel_valid && snapshot.mirrors[0].channel_put == 999 &&
++          snapshot.mirrors[0].channel_get == 222);
++    g_nv2a_memory = NULL;
++    *guest(0x10000) = UINT32_MAX - 8;
++    xbox_Nv2aCaptureSnapshot(&snapshot);
++    CHECK(!snapshot.mmio_valid && !snapshot.mirrors[0].device_valid &&
++          !snapshot.mirrors[0].device_bytes);
++    xbox_Nv2aCaptureSnapshot(NULL);
++
++    puts("PASS: real semaphore dispatch, no idle early fence, readback/cap/GET "
++         "ordering, uint32 wrap, captured targets, generic fallback and read-only state capture");
++    g_memory_base = NULL;
++    free(registers);
++    CHECK(VirtualFree(arena, 0, MEM_RELEASE));
++    return 0;
++}
+diff --git a/tests/kernel_dispatch/nv2a_dma_sync_test.c b/tests/kernel_dispatch/nv2a_dma_sync_test.c
+new file mode 100644
+index 0000000..f49c566
+--- /dev/null
++++ b/tests/kernel_dispatch/nv2a_dma_sync_test.c
+@@ -0,0 +1,263 @@
++/* Real publication/completion code, with only GPU readiness supplied here. */
++#include "kernel.h"
++#include "xbox_memory_layout.h"
++#include <stdio.h>
++#include <stdlib.h>
++
++static int readback_busy;
++static int test_writeback_busy(void) { return readback_busy; }
++#define nv2a_d3d_writeback_busy test_writeback_busy
++#include "../../src/kernel/xbox_memory_layout.c"
++#undef nv2a_d3d_writeback_busy
++
++void *recomp_lookup(ULONG address) { (void)address; abort(); }
++void *recomp_lookup_manual(ULONG address) { (void)address; abort(); }
++
++#define CHECK(x) do { if (!(x)) { \
++    fprintf(stderr, "line %d: %s\n", __LINE__, #x); ExitProcess(1); \
++} } while (0)
++
++static volatile uint32_t *registers;
++#define REG(offset) (*(volatile uint32_t *)((char *)registers + (offset)))
++static HANDLE waiting;
++static volatile LONG wait_calls, wrong_wait, missed_wake;
++static int inject_completion;
++static BOOL (WINAPI *native_wait)(volatile VOID *, PVOID, SIZE_T, DWORD);
++static VOID (WINAPI *native_wake)(PVOID);
++static uint32_t observed_sequence, observed_get;
++static unsigned observed_completions;
++
++static VOID WINAPI ordered_wake(PVOID address)
++{
++    if (observed_sequence && (uint32_t)g_notify_count == observed_sequence) {
++        CHECK(REG(NV2A_USER_DMA_GET) == observed_get);
++        CHECK(REG(NV2A_PFIFO_DMA_GET) == observed_get);
++        ++observed_completions;
++    }
++    native_wake(address);
++}
++
++static BOOL WINAPI observed_wait(volatile VOID *address, PVOID compare,
++                                 SIZE_T size, DWORD timeout)
++{
++    if (size != sizeof(LONG) || timeout != 1) InterlockedExchange(&wrong_wait, 1);
++    InterlockedIncrement(&wait_calls);
++    SetEvent(waiting);
++    if (inject_completion) {
++        inject_completion = 0;
++        nv2a_publish_consumed(registers, REG(NV2A_PFIFO_DMA_PUT), s_notify_executed);
++        /* Completion occurs after the final predicate but before registration.
++         * Waiting on the old generation must return immediately. */
++        if (!native_wait(address, compare, size, timeout))
++            InterlockedExchange(&missed_wake, 1);
++        return TRUE;
++    }
++    return native_wait(address, compare, size, timeout);
++}
++
++static DWORD WINAPI waiter(LPVOID ignored)
++{
++    (void)ignored;
++    xbox_Nv2aDmaWait(XBOX_NV2A_BASE);
++    return 0;
++}
++
++static HANDLE start_wait(void)
++{
++    ResetEvent(waiting);
++    HANDLE thread = CreateThread(NULL, 0, waiter, NULL, 0, NULL);
++    CHECK(thread && WaitForSingleObject(waiting, 5000) == WAIT_OBJECT_0);
++    return thread;
++}
++
++static void finish_wait(HANDLE thread)
++{
++    CHECK(WaitForSingleObject(thread, 5000) == WAIT_OBJECT_0);
++    CHECK(CloseHandle(thread));
++}
++
++static void test_waits(void)
++{
++    HANDLE thread;
++    unsigned before;
++    native_wait = g_nv2a_wake.wait_address;
++    CHECK(native_wait && g_nv2a_wake.wake_all);
++    g_nv2a_wake.wait_address = observed_wait;
++    waiting = CreateEventW(NULL, TRUE, FALSE, NULL);
++    CHECK(waiting);
++    g_nv2a_ack_thread = (HANDLE)(uintptr_t)1; /* API checks ownership, not handle use. */
++
++    before = wait_calls;
++    xbox_Nv2aDmaWait(XBOX_NV2A_BASE + 4); /* Unknown base keeps guest polling. */
++    xbox_Nv2aDmaWait(XBOX_NV2A_BASE);     /* Already idle requires no host wait. */
++    CHECK(wait_calls == before);
++    xbox_Nv2aDmaPublish(XBOX_NV2A_BASE + NV2A_USER_DMA_PUT, 0x12000);
++    inject_completion = 1;
++    xbox_Nv2aDmaWait(XBOX_NV2A_BASE);
++    CHECK(wait_calls == before + 1 && !missed_wake && !wrong_wait);
++
++    /* A generation-only wake and an older completed boundary cannot report
++     * idle when the producer has published a newer PUT. */
++    xbox_Nv2aDmaPublish(XBOX_NV2A_BASE + NV2A_USER_DMA_PUT, 0x13000);
++    thread = start_wait();
++    xbox_nv2a_wake_publish(&g_nv2a_wake);
++    CHECK(WaitForSingleObject(thread, 0) == WAIT_TIMEOUT);
++    xbox_Nv2aDmaPublish(XBOX_NV2A_BASE + NV2A_USER_DMA_PUT, 0x14000);
++    nv2a_publish_consumed(registers, 0x13000, s_notify_executed);
++    CHECK(REG(NV2A_PGRAPH_STATUS) && WaitForSingleObject(thread, 0) == WAIT_TIMEOUT);
++    nv2a_publish_consumed(registers, 0x14000, s_notify_executed);
++    finish_wait(thread);
++
++    /* Even equal pointers are not idle while the original status register is
++     * nonzero. A raw guest status write has no notification; timeout notices it. */
++    REG(NV2A_PGRAPH_STATUS) = 0x80;
++    thread = start_wait();
++    CHECK(WaitForSingleObject(thread, 0) == WAIT_TIMEOUT);
++    REG(NV2A_PGRAPH_STATUS) = 0;
++    finish_wait(thread);
++
++    xbox_Nv2aDmaPublish(XBOX_NV2A_BASE + NV2A_USER_DMA_PUT, 0x15000);
++    thread = start_wait();
++    InterlockedExchange(&g_nv2a_ack_stop, 1);
++    xbox_nv2a_wake_publish(&g_nv2a_wake);
++    finish_wait(thread);
++    CHECK(REG(NV2A_USER_DMA_GET) == 0x14000 && REG(NV2A_PGRAPH_STATUS));
++    g_nv2a_ack_stop = 0;
++
++    /* Native API unavailable retains the yield path and exact predicate. */
++    g_nv2a_wake.wait_address = NULL;
++    thread = CreateThread(NULL, 0, waiter, NULL, 0, NULL);
++    CHECK(thread && WaitForSingleObject(thread, 0) == WAIT_TIMEOUT);
++    nv2a_publish_consumed(registers, 0x15000, s_notify_executed);
++    finish_wait(thread);
++    g_nv2a_wake.wait_address = native_wait;
++    g_nv2a_ack_thread = NULL;
++    CHECK(CloseHandle(waiting));
++}
++
++static void test_notifications(void)
++{
++    LONG generation;
++    native_wake = g_nv2a_wake.wake_all;
++    g_nv2a_wake.wake_all = ordered_wake;
++    CHECK(xbox_Nv2aNotifyEvent(0x10000, 0x196C, 5) == 0);
++    generation = xbox_nv2a_wake_snapshot(&g_nv2a_wake);
++    xbox_Nv2aNop(0); xbox_Nv2aNop(4);
++    CHECK(!s_notify_executed && !g_notify_count);
++    xbox_Nv2aNop(5); xbox_Nv2aNop(5);
++    CHECK(s_notify_executed == 2 && !g_notify_count);
++    CHECK(xbox_nv2a_wake_snapshot(&g_nv2a_wake) == generation);
++    s_scan_incomplete = 1;
++    nv2a_publish_readback_complete(registers);
++    CHECK(!g_notify_count); /* Cap/idle cannot expose an executed NOP. */
++
++    /* A held older checkpoint captures its sequence before a newer partial
++     * submission executes another NOP. Releasing the old readback publishes
++     * only the old sequence, after the old GET, even with a newer live PUT. */
++    s_get_held = 1; s_get_held_value = 0x16000;
++    s_get_held_notify = s_notify_executed;
++    xbox_Nv2aDmaPublish(XBOX_NV2A_BASE + NV2A_USER_DMA_PUT, 0x17000);
++    xbox_Nv2aNop(5);
++    readback_busy = 1;
++    nv2a_publish_readback_complete(registers);
++    CHECK(!g_notify_count && REG(NV2A_USER_DMA_GET) == 0x15000);
++    readback_busy = 0;
++    observed_sequence = 2; observed_get = 0x16000;
++    nv2a_publish_readback_complete(registers);
++    CHECK(g_notify_count == 2 && s_notify_executed == 3 && !s_get_held);
++    CHECK(REG(NV2A_USER_DMA_GET) == 0x16000 && REG(NV2A_PFIFO_DMA_GET) == 0x16000);
++    CHECK(REG(NV2A_USER_DMA_PUT) == 0x17000 && REG(NV2A_PGRAPH_STATUS));
++    nv2a_publish_readback_complete(registers);
++    CHECK(g_notify_count == 2); /* Newer capped NOP remains pending. */
++    CHECK(observed_completions);
++    observed_sequence = 3; observed_get = 0x17000;
++    nv2a_publish_consumed(registers, 0x17000, s_notify_executed);
++    CHECK(g_notify_count == 3 && !REG(NV2A_PGRAPH_STATUS));
++    s_scan_incomplete = 0;
++
++    /* Notification count is an exact unsigned event sequence across wrap. */
++    s_notify_executed = UINT32_MAX;
++    g_notify_count = -1;
++    xbox_Nv2aNop(5);
++    CHECK(s_notify_executed == 0 && g_notify_count == -1);
++    nv2a_publish_consumed(registers, 0x17000, s_notify_executed);
++    CHECK(g_notify_count == 0);
++    observed_sequence = 0;
++    g_nv2a_wake.wake_all = native_wake;
++}
++
++static volatile LONG producer_ready, producer_done;
++static DWORD WINAPI producer(LPVOID ignored)
++{
++    (void)ignored;
++    for (uint32_t i = 1; i <= 20000; ++i) {
++        xbox_Nv2aDmaPublish(XBOX_NV2A_BASE + NV2A_USER_DMA_PUT, i);
++        InterlockedExchange(&producer_ready, (LONG)i);
++        while (InterlockedCompareExchange(&producer_done, 0, 0) != (LONG)i)
++            YieldProcessor();
++    }
++    return 0;
++}
++
++static void test_concurrent_stores(void)
++{
++    HANDLE thread = CreateThread(NULL, 0, producer, NULL, 0, NULL);
++    CHECK(thread);
++    for (LONG i = 1; i <= 20000; ++i) {
++        while (InterlockedCompareExchange(&producer_ready, 0, 0) != i)
++            YieldProcessor();
++        nv2a_publish_consumed(registers, (uint32_t)i, s_notify_executed);
++        InterlockedExchange(&producer_done, i);
++        AcquireSRWLockExclusive(&g_nv2a_dma_lock);
++        CHECK(REG(NV2A_USER_DMA_PUT) == REG(NV2A_PFIFO_DMA_PUT));
++        CHECK(REG(NV2A_USER_DMA_GET) == REG(NV2A_PFIFO_DMA_GET));
++        CHECK(REG(NV2A_PGRAPH_STATUS) ==
++            (REG(NV2A_PFIFO_DMA_PUT) != REG(NV2A_PFIFO_DMA_GET)));
++        ReleaseSRWLockExclusive(&g_nv2a_dma_lock);
++    }
++    finish_wait(thread);
++}
++
++int main(void)
++{
++    uint8_t *arena = VirtualAlloc(NULL, 0x100000, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
++    uint8_t *mmio = calloc(1, XBOX_NV2A_SIZE);
++    CHECK(arena && mmio);
++    g_memory_base = arena; g_memory_size = 0x100000;
++    g_memory_offset = (ptrdiff_t)arena; g_nv2a_memory = mmio;
++    registers = (volatile uint32_t *)mmio;
++    xbox_nv2a_wake_init(&g_nv2a_wake);
++
++    xbox_Nv2aDmaPublish(0x14040, 0x12345678);
++    CHECK(*(uint32_t *)(arena + 0x14040) == 0x12345678 && !g_nv2a_dma_sync);
++    CHECK(!REG(NV2A_PFIFO_DMA_PUT) && !REG(NV2A_PFIFO_DMA_GET));
++    REG(NV2A_USER_DMA_GET) = 0x11000;
++    xbox_Nv2aDmaPublish(XBOX_NV2A_BASE + NV2A_USER_DMA_PUT, 0x12000);
++    CHECK(g_nv2a_dma_sync && REG(NV2A_PFIFO_DMA_GET) == 0x11000);
++    CHECK(REG(NV2A_USER_DMA_PUT) == 0x12000 && REG(NV2A_PFIFO_DMA_PUT) == 0x12000);
++    CHECK(REG(NV2A_PGRAPH_STATUS));
++    nv2a_publish_consumed(registers, 0x12000, 0);
++    xbox_Nv2aDmaPublish(XBOX_NV2A_BASE + NV2A_USER_DMA_PUT, 0x12000);
++    CHECK(!REG(NV2A_PGRAPH_STATUS)); /* Same completed PUT is already idle. */
++    xbox_Nv2aDmaPublish(0x14040, 0x87654321);
++    CHECK(*(uint32_t *)(arena + 0x14040) == 0x87654321 &&
++          REG(NV2A_USER_DMA_PUT) == 0x12000 && !REG(NV2A_PGRAPH_STATUS));
++
++    /* Neither register payload nor completion order is a numeric maximum. */
++    xbox_Nv2aDmaPublish(XBOX_NV2A_BASE + NV2A_USER_DMA_PUT, UINT32_MAX - 3);
++    xbox_Nv2aDmaPublish(XBOX_NV2A_BASE + NV2A_USER_DMA_PUT, 0x4000);
++    nv2a_publish_consumed(registers, UINT32_MAX - 3, 0);
++    CHECK(REG(NV2A_PFIFO_DMA_GET) == UINT32_MAX - 3 && REG(NV2A_PGRAPH_STATUS));
++    nv2a_publish_consumed(registers, 0x4000, 0);
++    CHECK(REG(NV2A_USER_DMA_GET) == 0x4000 && !REG(NV2A_PGRAPH_STATUS));
++
++    test_waits();
++    test_notifications();
++    test_concurrent_stores();
++    CHECK(!wrong_wait && !missed_wake);
++    puts("PASS: exact DMA publication/consumption, software fallback, busy/wrap ordering, "
++         "concurrent stores, native wait races and deferred NOP/readback checkpoints");
++    g_nv2a_memory = NULL; g_memory_base = NULL;
++    free(mmio); CHECK(VirtualFree(arena, 0, MEM_RELEASE));
++    return 0;
++}
 diff --git a/tests/kernel_dispatch/nv2a_fence_wait_test.c b/tests/kernel_dispatch/nv2a_fence_wait_test.c
 new file mode 100644
 index 0000000..0adeef9
@@ -4660,10 +6290,10 @@ index 0000000..2f5a9a8
 +}
 diff --git a/tests/kernel_dispatch/nv2a_pb_hitch_test.c b/tests/kernel_dispatch/nv2a_pb_hitch_test.c
 new file mode 100644
-index 0000000..a35c3fe
+index 0000000..406c366
 --- /dev/null
 +++ b/tests/kernel_dispatch/nv2a_pb_hitch_test.c
-@@ -0,0 +1,247 @@
+@@ -0,0 +1,490 @@
 +/* Use deterministic clocks and a synthetic command stream: tracing must not
 + * change decoding, callback order or guest command bytes. No GPU is started. */
 +#include "kernel/kernel.h"
@@ -4674,8 +6304,10 @@ index 0000000..a35c3fe
 +static int64_t test_wall, test_cpu;
 +static unsigned clock_calls, kick_calls;
 +static uint8_t *memory;
++static uint32_t mutate_payload_va;
 +static struct { uint32_t subch, method, param; } commands[64];
 +static unsigned command_count;
++static unsigned snapshot_calls;
 +
 +static BOOL WINAPI test_qpc(LARGE_INTEGER *value)
 +{
@@ -4715,6 +6347,19 @@ index 0000000..a35c3fe
 +    return (ptrdiff_t)memory - (ptrdiff_t)XBOX_CONTIG_BASE;
 +}
 +
++void xbox_Nv2aCaptureSnapshot(XBOX_NV2A_CAPTURE_STATE *out)
++{
++    uint32_t low = XBOX_CONTIG_BASE + 0x100000;
++    uint32_t high = low + 4u * 1024u * 1024u - 4u;
++    snapshot_calls++;
++    memset(out, 0, sizeof *out);
++    out->version = 1; out->bytes = sizeof *out; out->mirror_count = 1;
++    out->user_put = snapshot_calls; out->user_get = 7;
++    out->mirrors[0].device_bytes = XBOX_NV2A_CAPTURE_DEVICE_BYTES;
++    memcpy(out->mirrors[0].device + 0x24, &low, sizeof low);
++    memcpy(out->mirrors[0].device + 0x28, &high, sizeof high);
++}
++
 +void nv2a_d3d_kick(void) { kick_calls++; }
 +void nv2a_pb_exec_report(void) {}
 +void nv2a_pb_exec_method(uint32_t subch, uint32_t method, uint32_t param)
@@ -4723,6 +6368,11 @@ index 0000000..a35c3fe
 +    commands[command_count].subch = subch;
 +    commands[command_count].method = method;
 +    commands[command_count++].param = param;
++    if (mutate_payload_va && method == 0x1720 && param == 11) {
++        *(uint32_t *)(memory + mutate_payload_va) = 99;
++        mutate_payload_va = 0;
++        SetLastError(0x1357);
++    }
 +    if (method == 0x17FC && !param) {
 +        test_wall += 80000; /* A slow draw, independent of host scheduling. */
 +        test_cpu += 400000; /* 40 ms of CPU within 80 ms of elapsed time. */
@@ -4739,9 +6389,12 @@ index 0000000..a35c3fe
 +    uint32_t *root, *called, *jumped;
 +    uint32_t original[12];
 +    int trace = argc > 1 && strcmp(argv[1], "trace") == 0;
++    int capture = argc > 1 && strcmp(argv[1], "capture") == 0;
++    CHECK(!capture || argc == 3);
 +    _putenv_s("RECOMP_PB_EXEC", "1");
 +    _putenv_s("RECOMP_PB_SCAN", "");
 +    _putenv_s("RECOMP_HITCH_TRACE", trace ? "1" : "0");
++    _putenv_s("RECOMP_PB_CAPTURE", capture ? argv[2] : "");
 +    memory = calloc(1, XBOX_CONTIG_SIZE);
 +    CHECK(memory);
 +    root = (uint32_t *)(memory + 0x100);
@@ -4776,6 +6429,7 @@ index 0000000..a35c3fe
 +        CHECK(commands[9 + i].method == 0x0120 + i * 4 && !commands[9 + i].param);
 +    CHECK(memcmp(original, root, sizeof original) == 0);
 +    CHECK(trace ? clock_calls != 0 : clock_calls == 0);
++    CHECK(capture || snapshot_calls == 0);
 +
 +    /* PUT can stop after a header or in its payload. RETURN/CALL/JUMP-looking
 +     * parameter values must remain data when the next submission arrives. */
@@ -4897,6 +6551,224 @@ index 0000000..a35c3fe
 +        CHECK(command_count == 1 && commands[0].method == 0x1720 && commands[0].param == 42);
 +    }
 +
++    /* PUT bounds the actual FIFO even within a CALL. Its payload and saved
++     * return address survive publication; the caller then jumps around the
++     * list instead of decoding that list a second time. Address aliases are
++     * canonicalized before continuation matching. */
++    {
++        uint32_t *caller = (uint32_t *)(memory + 0x5000);
++        uint32_t *list = (uint32_t *)(memory + 0x5200);
++        uint32_t *tail = (uint32_t *)(memory + 0x5300);
++        uint32_t saved[5];
++        command_count = 0;
++        caller[0] = 0x5202; caller[1] = 0x5301;
++        list[0] = (3u << 18) | 0x1720;
++        list[1] = 0x00020000; list[2] = 0x1002; list[3] = 0x2001;
++        list[4] = 0x00020000;
++        tail[0] = (1u << 18) | 0x1D8C; tail[1] = 77;
++        memcpy(saved, list, sizeof saved);
++        CHECK(nv2a_pb_scan(XBOX_CONTIG_BASE + 0x5000, XBOX_CONTIG_BASE + 0x5208));
++        CHECK(command_count == 1 && commands[0].param == 0x00020000);
++        CHECK(s_fifo.in_call && s_packet.active && s_packet.remaining == 2);
++        CHECK(nv2a_pb_scan(XBOX_CONTIG_BASE + XBOX_CONTIG_SIZE + 0x5208,
++                           XBOX_CONTIG_BASE + XBOX_CONTIG_SIZE + 0x5308));
++        CHECK(command_count == 4 && !s_fifo.in_call && !s_packet.active);
++        for (unsigned i = 0; i < 3; ++i)
++            CHECK(commands[i].method == 0x1720 + i * 4 && commands[i].param == saved[i + 1]);
++        CHECK(commands[3].method == 0x1D8C && commands[3].param == 77);
++        CHECK(!memcmp(saved, list, sizeof saved));
++
++        /* A CALL can land directly on PUT, before any header is published. */
++        command_count = 0;
++        CHECK(nv2a_pb_scan(XBOX_CONTIG_BASE + 0x5000, XBOX_CONTIG_BASE + 0x5200));
++        CHECK(command_count == 0 && s_fifo.in_call && !s_packet.active);
++        CHECK(nv2a_pb_scan(XBOX_CONTIG_BASE + 0x5200, XBOX_CONTIG_BASE + 0x5308));
++        CHECK(command_count == 4 && !s_fifo.in_call);
++    }
++
++    /* The PUT comparison also wraps correctly in a called payload. */
++    {
++        uint32_t *last = (uint32_t *)(memory + XBOX_CONTIG_SIZE - 4);
++        uint32_t *first = (uint32_t *)memory;
++        uint32_t *caller = (uint32_t *)(memory + 0x9000);
++        uint32_t *tail = (uint32_t *)(memory + 0x9400);
++        command_count = 0;
++        caller[0] = (XBOX_CONTIG_SIZE - 8) | 2; caller[1] = 0x9401;
++        last[-1] = (3u << 18) | 0x1720; last[0] = 11;
++        first[0] = 22; first[1] = 33; first[2] = 0x00020000;
++        tail[0] = (1u << 18) | 0x1D8C; tail[1] = 44;
++        CHECK(nv2a_pb_scan(XBOX_CONTIG_BASE + 0x9000, XBOX_CONTIG_BASE + 4));
++        CHECK(command_count == 2 && s_fifo.in_call && s_packet.remaining == 1);
++        CHECK(nv2a_pb_scan(XBOX_CONTIG_BASE + 4, XBOX_CONTIG_BASE + 0x9408));
++        CHECK(command_count == 4 && !s_fifo.in_call && !s_packet.active);
++        CHECK(commands[0].param == 11 && commands[1].param == 22);
++        CHECK(commands[2].method == 0x1728 && commands[2].param == 33);
++        CHECK(commands[3].method == 0x1D8C && commands[3].param == 44);
++    }
++
++    /* RETURN is the exact00020000 word; reserved high bits cannot create a
++     * fake method packet and consume the next valid header as a parameter. */
++    {
++        uint32_t *caller = (uint32_t *)(memory + 0xA000);
++        uint32_t *list = (uint32_t *)(memory + 0xB000);
++        uint32_t before_unknown = s_tot_unknown;
++        command_count = 0;
++        caller[0] = 0xB002;
++        list[0] = 0x00020004;
++        list[1] = 0x60000000 | (1u << 18) | 0x1720;
++        list[2] = (1u << 18) | 0x1D8C; list[3] = 55;
++        list[4] = 0x00020000;
++        CHECK(nv2a_pb_scan(XBOX_CONTIG_BASE + 0xA000, XBOX_CONTIG_BASE + 0xA004));
++        CHECK(command_count == 1 && commands[0].method == 0x1D8C && commands[0].param == 55);
++        CHECK(s_tot_unknown - before_unknown == 2 && !s_fifo.in_call);
++    }
++
++    /* Increasing method addresses retain the register's11-bit field width,
++     * including a payload split at the wrap. */
++    {
++        uint32_t *split = (uint32_t *)(memory + 0xC100);
++        command_count = 0;
++        split[0] = (3u << 18) | 0x1FFC; split[1] = 10;
++        split[2] = 20; split[3] = 30;
++        CHECK(nv2a_pb_scan(XBOX_CONTIG_BASE + 0xC100, XBOX_CONTIG_BASE + 0xC108));
++        CHECK(nv2a_pb_scan(XBOX_CONTIG_BASE + 0xC108, XBOX_CONTIG_BASE + 0xC110));
++        CHECK(command_count == 3);
++        CHECK(commands[0].method == 0x1FFC && commands[0].param == 10);
++        CHECK(commands[1].method == 0 && commands[1].param == 20);
++        CHECK(commands[2].method == 4 && commands[2].param == 30);
++    }
++
++    /* A scheduling cap is incomplete, including inside a payload. Retrying
++     * the original start with a newer PUT executes the saved remainder once
++     * and does not skip the additional publication. */
++    {
++        uint32_t *stream = (uint32_t *)(memory + 0x100000);
++        uint32_t start = XBOX_CONTIG_BASE + 0x100000;
++        uint32_t old_end = start + (0x100000u + 2) * 4;
++        uint32_t before_words = s_tot_words;
++        command_count = 0;
++        memset(stream, 0, (0x100000u + 4) * 4);
++        stream[0x100000u - 2] = (3u << 18) | 0x1720;
++        stream[0x100000u - 1] = 11;
++        stream[0x100000u] = 22; stream[0x100000u + 1] = 33;
++        stream[0x100000u + 2] = (1u << 18) | 0x1D8C;
++        stream[0x100000u + 3] = 44;
++        if (capture) mutate_payload_va = 0x100000 + (0x100000u - 1) * 4;
++        CHECK(!nv2a_pb_scan(start, old_end));
++        CHECK(s_tot_words - before_words == 0x100000u);
++        CHECK(command_count == 1 && s_packet.active && s_packet.remaining == 2);
++        if (capture) {
++            const char *suffixes[] = { ".ram.bin", ".reads.bin", ".recent.bin", ".json",
++                ".initial-ring.bin", ".state-initial.bin", ".state-final.bin", ".producer.json" };
++            char path[4096], metadata[4096];
++            PB_CAPTURE_READ recorded;
++            XBOX_NV2A_CAPTURE_STATE state;
++            uint32_t copied;
++            FILE *file;
++            CHECK(GetLastError() == 0x1357);
++            CHECK(s_capture.done && !s_capture.first && !s_capture.ring && !s_capture.recording);
++            snprintf(path, sizeof path, "%s.reads.bin", argv[2]);
++            file = fopen(path, "rb"); CHECK(file);
++            CHECK(!fseek(file, 0, SEEK_END));
++            CHECK(ftell(file) == (long)(0x100000u * sizeof recorded));
++            CHECK(!fseek(file, -(long)sizeof recorded, SEEK_END));
++            CHECK(fread(&recorded, sizeof recorded, 1, file) == 1);
++            CHECK(!fclose(file));
++            snprintf(path, sizeof path, "%s.initial-ring.bin", argv[2]);
++            file = fopen(path, "rb"); CHECK(file);
++            CHECK(!fseek(file, 0, SEEK_END) && ftell(file) == 4u * 1024u * 1024u);
++            CHECK(!fseek(file, -(long)sizeof copied, SEEK_END));
++            CHECK(fread(&copied, sizeof copied, 1, file) == 1 && copied == 11);
++            CHECK(!fclose(file));
++            snprintf(path, sizeof path, "%s.state-initial.bin", argv[2]);
++            file = fopen(path, "rb"); CHECK(file);
++            CHECK(fread(&state, sizeof state, 1, file) == 1);
++            CHECK(!fclose(file) && state.user_put + 1 == snapshot_calls);
++            snprintf(path, sizeof path, "%s.state-final.bin", argv[2]);
++            file = fopen(path, "rb"); CHECK(file);
++            CHECK(fread(&state, sizeof state, 1, file) == 1);
++            CHECK(!fclose(file) && state.user_put == snapshot_calls);
++            CHECK(recorded.va == start + (0x100000u - 1) * 4);
++            CHECK(recorded.word == 11 && recorded.method == 0x1720);
++            CHECK(recorded.remaining == 3 && recorded.flags == 1);
++            snprintf(path, sizeof path, "%s.ram.bin", argv[2]);
++            file = fopen(path, "rb"); CHECK(file);
++            CHECK(!fseek(file, 0, SEEK_END) && ftell(file) == XBOX_CONTIG_SIZE);
++            CHECK(!fseek(file, (long)(recorded.va - XBOX_CONTIG_BASE), SEEK_SET));
++            CHECK(fread(&copied, sizeof copied, 1, file) == 1 && copied == 99);
++            CHECK(!fclose(file));
++            snprintf(path, sizeof path, "%s.recent.bin", argv[2]);
++            file = fopen(path, "rb"); CHECK(file);
++            CHECK(!fseek(file, -(long)sizeof recorded, SEEK_END));
++            CHECK(fread(&recorded, sizeof recorded, 1, file) == 1 && recorded.word == 11);
++            CHECK(!fclose(file));
++            snprintf(path, sizeof path, "%s.json", argv[2]);
++            file = fopen(path, "rb"); CHECK(file);
++            size_t length = fread(metadata, 1, sizeof metadata - 1, file);
++            metadata[length] = 0; CHECK(!fclose(file));
++            CHECK(strstr(metadata, "\"first_reads\":1048576"));
++            CHECK(strstr(metadata, "\"ram_ok\":1,\"first_ok\":1,\"recent_ok\":1"));
++            CHECK(strstr(metadata, "\"initial_ring_bytes\":4194304,\"initial_ring_ok\":1"));
++            CHECK(strstr(metadata, "\"initial_state_ok\":1,\"final_state_ok\":1,\"producer_ok\":1"));
++            snprintf(path, sizeof path, "%s.producer.json", argv[2]);
++            file = fopen(path, "rb"); CHECK(file);
++            length = fread(metadata, 1, sizeof metadata - 1, file);
++            metadata[length] = 0; CHECK(!fclose(file));
++            CHECK(strstr(metadata, "\"initial\":{\"version\":1"));
++            CHECK(strstr(metadata, "\"final\":{\"version\":1"));
++            CHECK(strstr(metadata, "\"ring_high\":2152726524"));
++            for (unsigned i = 0; i < sizeof suffixes / sizeof suffixes[0]; i++) {
++                snprintf(path, sizeof path, "%s%s", argv[2], suffixes[i]);
++                CHECK(!remove(path));
++            }
++        }
++        CHECK(nv2a_pb_scan(start + XBOX_CONTIG_SIZE, old_end + 8));
++        CHECK(command_count == 4 && !s_packet.active && !s_fifo.active);
++        CHECK(commands[0].method == 0x1720 && commands[0].param == 11);
++        CHECK(commands[1].method == 0x1724 && commands[1].param == 22);
++        CHECK(commands[2].method == 0x1728 && commands[2].param == 33);
++        CHECK(commands[3].method == 0x1D8C && commands[3].param == 44);
++    }
++
++    /* Called lists share the root's cap; they neither enlarge it nor lose the
++     * saved return PC when the next ACK tick resumes their header. */
++    {
++        uint32_t *caller = (uint32_t *)(memory + 0xC5000);
++        uint32_t *list = (uint32_t *)(memory + 0x800000);
++        uint32_t start = XBOX_CONTIG_BASE + 0xC5000;
++        uint32_t before_words = s_tot_words;
++        command_count = 0;
++        memset(list, 0, (0x100000u + 2) * 4);
++        caller[0] = 0x800002; caller[1] = 0xC5011;
++        caller[4] = (1u << 18) | 0x1D8C; caller[5] = 66;
++        list[0x100000u - 1] = (1u << 18) | 0x1720;
++        list[0x100000u] = 55; list[0x100000u + 1] = 0x00020000;
++        CHECK(!nv2a_pb_scan(start, start + 24));
++        CHECK(s_tot_words - before_words == 0x100000u);
++        CHECK(command_count == 0 && s_fifo.in_call);
++        CHECK(nv2a_pb_scan(start, start + 24));
++        CHECK(command_count == 2 && !s_fifo.active && !s_fifo.in_call);
++        CHECK(commands[0].method == 0x1720 && commands[0].param == 55);
++        CHECK(commands[1].method == 0x1D8C && commands[1].param == 66);
++    }
++
++    /* A discontinuous replacement discards an unfinished called list as well
++     * as its packet; it cannot return into a previous FIFO. */
++    {
++        uint32_t *caller = (uint32_t *)(memory + 0xE000);
++        uint32_t *list = (uint32_t *)(memory + 0xE200);
++        uint32_t *fresh = (uint32_t *)(memory + 0xE400);
++        command_count = 0;
++        caller[0] = 0xE202;
++        list[0] = (3u << 18) | 0x1720; list[1] = 12;
++        CHECK(nv2a_pb_scan(XBOX_CONTIG_BASE + 0xE000, XBOX_CONTIG_BASE + 0xE208));
++        CHECK(command_count == 1 && s_fifo.in_call && s_packet.active);
++        fresh[0] = (1u << 18) | 0x1D8C; fresh[1] = 34;
++        CHECK(nv2a_pb_scan(XBOX_CONTIG_BASE + 0xE400, XBOX_CONTIG_BASE + 0xE408));
++        CHECK(command_count == 2 && commands[1].method == 0x1D8C && commands[1].param == 34);
++        CHECK(!s_fifo.in_call && !s_packet.active);
++    }
++
 +    /* Empty packets execute nothing and need no per-packet diagnostic clock. */
 +    {
 +        unsigned before_clocks = clock_calls;
@@ -4907,13 +6779,14 @@ index 0000000..a35c3fe
 +        CHECK(clock_calls - before_clocks == (trace ? 2u : 0u));
 +    }
 +    CHECK(trace ? clock_calls != 0 : clock_calls == 0);
++    CHECK(capture ? snapshot_calls > 1 : snapshot_calls == 0);
 +    free(memory);
-+    puts("PASS: tracing and split submissions preserve packets, calls, ring/bus wraps and command order");
++    puts("PASS: tracing, PUT/cap continuations, exact decoding and ring/bus wraps preserve command order");
 +    return 0;
 +}
 diff --git a/tests/nv2a_ps_prewarm/CMakeLists.txt b/tests/nv2a_ps_prewarm/CMakeLists.txt
 new file mode 100644
-index 0000000..1700404
+index 0000000..835e79e
 --- /dev/null
 +++ b/tests/nv2a_ps_prewarm/CMakeLists.txt
 @@ -0,0 +1,9 @@
@@ -4923,15 +6796,15 @@ index 0000000..1700404
 +add_executable(nv2a_ps_prewarm test_main.c)
 +target_include_directories(nv2a_ps_prewarm PRIVATE ../../src ../../src/video)
 +target_link_libraries(nv2a_ps_prewarm PRIVATE d3d11 dxgi dxguid d3dcompiler)
-+foreach(case manifest scheduler persistence disabled cache_off prewarm_off invalid_variant gpu gpu_cache_failure)
++foreach(case manifest scheduler persistence disabled cache_off prewarm_off invalid_variant gpu gpu_cache_failure constants)
 +    add_test(NAME nv2a_ps_prewarm_${case} COMMAND nv2a_ps_prewarm ${case})
 +endforeach()
 diff --git a/tests/nv2a_ps_prewarm/README.md b/tests/nv2a_ps_prewarm/README.md
 new file mode 100644
-index 0000000..518f6c3
+index 0000000..bef5a46
 --- /dev/null
 +++ b/tests/nv2a_ps_prewarm/README.md
-@@ -0,0 +1,50 @@
+@@ -0,0 +1,59 @@
 +# Specialised pixel-shader warm-up regression
 +
 +This suite includes the production renderer, manifest reader/writer and queue.
@@ -4949,7 +6822,7 @@ index 0000000..518f6c3
 +ctest --test-dir conformance_tmp/stutter-ps-prewarm-test --output-on-failure
 +```
 +
-+The nine tests cover canonical little-endian round trips at the 512-record
++The ten tests cover canonical little-endian round trips at the 512-record
 +limit; malformed magic/schema/record length/count/reserved fields/family/SHA;
 +truncation and trailing bytes; empty manifests; cache-directory override;
 +shader/cache/prewarm bypasses; invalid variants; duplicate imported keys;
@@ -4962,6 +6835,15 @@ index 0000000..518f6c3
 +with dynamic factors and alpha reference changed after shader creation. They
 +also exercise missing bytecode, unwritable-cache lazy compilation and idle
 +worker persistence of a newly observed key.
++
++The constant-buffer regression verifies every byte of the 768-byte production
++pixel state on the GPU, unchanged-state reuse, initial Map failure and retry,
++and retention of the previous successful state after a failed new upload.
++The shader-image comparisons use the same upload-reuse path as gameplay.
++`nv2a_ps_prewarm constants_bench` additionally reports seven interleaved pairs
++of 20,000 repeated uploads versus exact-state reuse. It times CPU/API work only;
++GPU buffer readback verifies each result outside the timed loops. Timing is
++reported without a pass threshold and does not measure whole-frame speed.
 +
 +The image comparison is exact. A separate mathematical sanity check allows one
 +8-bit unit for raster interpolation and UNORM conversion (centroid diffuse
@@ -4984,10 +6866,10 @@ index 0000000..518f6c3
 +through `RECOMP_HITCH_TRACE`.
 diff --git a/tests/nv2a_ps_prewarm/test_main.c b/tests/nv2a_ps_prewarm/test_main.c
 new file mode 100644
-index 0000000..3117757
+index 0000000..31fa09b
 --- /dev/null
 +++ b/tests/nv2a_ps_prewarm/test_main.c
-@@ -0,0 +1,453 @@
+@@ -0,0 +1,557 @@
 +/* Exercise production manifest, scheduler, workers and GPU-specialised pixels. */
 +#define COBJMACROS
 +#define WIN32_LEAN_AND_MEAN
@@ -4997,11 +6879,28 @@ index 0000000..3117757
 +#include <stdlib.h>
 +#include <string.h>
 +#include "nv2a_ps_manifest.h"
++static ID3D11Resource *watched_ps_buffer;
++static unsigned ps_map_calls;
++static int fail_ps_map;
++static HRESULT test_map(ID3D11DeviceContext *ctx, ID3D11Resource *resource,
++                        UINT sub, D3D11_MAP type, UINT flags, D3D11_MAPPED_SUBRESOURCE *mapped);
++#undef ID3D11DeviceContext_Map
++#define ID3D11DeviceContext_Map(ctx,resource,sub,type,flags,mapped) test_map(ctx,resource,sub,type,flags,mapped)
 +static int hooked_manifest_write(const wchar_t *path, const uint8_t family[32],
 +                                 const uint32_t records[][NV_PS_MANIFEST_WORDS], unsigned count);
 +#define nv_ps_manifest_write hooked_manifest_write
 +#include "../../src/video/nv2a_d3d11.c"
 +#undef nv_ps_manifest_write
++
++static HRESULT test_map(ID3D11DeviceContext *ctx, ID3D11Resource *resource,
++                        UINT sub, D3D11_MAP type, UINT flags, D3D11_MAPPED_SUBRESOURCE *mapped)
++{
++    if (resource == watched_ps_buffer && type == D3D11_MAP_WRITE_DISCARD) {
++        ps_map_calls++;
++        if (fail_ps_map) { fail_ps_map = 0; return E_OUTOFMEMORY; }
++    }
++    return ctx->lpVtbl->Map(ctx, resource, sub, type, flags, mapped);
++}
 +
 +static HANDLE write_entered, write_release;
 +static volatile LONG write_calls;
@@ -5312,7 +7211,7 @@ index 0000000..3117757
 +    D3D11_MAPPED_SUBRESOURCE mapped;
 +    float clear[4] = {0.125f, 0.25f, 0.5f, 1};
 +    unsigned y;
-+    upload_cb(s_cb_ps, pc, sizeof *pc);
++    upload_ps_constants(pc);
 +    ID3D11DeviceContext_OMSetRenderTargets(s_ctx, 1, &rtv, NULL);
 +    ID3D11DeviceContext_ClearRenderTargetView(s_ctx, rtv, clear);
 +    ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
@@ -5431,6 +7330,91 @@ index 0000000..3117757
 +    return 0;
 +}
 +
++static int verify_constants(ID3D11Buffer *stage, const PSConsts *pc)
++{
++    D3D11_MAPPED_SUBRESOURCE mapped;
++    ID3D11DeviceContext_CopyResource(s_ctx, (ID3D11Resource *)stage, (ID3D11Resource *)s_cb_ps);
++    CHECK(SUCCEEDED(ID3D11DeviceContext_Map(s_ctx, (ID3D11Resource *)stage, 0, D3D11_MAP_READ, 0, &mapped)));
++    CHECK(!memcmp(mapped.pData, pc, sizeof *pc));
++    ID3D11DeviceContext_Unmap(s_ctx, (ID3D11Resource *)stage, 0);
++    return 0;
++}
++
++static int double_compare(const void *a, const void *b)
++{
++    double x = *(const double *)a, y = *(const double *)b;
++    return (x > y) - (x < y);
++}
++
++static int test_constants(int benchmark)
++{
++    D3D_FEATURE_LEVEL level;
++    D3D11_BUFFER_DESC desc = {0};
++    ID3D11Buffer *stage;
++    PSConsts pc = {0}, previous;
++    unsigned i;
++    CHECK(SUCCEEDED(D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, 0, NULL, 0,
++                                     D3D11_SDK_VERSION, &s_dev, &level, &s_ctx)));
++    s_cb_ps = make_buffer(sizeof pc, D3D11_BIND_CONSTANT_BUFFER);
++    CHECK(s_cb_ps);
++    watched_ps_buffer = (ID3D11Resource *)s_cb_ps;
++    desc.ByteWidth = sizeof pc; desc.Usage = D3D11_USAGE_STAGING;
++    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
++    CHECK(SUCCEEDED(ID3D11Device_CreateBuffer(s_dev, &desc, NULL, &stage)));
++    fail_ps_map = 1;
++    upload_ps_constants(&pc);
++    CHECK(ps_map_calls == 1 && !s_uploaded_pc_valid);
++    upload_ps_constants(&pc);
++    CHECK(ps_map_calls == 2 && s_uploaded_pc_valid);
++    CHECK(!verify_constants(stage, &pc));
++    for (i = 0; i < 1000; i++) upload_ps_constants(&pc);
++    CHECK(ps_map_calls == 2);
++    /* Every byte matters: dynamic values, signed zero, NaN payloads, and
++     * texture/depth scales cannot be suppressed by an incomplete key. */
++    for (i = 0; i < sizeof pc; i++) {
++        ((unsigned char *)&pc)[i] ^= (unsigned char)(i % 255 + 1);
++        upload_ps_constants(&pc);
++        CHECK(ps_map_calls == 3 + i);
++        upload_ps_constants(&pc);
++        CHECK(ps_map_calls == 3 + i);
++        CHECK(!verify_constants(stage, &pc));
++    }
++    previous = pc;
++    pc.alpha_ref ^= 1; fail_ps_map = 1;
++    upload_ps_constants(&pc);
++    CHECK(!memcmp(&s_uploaded_pc, &previous, sizeof previous));
++    CHECK(!verify_constants(stage, &previous));
++    upload_ps_constants(&pc);
++    CHECK(!verify_constants(stage, &pc));
++    CHECK(!memcmp(&s_uploaded_pc, &pc, sizeof pc));
++    printf("PASS: pixel constants initial/retry/identical/all %zu bytes exact on GPU\n", sizeof pc);
++    if (benchmark) {
++        double baseline[7], reused[7];
++        LARGE_INTEGER frequency;
++        unsigned round, pass, iteration;
++        QueryPerformanceFrequency(&frequency);
++        for (round = 0; round < 7; round++) for (pass = 0; pass < 2; pass++) {
++            int reuse = (round + pass) & 1;
++            int64_t started = qpc();
++            for (iteration = 0; iteration < 20000; iteration++) {
++                if (reuse) upload_ps_constants(&pc);
++                else upload_cb(s_cb_ps, &pc, sizeof pc);
++            }
++            (reuse ? reused : baseline)[round] = (qpc() - started) * 1000.0 / frequency.QuadPart;
++            CHECK(!verify_constants(stage, &pc));
++        }
++        printf("CONSTANTS_AB {\"iterations_per_pass\":20000,\"bytes\":%zu,\"passes\":[", sizeof pc);
++        for (round = 0; round < 7; round++)
++            printf("%s{\"baseline_ms\":%.6f,\"reused_ms\":%.6f}", round ? "," : "", baseline[round], reused[round]);
++        qsort(baseline, 7, sizeof(double), double_compare);
++        qsort(reused, 7, sizeof(double), double_compare);
++        printf("],\"baseline_median_ms\":%.6f,\"reused_median_ms\":%.6f}\n", baseline[3], reused[3]);
++    }
++    ID3D11Buffer_Release(stage);
++    ID3D11Buffer_Release(s_cb_ps); ID3D11DeviceContext_Release(s_ctx); ID3D11Device_Release(s_dev);
++    return 0;
++}
++
 +int main(int argc, char **argv)
 +{
 +    CHECK(argc == 2); CHECK(!setup());
@@ -5439,7 +7423,393 @@ index 0000000..3117757
 +    if (!strcmp(argv[1], "persistence")) return test_persistence();
 +    if (!strcmp(argv[1], "gpu")) return test_gpu(0);
 +    if (!strcmp(argv[1], "gpu_cache_failure")) return test_gpu(1);
++    if (!strcmp(argv[1], "constants")) return test_constants(0);
++    if (!strcmp(argv[1], "constants_bench")) return test_constants(1);
 +    return test_gate(argv[1]);
++}
+diff --git a/tests/nv2a_readback/CMakeLists.txt b/tests/nv2a_readback/CMakeLists.txt
+new file mode 100644
+index 0000000..32604a1
+--- /dev/null
++++ b/tests/nv2a_readback/CMakeLists.txt
+@@ -0,0 +1,12 @@
++cmake_minimum_required(VERSION 3.20)
++project(nv2a_readback C)
++enable_testing()
++add_executable(nv2a_readback test_main.c)
++target_include_directories(nv2a_readback PRIVATE ../../src ../../src/video)
++target_link_libraries(nv2a_readback PRIVATE d3d11 dxgi dxguid d3dcompiler)
++foreach(samples 1 2 4 8)
++    add_test(NAME nv2a_readback_batch_${samples}x COMMAND nv2a_readback batch ${samples})
++endforeach()
++foreach(case query_create_retry query_failure map_retry drop_resize down_rtv_retry trace_off trace_on)
++    add_test(NAME nv2a_readback_${case} COMMAND nv2a_readback ${case})
++endforeach()
+diff --git a/tests/nv2a_readback/README.md b/tests/nv2a_readback/README.md
+new file mode 100644
+index 0000000..c4a7b57
+--- /dev/null
++++ b/tests/nv2a_readback/README.md
+@@ -0,0 +1,44 @@
++# Batched GPU readback regression
++
++The renderer ends one D3D11 EVENT query after all staging copies and submits the
++batch with one explicit `Flush`. An unfinished nonblocking poll calls
++`GetData(DONOTFLUSH)` once instead of repeatedly attempting to map every staging
++texture. It maps the real resources only after event completion; a busy Map
++still delays acknowledgement. Query allocation or GetData failures retain the
++existing Map fallback, and blocking staging-slot reuse keeps its original path.
++Pixel conversion, downsampling, format alpha and later CPU-row merge are intact.
++
++Microsoft documents EVENT completion as `S_OK` plus a true BOOL, and
++`DONOTFLUSH` as preventing implicit command-buffer flushes:
++
++- [D3D11_QUERY_EVENT](https://learn.microsoft.com/en-us/windows/win32/api/d3d11/ne-d3d11-d3d11_query)
++- [GetData](https://learn.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11devicecontext-getdata)
++- [D3D11_ASYNC_GETDATA_DONOTFLUSH](https://learn.microsoft.com/en-us/windows/win32/api/d3d11/ne-d3d11-d3d11_async_getdata_flag)
++
++Build after entering the game repository's `scripts/enter-env.ps1`:
++
++```powershell
++cmake -S tools/xboxrecomp/tests/nv2a_readback -B conformance_tmp/stutter-readback-test -G Ninja -DCMAKE_BUILD_TYPE=Release
++cmake --build conformance_tmp/stutter-readback-test
++ctest --test-dir conformance_tmp/stutter-readback-test --output-on-failure
++```
++
++The eleven tests execute actual GPU copies and verify every logical guest pixel
++and pitch-padding byte. Four MSAA cases (1/2/4/8) cover an eight-surface batch,
++16/32-bit formats and late CPU rows. Controlled unfinished query responses prove
++that 64 polls issue exactly 64 GetData calls, zero Maps and no additional Flush;
++then normal GPU completion supplies the expected pixels. Other tests cover
++event allocation retry, GetData failure fallback, busy Map retry after real
++event completion, dropped/resized surfaces at reused addresses, and downsample
++view allocation failure retaining dirty pixels for a successful next-batch retry.
++
++The opt-in `RECOMP_HITCH_TRACE` pending marker reports `poll_count` and
++`max_poll_gap_ms`. Timing begins on the first unfinished poll, after deliberate
++vblank pacing. The maximum gap compares poll start times, so it exposes pauses
++in polling; it does not independently measure GPU execution time. Separate
++`readback_poll`/`readback_blocking` markers still measure slow CPU calls. Trace-off
++regression verifies zero QPC calls during readback.
++
++The optimization removes redundant readiness/driver calls. It does not remove
++GPU copy work or guarantee a pending batch cannot stall. A complete-frame timing
++claim needs a clean gameplay comparison without concurrent tests or builds.
+diff --git a/tests/nv2a_readback/test_main.c b/tests/nv2a_readback/test_main.c
+new file mode 100644
+index 0000000..de5c51f
+--- /dev/null
++++ b/tests/nv2a_readback/test_main.c
+@@ -0,0 +1,310 @@
++/* Real staging copies/pixels with controlled asynchronous API failures. */
++#define COBJMACROS
++#define WIN32_LEAN_AND_MEAN
++#include <windows.h>
++#include <d3d11_1.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <io.h>
++
++static int inspect, hold_query, fail_query, fail_create_query, fail_map, fail_rtv;
++static unsigned maps, queries, creates, flushes, bad_flags, clock_calls;
++
++static HRESULT watched_map(ID3D11DeviceContext *ctx, ID3D11Resource *resource,
++                           UINT sub, D3D11_MAP type, UINT flags, D3D11_MAPPED_SUBRESOURCE *out)
++{
++    if (inspect && type == D3D11_MAP_READ) {
++        maps++;
++        if (flags != D3D11_MAP_FLAG_DO_NOT_WAIT) bad_flags++;
++        if (fail_map) { fail_map--; return DXGI_ERROR_WAS_STILL_DRAWING; }
++    }
++    return ctx->lpVtbl->Map(ctx, resource, sub, type, flags, out);
++}
++
++static HRESULT watched_query(ID3D11DeviceContext *ctx, ID3D11Asynchronous *query,
++                             void *data, UINT size, UINT flags)
++{
++    if (inspect) {
++        queries++;
++        if (flags != D3D11_ASYNC_GETDATA_DONOTFLUSH) bad_flags++;
++        if (hold_query) { if (data && size == sizeof(BOOL)) *(BOOL *)data = FALSE; return S_FALSE; }
++        if (fail_query) { fail_query--; return E_FAIL; }
++    }
++    return ctx->lpVtbl->GetData(ctx, query, data, size, flags);
++}
++
++static HRESULT watched_create_query(ID3D11Device *dev, const D3D11_QUERY_DESC *desc, ID3D11Query **out)
++{
++    if (inspect) {
++        creates++;
++        if (fail_create_query) { fail_create_query--; *out = NULL; return E_OUTOFMEMORY; }
++    }
++    return dev->lpVtbl->CreateQuery(dev, desc, out);
++}
++
++static HRESULT watched_rtv(ID3D11Device *dev, ID3D11Resource *resource,
++                           const D3D11_RENDER_TARGET_VIEW_DESC *desc, ID3D11RenderTargetView **out)
++{
++    if (inspect && fail_rtv) { fail_rtv--; *out = NULL; return E_OUTOFMEMORY; }
++    return dev->lpVtbl->CreateRenderTargetView(dev, resource, desc, out);
++}
++
++static void watched_flush(ID3D11DeviceContext *ctx)
++{
++    if (inspect) flushes++;
++    ctx->lpVtbl->Flush(ctx);
++}
++
++static BOOL WINAPI watched_clock(LARGE_INTEGER *time)
++{
++    if (inspect) clock_calls++;
++    return QueryPerformanceCounter(time);
++}
++
++#undef ID3D11DeviceContext_Map
++#define ID3D11DeviceContext_Map watched_map
++#undef ID3D11DeviceContext_GetData
++#define ID3D11DeviceContext_GetData watched_query
++#undef ID3D11Device_CreateQuery
++#define ID3D11Device_CreateQuery watched_create_query
++#undef ID3D11Device_CreateRenderTargetView
++#define ID3D11Device_CreateRenderTargetView watched_rtv
++#undef ID3D11DeviceContext_Flush
++#define ID3D11DeviceContext_Flush watched_flush
++#define QueryPerformanceCounter watched_clock
++#include "../../src/video/nv2a_d3d11.c"
++#undef QueryPerformanceCounter
++
++static uint8_t *ram;
++ptrdiff_t xbox_GetMemoryOffset(void) { return (ptrdiff_t)ram; }
++HWND xbox_FramebufferWindowHandle(void) { return NULL; }
++int xbox_FramebufferScanSource(uint32_t *va, uint32_t *pitch) { return 0; }
++int xbox_FramebufferOverlay(XboxOverlay *ovl) { return 0; }
++void xbox_FramebufferNoteFlip(uint32_t draws) {}
++const uint32_t (*nv2a_vsh_program(uint32_t *start, uint32_t *version))[4] { return NULL; }
++const float (*nv2a_vsh_constants(uint32_t *version))[4] { return NULL; }
++
++#define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #x); return 1; } } while (0)
++
++static void reset_counts(void)
++{
++    maps = queries = creates = flushes = bad_flags = clock_calls = 0;
++}
++
++static Surface *new_surface(unsigned i, unsigned bpp, unsigned w, unsigned h, unsigned padding)
++{
++    uint32_t va = 0x10000 + i * 0x4000, pitch = w * bpp + padding;
++    memset(ram + va, 0x55, (size_t)pitch * h);
++    return surface_get(va, pitch, bpp == 2 ? 3 : 8, w, h, 0);
++}
++
++static void draw_color(Surface *s, int green)
++{
++    float color[4] = {green ? 0.0f : 1.0f, green ? 1.0f : 0.0f, 0, 1};
++    ID3D11DeviceContext_ClearRenderTargetView(s_ctx, s->rtv, color);
++    s->ms_dirty = 1; s->gpu_dirty = 1;
++}
++
++static int complete(void)
++{
++    ULONGLONG deadline = GetTickCount64() + 5000;
++    while (nv2a_d3d_writeback_busy()) { CHECK(GetTickCount64() < deadline); Sleep(0); }
++    CHECK(!s_wb_mask && !s_wb_pending && !s_wb_event_pending);
++    return 0;
++}
++
++static int pixels_match(Surface *s, int green, int later_row)
++{
++    unsigned x, y;
++    for (y = 0; y < s->h; y++) {
++        const uint8_t *row = ram + s->va + (size_t)y * s->pitch;
++        for (x = 0; x < s->w; x++) {
++            if (s->bpp == 4) {
++                uint32_t value, expected = later_row && y == 0 ? 0xFF0000FFu : green ? 0xFF00FF00u : 0xFFFF0000u;
++                memcpy(&value, row + x * 4, 4); CHECK(value == expected);
++            } else {
++                uint16_t value, expected = later_row && y == 0 ? 0x001Fu : green ? 0x07E0u : 0xF800u;
++                memcpy(&value, row + x * 2, 2); CHECK(value == expected);
++            }
++        }
++        for (x = s->w * s->bpp; x < s->pitch; x++) CHECK(row[x] == 0x55);
++    }
++    return 0;
++}
++
++static void late_blue_row(Surface *s)
++{
++    unsigned x;
++    uint8_t *row = ram + s->va;
++    for (x = 0; x < s->w; x++) {
++        if (s->bpp == 4) { uint32_t blue = 0xFF0000FFu; memcpy(row + x * 4, &blue, 4); }
++        else { uint16_t blue = 0x001Fu; memcpy(row + x * 2, &blue, 2); }
++    }
++}
++
++static int test_batch(void)
++{
++    Surface *surfaces[8];
++    unsigned i;
++    for (i = 0; i < 8; i++) {
++        surfaces[i] = new_surface(i, i & 1 ? 2 : 4, i & 2 ? 32 : 16, i & 4 ? 16 : 8, 16);
++        CHECK(surfaces[i]); draw_color(surfaces[i], i & 1);
++    }
++    reset_counts(); inspect = 1;
++    writeback_surfaces(); CHECK(s_wb_event && s_wb_event_pending && flushes == 1);
++    CHECK(s_wb_mask == 0xFF);
++    hold_query = 1;
++    for (i = 0; i < 64; i++) CHECK(nv2a_d3d_writeback_busy());
++    CHECK(queries == 64 && maps == 0 && flushes == 1 && !bad_flags);
++    for (i = 0; i < 8; i++) late_blue_row(surfaces[i]);
++    hold_query = 0; CHECK(!complete());
++    CHECK(maps == 8 && !bad_flags && flushes == 1);
++    for (i = 0; i < 8; i++) CHECK(!pixels_match(surfaces[i], i & 1, 1));
++    puts("PASS: eight real GPU copies, one query per unfinished poll and zero Maps, exact16/32-bit pixels/padding/late-row merge");
++    return 0;
++}
++
++static int test_query_create_retry(void)
++{
++    Surface *s = new_surface(0, 4, 16, 16, 16); CHECK(s);
++    draw_color(s, 0); reset_counts(); inspect = 1; fail_create_query = 1;
++    writeback_surfaces(); CHECK(creates == 1 && !s_wb_event && !s_wb_event_pending);
++    CHECK(!complete()); CHECK(maps && !queries && flushes == 1 && !bad_flags);
++    CHECK(!pixels_match(s, 0, 0));
++    draw_color(s, 1); reset_counts();
++    writeback_surfaces(); CHECK(creates == 1 && s_wb_event_pending);
++    CHECK(!complete()); CHECK(queries && maps == 1 && flushes == 1);
++    CHECK(!pixels_match(s, 1, 0));
++    puts("PASS: failed event allocation uses real Map completion, then retries query allocation on the next batch");
++    return 0;
++}
++
++static int test_query_failure(void)
++{
++    Surface *s = new_surface(0, 4, 32, 16, 0); CHECK(s);
++    draw_color(s, 0); inspect = 1; reset_counts(); writeback_surfaces();
++    fail_query = 1; CHECK(!complete());
++    CHECK(queries == 1 && maps && flushes == 1 && !bad_flags);
++    CHECK(!pixels_match(s, 0, 0));
++    draw_color(s, 1); reset_counts(); writeback_surfaces();
++    CHECK(!complete()); CHECK(queries && maps == 1); CHECK(!pixels_match(s, 1, 0));
++    puts("PASS: event GetData failure falls back to real Map and leaves future event batches usable");
++    return 0;
++}
++
++static int test_map_retry(void)
++{
++    Surface *s = new_surface(0, 4, 16, 16, 16); CHECK(s);
++    draw_color(s, 0); inspect = 1; reset_counts(); writeback_surfaces();
++    /* Wait for the actual event, then force the staging Map to remain busy. */
++    {
++        BOOL done = FALSE;
++        ULONGLONG deadline = GetTickCount64() + 5000;
++        while (s_ctx->lpVtbl->GetData(s_ctx, (ID3D11Asynchronous *)s_wb_event, &done, sizeof done,
++                                     D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK || !done) {
++            CHECK(GetTickCount64() < deadline); Sleep(0);
++        }
++    }
++    fail_map = 1;
++    CHECK(nv2a_d3d_writeback_busy());
++    CHECK(s_wb_pending && s_wb_mask == 1 && s_wb[0].pending && !s_wb_event_pending);
++    late_blue_row(s);
++    CHECK(!complete()); CHECK(maps == 2 && !bad_flags && flushes == 1);
++    CHECK(!pixels_match(s, 0, 1));
++    puts("PASS: event readiness cannot fabricate Map completion; busy Map retries and preserves later CPU pixels");
++    return 0;
++}
++
++static int test_drop_resize(void)
++{
++    Surface *s[2], *grown;
++    unsigned i, j;
++    for (i = 0; i < 2; i++) { s[i] = new_surface(i, 4, 16, 16, 0); CHECK(s[i]); draw_color(s[i], 0); }
++    inspect = 1; reset_counts(); writeback_surfaces(); hold_query = 1;
++    CHECK(nv2a_d3d_writeback_busy());
++    surface_release(s[0]); CHECK(s_wb_mask == 2 && s_wb_pending);
++    CHECK(nv2a_d3d_writeback_busy());
++    surface_release(s[1]); CHECK(!s_wb_mask && !s_wb_pending && !s_wb_event_pending);
++    CHECK(!nv2a_d3d_writeback_busy()); CHECK(!maps);
++    hold_query = 0;
++    s[0] = new_surface(0, 4, 16, 16, 0); CHECK(s[0]); draw_color(s[0], 0);
++    writeback_surfaces(); CHECK(s_wb_pending);
++    /* Same address/pitch grows height: release cancels the old slot's pixels. */
++    for (j = 0; j < 16 * 32; j++) ((uint32_t *)(ram + s[0]->va))[j] = 0xFF0000FFu;
++    grown = surface_get(s[0]->va, 64, 8, 16, 32, 0); CHECK(grown == s[0]);
++    CHECK(!nv2a_d3d_writeback_busy());
++    for (j = 0; j < 16 * 32; j++) CHECK(((uint32_t *)(ram + grown->va))[j] == 0xFF0000FFu);
++    draw_color(grown, 1); writeback_surfaces();
++    CHECK(s_wb[grown - s_surf].h == 32 && s_wb_pending);
++    CHECK(!complete()); CHECK(!pixels_match(grown, 1, 0));
++    puts("PASS: dropping all copied resources cancels query wait; resized address never inherits old pixels and reuses a resized staging slot");
++    return 0;
++}
++
++static int test_down_rtv_retry(void)
++{
++    Surface *s;
++    ID3D11Texture2D *retained;
++    s_scale = 2;
++    s = new_surface(0, 4, 16, 16, 0); CHECK(s && s->iw == 32 && s->ih == 32);
++    draw_color(s, 0); inspect = 1; reset_counts(); fail_rtv = 1;
++    writeback_surfaces();
++    CHECK(!fail_rtv && s->gpu_dirty && !s_wb_pending && !flushes);
++    CHECK(s_wb[0].down && !s_wb[0].down_rtv);
++    retained = s_wb[0].down;
++    writeback_surfaces();
++    CHECK(!s->gpu_dirty && s_wb_pending && s_wb[0].down == retained && s_wb[0].down_rtv);
++    CHECK(!complete()); CHECK(flushes == 1 && !pixels_match(s, 0, 0));
++    puts("PASS: failed downsample view retains dirty pixels and texture; next batch retries view and reads exact GPU pixels");
++    return 0;
++}
++
++static int test_trace(int enabled)
++{
++    Surface *s = new_surface(0, 4, 16, 16, 0);
++    FILE *log = tmpfile();
++    int saved;
++    char text[4096] = {0}, *marker;
++    unsigned long long polls;
++    double gap;
++    CHECK(s && log);
++    saved = _dup(_fileno(stderr)); CHECK(saved >= 0);
++    CHECK(_dup2(_fileno(log), _fileno(stderr)) == 0);
++    draw_color(s, 0); inspect = 1; reset_counts(); writeback_surfaces();
++    hold_query = 1; CHECK(nv2a_d3d_writeback_busy());
++    Sleep(12); CHECK(nv2a_d3d_writeback_busy());
++    hold_query = 0; CHECK(!complete());
++    fflush(stderr); CHECK(_dup2(saved, _fileno(stderr)) == 0); _close(saved);
++    rewind(log); fread(text, 1, sizeof text - 1, log); fclose(log);
++    marker = strstr(text, "phase=readback_pending");
++    if (enabled) {
++        CHECK(marker && strstr(marker, "poll_count=") && strstr(marker, "max_poll_gap_ms="));
++        CHECK(sscanf(strstr(marker, "poll_count="), "poll_count=%llu max_poll_gap_ms=%lf", &polls, &gap) == 2);
++        CHECK(polls >= 3 && gap >= 8 && clock_calls);
++    } else CHECK(!marker && !clock_calls && !s_wb_hitch_polls && !s_wb_hitch_pending);
++    printf("PASS: trace_%s reports actual poll count/gap only when enabled; trace-off performs zero QPC calls\n", enabled ? "on" : "off");
++    return 0;
++}
++
++int main(int argc, char **argv)
++{
++    CHECK(argc >= 2);
++    ram = calloc(1, 0x100000); CHECK(ram);
++    _putenv_s("RECOMP_MSAA", argc > 2 ? argv[2] : "1");
++    _putenv_s("RECOMP_RENDER_SCALE", "1");
++    _putenv_s("RECOMP_D3D_PROFILE", "");
++    _putenv_s("RECOMP_PS_SPEC", "0");
++    _putenv_s("RECOMP_FPS_LIMIT", "0");
++    _putenv_s("RECOMP_HITCH_TRACE", !strcmp(argv[1], "trace_on") ? "1" : "0");
++    CHECK(nv2a_d3d_init());
++    if (!strcmp(argv[1], "batch")) return test_batch();
++    if (!strcmp(argv[1], "query_create_retry")) return test_query_create_retry();
++    if (!strcmp(argv[1], "query_failure")) return test_query_failure();
++    if (!strcmp(argv[1], "map_retry")) return test_map_retry();
++    if (!strcmp(argv[1], "drop_resize")) return test_drop_resize();
++    if (!strcmp(argv[1], "down_rtv_retry")) return test_down_rtv_retry();
++    if (!strcmp(argv[1], "trace_off") || !strcmp(argv[1], "trace_on")) return test_trace(!strcmp(argv[1], "trace_on"));
++    CHECK(0);
 +}
 diff --git a/tests/nv2a_shader_cache/CMakeLists.txt b/tests/nv2a_shader_cache/CMakeLists.txt
 new file mode 100644
