@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <xmmintrin.h>
+#include <emmintrin.h>
+#include <string.h>
 #include <windows.h>
 
 #include "recomp_types.h"
@@ -26,6 +28,23 @@ void recomp_unimpl(const char *text, uint32_t va)
     static volatile LONG printed;
     int stop = g_mm3_unimpl_trap;
 
+    if (!stop) {
+        /* These exact sites operate Xbox hardware which the native backends
+         * already replace. Interrupt masking around the APU clock sample
+         * cannot mask Windows interrupts; host port 0x80C0 is not Xbox PCI.
+         * Keep unknown instructions visible and retain the diagnostic trap. */
+        if ((va == 0x0035F882u && strcmp(text, "cli") == 0) ||
+            (va == 0x0035F893u && strcmp(text, "sti") == 0) ||
+            (va == 0x003475DCu && strcmp(text, "out dx, al") == 0 &&
+             (g_edx & 0xFFFFu) == 0x80C0u))
+            return;
+        if (va == 0x00345E9Du && strcmp(text, "wbinvd") == 0) {
+            /* Guest memory is coherent host RAM. Publish earlier writes to
+             * the native GPU consumer without flushing host CPU caches. */
+            _mm_mfence();
+            return;
+        }
+    }
     if (stop || (printed < 50 && InterlockedIncrement(&printed) <= 50)) {
         fprintf(stderr,
                 "[UNIMPL] untranslated instruction REACHED: `%s` at 0x%08X"
@@ -937,7 +956,15 @@ void sub_00012850(void)
 
 void recomp_icall_fail_log(uint32_t xbox_va)
 {
+    static volatile LONG printed;
     uint32_t caller = 0;
+    /* A broken guest callback can recur in a polling loop. Keep the first
+     * failures useful without turning a fault into unbounded synchronous I/O.
+     * Dispatch and fallback behavior are unchanged. Explicit callback tracing
+     * retains all failures for diagnosis, matching the non-code logger. */
+    if (!g_mm3_frontend_icall_trace &&
+        (printed >= 50 || InterlockedIncrement(&printed) > 50))
+        return;
     if (g_esp >= 0x00010000u && g_esp < 0x04000000u)
         caller = *(const uint32_t *)((uintptr_t)g_esp + g_xbox_mem_offset);
     fprintf(stderr, "[ICALL] Failed resolve VA 0x%08X caller=0x%08X\n",

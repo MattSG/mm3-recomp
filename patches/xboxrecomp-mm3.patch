@@ -911,10 +911,78 @@ index 1133eb5..5cf0465 100644
  
      *FileHandle = w32_open_handle(fd, host_path);
 diff --git a/src/kernel/kernel_path.c b/src/kernel/kernel_path.c
-index caf6390..8d0c050 100644
+index caf6390..adf08cb 100644
 --- a/src/kernel/kernel_path.c
 +++ b/src/kernel/kernel_path.c
-@@ -414,8 +414,7 @@ BOOL xbox_translate_path(const char* xbox_path, xbox_host_char* host_path_buf, D
+@@ -7,6 +7,8 @@
+  *   T:\               -> <save_dir>/TitleData/
+  *   U:\               -> <save_dir>/UserData/
+  *   Z:\               -> <save_dir>/Cache/
++ *   Partition1\UDATA/TDATA -> explicit <save_dir>/UDATA/TDATA, otherwise
++ *                              <game_dir>/UDATA/TDATA
+  *
+  * The Win32 build emits UTF-16 paths (for CreateFileW); the Linux build
+  * emits UTF-8 paths with '/' separators (for open()).
+@@ -85,6 +87,27 @@ static const path_rule s_rules[] = {
+ };
+ #define PATH_RULE_COUNT ((int)(sizeof(s_rules) / sizeof(s_rules[0])))
+ 
++static int s_explicit_save_root;
++
++/* XAPI mounts U: and T: below Partition1\UDATA/TDATA. Resolving those
++ * symbolic links used to bypass an explicitly supplied save directory and
++ * send profile writes back to game_dir. Keep that legacy location when no
++ * save root is supplied, while isolating only these two save components when
++ * one is supplied; Partition1 assets and unrelated similarly named folders
++ * still belong to game_dir. */
++static int rule_uses_save_root(const path_rule *rule, const char *path)
++{
++    int skip;
++    if (rule->to_save) return 1;
++    if (!s_explicit_save_root) return 0;
++    skip = match_prefix(path, "\\Device\\Harddisk0\\Partition1\\");
++    if (!skip) return 0;
++    path += skip;
++    skip = match_prefix(path, "UDATA");
++    if (!skip) skip = match_prefix(path, "TDATA");
++    return skip && (!path[skip] || path[skip] == '\\' || path[skip] == '/');
++}
++
+ /*
+  * Rewrite a path through a drive letter the title mapped for itself.
+  *
+@@ -273,6 +296,7 @@ static BOOL xbox_partition_device_path(const char *xbox_path, WCHAR *out, DWORD
+ void xbox_path_init(const char* game_dir, const char* save_dir)
+ {
+     WCHAR save_base[MAX_PATH];
++    s_explicit_save_root = save_dir && save_dir[0];
+ 
+     /* The fallbacks used to name Burnout 3 specifically, so any other title
+      * that passed NULL silently pointed its game dir and its saves at another
+@@ -286,7 +310,7 @@ void xbox_path_init(const char* game_dir, const char* save_dir)
+         GetCurrentDirectoryW(MAX_PATH, s_game_dir);
+     }
+ 
+-    if (save_dir) {
++    if (s_explicit_save_root) {
+         MultiByteToWideChar(CP_UTF8, 0, save_dir, -1, s_save_dir, MAX_PATH);
+     } else {
+         if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, save_base))) {
+@@ -329,11 +353,12 @@ void xbox_path_init(const char* game_dir, const char* save_dir)
+      * happy if they already exist. */
+     {
+         static const WCHAR *subs[] = { L"TitleData", L"UserData", L"Cache",
+-                                       L"SystemData" };
++                                       L"SystemData", L"UDATA", L"TDATA" };
+         WCHAR image[MAX_PATH];
+         WCHAR dir[MAX_PATH];
+         SHCreateDirectoryExW(NULL, s_save_dir, NULL);
+         for (int i = 0; i < (int)(sizeof(subs) / sizeof(subs[0])); i++) {
++            if (i >= 4 && !s_explicit_save_root) continue;
+             swprintf_s(dir, MAX_PATH, L"%s\\%s", s_save_dir, subs[i]);
+             SHCreateDirectoryExW(NULL, dir, NULL);
+         }
+@@ -414,8 +439,7 @@ BOOL xbox_translate_path(const char* xbox_path, xbox_host_char* host_path_buf, D
      }
  
      if (xbox_partition_device_path(xbox_path, host_path_buf, buf_size)) {
@@ -924,7 +992,16 @@ index caf6390..8d0c050 100644
          return TRUE;
      }
  
-@@ -436,8 +435,6 @@ BOOL xbox_translate_path(const char* xbox_path, xbox_host_char* host_path_buf, D
+@@ -423,7 +447,7 @@ BOOL xbox_translate_path(const char* xbox_path, xbox_host_char* host_path_buf, D
+         skip = match_prefix(xbox_path, s_rules[i].prefix);
+         if (skip) {
+             remainder = xbox_path + skip;
+-            base_dir  = s_rules[i].to_save ? s_save_dir : s_game_dir;
++            base_dir  = rule_uses_save_root(&s_rules[i], xbox_path) ? s_save_dir : s_game_dir;
+             sub_dir   = s_rules[i].sub_win;
+             goto translate;
+         }
+@@ -436,8 +460,6 @@ BOOL xbox_translate_path(const char* xbox_path, xbox_host_char* host_path_buf, D
  translate:
      if (g_xbox_path_hook)
          g_xbox_path_hook(xbox_path);
@@ -933,6 +1010,46 @@ index caf6390..8d0c050 100644
      {
          WCHAR remainder_wide[MAX_PATH];
          MultiByteToWideChar(CP_ACP, 0, remainder, -1, remainder_wide, MAX_PATH);
+@@ -521,6 +543,7 @@ static void mkdir_p(const char* path)
+ 
+ void xbox_path_init(const char* game_dir, const char* save_dir)
+ {
++    s_explicit_save_root = save_dir && save_dir[0];
+     if (game_dir) {
+         snprintf(s_game_dir, sizeof(s_game_dir), "%s", game_dir);
+     } else {
+@@ -531,7 +554,7 @@ void xbox_path_init(const char* game_dir, const char* save_dir)
+         snprintf(s_game_dir, sizeof(s_game_dir), "%s/game", cwd);
+     }
+ 
+-    if (save_dir) {
++    if (s_explicit_save_root) {
+         snprintf(s_save_dir, sizeof(s_save_dir), "%s", save_dir);
+     } else {
+         /* XDG base-directory spec: $XDG_DATA_HOME or ~/.local/share */
+@@ -547,6 +570,13 @@ void xbox_path_init(const char* game_dir, const char* save_dir)
+ 
+     strip_trailing_slash(s_game_dir);
+     strip_trailing_slash(s_save_dir);
++    if (s_explicit_save_root) {
++        char dir[MAX_PATH];
++        snprintf(dir, sizeof(dir), "%s/UDATA", s_save_dir);
++        mkdir_p(dir);
++        snprintf(dir, sizeof(dir), "%s/TDATA", s_save_dir);
++        mkdir_p(dir);
++    }
+ 
+     s_initialized = TRUE;
+     xbox_log(XBOX_LOG_INFO, XBOX_LOG_PATH, "Path init: game=%s, save=%s",
+@@ -576,7 +606,7 @@ BOOL xbox_translate_path(const char* xbox_path, xbox_host_char* host_path_buf, D
+         skip = match_prefix(xbox_path, s_rules[i].prefix);
+         if (skip) {
+             remainder = xbox_path + skip;
+-            base_dir  = s_rules[i].to_save ? s_save_dir : s_game_dir;
++            base_dir  = rule_uses_save_root(&s_rules[i], xbox_path) ? s_save_dir : s_game_dir;
+             sub_dir   = s_rules[i].sub_posix;
+             goto translate;
+         }
 diff --git a/src/kernel/kernel_rtl.c b/src/kernel/kernel_rtl.c
 index 9760735..f9ec82c 100644
 --- a/src/kernel/kernel_rtl.c
@@ -1744,7 +1861,7 @@ index b9de8d0..ac83ecc 100644
 +    return completed;
  }
 diff --git a/src/kernel/xbox_memory_layout.c b/src/kernel/xbox_memory_layout.c
-index a2e99fb..fbca9f7 100644
+index a2e99fb..b9aab82 100644
 --- a/src/kernel/xbox_memory_layout.c
 +++ b/src/kernel/xbox_memory_layout.c
 @@ -15,6 +15,7 @@
@@ -2318,7 +2435,17 @@ index a2e99fb..fbca9f7 100644
      g_nv2a_ack_stop = 0;
      g_nv2a_ack_thread = CreateThread(NULL, 0, nv2a_ack_thread,
                                       g_nv2a_memory, 0, NULL);
-@@ -2494,13 +2807,22 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
+@@ -2193,7 +2506,8 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
+ 
+             fprintf(stderr, "  [%2u] %-12s VA=0x%08X vsize=%-8u raw=0x%08X rsize=%-8u%s\n",
+                     si, sec_name, sec_va, sec_vsize, sec_raw_off, sec_raw_size,
+-                    (sec_raw_size < sec_vsize) ? " (BSS)" : "");
++                    sec_raw_size == 0 ? " (zero-filled)" :
++                    (sec_raw_size < sec_vsize) ? " (zero-filled tail)" : "");
+         }
+ 
+         fprintf(stderr, "  Loaded %d/%u sections (%zu bytes total)\n",
+@@ -2494,13 +2808,22 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
              MEM_RESERVE | MEM_COMMIT,
              PAGE_READWRITE
          );
@@ -2346,7 +2473,7 @@ index a2e99fb..fbca9f7 100644
          if (g_nv2a_memory) {
              DWORD old_protect;
              if (VirtualProtect((char *)g_nv2a_memory + 0x8000, 0x1000,
-@@ -2935,6 +3257,7 @@ void xbox_MemoryLayoutShutdown(void)
+@@ -2935,6 +3258,7 @@ void xbox_MemoryLayoutShutdown(void)
      g_kernel_memory_owned = 0;
      if (g_nv2a_ack_thread) {
          InterlockedExchange(&g_nv2a_ack_stop, 1);
@@ -2354,7 +2481,7 @@ index a2e99fb..fbca9f7 100644
          WaitForSingleObject(g_nv2a_ack_thread, 1000);
          CloseHandle(g_nv2a_ack_thread);
          g_nv2a_ack_thread = NULL;
-@@ -3453,14 +3776,22 @@ int xbox_HeapReclaimEnabled(void)
+@@ -3453,14 +3777,22 @@ int xbox_HeapReclaimEnabled(void)
      return enabled;
  }
  
@@ -2381,7 +2508,7 @@ index a2e99fb..fbca9f7 100644
      /* The table is split and coalesced in place; read it under the lock. */
      EnterCriticalSection(&g_allocator_lock);
      hi = g_contig_alloc_count;
-@@ -3479,7 +3810,6 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
+@@ -3479,7 +3811,6 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
       * the code bytes as colour static. A range may run on through adjacent
       * spans. */
      if (lo) {
@@ -2389,7 +2516,7 @@ index a2e99fb..fbca9f7 100644
          i = lo - 1;
          covered = (uint64_t)g_contig_allocs[i].offset + g_contig_allocs[i].size;
          while (covered < end && i + 1 < g_contig_alloc_count &&
-@@ -3488,11 +3818,45 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
+@@ -3488,11 +3819,45 @@ int xbox_ContiguousRangeAllocated(uint32_t physical_offset, uint32_t size)
              covered += g_contig_allocs[i].size;
          }
          result = physical_offset >= g_contig_allocs[lo - 1].offset && end <= covered;
@@ -2536,7 +2663,7 @@ index bd00f3f..575b5f3 100644
              }
          }
 diff --git a/src/video/nv2a_d3d11.c b/src/video/nv2a_d3d11.c
-index b9f3fa2..fecd06d 100644
+index b9f3fa2..c312e57 100644
 --- a/src/video/nv2a_d3d11.c
 +++ b/src/video/nv2a_d3d11.c
 @@ -29,6 +29,8 @@
@@ -2615,7 +2742,7 @@ index b9f3fa2..fecd06d 100644
  void nv2a_d3d_prof_add(int slot, int64_t ticks, uint32_t verts)
  {
      s_prof[slot] += ticks;
-@@ -123,11 +178,13 @@ static void prof_report(void)
+@@ -123,40 +178,75 @@ static void prof_report(void)
      for (i = 0; i < PROF_COUNT; i++)
          fprintf(stderr, " %s %.2f", s_prof_name[i],
                  s_prof[i] * 1000.0 / (double)freq.QuadPart / (double)frames);
@@ -2631,7 +2758,87 @@ index b9f3fa2..fecd06d 100644
      frames = 0;
      worst = 0;
      last = now;
-@@ -319,6 +376,45 @@ static ID3D11BlendState *s_blend_opaque;
+ }
+-/* RECOMP_FRAME_CSV=<path>: one row per flip -- QPC time, flip-to-flip
+- * interval and the part of it spent pacing -- for frame-time percentiles. */
++/* RECOMP_FRAME_CSV=<path>: one row per flip. The original columns measure
++ * guest flip completion; the appended columns measure successful host
++ * Present returns for those guest flips. Movie-only tick presentations do
++ * not contribute timestamps. These are submission, not displayed-frame,
++ * timestamps. Keep the additional clock read opt-in with the CSV itself. */
++static FILE *s_frame_csv_file;
++static int s_frame_csv_tried;
++static LARGE_INTEGER s_frame_csv_freq;
++static int64_t s_frame_csv_present, s_frame_csv_present_prev;
++static int64_t s_frame_csv_present_interval;
++
++static void frame_csv_init(void)
++{
++    if (!s_frame_csv_tried) {
++        const char *e = getenv("RECOMP_FRAME_CSV");
++        s_frame_csv_tried = 1;
++        if (e && (s_frame_csv_file = fopen(e, "w")) != NULL) {
++            setvbuf(s_frame_csv_file, NULL, _IOFBF, 1 << 16);
++            fprintf(s_frame_csv_file,
++                    "qpc_ms,frame_ms,pace_ms,present_qpc_ms,present_ms\n");
++            QueryPerformanceFrequency(&s_frame_csv_freq);
++        }
++    }
++}
++
++static void frame_csv_present(int64_t now, HRESULT hr)
++{
++    if (!SUCCEEDED(hr)) return;
++    s_frame_csv_present_interval = s_frame_csv_present_prev
++        ? now - s_frame_csv_present_prev : 0;
++    s_frame_csv_present_prev = s_frame_csv_present = now;
++}
++
+ static void frame_csv(int64_t pace)
+ {
+-    static FILE *f;
+-    static int tried;
+     static int64_t prev;
+     static unsigned rows;
+-    static LARGE_INTEGER freq;
+-    int64_t now = qpc();
+-    if (!tried) {
+-        const char *e = getenv("RECOMP_FRAME_CSV");
+-        tried = 1;
+-        if (e && (f = fopen(e, "w")) != NULL) {
+-            setvbuf(f, NULL, _IOFBF, 1 << 16);
+-            fprintf(f, "qpc_ms,frame_ms,pace_ms\n");
++    int64_t now;
++    double ms;
++    frame_csv_init();
++    if (!s_frame_csv_file) return;
++    now = qpc();
++    ms = 1000.0 / s_frame_csv_freq.QuadPart;
++    if (prev) {
++        fprintf(s_frame_csv_file, "%.3f,%.4f,%.4f,", now * ms,
++                (now - prev) * ms, pace * ms);
++        if (s_frame_csv_present) {
++            fprintf(s_frame_csv_file, "%.3f,", s_frame_csv_present * ms);
++            if (s_frame_csv_present_interval)
++                fprintf(s_frame_csv_file, "%.4f", s_frame_csv_present_interval * ms);
++        } else {
++            fputc(',', s_frame_csv_file);
+         }
+-        QueryPerformanceFrequency(&freq);
++        fputc('\n', s_frame_csv_file);
+     }
+-    if (!f) return;
+-    if (prev)
+-        fprintf(f, "%.3f,%.4f,%.4f\n", now * 1000.0 / freq.QuadPart,
+-                (now - prev) * 1000.0 / freq.QuadPart, pace * 1000.0 / freq.QuadPart);
+-    if (++rows % 120 == 0) fflush(f);   /* harnesses kill the process */
++    if (++rows % 120 == 0) fflush(s_frame_csv_file); /* harnesses kill the process */
+     prev = now;
++    s_frame_csv_present = 0;
+ }
+ 
+ static uint32_t             s_frame = 1;
+@@ -319,6 +409,45 @@ static ID3D11BlendState *s_blend_opaque;
  static ID3D11RasterizerState *s_rs_plain;
  static ID3D11DepthStencilState *s_ds_off;
  
@@ -2677,7 +2884,7 @@ index b9f3fa2..fecd06d 100644
  static void fail(const char *what, HRESULT hr)
  {
      fprintf(stderr, "[D3D11] %s failed: 0x%08lX\n", what, (unsigned long)hr);
-@@ -346,24 +442,7 @@ static uint32_t phys(uint32_t va)
+@@ -346,24 +475,7 @@ static uint32_t phys(uint32_t va)
      return va >= CONTIG_BASE ? va - CONTIG_BASE : va;
  }
  
@@ -2703,7 +2910,7 @@ index b9f3fa2..fecd06d 100644
  
  /* ---------------------------------------------------------------- shaders */
  
-@@ -868,12 +947,13 @@ typedef struct {
+@@ -868,12 +980,13 @@ typedef struct {
  
  static void display_config(int now);
  
@@ -2720,7 +2927,7 @@ index b9f3fa2..fecd06d 100644
      if (FAILED(hr)) {
          fprintf(stderr, "[D3D11] shader %s: %s\n", entry,
                  err ? (const char *)ID3D10Blob_GetBufferPointer(err) : "?");
-@@ -883,6 +963,11 @@ static ID3DBlob *compile_def(const char *entry, const char *target, const D3D_SH
+@@ -883,6 +996,11 @@ static ID3DBlob *compile_def(const char *entry, const char *target, const D3D_SH
      return SUCCEEDED(hr) ? code : NULL;
  }
  
@@ -2732,7 +2939,7 @@ index b9f3fa2..fecd06d 100644
  static ID3DBlob *compile(const char *entry, const char *target)
  {
      return compile_def(entry, target, NULL);
-@@ -903,10 +988,14 @@ typedef struct {
+@@ -903,10 +1021,14 @@ typedef struct {
      uint32_t tex_info[4][3];
  } PsKey;
  
@@ -2748,7 +2955,7 @@ index b9f3fa2..fecd06d 100644
  } PsSpec;
  
  #define PS_SPEC_SLOTS 4096          /* power of two */
-@@ -914,9 +1003,162 @@ typedef struct {
+@@ -914,9 +1036,162 @@ typedef struct {
  static PsSpec *s_spec;
  static PsSpec *s_spec_q[PS_SPEC_QUEUE];
  static unsigned s_spec_head, s_spec_tail;  /* guarded by s_spec_cs */
@@ -2911,7 +3118,7 @@ index b9f3fa2..fecd06d 100644
  
  static DWORD WINAPI spec_worker(LPVOID arg)
  {
-@@ -926,12 +1168,19 @@ static DWORD WINAPI spec_worker(LPVOID arg)
+@@ -926,12 +1201,19 @@ static DWORD WINAPI spec_worker(LPVOID arg)
          const PsKey *k;
          char decl[2048];
          ID3DBlob *b;
@@ -2935,7 +3142,7 @@ index b9f3fa2..fecd06d 100644
          LeaveCriticalSection(&s_spec_cs);
          k = &e->key;
          snprintf(decl, sizeof decl,
-@@ -965,45 +1214,87 @@ static DWORD WINAPI spec_worker(LPVOID arg)
+@@ -965,45 +1247,87 @@ static DWORD WINAPI spec_worker(LPVOID arg)
          m[1].Name = "SPEC_DECL"; m[1].Definition = decl;
          m[2].Name = flat ? "FLATQ" : NULL; m[2].Definition = flat ? "nointerpolation" : NULL;
          m[3].Name = NULL; m[3].Definition = NULL;
@@ -3014,8 +3221,9 @@ index b9f3fa2..fecd06d 100644
 +                spec_remember(&k);
              }
 +            s_spec_saved = s_spec_dirty; /* Imported keys are already persistent. */
-+        }
-+    }
+         }
+     }
+-    if (!enabled) return NULL;
 +    /* Imports finish before threads or draw lookups can see the table. */
 +    for (i = 0; i < 2; i++) {
 +        HANDLE t = CreateThread(NULL, 0, spec_worker, NULL, CREATE_SUSPENDED, NULL);
@@ -3024,9 +3232,8 @@ index b9f3fa2..fecd06d 100644
 +            if (ResumeThread(t) != (DWORD)-1) workers++;
 +            else TerminateThread(t, 0); /* It has never executed user code. */
 +            CloseHandle(t);
-         }
-     }
--    if (!enabled) return NULL;
++        }
++    }
 +    if (!workers) {
 +        s_spec_enabled = 0;
 +        free(s_spec); s_spec = NULL;
@@ -3046,7 +3253,7 @@ index b9f3fa2..fecd06d 100644
      memset(&k, 0, sizeof k);
      memcpy(k.c_icw, pc->c_icw, sizeof k.c_icw);
      memcpy(k.a_icw, pc->a_icw, sizeof k.a_icw);
-@@ -1017,23 +1308,7 @@ static ID3D11PixelShader *spec_ps(const PSConsts *pc, uint32_t variant)
+@@ -1017,23 +1341,7 @@ static ID3D11PixelShader *spec_ps(const PSConsts *pc, uint32_t variant)
          k.tex_info[i][0] = pc->tex_info[i][0]; k.tex_info[i][1] = pc->tex_info[i][1];
          k.tex_info[i][2] = pc->tex_info[i][2];
      }
@@ -3071,7 +3278,7 @@ index b9f3fa2..fecd06d 100644
  }
  
  static ID3D11Buffer *make_buffer(UINT bytes, UINT bind)
-@@ -1050,13 +1325,34 @@ static ID3D11Buffer *make_buffer(UINT bytes, UINT bind)
+@@ -1050,13 +1358,34 @@ static ID3D11Buffer *make_buffer(UINT bytes, UINT bind)
      return b;
  }
  
@@ -3107,7 +3314,7 @@ index b9f3fa2..fecd06d 100644
      }
  }
  
-@@ -1217,6 +1513,8 @@ int nv2a_d3d_init(void)
+@@ -1217,6 +1546,8 @@ int nv2a_d3d_init(void)
          if (qc && qd) break;
      }
      if (s_msaa < 1) s_msaa = 1;
@@ -3116,7 +3323,7 @@ index b9f3fa2..fecd06d 100644
      s_init_state = 1;
      fprintf(stderr, "[D3D11] renderer ready: %ux%u internal, display aspect %.3f, %ux MSAA, %ux AF\n",
              (uint32_t)(GUEST_W * s_scale * widen() + 0.5f), (uint32_t)(GUEST_H * s_scale + 0.5f),
-@@ -1379,9 +1677,8 @@ static void blit_span(ID3D11ShaderResourceView *srv, ID3D11ShaderResourceView *m
+@@ -1379,9 +1710,8 @@ static void blit_span(ID3D11ShaderResourceView *srv, ID3D11ShaderResourceView *m
      ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
      ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
      ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -3128,7 +3335,7 @@ index b9f3fa2..fecd06d 100644
      ID3D11DeviceContext_PSSetShader(s_ctx, s_present_ps, NULL, 0);
      ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 0, 1, &s_cb_present);
      {
-@@ -1413,13 +1710,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
+@@ -1413,13 +1743,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
  }
  
  /* Guest rows of a surface as BGRA, with the format's fixed alpha. */
@@ -3145,7 +3352,7 @@ index b9f3fa2..fecd06d 100644
          uint32_t *dst = out + (size_t)y * s->w;
          if (s->bpp == 4) {
              memcpy(dst, row, (size_t)s->w * 4);
-@@ -1454,6 +1751,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
+@@ -1454,6 +1784,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
  static UINT s_up_w[2], s_up_h[2];
  static uint32_t *s_up_pixels, *s_mask_pixels;
  static size_t s_up_cap, s_mask_cap;
@@ -3154,7 +3361,7 @@ index b9f3fa2..fecd06d 100644
  
  /* slot 0: image, slot 1: change mask */
  static ID3D11ShaderResourceView *upload_slot(int k, const uint32_t *pixels, UINT w, UINT h)
-@@ -1489,6 +1788,25 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1489,6 +1821,25 @@ static uint32_t *scratch_pixels(size_t count)
      return s_up_pixels;
  }
  
@@ -3180,7 +3387,7 @@ index b9f3fa2..fecd06d 100644
  /* Guest memory is the authority for what the CPU writes. A shadow copy of
   * each surface's guest bytes says which pixels the CPU changed since the last
   * look; only those replace what the GPU drew. A loading screen drawn by the
-@@ -1496,22 +1814,24 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1496,22 +1847,24 @@ static uint32_t *scratch_pixels(size_t count)
  static void surface_sync_impl(Surface *s, int force)
  {
      uint32_t rowb = s->w * s->bpp, y, x, x0 = 0xFFFFFFFFu, x1 = 0, y0 = 0xFFFFFFFFu, y1 = 0;
@@ -3209,7 +3416,7 @@ index b9f3fa2..fecd06d 100644
          {
              ID3D11ShaderResourceView *srv = upload_image(px, s->w, s->h);
              float x0, x1;
-@@ -1522,7 +1842,7 @@ static void surface_sync_impl(Surface *s, int force)
+@@ -1522,7 +1875,7 @@ static void surface_sync_impl(Surface *s, int force)
          return;
      }
      for (y = 0; y < s->h; y++) {
@@ -3218,7 +3425,7 @@ index b9f3fa2..fecd06d 100644
          uint8_t *sh = s->shadow + (size_t)y * rowb;
          if (!memcmp(row, sh, rowb)) continue;
          if (y0 == 0xFFFFFFFFu) {
-@@ -1552,7 +1872,7 @@ static void surface_sync_impl(Surface *s, int force)
+@@ -1552,7 +1905,7 @@ static void surface_sync_impl(Surface *s, int force)
                  s->phys, s_frame, x0, y0, x1, y1);
      px = scratch_pixels((size_t)s->w * s->h);
      if (!px) return;
@@ -3227,7 +3434,7 @@ index b9f3fa2..fecd06d 100644
      {
          ID3D11ShaderResourceView *srv = upload_slot(0, px, s->w, s->h);
          ID3D11ShaderResourceView *msk = upload_slot(1, s_mask_pixels, s->w, s->h);
-@@ -1572,8 +1892,11 @@ static void surface_sync(Surface *s, int force)
+@@ -1572,8 +1925,11 @@ static void surface_sync(Surface *s, int force)
      if (s_prof_on > 0) s_prof[PROF_SYNC] += qpc() - t0;
  }
  
@@ -3239,7 +3446,7 @@ index b9f3fa2..fecd06d 100644
      if (s_cur_rt == s) unbind_targets();
      if (s->srv) ID3D11ShaderResourceView_Release(s->srv);
      if (s->rtv) ID3D11RenderTargetView_Release(s->rtv);
-@@ -1635,9 +1958,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
+@@ -1635,9 +1991,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
      } else {
          for (i = 0; i < MAX_SURFACES && !victim; i++)
              if (!s_surf[i].tex) victim = &s_surf[i];
@@ -3253,7 +3460,7 @@ index b9f3fa2..fecd06d 100644
          if (!victim) victim = &s_surf[0];
      }
      surface_release(victim);
-@@ -1901,9 +2225,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
+@@ -1901,9 +2258,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
  }
  
  typedef struct TexEntry {
@@ -3265,7 +3472,7 @@ index b9f3fa2..fecd06d 100644
      size_t bytes;
      ID3D11Texture2D *tex;
      ID3D11ShaderResourceView *srv;
-@@ -1954,12 +2278,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
+@@ -1954,12 +2311,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
      return 1;
  }
  
@@ -3321,7 +3528,7 @@ index b9f3fa2..fecd06d 100644
          for (by = 0; by < bh; by++)
              for (bx = 0; bx < bw; bx++) {
                  d3d8_dxt_decode_block(src + ((size_t)by * bw + bx) * L->bpp, t->color, px);
-@@ -1969,6 +2336,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
+@@ -1969,6 +2369,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
              }
          return;
      }
@@ -3333,7 +3540,7 @@ index b9f3fa2..fecd06d 100644
      if (L->kind == K_LIN) {
          for (y = 0; y < h; y++) {
              const uint8_t *row = src + (size_t)y * t->pitch;
-@@ -2057,22 +2429,55 @@ static int host_levels(const TexLayout *L, const NvD3DTexture *t)
+@@ -2057,22 +2462,55 @@ static int host_levels(const TexLayout *L, const NvD3DTexture *t)
      return n > L->levels ? n : L->levels;
  }
  
@@ -3396,7 +3603,7 @@ index b9f3fa2..fecd06d 100644
          e->used = s_frame;
          return e->srv;
      }
-@@ -2082,21 +2487,47 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2082,21 +2520,47 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
          ph = hash_mem((const uint8_t *)pal, t->palette_len * 4);
      }
      if (e && e->hash == h && e->pal_hash == ph) {
@@ -3450,7 +3657,7 @@ index b9f3fa2..fecd06d 100644
          if (L.faces == 6) {
              sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
              sd.TextureCube.MipLevels = (UINT)hl;
-@@ -2104,36 +2535,45 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2104,36 +2568,45 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
              sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
              sd.Texture2D.MipLevels = (UINT)hl;
          }
@@ -3518,7 +3725,7 @@ index b9f3fa2..fecd06d 100644
              w = L.level_w[L.levels - 1]; h = L.level_h[L.levels - 1];
              memcpy(a, px, (size_t)w * h * 4);
              for (; lv < hl; lv++) {
-@@ -2152,23 +2592,44 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2152,23 +2625,44 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
      }
      e->hash = h;
      e->pal_hash = ph;
@@ -3566,7 +3773,7 @@ index b9f3fa2..fecd06d 100644
  /* -------------------------------------------------------- state objects */
  
  typedef struct { uint64_t key; void *obj; } StateSlot;
-@@ -2346,12 +2807,29 @@ static D3D11_TEXTURE_ADDRESS_MODE addr_mode(uint32_t m)
+@@ -2346,12 +2840,29 @@ static D3D11_TEXTURE_ADDRESS_MODE addr_mode(uint32_t m)
      }
  }
  
@@ -3597,7 +3804,7 @@ index b9f3fa2..fecd06d 100644
      if (bias13 & 0x1000) bias13 -= 0x2000;
      key = (uint64_t)minf | ((uint64_t)magf << 8) | ((uint64_t)(bias13 & 0x1FFF) << 12) |
            ((uint64_t)(levels & 15) << 25) | ((uint64_t)(reduce != 0) << 29) |
-@@ -2393,9 +2871,26 @@ static ID3D11SamplerState *sampler(const NvD3DTexture *t, int levels, int reduce
+@@ -2393,9 +2904,26 @@ static ID3D11SamplerState *sampler(const NvD3DTexture *t, int levels, int reduce
          }
          ID3D11Device_CreateSamplerState(s_dev, &d, (ID3D11SamplerState **)slot);
      }
@@ -3624,7 +3831,7 @@ index b9f3fa2..fecd06d 100644
  /* ------------------------------------------------------------------- draw */
  
  static uint32_t mode_needs_texture(uint32_t mode)
-@@ -2585,8 +3080,7 @@ static ID3D11ShaderResourceView *surface_y16(Surface *s)
+@@ -2585,8 +3113,7 @@ static ID3D11ShaderResourceView *surface_y16(Surface *s)
          ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
          ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
          ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -3634,7 +3841,7 @@ index b9f3fa2..fecd06d 100644
          ID3D11DeviceContext_PSSetShader(s_ctx, s_y16_ps[s->ms ? 1 : 0], NULL, 0);
          ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 1, &src);
          ID3D11DeviceContext_Draw(s_ctx, 3, 0);
-@@ -2622,8 +3116,7 @@ static ID3D11ShaderResourceView *depth_y16(Depth *d)
+@@ -2622,8 +3149,7 @@ static ID3D11ShaderResourceView *depth_y16(Depth *d)
          ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
          ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
          ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -3644,7 +3851,7 @@ index b9f3fa2..fecd06d 100644
          ID3D11DeviceContext_PSSetShader(s_ctx, s_y16d_ps[d->samples > 1 ? 1 : 0], NULL, 0);
          ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 1, src);
          {
-@@ -2707,7 +3200,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2707,7 +3233,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          if (!mode_needs_texture(mode) || !t->addr || !t->width || !t->height)
              continue;
          tex_format(t->color, &kind);
@@ -3657,7 +3864,7 @@ index b9f3fa2..fecd06d 100644
          s_draw_textured = 1;
          if (!s_draw_tex_addr) s_draw_tex_addr = t->addr;
          if (rt && rt->sx > rt->sy * 1.001f) s_draw_reads_wide = 1;
-@@ -2742,9 +3239,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2742,9 +3272,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
                  }
              }
          } else {
@@ -3668,7 +3875,7 @@ index b9f3fa2..fecd06d 100644
              if (kind == K_LIN) {
                  pc.tex_scale[n][0] = 1.0f / (float)t->width;
                  pc.tex_scale[n][1] = 1.0f / (float)t->height;
-@@ -2758,7 +3253,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2758,7 +3286,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          }
          if (!view) continue;
          if (t->cube && !rt) srv[4 + n] = view; else srv[n] = view;
@@ -3677,7 +3884,7 @@ index b9f3fa2..fecd06d 100644
          pc.tex_info[n][0] = (t->control0 >> 2) & 1;
          pc.tex_info[n][1] = t->filter >> 28;
          /* Point taps of an upscaled linear target average the guest pixel's
-@@ -2816,7 +3311,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2816,7 +3344,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          pc.zp1[0] = 1.0f / ((float)zm + 1.0f);
          pc.zp1[1] = (float)zm;
      }
@@ -3686,7 +3893,7 @@ index b9f3fa2..fecd06d 100644
  
      if (st->poly_offset_fill && !(st->z_perspective && d)) {
          /* The slope term multiplies the depth change per pixel. At an
-@@ -2834,7 +3329,6 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
+@@ -2834,7 +3362,6 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          ID3D11PixelShader *ps = spec_ps(&pc, v);
          ID3D11DeviceContext_PSSetShader(s_ctx, ps ? ps : s_psv[v], NULL, 0);
      }
@@ -3694,7 +3901,7 @@ index b9f3fa2..fecd06d 100644
      ID3D11DeviceContext_PSSetShaderResources(s_ctx, 0, 8, srv);
      ID3D11DeviceContext_PSSetSamplers(s_ctx, 0, 4, smp);
      ID3D11DeviceContext_RSSetState(s_ctx, rs_state(cull == 3 ? 0 : cull,
-@@ -3025,6 +3519,7 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -3025,6 +3552,7 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
                        uint32_t lo, uint32_t hi, const float (*pos)[4])
  {
      static uint32_t s_prog_version, s_vconst_version;
@@ -3702,7 +3909,7 @@ index b9f3fa2..fecd06d 100644
      static float *dx;
      static uint32_t dx_cap;
      struct { const uint8_t *base; uint32_t stride, span; } grp[16];
-@@ -3073,9 +3568,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -3073,9 +3601,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
      RECOMP_PROFILE_BEGIN("D3D11 draw");
      t_draw = s_prof_on > 0 ? qpc() : 0;
      s_prof_draws++;
@@ -3720,7 +3927,7 @@ index b9f3fa2..fecd06d 100644
      }
      if (pos && s && s->sx > s->sy * 1.001f) {
          /* Menu artwork and controls span the display together. Only the
-@@ -3158,13 +3658,25 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -3158,13 +3691,25 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
          const uint32_t (*prog)[4] = nv2a_vsh_program(&start, &pver);
          const float (*consts)[4] = nv2a_vsh_constants(&cver);
          uc.info[0] = start;
@@ -3750,7 +3957,7 @@ index b9f3fa2..fecd06d 100644
          }
      }
      uc.map[0] = 2.0f / (float)gw;
-@@ -3177,14 +3689,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
+@@ -3177,14 +3722,14 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
      uc.fogf[1] = st->fog_param[1];
      uc.place[0] = shift;
      uc.place[1] = yscale;
@@ -3771,7 +3978,7 @@ index b9f3fa2..fecd06d 100644
          ID3D11DeviceContext_DrawIndexed(s_ctx, ni, 0, 0);
      }
      s_raw_pos += (at + 255) & ~255u;
-@@ -3204,11 +3716,18 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3204,11 +3749,18 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
      float cc[8];
      D3D11_RECT r;
      int zclear = (flags & 1) != 0, sclear = (flags & 2) != 0;
@@ -3792,7 +3999,7 @@ index b9f3fa2..fecd06d 100644
      if (s) {
          if (flags & 0x10) mask |= D3D11_COLOR_WRITE_ENABLE_RED;
          if (flags & 0x20) mask |= D3D11_COLOR_WRITE_ENABLE_GREEN;
-@@ -3217,8 +3736,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3217,8 +3769,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
              mask |= D3D11_COLOR_WRITE_ENABLE_ALPHA;
      }
      if (!d) { zclear = sclear = 0; }
@@ -3804,7 +4011,7 @@ index b9f3fa2..fecd06d 100644
      if (s && mask) s->gpu_dirty = 1;
      zf = (st->surface_format >> 4) & 0xF;
      unpack4(color, cc);
-@@ -3234,8 +3755,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3234,8 +3788,10 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
      upload_cb(s_cb_clear, cc, sizeof cc);
      if (x1 >= gw) x1 = gw - 1;
      if (y1 >= gh) y1 = gh - 1;
@@ -3816,7 +4023,7 @@ index b9f3fa2..fecd06d 100644
      r.left = (LONG)(x0 * s_aa_x * s_cur_sx + 0.5f);
      r.top = (LONG)(y0 * s_aa_y * s_cur_sy + 0.5f);
      r.right = (LONG)((x1 + 1) * s_aa_x * s_cur_sx + 0.5f);
-@@ -3247,12 +3770,12 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
+@@ -3247,12 +3803,12 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
          ds_state(zclear, 7, zclear, sclear, 7, 0xFF, 0xFF, 0x1E01, 0x1E01, 0x1E01),
          zf == 1 ? 0 : (zstencil & 0xFF));
      ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -3832,7 +4039,7 @@ index b9f3fa2..fecd06d 100644
  }
  
  /* -------------------------------------------------------------- write-back */
-@@ -3270,6 +3793,27 @@ typedef struct {
+@@ -3270,6 +3826,27 @@ typedef struct {
      ID3D11RenderTargetView *down_rtv;
  } WbSlot;
  static WbSlot s_wb[MAX_SURFACES];
@@ -3860,7 +4067,7 @@ index b9f3fa2..fecd06d 100644
  
  static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
  {
-@@ -3289,12 +3833,14 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
+@@ -3289,12 +3866,14 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
              return 0;
          k->w = w; k->h = h;
      }
@@ -3881,7 +4088,7 @@ index b9f3fa2..fecd06d 100644
      }
      return 1;
  }
-@@ -3305,21 +3851,63 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
+@@ -3305,21 +3884,63 @@ static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
   * (nv2a_d3d_writeback_busy), holding back DMA_GET and fence releases until
   * then -- the title cannot learn the frame is finished before its pixels are
   * in guest memory. */
@@ -3947,7 +4154,7 @@ index b9f3fa2..fecd06d 100644
      for (i = 0; i < MAX_SURFACES; i++) {
          Surface *s = &s_surf[i];
          WbSlot *k = &s_wb[i];
-@@ -3328,16 +3916,18 @@ static int writeback_finish(int wait)
+@@ -3328,16 +3949,18 @@ static int writeback_finish(int wait)
          uint32_t x, y, rowb;
          int amode, r565;
          HRESULT hr;
@@ -3967,7 +4174,7 @@ index b9f3fa2..fecd06d 100644
          if (FAILED(hr))
              continue;
          dst = (uint8_t *)guest(s->va);
-@@ -3374,6 +3964,8 @@ static int writeback_finish(int wait)
+@@ -3374,6 +3997,8 @@ static int writeback_finish(int wait)
      }
      RECOMP_PROFILE_END();
      s_wb_pending = left;
@@ -3976,7 +4183,7 @@ index b9f3fa2..fecd06d 100644
      return !left;
  }
  
-@@ -3381,10 +3973,8 @@ int nv2a_d3d_writeback_busy(void)
+@@ -3381,10 +4006,8 @@ int nv2a_d3d_writeback_busy(void)
  {
      if (!s_wb_pending || writeback_finish(0))
          return 0;
@@ -3989,7 +4196,7 @@ index b9f3fa2..fecd06d 100644
      return 1;
  }
  
-@@ -3420,10 +4010,20 @@ static void writeback_surfaces(void)
+@@ -3420,10 +4043,20 @@ static void writeback_surfaces(void)
          }
          s->gpu_dirty = 0;                        /* later draws dirty it again */
          k->pending = 1;
@@ -4011,7 +4218,7 @@ index b9f3fa2..fecd06d 100644
      RECOMP_PROFILE_END();
  }
  
-@@ -3439,13 +4039,16 @@ static uint64_t s_zpass;
+@@ -3439,13 +4072,16 @@ static uint64_t s_zpass;
  static void zpass_collect(void)
  {
      UINT64 n = 0;
@@ -4028,7 +4235,7 @@ index b9f3fa2..fecd06d 100644
  }
  
  void nv2a_d3d_zpass_enable(int on)
-@@ -3657,9 +4260,8 @@ static void composite(ID3D11RenderTargetView *rtv, UINT w, UINT h, Surface *s,
+@@ -3657,9 +4293,8 @@ static void composite(ID3D11RenderTargetView *rtv, UINT w, UINT h, Surface *s,
      ID3D11DeviceContext_OMSetBlendState(s_ctx, s_blend_opaque, NULL, 0xFFFFFFFF);
      ID3D11DeviceContext_OMSetDepthStencilState(s_ctx, s_ds_off, 0);
      ID3D11DeviceContext_IASetPrimitiveTopology(s_ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -4040,7 +4247,72 @@ index b9f3fa2..fecd06d 100644
      ID3D11DeviceContext_PSSetShader(s_ctx, s_present_ps, NULL, 0);
      ID3D11DeviceContext_PSSetConstantBuffers(s_ctx, 0, 1, &s_cb_present);
      surface_resolve(s);
-@@ -3779,38 +4381,24 @@ static void pace_vblank(void)
+@@ -3724,7 +4359,36 @@ static ID3D11Texture2D *s_cap_tex;
+ static ID3D11RenderTargetView *s_cap_rtv;
+ static UINT s_cap_w, s_cap_h;
+ 
+-static void present_surface(Surface *s)
++/* One wait per guest flip; tick/movie presentation passes no pacing state. */
++typedef struct FlipPacing {
++    int done;
++    int64_t ticks;
++} FlipPacing;
++
++static void pace_vblank(void);
++
++static int pace_after_present(void)
++{
++    static int after = -1;
++    if (after < 0) {
++        const char *e = getenv("RECOMP_PACE_AFTER_PRESENT");
++        after = e && atoi(e) != 0;
++    }
++    return after;
++}
++
++static void pace_flip(FlipPacing *pacing)
++{
++    int64_t begin;
++    if (!pacing || pacing->done) return;
++    pacing->done = 1;
++    begin = qpc();
++    pace_vblank();
++    pacing->ticks = qpc() - begin;
++    if (s_prof_on > 0) s_prof[PROF_PACE] += pacing->ticks;
++}
++
++static void present_surface(Surface *s, FlipPacing *pacing)
+ {
+     PresentConsts pc;
+     s_last_present = GetTickCount();
+@@ -3755,12 +4419,24 @@ static void present_surface(Surface *s)
+         ID3D11RenderTargetView *rtv = NULL;
+         if (SUCCEEDED(IDXGISwapChain1_GetBuffer(s_swap, 0, &IID_ID3D11Texture2D, (void **)&bb))) {
+             static int vsync = -1;
+-            ID3D11Device_CreateRenderTargetView(s_dev, (ID3D11Resource *)bb, NULL, &rtv);
++            HRESULT present_hr;
++            if (FAILED(ID3D11Device_CreateRenderTargetView(s_dev, (ID3D11Resource *)bb,
++                                                         NULL, &rtv)) || !rtv) {
++                ID3D11Texture2D_Release(bb);
++                RECOMP_PROFILE_END();
++                return; /* The guest flip still receives its fallback wait. */
++            }
+             composite(rtv, s_swap_w, s_swap_h, s, &pc, 1);
+             if (!getenv("RECOMP_CAPTURE_SURFACE"))
+                 capture_backbuffer(bb);
+             if (vsync < 0) vsync = getenv("RECOMP_VSYNC") ? atoi(getenv("RECOMP_VSYNC")) : 0;
+-            IDXGISwapChain1_Present(s_swap, (UINT)vsync, 0);
++            frame_csv_init();
++            /* Composite and capture are complete; align the actual host
++             * submission, without pacing tick/movie-only presentations. */
++            if (pacing && !pace_after_present()) pace_flip(pacing);
++            present_hr = IDXGISwapChain1_Present(s_swap, (UINT)vsync, 0);
++            if (pacing && s_frame_csv_file)
++                frame_csv_present(qpc(), present_hr);
+             ID3D11RenderTargetView_Release(rtv);
+             ID3D11Texture2D_Release(bb);
+         }
+@@ -3779,40 +4455,24 @@ static void pace_vblank(void)
      static LARGE_INTEGER freq;
      static int64_t next;
      static HANDLE timer;
@@ -4067,7 +4339,7 @@ index b9f3fa2..fecd06d 100644
          return;
 -    }
      {
-         int64_t t0 = now;
+-        int64_t t0 = now;
 -        int64_t remain = next - now;
 -        int64_t spin = freq.QuadPart / 1000;            /* last millisecond */
          RECOMP_PROFILE_BEGIN("D3D11 pace");
@@ -4081,7 +4353,60 @@ index b9f3fa2..fecd06d 100644
 -            YieldProcessor();
 +        nv_pacing_wait(timer, freq.QuadPart, next, now);
          RECOMP_PROFILE_END();
-         if (s_prof_on > 0) s_prof[PROF_PACE] += qpc() - t0;
+-        if (s_prof_on > 0) s_prof[PROF_PACE] += qpc() - t0;
+     }
+ }
+ 
+@@ -3897,6 +4557,7 @@ static Surface *scan_surface(uint32_t va, uint32_t pitch)
+ void nv2a_d3d_flip(uint32_t surface_addr, uint32_t pitch)
+ {
+     Surface *s;
++    FlipPacing pacing = { 0 };
+     if (!nv2a_d3d_init())
+         return;
+     s_frame_bg_tex = 0;
+@@ -3910,17 +4571,17 @@ void nv2a_d3d_flip(uint32_t surface_addr, uint32_t pitch)
+         int64_t t0 = s_prof_on > 0 ? qpc() : 0, t1;
+         writeback_surfaces();
+         t1 = s_prof_on > 0 ? qpc() : 0;
+-        present_surface(s);
++        present_surface(s, &pacing);
+         if (s_prof_on > 0) {
+             s_prof[PROF_WRITEBACK] += t1 - t0;
+-            s_prof[PROF_PRESENT] += qpc() - t1;
++            s_prof[PROF_PRESENT] += qpc() - t1 - pacing.ticks;
+         }
+     }
+-    {
+-        int64_t t0 = qpc();
+-        pace_vblank();
+-        frame_csv(qpc() - t0);
+-    }
++    /* Legacy A/B mode, or a missing surface/swap-chain/GetBuffer path,
++     * still completes exactly one paced guest flip. A failed Present has
++     * already waited before the attempt and must not wait a second time. */
++    pace_flip(&pacing);
++    frame_csv(pacing.ticks);
+     RECOMP_PROFILE_FRAME();
+     prof_report();
+     display_config(0);
+@@ -3940,7 +4601,7 @@ void nv2a_d3d_tick(void)
+         return;
+     if (xbox_FramebufferScanSource(&va, &pitch)) {
+         Surface *s = scan_surface(va, pitch);
+-        present_surface(s);
++        present_surface(s, NULL);
+         s_frame++;
+         return;
+     }
+@@ -3948,7 +4609,7 @@ void nv2a_d3d_tick(void)
+     if (s_shown && now - s_last_flip > 50) {
+         XboxOverlay ovl;
+         if (xbox_FramebufferOverlay(&ovl))
+-            present_surface(s_shown);
++            present_surface(s_shown, NULL);
+         else
+             s_last_present = now;
      }
 diff --git a/tests/dsp/CMakeLists.txt b/tests/dsp/CMakeLists.txt
 index 1e4ebc0..d3e1010 100644
@@ -11763,4 +12088,195 @@ index 0000000..6883393
 +    if (!strcmp(argv[1], "native_bc")) return test_native_bc();
 +    if (!strcmp(argv[1], "benchmark_native_bc")) return benchmark_native_bc();
 +    CHECK(0);
++}
+diff --git a/tests/kernel_save_paths/CMakeLists.txt b/tests/kernel_save_paths/CMakeLists.txt
+new file mode 100644
+index 0000000..944865e
+--- /dev/null
++++ b/tests/kernel_save_paths/CMakeLists.txt
+@@ -0,0 +1,11 @@
++cmake_minimum_required(VERSION 3.20)
++project(kernel_save_paths_test C)
++set(CMAKE_C_STANDARD 11)
++if(NOT WIN32)
++    message(FATAL_ERROR "This temporary-files regression requires the Win32 path backend")
++endif()
++add_executable(kernel_save_paths_test test_main.c)
++target_include_directories(kernel_save_paths_test PRIVATE ../../src ../../src/kernel)
++target_link_libraries(kernel_save_paths_test PRIVATE shell32)
++enable_testing()
++add_test(NAME kernel_save_paths_test COMMAND kernel_save_paths_test)
+diff --git a/tests/kernel_save_paths/README.md b/tests/kernel_save_paths/README.md
+new file mode 100644
+index 0000000..77044eb
+--- /dev/null
++++ b/tests/kernel_save_paths/README.md
+@@ -0,0 +1,18 @@
++# Explicit save-directory routing
++
++Windows regression that compiles the real `kernel_path.c` backend and uses
++temporary directories. XAPI's mounted U:/T: drives resolve to Partition1 UDATA
++and TDATA paths. These paths must use a supplied save root rather than bypassing
++it and writing to the extracted game directory. With no supplied root the
++existing game-directory layout remains available.
++
++The test covers mounted and direct paths, case-insensitive components, similarly
++named asset directories, missing metadata, and an isolated write that preserves
++a legacy profile. It substitutes only the symbolic-link table and default
++app-data directory; it never opens game assets or user saves.
++
++```powershell
++cmake -S tools/xboxrecomp/tests/kernel_save_paths -B build/save-paths
++cmake --build build/save-paths --config Release
++ctest --test-dir build/save-paths -C Release --output-on-failure
++```
+diff --git a/tests/kernel_save_paths/test_main.c b/tests/kernel_save_paths/test_main.c
+new file mode 100644
+index 0000000..2c49799
+--- /dev/null
++++ b/tests/kernel_save_paths/test_main.c
+@@ -0,0 +1,144 @@
++/* Compile the actual path backend. Only the symbolic-link table and default
++ * app-data location are substituted, keeping every test write in our own
++ * temporary directory and avoiding any game or existing save files. */
++#include "kernel.h"
++#include <shlobj.h>
++#include <stdio.h>
++#include <string.h>
++#include <wchar.h>
++
++static WCHAR default_folder[MAX_PATH];
++static int mounted;
++
++static HRESULT test_default_folder(HWND window, int folder, HANDLE token,
++                                   DWORD flags, LPWSTR path)
++{
++    (void)window; (void)folder; (void)token; (void)flags;
++    wcscpy_s(path, MAX_PATH, default_folder);
++    return S_OK;
++}
++
++void xbox_log(int level, const char *subsystem, const char *fmt, ...)
++{
++    (void)level; (void)subsystem; (void)fmt;
++}
++
++const char *xbox_LookupSymbolicLink(const char *link)
++{
++    if (!mounted) return NULL;
++    if (strcmp(link, "\\??\\U:") == 0)
++        return "\\Device\\Harddisk0\\Partition1\\UDATA\\4d53002a";
++    if (strcmp(link, "\\??\\T:") == 0)
++        return "\\Device\\Harddisk0\\Partition1\\TDATA\\4d53002a";
++    return NULL;
++}
++
++#define SHGetFolderPathW test_default_folder
++#include "../../src/kernel/kernel_path.c"
++#undef SHGetFolderPathW
++
++static int failures;
++
++static void check_path(const char *guest, const WCHAR *base, const WCHAR *tail)
++{
++    WCHAR actual[MAX_PATH], expected[MAX_PATH];
++    if (tail[0]) swprintf_s(expected, MAX_PATH, L"%s\\%s", base, tail);
++    else wcscpy_s(expected, MAX_PATH, base);
++    if (!xbox_translate_path(guest, actual, MAX_PATH) ||
++        _wcsicmp(actual, expected) != 0) {
++        fprintf(stderr, "FAIL %s: got %ls, expected %ls\n", guest, actual, expected);
++        failures++;
++    }
++}
++
++static void clean_save_root(const WCHAR *base)
++{
++    static const WCHAR *dirs[] = { L"TitleData", L"UserData", L"Cache",
++                                    L"SystemData", L"UDATA", L"TDATA" };
++    WCHAR path[MAX_PATH];
++    for (int i = 0; i < 6; i++) {
++        swprintf_s(path, MAX_PATH, L"%s\\Partition%d.img", base, i);
++        DeleteFileW(path);
++        swprintf_s(path, MAX_PATH, L"%s\\%s", base, dirs[i]);
++        RemoveDirectoryW(path);
++    }
++    RemoveDirectoryW(base);
++}
++
++int main(void)
++{
++    WCHAR temp[MAX_PATH], root[MAX_PATH], game[MAX_PATH], save[MAX_PATH];
++    WCHAR path[MAX_PATH], original[MAX_PATH], isolated[MAX_PATH];
++    char game_utf8[MAX_PATH], save_utf8[MAX_PATH];
++    DWORD bytes;
++    HANDLE file;
++    char value[8] = {0};
++    GetTempPathW(MAX_PATH, temp);
++    swprintf_s(root, MAX_PATH, L"%smm3-save-paths-%lu-%llu", temp,
++        GetCurrentProcessId(), (unsigned long long)GetTickCount64());
++    if (!CreateDirectoryW(root, NULL)) return 10;
++    swprintf_s(game, MAX_PATH, L"%s\\game", root);
++    swprintf_s(save, MAX_PATH, L"%s\\isolated", root);
++    swprintf_s(default_folder, MAX_PATH, L"%s\\default", root);
++    CreateDirectoryW(game, NULL);
++    WideCharToMultiByte(CP_UTF8, 0, game, -1, game_utf8, MAX_PATH, NULL, NULL);
++    WideCharToMultiByte(CP_UTF8, 0, save, -1, save_utf8, MAX_PATH, NULL, NULL);
++    xbox_path_init(game_utf8, save_utf8);
++
++    check_path("\\Device\\Harddisk0\\Partition1\\UDATA\\4d53002a\\profile", save,
++               L"UDATA\\4d53002a\\profile");
++    check_path("\\device\\harddisk0\\partition1\\tdata\\4d53002a\\$C", save,
++               L"TDATA\\4d53002a\\$C");
++    check_path("\\Device\\Harddisk0\\Partition1\\UDATA", save, L"UDATA");
++    check_path("\\Device\\Harddisk0\\Partition1\\TDATA\\", save, L"TDATA");
++    check_path("\\Device\\Harddisk0\\Partition1\\UDATA_backup\\profile", game,
++               L"UDATA_backup\\profile");
++    check_path("\\Device\\Harddisk0\\Partition1\\TDATA2\\asset", game, L"TDATA2\\asset");
++    check_path("\\Device\\Harddisk0\\Partition1\\Data\\Shared\\Cars\\VRace\\body.cmp", game,
++               L"Data\\Shared\\Cars\\VRace\\body.cmp");
++    check_path("D:\\Data\\Data_hd.zip", game, L"Data\\Data_hd.zip");
++    check_path("U:\\profile", save, L"UserData\\profile");
++    mounted = 1;
++    check_path("U:\\194916D15BE4\\profile", save, L"UDATA\\4d53002a\\194916D15BE4\\profile");
++    check_path("\\??\\T:\\$u\\contentmeta.xbx", save, L"TDATA\\4d53002a\\$u\\contentmeta.xbx");
++
++    /* Translation does not manufacture a missing save slot or metadata. */
++    xbox_translate_path("U:\\96734455B22F\\SaveMeta.xbx", path, MAX_PATH);
++    if (GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES) failures++;
++    swprintf_s(path, MAX_PATH, L"%s\\UDATA\\4d53002a\\96734455B22F", save);
++    if (GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES) failures++;
++
++    /* A write using the mounted drive cannot change the legacy profile. */
++    swprintf_s(path, MAX_PATH, L"%s\\UDATA", game); CreateDirectoryW(path, NULL);
++    swprintf_s(original, MAX_PATH, L"%s\\UDATA\\profile", game);
++    file = CreateFileW(original, GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
++    if (file == INVALID_HANDLE_VALUE || !WriteFile(file, "legacy", 6, &bytes, NULL)) return 11;
++    CloseHandle(file);
++    swprintf_s(path, MAX_PATH, L"%s\\UDATA\\4d53002a", save); CreateDirectoryW(path, NULL);
++    xbox_translate_path("U:\\profile", isolated, MAX_PATH);
++    file = CreateFileW(isolated, GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
++    if (file == INVALID_HANDLE_VALUE || !WriteFile(file, "test", 4, &bytes, NULL)) return 12;
++    CloseHandle(file);
++    file = CreateFileW(original, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL);
++    if (file == INVALID_HANDLE_VALUE || !ReadFile(file, value, sizeof(value), &bytes, NULL) ||
++        bytes != 6 || memcmp(value, "legacy", 6) != 0) failures++;
++    CloseHandle(file);
++
++    /* NULL and empty save roots retain the existing game_dir save layout. */
++    xbox_path_init(game_utf8, NULL);
++    check_path("U:\\profile", game, L"UDATA\\4d53002a\\profile");
++    check_path("T:\\$C", game, L"TDATA\\4d53002a\\$C");
++    xbox_path_init(game_utf8, "");
++    check_path("\\Device\\Harddisk0\\Partition1\\UDATA\\profile", game, L"UDATA\\profile");
++
++    DeleteFileW(isolated);
++    swprintf_s(path, MAX_PATH, L"%s\\UDATA\\4d53002a", save); RemoveDirectoryW(path);
++    DeleteFileW(original);
++    swprintf_s(path, MAX_PATH, L"%s\\UDATA", game); RemoveDirectoryW(path);
++    clean_save_root(save);
++    swprintf_s(path, MAX_PATH, L"%s\\xboxrecomp", default_folder); clean_save_root(path);
++    RemoveDirectoryW(default_folder); RemoveDirectoryW(game); RemoveDirectoryW(root);
++    if (failures) return 1;
++    puts("PASS: explicit and default save routing, mounted U:/T:, asset paths, and legacy profile preservation");
++    return 0;
 +}

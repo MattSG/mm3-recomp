@@ -104,6 +104,13 @@ cars. Event-specific vehicle classes still apply. Bonus paints and career statis
 to follow profile progress. Set `MM3_UNLOCK_ALL_CARS=0` to restore the original car locks;
 the availability change does not write unlock keys to your save.
 
+An optional [extra-car pack](tools/car-mods/README.md) adds Mini Rally, Mustang GT
+and Viper Race as separate tuned variants of the existing models. Install it
+with `tools\venv\Scripts\python.exe tools\car-mods\prepare.py --apply` while the
+game is closed. Their menu ratings and driving physics are editable in
+`tools/car-mods/cars.json`; reapply the pack and restart to use changed stats.
+The installer backs up the affected data and provides `--restore`.
+
 ### Options
 
 | Variable | Default | Effect |
@@ -124,12 +131,13 @@ the availability change does not write unlock keys to your save.
 | `RECOMP_MSAA` | `4` | MSAA sample count (1/2/4/8). |
 | `RECOMP_ANISO` | `16` | Anisotropic filtering (1–16). |
 | `RECOMP_DRAW_DISTANCE` | `2` | View/LOD distance multiplier (1 = Xbox, up to 4). |
+| `MM3_PARTICLE_MAX_OVERDRAW` | `24` | Particle overlap budget at extended draw distances, 1–255. The Xbox distance retains its original budget of 12. |
 | `RECOMP_SHARP_POINT` | `1` | `0`: plain point filtering for fonts and menu art instead of sharp outlines. |
 | `RECOMP_PS_SPEC` | `1` | `0`: skip specialised pixel shaders (slow; for debugging). |
 | `RECOMP_PS_PREWARM` | `1` | Prepare previously used pixel shader states during startup; `0` disables learning and prewarming. |
 | `RECOMP_SHADER_CACHE` | `1` | Save compiled shaders between launches; `0` disables the cache. |
 | `RECOMP_SHADER_CACHE_DIR` | built-in | Shader cache folder; defaults to `%LOCALAPPDATA%\xboxrecomp\ShaderCache`. |
-| `MM3_SAVE_DIR` | built-in | Folder holding the HDD/save partition images. |
+| `MM3_SAVE_DIR` | built-in | Explicit save root for UDATA/TDATA, including mounted U:/T: and direct HDD paths. |
 | `MM3_UNLOCK_ALL_CARS` | `1` | Make every installed car selectable; `0` restores earned car availability. |
 | `MM3_DEBUG_TELEPORT` | off | Enable the teleport pipe (`tools\powershell\Send-MM3Teleport.ps1`). |
 
@@ -140,7 +148,8 @@ the availability change does not write unlock keys to your save.
 | `RECOMP_PAD_LIVE=<file>` | Read pad input appended to a file, one `button:hold_ms` per line (e.g. `a:150`). |
 | `RECOMP_PAD_SCRIPT=<spec>` | Timed scripted pad input (format in `src/usb/usb_gamepad.c`). |
 | `RECOMP_PAD_PRESS=<mask>[,period,hold]` | Pulse digital buttons (`0x10` = Start) periodically. |
-| `RECOMP_FRAME_CSV=<file>` | One row per flip: QPC time, frame time, pacing time. Summarise with `tools\xboxrecomp\tools\bench\frames.py`. |
+| `RECOMP_FRAME_CSV=<file>` | One row per flip: QPC time, frame time, pacing time, and successful DXGI Present return time/interval. Summarise flip intervals with `tools\xboxrecomp\tools\bench\frames.py`. |
+| `RECOMP_PACE_AFTER_PRESENT` | `1`: restore the previous wait-after-submission order for timing comparisons. |
 | `RECOMP_D3D_PROFILE` | Print per-second fps, worst frame and renderer stage costs to stderr. |
 | `RECOMP_KERNEL_SUMMARY` | `1`: collect and print periodic kernel-call totals (off during normal play). |
 | `RECOMP_CS_COUNTERS` | `1`: count critical-section entries/exits for contention diagnostics (off during normal play). |
@@ -221,6 +230,18 @@ can wake late on a coarse-resolution system, but avoid a full-frame busy spin.
 These reduce CPU work without lowering resolution, filtering, or draw distance.
 Frame-time benchmarks exclude screenshot capture, which adds a GPU readback and
 disk writes that can create spikes of its own.
+Extended draw distance uses a particle overlap budget of 24, instead of raising
+the Xbox's 12 to the maximum 255. This bounds smoke, spray and collision effects;
+the title's explicit particle settings still take priority. Use
+`MM3_PARTICLE_MAX_OVERDRAW=255` to restore the previous effects budget.
+Frame pacing waits after composition and immediately before DXGI Present, so
+variable game and rendering work does not shift each submission within the
+frame interval. Each guest flip waits once, including missing-surface and failed
+presentation paths; CPU scanout and movie-only ticks remain unpaced.
+CSV `present_ms` records intervals between successful DXGI Present returns for
+guest flips, excluding movie-only ticks and failed submissions.
+Compare it with `frame_ms` when investigating uneven presentation. Neither
+column measures when the monitor actually displays a frame.
 
 ### Diagnostics
 

@@ -1356,8 +1356,11 @@ static inline RecompMmx MMX_PSADBW(RecompMmx a, RecompMmx b) {
  * ================================================================ */
 
 void recomp_unimpl(const char *text, uint32_t va);
+/* Exact CPUID sites: CRT MMX probe and library CPU descriptor. */
 #define RECOMP_UNIMPL(_text, _va) do { \
-    if ((uint32_t)(_va) == 0x0009379Eu) \
+    if ((uint32_t)(_va) == 0x0009379Eu || \
+        (uint32_t)(_va) == 0x000A4FEDu || \
+        (uint32_t)(_va) == 0x000A504Bu) \
         recomp_cpuid(eax, ecx, &eax, &ebx, &ecx, &edx); \
     else \
         recomp_unimpl((_text), (_va)); \

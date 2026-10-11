@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "cars": [
+    {
+      "id": 9001,
+      "alias": "MRly",
+      "donor": "mini",
+      "display_name": "Mini Rally",
+      "ratings": {"TOPSPEED": 7, "ACCELERATION": 8, "MASS": 2, "HANDLING": 9, "DURABILITY": 4},
+      "physics": {"Mass": 980, "TorqueScale": 440, "WheelDrive": 2, "BrakeTorque": 7200, "LatFrictionFactor": 1.7, "AirKZZ": 0.025},
+      "colors": ["#f28c28", "#f2f2f2", "#174c28"]
+    },
+    {
+      "id": 9002,
+      "alias": "MustangGT",
+      "donor": "MFastBack",
+      "display_name": "Mustang GT",
+      "ratings": {"TOPSPEED": 9, "ACCELERATION": 9, "MASS": 5, "HANDLING": 7, "DURABILITY": 7},
+      "physics": {"Mass": 1500, "TorqueScale": 900, "WheelDrive": 1, "BrakeTorque": 5200, "LatFrictionFactor": 1.8, "AirKZZ": 0.009},
+      "colors": ["#1769aa", "#e5c047", "#8b1828"]
+    },
+    {
+      "id": 9003,
+      "alias": "VRace",
+      "donor": "Viper",
+      "display_name": "Viper Race",
+      "ratings": {"TOPSPEED": 9, "ACCELERATION": 9, "MASS": 4, "HANDLING": 8, "DURABILITY": 5},
+      "physics": {
+        "Mass": 1380,
+        "TorqueScale": 1150,
+        "WheelDrive": 1,
+        "BrakeTorque": 6200,
+        "LatFrictionFactor": 2.3,
+        "AirKZZ": 0.008,
+        "GearRatioVector": [-3.3, 2.5, 1.72, 1.28, 1.0, 0.82, 0.7],
+        "WheelRatio": 3.8,
+        "TimeChangeGear": 0.3
+      },
+      "colors": ["#f4c430", "#563bb2", "#16a085"]
+    }
+  ]
+}

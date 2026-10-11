@@ -41,6 +41,10 @@ endif()
 
 file(GLOB RECOMP_GEN_SOURCES CONFIGURE_DEPENDS
     "${RECOMP_GEN_DIR}/*.c")
+# Setup reuses generated functions on an existing checkout. Refresh the
+# project's compatibility header so pulling fixes does not require regeneration.
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_recomp_types.h"
+    "${RECOMP_GEN_DIR}/recomp_types.h" COPYONLY)
 
 # Generated functions move between split chunks whenever the generator's
 # function list changes, so find each project hook's owner instead of naming
@@ -67,6 +71,10 @@ set(MM3_DISTANCE_FUNCTIONS sub_000D9E2E sub_000E2D5B sub_000F4AC3 sub_000FE71E
 set(MM3_DEFINITION_ONLY_FUNCTIONS ${MM3_DISTANCE_FUNCTIONS})
 # Keep same-chunk calls directed to the recovered x87 helper definitions.
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0009BC04 sub_0009BC35 sub_0009BC52)
+# Preserve same-chunk locale calls to the custom vehicle-name extension.
+list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0011C194)
+# The CRT MMX probe must preserve the stack effects of PUSHFD/POPFD.
+list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_00093770)
 if(MM3_UNLOCK_ALL_CARS)
     list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001DEA30)
 endif()
@@ -194,6 +202,8 @@ add_executable(${PROJECT_NAME}
  src/mm3_widescreen.c
  src/mm3_render_distance.c
  src/mm3_debug_teleport.c
+ src/mm3_custom_car_names.c
+ src/mm3_cpu_compat.c
  src/recomp_trace_probe.c
  ${RECOMP_GEN_SOURCES})
 

@@ -23,7 +23,7 @@ static float distance_scale(void)
     static float scale;
     if (!scale) {
         const char *env = getenv("RECOMP_DRAW_DISTANCE");
-        char *end;
+        char *end = NULL;
         float value = env ? strtof(env, &end) : 2.0f;
         if (env && (end == env || *end || !isfinite(value) || value < 1.0f || value > 4.0f)) {
             fprintf(stderr, "[MM3_DISTANCE] invalid RECOMP_DRAW_DISTANCE; expected 1..4, using 2\n");
@@ -136,16 +136,34 @@ void sub_000F4AC3(void)
 }
 
 extern void sub_002256C7_original(void);
+static unsigned particle_budget(void)
+{
+    static unsigned budget;
+    if (!budget) {
+        const char *env = getenv("MM3_PARTICLE_MAX_OVERDRAW");
+        char *end = NULL;
+        long value = env ? strtol(env, &end, 10) : 24;
+        if (env && (end == env || *end || value < 1 || value > 255)) {
+            fprintf(stderr, "[MM3_DISTANCE] invalid MM3_PARTICLE_MAX_OVERDRAW; expected 1..255, using 24\n");
+            value = 24;
+        }
+        budget = (unsigned)value;
+    }
+    return budget;
+}
+
 void sub_002256C7(void)
 {
     uint32_t self = g_ecx, ps;
     sub_002256C7_original();
-    /* The particle manager starts its systems with a maximum overdraw of 12
-     * (an NV2A fill-rate budget, copied into every emitter); its own
-     * particleSetMaxOverdraw setter accepts up to 255. */
+    /* Keep a bounded effects budget at the extended view distance. Raising
+     * the Xbox budget of 12 to its maximum of 255 allowed twenty-one times
+     * as much overlapping smoke/spray during collisions and burnouts.
+     * Explicit title/Lua settings remain authoritative. */
     ps = MEM32(self + 4);
     if (ps && MEM32(ps + 0x524) == 12u && distance_scale() > 1.0f) {
-        MEM32(ps + 0x524) = 255u;
-        fprintf(stderr, "[MM3_DISTANCE] particle max overdraw 12 -> 255\n");
+        unsigned budget = particle_budget();
+        MEM32(ps + 0x524) = budget;
+        fprintf(stderr, "[MM3_DISTANCE] particle max overdraw 12 -> %u\n", budget);
     }
 }
