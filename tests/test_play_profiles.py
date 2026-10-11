@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SHELL = shutil.which("pwsh") or shutil.which("powershell")
 KEYS = ("MM3_PERFORMANCE_PROFILE", "RECOMP_RENDER_SCALE", "RECOMP_MSAA",
         "RECOMP_DRAW_DISTANCE", "RECOMP_ANISO", "RECOMP_FPS_LIMIT",
-        "RECOMP_PB_EXEC", "RECOMP_FB_WINDOW", "RECOMP_USB", "RECOMP_APU_DSP_ACK")
+        "RECOMP_PB_EXEC", "RECOMP_FB_WINDOW", "RECOMP_USB", "RECOMP_APU_DSP_ACK",
+        "MM3_FOV_DEGREES")
 
 
 def quoted(path):
@@ -39,9 +40,11 @@ class LauncherProfileTest(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
-    def run_launcher(self, launches, overrides=None, expect_failure=False):
+    def run_launcher(self, launches, overrides=None, expect_failure=False, culture=None):
         self.environment.update(overrides or {})
         script = "$ErrorActionPreference = 'Stop'; $initial = (Get-Location).Path; $during = @(); "
+        if culture:
+            script += "[Threading.Thread]::CurrentThread.CurrentCulture = " + quoted(culture) + "; "
         for arguments in launches:
             invoke = "& " + quoted(self.launcher) + " -Exe " + quoted(self.collector) + " " + arguments
             script += ("try { " + invoke + " } catch {} ; " if expect_failure else
@@ -70,8 +73,8 @@ class LauncherProfileTest(unittest.TestCase):
     def test_individual_environment_overrides_take_priority_and_survive_launch(self):
         overrides = {"MM3_PERFORMANCE_PROFILE": "Quality", "RECOMP_RENDER_SCALE": "2.25",
                      "RECOMP_MSAA": "8", "RECOMP_DRAW_DISTANCE": "1.25", "RECOMP_ANISO": "4",
-                     "RECOMP_FPS_LIMIT": "47", "RECOMP_USB": "0"}
-        result = self.run_launcher(["-Profile LowPower -FpsLimit 30"], overrides)
+                     "RECOMP_FPS_LIMIT": "47", "RECOMP_USB": "0", "MM3_FOV_DEGREES": "97"}
+        result = self.run_launcher(["-Profile LowPower -FpsLimit 30 -Fov 100"], overrides)
         for key, value in overrides.items():
             self.assertEqual(result["during"][0][key], value)
             self.assertEqual(result["after"][key], value)
@@ -79,7 +82,23 @@ class LauncherProfileTest(unittest.TestCase):
 
     def test_failed_entry_point_still_restores_added_settings_and_working_directory(self):
         self.collector.write_text("throw 'intentional fixture failure'", encoding="utf-8")
-        result = self.run_launcher(["-Profile LowPower -FpsLimit 42"], expect_failure=True)
+        result = self.run_launcher(["-Profile LowPower -FpsLimit 42 -Fov 105"], expect_failure=True)
+        self.assertTrue(result["location_restored"])
+        self.assertTrue(all(value is None for value in result["after"].values()))
+
+    def test_fov_boundaries_decimal_and_unset_restore_environment(self):
+        result = self.run_launcher(["-Fov 60", "-Fov 110", "-Fov 100.5", ""], culture="fr-FR")
+        self.assertEqual([row["MM3_FOV_DEGREES"] for row in result["during"]],
+                         ["60", "110", "100.5", None])
+        self.assertTrue(result["location_restored"])
+        self.assertTrue(all(value is None for value in result["after"].values()))
+
+    def test_out_of_range_fov_never_runs_entry_point(self):
+        marker = self.folder / "entry-point-was-run"
+        self.collector.write_text("Set-Content -LiteralPath " + quoted(marker) + " -Value 'unexpected'",
+                                  encoding="utf-8")
+        result = self.run_launcher(["-Fov 59", "-Fov 111"], expect_failure=True)
+        self.assertFalse(marker.exists())
         self.assertTrue(result["location_restored"])
         self.assertTrue(all(value is None for value in result["after"].values()))
 

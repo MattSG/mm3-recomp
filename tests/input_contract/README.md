@@ -19,8 +19,16 @@ bindings in menu and driving contexts, a missing driving probe,
 held/released accelerator keys, opposing steering aliases,
 R/F gear aliases in driving context with the original X/A bindings retained,
 C camera alias in driving context with E and the physical right bumper retained,
+Space handbrake alias in driving context with Z and physical A retained,
 Escape's menu-back action, Enter's independent pause action, their held/released
 state in either context,
 keyboard/controller merging and the actual WM_KILLFOCUS handler clearing all
 held keys. These checks verify the host input path, not MM3 vehicle physics or
 the game's choice of menu actions.
+
+The original Microsoft manual identifies Xbox A as the default handbrake
+([control table, printed pages 6–7](https://www.manualslib.com/manual/379152/Games-Microsoft-Xbox-Midtown-Madness-3.html?page=5)).
+Space sends that button only in the MM3 driving context, so holding it while
+pausing cannot select a menu item. The fixture also verifies that Space is
+inactive with the legacy layout or a missing driving probe and that focus loss
+releases it.

@@ -3,7 +3,7 @@
 Run the recompiled Midtown Madness 3 built by scripts\setup.ps1.
 
 .DESCRIPTION
-  pwsh scripts\play.ps1 [-Keyboard] [-Fullscreen] [-Profile Balanced|Quality|LowPower] [-FpsLimit 60] [-Exe <path>]
+  pwsh scripts\play.ps1 [-Keyboard] [-Fullscreen] [-Profile Balanced|Quality|LowPower] [-FpsLimit 60] [-Fov 100] [-Exe <path>]
 
 Any RECOMP_*/MM3_* variable already set in your shell overrides these
 defaults (see README "Options"). F11 or Alt+Enter toggles fullscreen.
@@ -13,6 +13,7 @@ param(
     [switch]$Fullscreen,
     [ValidateSet('Balanced', 'Quality', 'LowPower')][string]$Profile = 'Balanced',
     [ValidateRange(1, 60)][int]$FpsLimit,
+    [ValidateRange(60, 110)][double]$Fov,
     [string]$Exe
 )
 $ErrorActionPreference = 'Stop'
@@ -31,6 +32,9 @@ $defaults = @{
     RECOMP_ASPECT = '16:10'
 }
 if ($PSBoundParameters.ContainsKey('FpsLimit')) { $defaults.RECOMP_FPS_LIMIT = "$FpsLimit" }
+if ($PSBoundParameters.ContainsKey('Fov')) {
+    $defaults.MM3_FOV_DEGREES = $Fov.ToString([Globalization.CultureInfo]::InvariantCulture)
+}
 if ($Keyboard) { $defaults.RECOMP_KEYBOARD = '1' }
 if ($Fullscreen) { $defaults.RECOMP_FULLSCREEN = '1' }
 # The game reads game_files\ relative to the working directory.
@@ -47,7 +51,11 @@ try {
     & $Exe
 } finally {
     foreach ($k in $previous.Keys) {
-        [Environment]::SetEnvironmentVariable($k, $previous[$k], 'Process')
+        if ($null -eq $previous[$k]) {
+            Remove-Item -LiteralPath "Env:\$k" -ErrorAction SilentlyContinue
+        } else {
+            [Environment]::SetEnvironmentVariable($k, $previous[$k], 'Process')
+        }
     }
     Pop-Location
 }

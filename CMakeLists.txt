@@ -69,6 +69,8 @@ endif()
 set(MM3_DISTANCE_FUNCTIONS sub_000D9E2E sub_000E2D5B sub_000F4AC3 sub_000FE71E
     sub_001661D0 sub_002256C7 sub_002203E5 sub_0022F298)
 set(MM3_DEFINITION_ONLY_FUNCTIONS ${MM3_DISTANCE_FUNCTIONS})
+# Preserve same-chunk near-camera calls to the chase-distance adjustment.
+list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001EEC53)
 # Keep same-chunk calls directed to the recovered x87 helper definitions.
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0009BC04 sub_0009BC35 sub_0009BC52)
 # Preserve same-chunk locale calls to the custom vehicle-name extension.

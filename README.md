@@ -31,7 +31,9 @@ reference workflow uses a bare XDVDFS XISO rather than a two-part redump image.
 - **Visuals:** fixed refreshing of streamed textures and CPU-written swizzled
   surfaces, and prevented stale vertex programs/constants after failed GPU
   uploads. Building-detail fades scale with extended draw distance, and the car
-  converter builds closed body and animated-wheel shadow proxies. Balanced renders
+  converter builds closed body and animated-wheel shadow proxies. Widescreen
+  pause menus keep button caps, labels and controller prompts joined in one layout.
+  Balanced renders
   at 1536×960 and Quality at 2304×1440, both at 16:10, with
   configurable aspect, resolution, MSAA, anisotropic filtering and draw distance.
 - **Efficiency:** persistent shader caching and startup prewarming, less repeated
@@ -95,12 +97,15 @@ install CMake and Ninja in the venv (`python -m pip install "cmake>=3.20,<4" nin
 setup uses Ninja Multi-Config and keeps the same `build\<Config>` output paths.
 Run these commands from the repository directory, not its parent folder.
 
-### Reproduce the improved version (`v2026.10.12`)
+### Reproduce the improved version (`v2026.10.12.1`)
 
-The tag **[v2026.10.12](https://github.com/lakshya16157/mm3-recomp/tree/v2026.10.12)**
+The tag **[v2026.10.12.1](https://github.com/lakshya16157/mm3-recomp/tree/v2026.10.12.1)**
 pins this fork's current improvements: race/menu loading and heap fixes, building
 detail fades, visibility and rendering work, corrected imported-car shadow
 generation, and the ten researched car presets with their gearing and gauges.
+It also includes the joined pause-menu buttons, Space handbrake, adjusted closest
+chase camera, adjustable driving FOV and model credits. The earlier
+`v2026.10.12` tag remains available as the original snapshot.
 Use this tag to reproduce that source and settings version after `main` moves on.
 
 If you have already extracted or recompiled the game with upstream, the generated
@@ -108,7 +113,7 @@ Xbox C alone does not contain this fork's native hooks, runtime patch or car dat
 Build this checkout in a separate directory, using your own supported disc image:
 
 ```powershell
-git clone --branch v2026.10.12 --recurse-submodules https://github.com/lakshya16157/mm3-recomp.git mm3-improved
+git clone --branch v2026.10.12.1 --recurse-submodules https://github.com/lakshya16157/mm3-recomp.git mm3-improved
 cd mm3-improved
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\setup.ps1 -Iso "D:\Games\Midtown Madness 3 (USA).iso"
 tools\venv\Scripts\python.exe tools\car-mods\prepare.py --config tools\car-mods\cars.json --apply
@@ -120,7 +125,7 @@ supported translation, configures all native hooks and builds the game. Installi
 the car preset is a separate step: setup alone does not install the ten extras.
 The explicit `--config` selects the published settings even if a machine has a
 different `cars.local.json`. `git describe --tags --exact-match` should report
-`v2026.10.12`; `git submodule status` should show the pinned toolkit, without a
+`v2026.10.12.1`; `git submodule status` should show the pinned toolkit, without a
 leading `+`. A dirty runtime submodule is expected after applying this fork's patch.
 
 **To reproduce the imported car bodies and repaired shadows**, obtain the nine
@@ -276,12 +281,30 @@ window's aspect, or select another aspect explicitly.
 With `scripts\play.ps1 -Keyboard`, hold **Up** to accelerate, **Down** to brake/reverse,
 and **Left/Right** to steer. Arrows also navigate menus. **Z** confirms, **X** goes back,
 and **Escape** also goes back. **Enter** pauses/resumes. **C** changes the camera
-view while driving. The original
+view while driving. Hold **Space** for the handbrake (the game's default Xbox A
+control); **Z** still works for A. Space is active only while driving with the
+MM3 keyboard layout. The original
 **3** accelerator, **1** brake and numpad **4/6** steering keys still work. Keyboard input
 releases when the game loses focus.
 Choose **Manual** transmission in car setup, then tap **R** to shift up and **F** to shift down
 (the default Xbox B/X gear controls). These aliases operate only while driving.
 Set `RECOMP_KEYBOARD_LAYOUT=legacy` to use only the original runtime bindings.
+
+The closest rear chase camera sits 0.75 m farther back. Its original smoothing
+and collision adjustment still apply; the other camera views retain their
+original distances.
+
+Choose a wider driving field of view when launching, for example:
+
+```powershell
+pwsh scripts\play.ps1 -Profile Balanced -Keyboard -Fullscreen -Fov 100
+```
+
+`-Fov` accepts 60–110 degrees of horizontal FOV at your display aspect, including
+decimal values. Omit it to retain the existing widescreen FOV. The setting
+applies to driving views, with matching city visibility; menus and mirrors use
+their original projection. Restart the game to change it. An existing
+`MM3_FOV_DEGREES` environment setting takes priority over the launch argument.
 
 The 35 original cars follow the game's earned availability rules, including hidden bonus
 cars. Optional custom cars remain available as configured by their installer.
@@ -297,6 +320,8 @@ selectable slots alongside the 35 original cars: Mini Rally,
 Panoz GTR-1, McLaren F1, Formula 1, Ford GT,
 McLaren Senna, McLaren Senna GTR, Ferrari FXX K, Koenigsegg Regera and Lamborghini
 Aventador. Each has its own name, paint settings, menu ratings and driving setup.
+The [model names, download sources and creator credits](tools/car-models/README.md#extra-car-names-and-model-credits)
+identify each imported exterior and its original conversion pack.
 The remaining slots retain their IDs. Profiles that remember a removed custom
 car use its original donor vehicle, without restoring the removed menu entry.
 
@@ -443,6 +468,7 @@ tools\venv\Scripts\python.exe tools\car-mods\prepare.py --restore
 | `RECOMP_FULLSCREEN` | off | Start fullscreen. |
 | `RECOMP_WINDOW_SIZE` | auto | Initial window client size, `WxH`. |
 | `RECOMP_ASPECT` | `16:10` | Pin the display aspect: `16:10`, `16:9`, `4:3`, or a number. `auto` follows the window. Widescreen UI follows it. |
+| `MM3_FOV_DEGREES` | unset | Driving horizontal FOV at the display aspect, 60–110 degrees; unset or invalid values retain the existing widescreen FOV. Set with `scripts\play.ps1 -Fov 100`. |
 | `RECOMP_SUPERSAMPLE` | `2` | In auto resolution mode, render N×N pixels per window pixel (1–4). |
 | `RECOMP_RENDER_SCALE` | profile: `2.0` | Internal height as a multiple of 480 lines (0.5–8): Balanced 960, Quality 1440, LowPower 720; `2.25` = 1080. `auto` follows the window and uses supersampling. |
 | `RECOMP_MSAA` | profile: `2` | MSAA sample count (1/2/4/8); 1 disables it. Quality uses 4; LowPower uses 1. |

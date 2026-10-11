@@ -5,6 +5,49 @@ imported exteriors. For a fresh checkout, use the complete source recipe and
 optional imported preset below. It carries the same ten-car tuning as the
 default preset, including Mini Rally's native visuals.
 
+## Extra car names and model credits
+
+The [imported preset](../car-mods/cars.imported.json) has ten extra slots:
+nine imported exteriors from eight downloadable packs, plus Mini Rally's
+original MM3 exterior. The shorter Workshop names are shown alongside the
+exact source-model names below. Source credits were checked against the
+original MM2X listings and the readmes included with the downloaded packs.
+
+| Workshop name (car ID) | Exterior model | Original model pack / source | Model and conversion credits |
+|---|---|---|---|
+| Mini Rally (9001) | Original MM3 Mini | Your own Midtown Madness 3 game data; no external model download | Original MM3 assets by the game's development team, Digital Illusions CE (DICE), published by Microsoft Game Studios. No individual Mini model artist is identified here. |
+| Panoz GTR-1 (9004) | Panoz GTR-1 | [Panoz GTR-1](https://www.mm2x.com/download-1336-panoz-gtr-1#1336), including its paintjob patch | ISI: original rFactor model; Aaro4130: MM2 conversion; Thunder-ice and Alexi99: skins. |
+| McLaren F1 (9005) | 1995 McLaren F1 GTR | [1995 McLaren F1 GTR](https://www.mm2x.com/download-2214-1995-mclaren-f1-gtr#2214) | Firemint: Real Racing 2 model and textures; Tsutarja495: MM2 conversion. |
+| Formula 1 (9006) | Ferrari F2007 F1 | [Ferrari F2007 F1](https://www.mm2x.com/download-1220-ferrari-f2007-f1#1220) | Image Space Incorporated: original rFactor model; Kunal / Kunal2045: MM2 conversion. The readme records an intermediate GTA IV conversion; see the additional pack credits below. |
+| Ford GT (9009) | 2017 Ford GT, low-detail model | [2017 Ford GT](https://www.mm2x.com/download-2049-2017-ford-gt#2049), an MM1 pack | Firemonkeys: Real Racing 3 model; Eclipse 72rus: model extraction; mm2mm1fan: MM1 conversion. |
+| McLaren Senna (9010) | 2019 McLaren Senna | [McLaren Senna 2-Pack](https://www.mm2x.com/download-2221-mclaren-senna-2-pack#2221) | Firemonkeys: Real Racing 3 model and textures; Tsutarja495: MM2 conversion. |
+| McLaren Senna GTR (9011) | 2020 McLaren Senna GTR | [McLaren Senna 2-Pack](https://www.mm2x.com/download-2221-mclaren-senna-2-pack#2221), the same pack as the road car | Firemonkeys: Real Racing 3 model and textures; Tsutarja495: MM2 conversion. |
+| Ferrari FXX K (9012) | 2015 Ferrari FXX K | [2015 Ferrari FXX K](https://www.mm2x.com/download-1806-2015-ferrari-fxx-k#1806) | Firemonkeys Studios: Real Racing 3 source model; Matyii, also named Matyasd at MMArchive: MM2 conversion. |
+| Koenigsegg Regera (9013) | 2015 Koenigsegg Regera | [2015 Koenigsegg Regera](https://www.mm2x.com/download-1715-2015-koenigsegg-regera#1715) | Firemonkeys Studios: Real Racing 3 source model; Matyii / Matyasd: MM2 conversion. |
+| Lamborghini Aventador (9014) | Lamborghini Aventador LP700-4 | [Lamborghini Aventador LP700-4](https://www.mm2x.com/download-1465-lamborghini-aventador-lp700-4#1465) | Firemonkeys: Real Racing 3 body; Gameloft: GT Racing 2 wheels, brake discs and calipers; BUGATTIMAN253MPH: MM2 conversion. |
+
+Microsoft's [original MM3 announcement](https://news.microsoft.com/source/2002/04/24/microsoft-game-studios-turns-midtown-madness-3-loose-on-city-streets/)
+identifies the retail game's developer and publisher. Mini Rally reuses the
+native `mini` assets under an extra-car alias. The other nine rows identify the
+downloaded exterior models; the [roster below](#imported-roster) records their
+MM3 collision, interior and sound donors. Workshop's manufacturer specification
+references are separate sources for the driving presets. A source-pack year
+or racing variant can therefore differ from the specification reference.
+
+Additional pack credits are retained in the original readmes. The F2007
+listing also names **BryanLex** without specifying a role, and credits **Riva**
+for its MM2 dashboard; its readme thanks **Franch88**, **Riva** and **Sajmon14**
+for testing and fixes. The Panoz readme credits **Angel Studios and Microsoft**
+for its MM2 dashboard/showcase. Those pack features are not imported custom
+MM3 interiors. Source-pack sounds likewise remain credited in their readmes;
+the current MM3 packages use their native donor sounds.
+
+The repository's MM3 conversion tools and generated shadow proxies build on
+these authors' meshes and textures. Keep the original readmes and source terms
+with a prepared package. The [reproduction recipe](#reproduce-the-nine-imported-exteriors)
+lists the exact input archives and SHA-256 values; downloaded models, textures
+and game assets are not included in this repository.
+
 ## Historical import verification
 
 The observations in this section describe the initial imports, before the

@@ -26,6 +26,7 @@ static HANDLE g_mm3_main_worker_ready;
 static int g_mm3_inline_threads;
 extern void sub_00083A6C_original(void);
 extern void mm3_configure_diagnostics(void);
+extern void mm3_widescreen_init(void);
 
 /* Register the first XAPI worker before it can create background workers.
  * The runtime's debug handle changes on every spawn and cannot determine
@@ -230,6 +231,7 @@ int main(void)
     }
 
     g_xbox_mem_offset = xbox_GetMemoryOffset();
+    mm3_widescreen_init();
     xbox_InputSetKeyboardDrivingProbe(mm3_keyboard_driving);
     mm3_debug_teleport_init();
     xbox_kernel_set_thunk_address(MM3_KERNEL_THUNK_ADDRESS,

@@ -350,6 +350,71 @@ static void check_camera(HWND window, BOOL mm3)
     CHECK(xbox_FramebufferKeyDown('C') == 0 && xbox_FramebufferKeyDown('E') == 0);
 }
 
+static void check_handbrake(HWND window, BOOL mm3)
+{
+    uint8_t out[20];
+    XBOX_INPUT_STATE before, after;
+    unsigned i, held;
+    driving_context = FALSE;
+    key(window, VK_SPACE, TRUE);
+    report(out);
+    for (i = 2; i < sizeof out; ++i) CHECK(out[i] == 0);
+    driving_context = TRUE;
+    xbox_InputSetKeyboardDrivingProbe(NULL);
+    report(out);
+    for (i = 2; i < sizeof out; ++i) CHECK(out[i] == 0);
+    xbox_InputSetKeyboardDrivingProbe(fixture_driving);
+
+    for (held = 0; held < 3; ++held) {
+        report(out);
+        CHECK(out[4] == (mm3 ? 255 : 0)); /* MM3 default handbrake is Xbox A. */
+        for (i = 2; i < sizeof out; ++i) if (i != 4) CHECK(out[i] == 0);
+    }
+    key(window, '3', TRUE);
+    report(out); CHECK(out[4] == (mm3 ? 255 : 0) && out[11] == 255);
+    CHECK(out[10] == 0); /* The handbrake must not apply brake/reverse. */
+    CHECK(xbox_InputGetState(0, &before) == ERROR_SUCCESS);
+    key(window, VK_SPACE, FALSE);
+    CHECK(xbox_InputGetState(0, &after) == ERROR_SUCCESS);
+    CHECK(before.dwPacketNumber != after.dwPacketNumber);
+    report(out); CHECK(out[4] == 0 && out[11] == 255);
+    key(window, '3', FALSE);
+
+    /* The original Z key and physical A retain their normal menu behavior. */
+    key(window, 'Z', TRUE); key(window, VK_SPACE, TRUE);
+    report(out); CHECK(out[4] == 255);
+    key(window, VK_SPACE, FALSE);
+    report(out); CHECK(out[4] == 255);
+    driving_context = FALSE;
+    report(out); CHECK(out[4] == 255);
+    key(window, 'Z', FALSE);
+    report(out); CHECK(out[4] == 0);
+    driving_context = TRUE;
+    host_connected = TRUE;
+    memset(&host_state, 0, sizeof(host_state));
+    host_state.Gamepad.wButtons = XINPUT_GAMEPAD_A;
+    key(window, VK_SPACE, TRUE);
+    report(out); CHECK(out[4] == 255);
+    key(window, VK_SPACE, FALSE);
+    report(out); CHECK(out[4] == 255);
+    driving_context = FALSE;
+    report(out); CHECK(out[4] == 255);
+    host_connected = FALSE;
+
+    driving_context = TRUE;
+    key(window, VK_SPACE, TRUE);
+    driving_context = FALSE; /* Held handbrake cannot select a pause-menu item. */
+    report(out);
+    for (i = 2; i < sizeof out; ++i) CHECK(out[i] == 0);
+    driving_context = TRUE;
+    report(out); CHECK(out[4] == (mm3 ? 255 : 0));
+    key(window, 'Z', TRUE);
+    SendMessageA(window, WM_KILLFOCUS, 0, 0);
+    report(out);
+    for (i = 2; i < sizeof out; ++i) CHECK(out[i] == 0);
+    CHECK(xbox_FramebufferKeyDown(VK_SPACE) == 0 && xbox_FramebufferKeyDown('Z') == 0);
+}
+
 static void check_escape(HWND window, BOOL mm3)
 {
     uint8_t out[20];
@@ -417,6 +482,7 @@ int main(int argc, char **argv)
     check_keyboard(window, mm3);
     check_gears(window, mm3);
     check_camera(window, mm3);
+    check_handbrake(window, mm3);
     check_escape(window, mm3);
     DestroyWindow(window);
     UnregisterClassA(wc.lpszClassName, wc.hInstance);
