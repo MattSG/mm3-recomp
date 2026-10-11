@@ -150,11 +150,151 @@ index 4779275..07b2ffa 100644
  /**
   * Get the state of a controller.
   * Port: 0-3 (Xbox controller ports)
+diff --git a/src/kernel/kernel.h b/src/kernel/kernel.h
+index b9a02bc..3028a35 100644
+--- a/src/kernel/kernel.h
++++ b/src/kernel/kernel.h
+@@ -124,6 +124,9 @@ enum {
+ #ifndef STATUS_OBJECT_PATH_NOT_FOUND
+ #define STATUS_OBJECT_PATH_NOT_FOUND    ((NTSTATUS)0xC000003AL)
+ #endif
++#ifndef STATUS_SHARING_VIOLATION
++#define STATUS_SHARING_VIOLATION        ((NTSTATUS)0xC0000043L)
++#endif
+ #ifndef STATUS_MUTANT_NOT_OWNED
+ #define STATUS_MUTANT_NOT_OWNED         ((NTSTATUS)0xC0000046L)
+ #endif
+@@ -600,6 +603,7 @@ void xbox_SetCrtLockTable(uint32_t table_va, uint32_t count);
+ 
+ VOID    __stdcall xbox_RtlEnterCriticalSection(PRTL_CRITICAL_SECTION CriticalSection);
+ VOID    __stdcall xbox_RtlLeaveCriticalSection(PRTL_CRITICAL_SECTION CriticalSection);
++BOOLEAN __stdcall xbox_RtlTryEnterCriticalSection(PRTL_CRITICAL_SECTION CriticalSection);
+ VOID    __stdcall xbox_RtlInitializeCriticalSection(PRTL_CRITICAL_SECTION CriticalSection);
+ 
+ ULONG   __stdcall xbox_RtlNtStatusToDosError(NTSTATUS Status);
 diff --git a/src/kernel/kernel_bridge.c b/src/kernel/kernel_bridge.c
-index ed7682a..14016a8 100644
+index ed7682a..4b24da5 100644
 --- a/src/kernel/kernel_bridge.c
 +++ b/src/kernel/kernel_bridge.c
-@@ -1511,9 +1511,11 @@ static void bridge_NtCreateEvent(void)
+@@ -365,15 +365,17 @@ static void kernel_data_init(void)
+ /* Ordinal for each slot (read from Xbox memory during init) */
+ static ULONG g_slot_ordinals[XBOX_KERNEL_THUNK_TABLE_SIZE];
+ 
+-/* Log counter - limit output to avoid flooding */
+-/* Calls per ordinal, for the ranking in the periodic summary. 378 counters
+- * is smaller than one of the strings this file prints. */
++/* Kernel diagnostics are configured before guest threads start. In normal
++ * play, stop counting once the boot trace budget is exhausted: clock polling
++ * alone can dispatch tens of millions of calls, and neither shared counters
++ * nor a GetTickCount per call should be on that path. */
+ static unsigned long long g_ordinal_calls[XBOX_KERNEL_THUNK_TABLE_SIZE];
+-/* 64-bit: a title that polls the clock through the kernel passes 2^31 calls
+- * within minutes (X-Men Legends does). As a 32-bit int it wrapped negative,
+- * "count <= log budget" turned true, and every kernel call then wrote two log
+- * lines through the shared stderr lock -- the frame rate fell to ~1 FPS. */
+-static long long g_kernel_call_count = 0;
++static volatile LONGLONG g_kernel_call_count;
++static RECOMP_TLS long long t_kernel_call_count;
++static long g_kernel_log_budget = 200;
++static int g_kernel_summary_on;
++static DWORD g_kernel_summary_tick;
++static CRITICAL_SECTION g_kernel_summary_lock;
+ 
+ /* How many kernel calls get logged before the log goes quiet.
+  *
+@@ -381,24 +383,79 @@ static long long g_kernel_call_count = 0;
+  * console, but a bring-up that gets past early init then has no visibility at
+  * exactly the point it stops being obvious. Override with
+  * RECOMP_KERNEL_LOG_BUDGET, the same way RECOMP_TRACE_BUDGET works for the
+- * function tracer. 0 silences the log entirely.
++ * function tracer. 0 silences the call trace. RECOMP_KERNEL_SUMMARY=1 enables
++ * periodic totals explicitly; without it there is no steady-state counter or
++ * clock overhead after the budget is exhausted.
+  */
+-static long kernel_log_budget(void)
++static void kernel_log_init(void)
+ {
+-    static long budget = -1;
+-
+-    if (budget < 0) {
+-        const char *env = getenv("RECOMP_KERNEL_LOG_BUDGET");
+-        budget = env ? strtol(env, NULL, 0) : 200;
+-        if (budget < 0)
+-            budget = 0;
++    const char *env = getenv("RECOMP_KERNEL_LOG_BUDGET");
++    const char *summary = getenv("RECOMP_KERNEL_SUMMARY");
++    g_kernel_log_budget = env ? strtol(env, NULL, 0) : 200;
++    if (g_kernel_log_budget < 0)
++        g_kernel_log_budget = 0;
++    g_kernel_call_count = 0;
++    t_kernel_call_count = 0;
++    g_kernel_summary_on = summary && *summary && strcmp(summary, "0") != 0;
++    if (g_kernel_summary_on) {
++        memset(g_ordinal_calls, 0, sizeof g_ordinal_calls);
++        g_kernel_summary_tick = GetTickCount();
++        InitializeCriticalSection(&g_kernel_summary_lock);
+     }
+-    return budget;
+ }
+ 
+-#define KERNEL_LOG_ON()      (g_kernel_call_count <= kernel_log_budget())
++#define KERNEL_LOG_ON()      (t_kernel_call_count > 0 && t_kernel_call_count <= g_kernel_log_budget)
+ /* Some sites logged at a tighter cap than the rest; keep them proportional. */
+-#define KERNEL_LOG_ON_HALF() (g_kernel_call_count <= kernel_log_budget() / 2)
++#define KERNEL_LOG_ON_HALF() (t_kernel_call_count > 0 && t_kernel_call_count <= g_kernel_log_budget / 2)
++
++static void kernel_log_dispatch(ULONG ordinal, int slot)
++{
++    if (g_kernel_summary_on) {
++        DWORD now;
++        EnterCriticalSection(&g_kernel_summary_lock);
++        t_kernel_call_count = ++g_kernel_call_count;
++        if (ordinal < XBOX_KERNEL_THUNK_TABLE_SIZE)
++            g_ordinal_calls[ordinal]++;
++        now = GetTickCount();
++        if (now - g_kernel_summary_tick >= 2000 && t_kernel_call_count > 200) {
++            unsigned char shown_ord[XBOX_KERNEL_THUNK_TABLE_SIZE] = {0};
++            int r, shown;
++            fprintf(stderr, "  [KERNEL] summary: %lld total calls, latest ordinal %u (slot %d) esp=0x%08X ret=0x%08X\n",
++                    t_kernel_call_count, ordinal, slot, g_esp,
++                    g_esp ? BRIDGE_MEM32(g_esp) : 0);
++            for (shown = 0; shown < 6; shown++) {
++                int best = -1;
++                for (r = 0; r < XBOX_KERNEL_THUNK_TABLE_SIZE; r++)
++                    if (g_ordinal_calls[r] && !shown_ord[r]
++                        && (best < 0 || g_ordinal_calls[r] > g_ordinal_calls[best]))
++                        best = r;
++                if (best < 0)
++                    break;
++                shown_ord[best] = 1;
++                fprintf(stderr, "  [KERNEL]   ordinal %3d x%llu\n", best,
++                        g_ordinal_calls[best]);
++            }
++            fflush(stderr);
++            g_kernel_summary_tick = now;
++        }
++        LeaveCriticalSection(&g_kernel_summary_lock);
++    } else if (t_kernel_call_count <= g_kernel_log_budget) {
++        /* Reserve a unique trace number only while any boot calls remain.
++         * Cache the exhausted state per thread so the gameplay path does not
++         * even read the shared counter, much less contend on its cache line. */
++        LONGLONG count = InterlockedCompareExchange64(&g_kernel_call_count, 0, 0);
++        while (count <= g_kernel_log_budget) {
++            LONGLONG actual = InterlockedCompareExchange64(&g_kernel_call_count,
++                                                          count + 1, count);
++            if (actual == count) {
++                count++;
++                break;
++            }
++            count = actual;
++        }
++        t_kernel_call_count = count;
++    }
++}
+ 
+ /* Read Xbox stack arg as uint32_t.
+  * After kernel_thunk_dispatch pops the dummy return address (g_esp += 4),
+@@ -1511,9 +1568,11 @@ static void bridge_NtCreateEvent(void)
          bridge_write_handle(handle_ptr, local_handle);
      }
  
@@ -169,7 +309,15 @@ index ed7682a..14016a8 100644
  
      g_eax = (uint32_t)status;
  }
-@@ -2965,8 +2967,9 @@ static NTSTATUS bridge_create_file_impl(
+@@ -2723,6 +2782,7 @@ static void bridge_RtlNtStatusToDosError(void)
+     case 0xC000003A: g_eax = 3; break;          /* STATUS_OBJECT_PATH_NOT_FOUND → ERROR_PATH_NOT_FOUND */
+     case 0xC0000022: g_eax = 5; break;          /* STATUS_ACCESS_DENIED → ERROR_ACCESS_DENIED */
+     case 0xC0000008: g_eax = 6; break;          /* STATUS_INVALID_HANDLE → ERROR_INVALID_HANDLE */
++    case 0xC0000043: g_eax = 32; break;         /* STATUS_SHARING_VIOLATION → ERROR_SHARING_VIOLATION */
+     case 0xC0000017: g_eax = 8; break;          /* STATUS_NO_MEMORY → ERROR_NOT_ENOUGH_MEMORY */
+     case 0xC000000D: g_eax = 87; break;         /* STATUS_INVALID_PARAMETER → ERROR_INVALID_PARAMETER */
+     /* The informational and warning codes, which are not failures and must
+@@ -2965,8 +3025,9 @@ static NTSTATUS bridge_create_file_impl(
      }
  
      if (bridge_is_cdrom_device(name.Buffer)) {
@@ -181,7 +329,7 @@ index ed7682a..14016a8 100644
          if (handle_va)
              BRIDGE_MEM32(handle_va) = BRIDGE_CDROM_HANDLE;
          bridge_write_iostatus(iostatus_va, 0, 1 /* FILE_OPENED */);
-@@ -3122,11 +3125,11 @@ static void bridge_NtCreateFile(void)
+@@ -3122,11 +3183,11 @@ static void bridge_NtCreateFile(void)
              xbox_VideoPlayFile(host);
      }
  
@@ -196,7 +344,7 @@ index ed7682a..14016a8 100644
          extern uint32_t xbox_LastFileError(void);
          uint32_t _e = g_eax ? xbox_LastFileError() : 0u;
          if (g_eax)
-@@ -3137,8 +3140,8 @@ static void bridge_NtCreateFile(void)
+@@ -3137,8 +3198,8 @@ static void bridge_NtCreateFile(void)
                    : _e ==  3u ? " ERROR_PATH_NOT_FOUND" : "");
          else
              fprintf(stderr, "  [FILE] -> 0x%08X\n", g_eax);
@@ -206,7 +354,7 @@ index ed7682a..14016a8 100644
  }
  
  /* ── NtOpenFile (ordinal 202, 6 args = 24 bytes) ──────── */
-@@ -3448,8 +3451,10 @@ static void bridge_NtReadFile(void)
+@@ -3448,8 +3509,10 @@ static void bridge_NtReadFile(void)
  
      /* What a read actually delivered. A decoder that rejects its input cannot
       * say whether the bytes were wrong or the read was, and the two look
@@ -219,7 +367,7 @@ index ed7682a..14016a8 100644
          const uint8_t *p = (const uint8_t *)XBOX_TO_NATIVE(buffer_va);
          uint32_t got = (uint32_t)ios.Information;
          /* The offset matters as much as the length. A title streaming a pack
-@@ -3796,8 +3801,9 @@ static void bridge_NtDeviceIoControlFile(void)
+@@ -3796,8 +3859,9 @@ static void bridge_NtDeviceIoControlFile(void)
              uint32_t data_len = BRIDGE_MEM32(in_va + 12);
              uint32_t page     = BRIDGE_MEM8(in_va + 30) & 0x3F;
  
@@ -231,7 +379,7 @@ index ed7682a..14016a8 100644
  
              if (data_va && data_len) {
                  uint32_t i;
-@@ -3831,8 +3837,9 @@ static void bridge_NtDeviceIoControlFile(void)
+@@ -3831,8 +3895,9 @@ static void bridge_NtDeviceIoControlFile(void)
              return;
          }
  
@@ -243,6 +391,236 @@ index ed7682a..14016a8 100644
          if (out_va && out_len) {
              uint32_t i;
              for (i = 0; i < out_len; i++)
+@@ -5977,60 +6042,9 @@ static void bridge_RtlUshortByteSwap(void)
+ /* ── Rtl Critical sections (ordinals 278, 295, 306) ─────────
+  * 277/294 (plain Enter/Leave) are routed via the xbox_Rtl* wrappers already.
+  *
+- * TryEnter cannot reuse xbox_cs_shadow (it is private to kernel_rtl.c), so it
+- * keeps its own keyed host-lock table: guest critical-section address -> host
+- * CRITICAL_SECTION, created and probed under a guard.  Only the try path uses
+- * it, so entering with Try and leaving with LeaveCriticalSection are both
+- * routed at the shadow level and stay consistent on the host side. */
+-
+-#define BRIDGE_TRY_CS_SLOTS 512
+-
+-typedef struct {
+-    uint32_t key;             /* guest critical section; 0 means free */
+-    int      ready;
+-    CRITICAL_SECTION cs;
+-} BRIDGE_TRY_CS_SLOT;
+-
+-static BRIDGE_TRY_CS_SLOT g_try_cs[BRIDGE_TRY_CS_SLOTS];
+-static CRITICAL_SECTION g_try_cs_guard;
+-static int g_try_cs_guard_ready;
+-
+-static void bridge_try_cs_init_guard(void)
+-{
+-    /* First call in practice comes from the title's main thread during setup;
+-     * a second InitializeCriticalSection on the same object is benign. */
+-    if (!g_try_cs_guard_ready) {
+-        InitializeCriticalSection(&g_try_cs_guard);
+-        g_try_cs_guard_ready = 1;
+-    }
+-}
+-
+-static CRITICAL_SECTION *bridge_try_cs_shadow(uint32_t guest)
+-{
+-    size_t home, i;
+-
+-    bridge_try_cs_init_guard();
+-    EnterCriticalSection(&g_try_cs_guard);
+-    home = (size_t)((guest >> 4) % BRIDGE_TRY_CS_SLOTS);
+-    for (i = 0; i < BRIDGE_TRY_CS_SLOTS; i++) {
+-        BRIDGE_TRY_CS_SLOT *slot = &g_try_cs[(home + i) % BRIDGE_TRY_CS_SLOTS];
+-        if (slot->key == guest) {
+-            LeaveCriticalSection(&g_try_cs_guard);
+-            return &slot->cs;
+-        }
+-        if (slot->key == 0) {
+-            if (!slot->ready) {
+-                InitializeCriticalSection(&slot->cs);
+-                slot->ready = 1;
+-            }
+-            slot->key = guest;
+-            LeaveCriticalSection(&g_try_cs_guard);
+-            return &slot->cs;
+-        }
+-    }
+-    LeaveCriticalSection(&g_try_cs_guard);
+-    return NULL;
+-}
++ * Try, Enter and Leave must resolve the same permanent shadow. A separate
++ * Try-only table lets another thread enter while the real lock is held, and
++ * Leave then releases the wrong native lock. */
+ 
+ /* 278: VOID RtlEnterCriticalSectionAndRegion(PRTL_CRITICAL_SECTION) */
+ static void bridge_RtlEnterCriticalSectionAndRegion(void)
+@@ -6049,9 +6063,8 @@ static void bridge_RtlLeaveCriticalSectionAndRegion(void)
+ /* 306: BOOLEAN RtlTryEnterCriticalSection(PRTL_CRITICAL_SECTION) */
+ static void bridge_RtlTryEnterCriticalSection(void)
+ {
+-    CRITICAL_SECTION *cs = bridge_try_cs_shadow(STACK_ARG(0));
+-    if (!cs) { g_eax = 0; return; }
+-    g_eax = TryEnterCriticalSection(cs) ? 1 : 0;
++    g_eax = xbox_RtlTryEnterCriticalSection(
++        (PRTL_CRITICAL_SECTION)XBOX_TO_NATIVE(STACK_ARG(0))) ? 1 : 0;
+ }
+ 
+ /* ── Rtl Misc stubs (ordinals 288, 297, 319, 321) ─────────── */
+@@ -9477,9 +9490,7 @@ static void kernel_thunk_dispatch_body(void)
+     ordinal = g_slot_ordinals[slot];
+     bridge = g_slot_bridges[slot];
+ 
+-    g_kernel_call_count++;
+-    if (ordinal < XBOX_KERNEL_THUNK_TABLE_SIZE)
+-        g_ordinal_calls[ordinal]++;
++    kernel_log_dispatch(ordinal, slot);
+ 
+     if (KERNEL_LOG_ON()) {
+         /* The guest return address sits at the top of the guest stack: the
+@@ -9488,46 +9499,11 @@ static void kernel_thunk_dispatch_body(void)
+          * difference between guessing and knowing when a title recurses. */
+         fprintf(stderr,
+                 "  [KERNEL] #%lld: ordinal %u (slot %d) esp=0x%08X ret=0x%08X\n",
+-                g_kernel_call_count, ordinal, slot, g_esp,
++                t_kernel_call_count, ordinal, slot, g_esp,
+                 g_esp ? BRIDGE_MEM32(g_esp) : 0);
+         fflush(stderr);
+     }
+ 
+-    {
+-        static DWORD last_summary_tick = 0;
+-        DWORD now = GetTickCount();
+-        if (last_summary_tick == 0) last_summary_tick = now;
+-        if (now - last_summary_tick >= 2000 && g_kernel_call_count > 200) {
+-            fprintf(stderr, "  [KERNEL] summary: %lld total calls, latest ordinal %u (slot %d) esp=0x%08X ret=0x%08X\n",
+-                    g_kernel_call_count, ordinal, slot, g_esp,
+-                    g_esp ? BRIDGE_MEM32(g_esp) : 0);
+-            /* And which ones, ranked. "Latest" names whatever the sample
+-             * happened to land on; the question behind this line is what a
+-             * title sitting still is actually asking the kernel for, and
+-             * that wants counting rather than sampling. */
+-            {
+-                static unsigned char shown_ord[XBOX_KERNEL_THUNK_TABLE_SIZE];
+-                int r, shown;
+-
+-                memset(shown_ord, 0, sizeof shown_ord);
+-                for (shown = 0; shown < 6; shown++) {
+-                    int best = -1;
+-                    for (r = 0; r < XBOX_KERNEL_THUNK_TABLE_SIZE; r++)
+-                        if (g_ordinal_calls[r] && !shown_ord[r]
+-                            && (best < 0 || g_ordinal_calls[r] > g_ordinal_calls[best]))
+-                            best = r;
+-                    if (best < 0)
+-                        break;
+-                    shown_ord[best] = 1;
+-                    fprintf(stderr, "  [KERNEL]   ordinal %3d x%llu\n", best,
+-                            (unsigned long long)g_ordinal_calls[best]);
+-                }
+-            }
+-            fflush(stderr);
+-            last_summary_tick = now;
+-        }
+-    }
+-
+     /* Pop the dummy return address that PUSH32(esp, 0) pushed before RECOMP_ICALL.
+      * On real x86, "call [thunk]" pushes a real return address and "ret" pops it.
+      * In our model, the bridge is called directly (not via the simulated stack),
+@@ -9559,10 +9535,8 @@ static void kernel_thunk_dispatch_body(void)
+             static uint32_t seen = 0xDEADBEEFu;
+             if (_watch_before != seen) {
+                 seen = _watch_before;
+-                fprintf(stderr, "  [KWATCH] 0x%08X = %08X before ordinal %u"
+-                                " (call #%lld)\n",
+-                        g_kernel_watch_va, _watch_before, ordinal,
+-                        g_kernel_call_count);
++                fprintf(stderr, "  [KWATCH] 0x%08X = %08X before ordinal %u\n",
++                        g_kernel_watch_va, _watch_before, ordinal);
+                 fflush(stderr);
+             }
+         }
+@@ -9572,7 +9546,7 @@ static void kernel_thunk_dispatch_body(void)
+         bridge();
+     } else {
+         /* No specific bridge - return 0. Warn once per ordinal rather than
+-         * gating on g_kernel_call_count: a missing bridge is rare and is
++         * gating on the call trace budget: a missing bridge is rare and is
+          * usually the reason a game misbehaves, so it must not be swallowed
+          * by the general call-trace throttle. Bounded to one line per slot. */
+         static uint8_t warned[XBOX_KERNEL_THUNK_TABLE_SIZE];
+@@ -9713,6 +9687,7 @@ void xbox_kernel_bridge_init(void)
+     int unbridged = 0;
+     DWORD old_protect;
+ 
++    kernel_log_init();
+     guest_cpu_join();          /* the caller goes on to run the title's entry point */
+     fprintf(stderr, "  Kernel thunk bridge: resolving %d entries at 0x%08X\n",
+             g_thunk_table_count, g_thunk_table_base);
+diff --git a/src/kernel/kernel_file.c b/src/kernel/kernel_file.c
+index 1133eb5..0037cf8 100644
+--- a/src/kernel/kernel_file.c
++++ b/src/kernel/kernel_file.c
+@@ -196,8 +196,11 @@ NTSTATUS __stdcall xbox_NtCreateFile(
+ 
+     if (h == INVALID_HANDLE_VALUE) {
+         DWORD err = GetLastError();
+-        fprintf(stderr, "[NtCreateFile] FAILED path=%ls err=%lu\n",
+-                win_path, (unsigned long)err);
++        NTSTATUS status;
++        fprintf(stderr, "[NtCreateFile] FAILED path=%ls err=%lu access=0x%08X share=0x%X disposition=%u options=0x%X\n",
++                win_path, (unsigned long)err, (unsigned)DesiredAccess,
++                (unsigned)ShareAccess, (unsigned)CreateDisposition,
++                (unsigned)CreateOptions);
+         /* Kept for the caller's trace. An NTSTATUS says "it did not open";
+          * only the Win32 error distinguishes a title probing for a file that
+          * is genuinely absent from one it cannot open because this runtime
+@@ -209,17 +212,22 @@ NTSTATUS __stdcall xbox_NtCreateFile(
+          * build that decision was invisible. */
+         xbox_log(XBOX_LOG_WARN, XBOX_LOG_FILE,
+                  "NtCreateFile FAILED: %S (err=%u)", win_path, err);
++        switch (err) {
++            case ERROR_FILE_NOT_FOUND: status = STATUS_OBJECT_NAME_NOT_FOUND; break;
++            case ERROR_PATH_NOT_FOUND: status = STATUS_OBJECT_PATH_NOT_FOUND; break;
++            case ERROR_ACCESS_DENIED:  status = STATUS_ACCESS_DENIED; break;
++            case ERROR_ALREADY_EXISTS: status = STATUS_OBJECT_NAME_COLLISION; break;
++            /* A short-lived host file lock is not a missing asset or a
++             * generic I/O failure. Preserve it through the guest's error
++             * conversion without weakening the requested share access. */
++            case ERROR_SHARING_VIOLATION: status = STATUS_SHARING_VIOLATION; break;
++            default:                   status = STATUS_UNSUCCESSFUL; break;
++        }
+         if (IoStatusBlock) {
+-            IoStatusBlock->Status = STATUS_OBJECT_NAME_NOT_FOUND;
++            IoStatusBlock->Status = status;
+             IoStatusBlock->Information = 0;
+         }
+-        switch (err) {
+-            case ERROR_FILE_NOT_FOUND: return STATUS_OBJECT_NAME_NOT_FOUND;
+-            case ERROR_PATH_NOT_FOUND: return STATUS_OBJECT_PATH_NOT_FOUND;
+-            case ERROR_ACCESS_DENIED:  return STATUS_ACCESS_DENIED;
+-            case ERROR_ALREADY_EXISTS: return STATUS_OBJECT_NAME_COLLISION;
+-            default:                   return STATUS_UNSUCCESSFUL;
+-        }
++        return status;
+     }
+ 
+     *FileHandle = h;
+@@ -842,12 +850,13 @@ NTSTATUS __stdcall xbox_NtCreateFile(
+ 
+     if (fd < 0) {
+         int e = errno;
++        NTSTATUS status = errno_to_status(e);
+         XBOX_TRACE(XBOX_LOG_FILE, "NtCreateFile FAILED: %s (errno=%d)", host_path, e);
+         if (IoStatusBlock) {
+-            IoStatusBlock->Status = STATUS_OBJECT_NAME_NOT_FOUND;
++            IoStatusBlock->Status = status;
+             IoStatusBlock->Information = 0;
+         }
+-        return errno_to_status(e);
++        return status;
+     }
+ 
+     *FileHandle = w32_open_handle(fd, host_path);
 diff --git a/src/kernel/kernel_path.c b/src/kernel/kernel_path.c
 index caf6390..8d0c050 100644
 --- a/src/kernel/kernel_path.c
@@ -266,11 +644,281 @@ index caf6390..8d0c050 100644
      {
          WCHAR remainder_wide[MAX_PATH];
          MultiByteToWideChar(CP_ACP, 0, remainder, -1, remainder_wide, MAX_PATH);
+diff --git a/src/kernel/kernel_rtl.c b/src/kernel/kernel_rtl.c
+index 9760735..f9ec82c 100644
+--- a/src/kernel/kernel_rtl.c
++++ b/src/kernel/kernel_rtl.c
+@@ -220,6 +220,17 @@ static XBOX_CS_SLOT* xbox_cs_slot_of(CRITICAL_SECTION* cs)
+ static SRWLOCK      g_cs_table_lock = SRWLOCK_INIT;
+ static int          g_cs_table_full;
+ 
++/* Shadows are never deleted or moved. Once a thread resolves one under the
++ * table lock, it can reuse that pointer without taking the global table lock
++ * in front of every guest heap/stream acquisition and release. A collision
++ * only replaces this thread's hint; it never changes the underlying lock. */
++#define XBOX_CS_CACHE_SIZE 32
++typedef struct {
++    uintptr_t key;
++    CRITICAL_SECTION *cs;
++} XBOX_CS_CACHE_ENTRY;
++static RECOMP_TLS XBOX_CS_CACHE_ENTRY t_cs_cache[XBOX_CS_CACHE_SIZE];
++
+ /* RECOMP_CS_MODE=single puts every guest critical section behind one recursive
+  * lock.
+  *
+@@ -237,7 +248,29 @@ static int          g_cs_table_full;
+  */
+ static CRITICAL_SECTION g_cs_single;
+ static INIT_ONCE g_cs_single_once = INIT_ONCE_STATIC_INIT;
+-static int g_cs_single_mode = -1;
++static INIT_ONCE g_cs_mode_once = INIT_ONCE_STATIC_INIT;
++static int g_cs_single_mode;
++static int g_cs_counters_on;
++static volatile LONG g_cs_mode_ready;
++
++static BOOL CALLBACK xbox_cs_mode_init(PINIT_ONCE o, PVOID p, PVOID *c)
++{
++    const char* mode = getenv("RECOMP_CS_MODE");
++    const char* counters = getenv("RECOMP_CS_COUNTERS");
++    (void)o; (void)p; (void)c;
++    g_cs_single_mode = (mode && !strcmp(mode, "single")) ? 1 : 0;
++    /* These totals only appear in contention diagnostics. Counting every
++     * guest lock operation otherwise bounces a shared atomic cache line
++     * between worker cores millions of times during normal gameplay. */
++    g_cs_counters_on = (counters && *counters && strcmp(counters, "0")) ||
++                      getenv("RECOMP_CS_TRACE_CRT") != NULL ||
++                      getenv("RECOMP_CS_WATCH") != NULL;
++    if (g_cs_single_mode)
++        fprintf(stderr, "  [CS] RECOMP_CS_MODE=single: every guest lock "
++                        "shares one recursive lock\n");
++    InterlockedExchange(&g_cs_mode_ready, 1);
++    return TRUE;
++}
+ 
+ static BOOL CALLBACK xbox_cs_single_init(PINIT_ONCE o, PVOID p, PVOID *c)
+ {
+@@ -248,13 +281,8 @@ static BOOL CALLBACK xbox_cs_single_init(PINIT_ONCE o, PVOID p, PVOID *c)
+ 
+ static CRITICAL_SECTION* xbox_cs_shadow(PRTL_CRITICAL_SECTION guest)
+ {
+-    if (g_cs_single_mode < 0) {
+-        const char* mode = getenv("RECOMP_CS_MODE");
+-        g_cs_single_mode = (mode && !strcmp(mode, "single")) ? 1 : 0;
+-        if (g_cs_single_mode)
+-            fprintf(stderr, "  [CS] RECOMP_CS_MODE=single: every guest lock "
+-                            "shares one recursive lock\n");
+-    }
++    if (!g_cs_mode_ready)
++        InitOnceExecuteOnce(&g_cs_mode_once, xbox_cs_mode_init, NULL, NULL);
+     if (g_cs_single_mode) {
+         if (!guest)
+             return NULL;
+@@ -263,10 +291,13 @@ static CRITICAL_SECTION* xbox_cs_shadow(PRTL_CRITICAL_SECTION guest)
+     }
+     uintptr_t key = (uintptr_t)guest;
+     CRITICAL_SECTION* found = NULL;
+-    size_t home, i;
++    size_t home, i, cache_index;
+ 
+     if (!key)
+         return NULL;
++    cache_index = ((key >> 4) ^ (key >> 9)) & (XBOX_CS_CACHE_SIZE - 1);
++    if (t_cs_cache[cache_index].key == key)
++        return t_cs_cache[cache_index].cs;
+     home = (size_t)((key >> 4) % XBOX_CS_TABLE_SIZE);
+ 
+     /* Shared pass first: after start-up almost every call finds an existing
+@@ -280,7 +311,7 @@ static CRITICAL_SECTION* xbox_cs_shadow(PRTL_CRITICAL_SECTION guest)
+     }
+     ReleaseSRWLockShared(&g_cs_table_lock);
+     if (found)
+-        return found;
++        goto cache;
+ 
+     AcquireSRWLockExclusive(&g_cs_table_lock);
+     for (i = 0; i < XBOX_CS_TABLE_SIZE; i++) {
+@@ -303,6 +334,11 @@ static CRITICAL_SECTION* xbox_cs_shadow(PRTL_CRITICAL_SECTION guest)
+                  "critical-section table full at %d entries; further locks "
+                  "are unprotected", XBOX_CS_TABLE_SIZE);
+     }
++cache:
++    if (found) {
++        t_cs_cache[cache_index].key = key;
++        t_cs_cache[cache_index].cs = found;
++    }
+     return found;
+ }
+ 
+@@ -475,7 +511,8 @@ VOID __stdcall xbox_RtlEnterCriticalSection(PRTL_CRITICAL_SECTION CriticalSectio
+     CRITICAL_SECTION* cs = xbox_cs_shadow(CriticalSection);
+     if (!cs)
+         return;
+-    InterlockedIncrement(&g_cs_enters);
++    if (g_cs_counters_on)
++        InterlockedIncrement(&g_cs_enters);
+     crt_lock_trace("take", CriticalSection);
+     if (TryEnterCriticalSection(cs)) {
+         xbox_cs_note_owner(cs);
+@@ -505,8 +542,9 @@ VOID __stdcall xbox_RtlEnterCriticalSection(PRTL_CRITICAL_SECTION CriticalSectio
+                                 " 0x%08X (depth %ld)\n",
+                         slot->owner_tid, slot->owner_site, slot->depth);
+         }
+-        fprintf(stderr, "  [CS] enters=%ld leaves=%ld (outstanding %ld)\n",
+-                g_cs_enters, g_cs_leaves, g_cs_enters - g_cs_leaves);
++        if (g_cs_counters_on)
++            fprintf(stderr, "  [CS] enters=%ld leaves=%ld (outstanding %ld)\n",
++                    g_cs_enters, g_cs_leaves, g_cs_enters - g_cs_leaves);
+         xbox_guest_backtrace(10);
+         fflush(stderr);
+     }
+@@ -525,13 +563,25 @@ VOID __stdcall xbox_RtlLeaveCriticalSection(PRTL_CRITICAL_SECTION CriticalSectio
+ {
+     CRITICAL_SECTION* cs = xbox_cs_shadow(CriticalSection);
+     if (cs) {
+-        InterlockedIncrement(&g_cs_leaves);
++        if (g_cs_counters_on)
++            InterlockedIncrement(&g_cs_leaves);
+         crt_lock_trace("drop", CriticalSection);
+         xbox_cs_clear_owner(cs);
+         LeaveCriticalSection(cs);
+     }
+ }
+ 
++BOOLEAN __stdcall xbox_RtlTryEnterCriticalSection(PRTL_CRITICAL_SECTION CriticalSection)
++{
++    CRITICAL_SECTION* cs = xbox_cs_shadow(CriticalSection);
++    if (!cs || !TryEnterCriticalSection(cs))
++        return FALSE;
++    if (g_cs_counters_on)
++        InterlockedIncrement(&g_cs_enters);
++    xbox_cs_note_owner(cs);
++    return TRUE;
++}
++
+ VOID __stdcall xbox_RtlInitializeCriticalSection(PRTL_CRITICAL_SECTION CriticalSection)
+ {
+     /* Creating the shadow here is not required -- Enter does it -- but doing
+@@ -554,6 +604,7 @@ ULONG __stdcall xbox_RtlNtStatusToDosError(NTSTATUS Status)
+         case STATUS_OBJECT_NAME_NOT_FOUND:      return ERROR_FILE_NOT_FOUND;
+         case STATUS_OBJECT_PATH_NOT_FOUND:      return ERROR_PATH_NOT_FOUND;
+         case STATUS_OBJECT_NAME_COLLISION:      return ERROR_ALREADY_EXISTS;
++        case STATUS_SHARING_VIOLATION:           return 32; /* ERROR_SHARING_VIOLATION */
+         case STATUS_NO_SUCH_FILE:               return ERROR_FILE_NOT_FOUND;
+         case STATUS_END_OF_FILE:                return ERROR_HANDLE_EOF;
+         case STATUS_INVALID_HANDLE:             return ERROR_INVALID_HANDLE;
 diff --git a/src/kernel/xbox_memory_layout.c b/src/kernel/xbox_memory_layout.c
-index a2e99fb..87ceafa 100644
+index a2e99fb..4b4526b 100644
 --- a/src/kernel/xbox_memory_layout.c
 +++ b/src/kernel/xbox_memory_layout.c
-@@ -2494,13 +2494,22 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
+@@ -15,6 +15,7 @@
+ #include "xbox_memory_layout.h"
+ #include "kernel.h"
+ #include "guest_vmem.h"
++#include "nv2a_notify_wait.h"
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -234,6 +235,7 @@ static size_t xbox_TiledApertureSize(void)
+ 
+ static HANDLE g_nv2a_ack_thread = NULL;
+ static volatile LONG g_nv2a_ack_stop = 0;
++static XBOX_NV2A_WAKE g_nv2a_wake;
+ 
+ /*
+  * NV2A busy-bit acknowledgement.
+@@ -764,11 +766,12 @@ void xbox_Nv2aFrameCounterFlip(void)
+ 
+ static void frame_counters_tick(void)
+ {
+-    DWORD now = GetTickCount();
++    DWORD now;
+     int i;
+ 
+     if (!g_frame_counter_count)
+         return;
++    now = GetTickCount();
+     if (g_frame_counter_last_ms
+             && (now - g_frame_counter_last_ms) < XBOX_FRAME_PERIOD_MS)
+         return;
+@@ -861,17 +864,16 @@ int xbox_Nv2aNotifyEvent(uint32_t device_ptr_va, uint32_t event_off, uint32_t no
+ /* The executor ran NO_OPERATION(param): the notify interrupt, on hardware. */
+ void xbox_Nv2aNop(uint32_t param)
+ {
+-    if (param && param == g_notify_param)
++    if (param && param == g_notify_param) {
+         InterlockedIncrement(&g_notify_count);
++        xbox_nv2a_wake_publish(&g_nv2a_wake);
++    }
+ }
+ 
+ int xbox_Nv2aNotifyWait(uint32_t object_va)
+ {
+     volatile uint32_t *put, *get;
+     uint32_t dev;
+-#ifdef _WIN32
+-    unsigned spins = 0;
+-#endif
+     LONG notified = g_notify_count;
+     /* the pointer is in the title image, mapped for as long as it runs */
+     if (!g_notify_device_ptr || !g_nv2a_memory || !g_memory_base)
+@@ -883,15 +885,8 @@ int xbox_Nv2aNotifyWait(uint32_t object_va)
+     get = (volatile uint32_t *)((char *)g_nv2a_memory + NV2A_USER_DMA_GET);
+     /* The patched NOP running is the interrupt itself; GET reaching PUT
+      * covers an executor that passed the slot before it was patched. */
+-    while (*get != *put && g_notify_count == notified &&
+-           !InterlockedCompareExchange(&g_nv2a_ack_stop, 0, 0)) {
+-#ifdef _WIN32
+-        if (++spins & 63) YieldProcessor();
+-        else SwitchToThread();
+-#else
+-        SwitchToThread();
+-#endif
+-    }
++    xbox_nv2a_notify_wait(&g_nv2a_wake, get, put,
++                         &g_notify_count, notified, &g_nv2a_ack_stop);
+     return 1;
+ }
+ 
+@@ -932,12 +927,13 @@ static void framebuffer_probe_tick(void)
+ {
+     static DWORD last_ms;
+     static uint32_t last_sum;
+-    DWORD now = GetTickCount();
++    DWORD now;
+     uint32_t sum = 0, nonzero = 0, i, n;
+     const uint32_t *p;
+ 
+     if (!s_nv2a_trace || !s_fb_va || !s_fb_pitch)
+         return;
++    now = GetTickCount();
+     if (last_ms && (now - last_ms) < 1000)
+         return;
+     last_ms = now;
+@@ -1004,6 +1000,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
+             *(volatile uint32_t *)((char *)regs + NV2A_USER_DMA_GET) = s_get_held_value;
+             fence_mirrors_tick(1);
+             s_get_held = 0;
++            xbox_nv2a_wake_publish(&g_nv2a_wake);
+         }
+ 
+         poke_tick();
+@@ -1107,6 +1104,7 @@ static DWORD WINAPI nv2a_ack_thread(LPVOID param)
+                     *get = put;
+                     fence_mirrors_tick(1);
+                     s_get_held = 0;        /* a held, older GET must not follow */
++                    xbox_nv2a_wake_publish(&g_nv2a_wake);
+                 }
+                 last_put = put; last_put_ms = now_ms;
+                 /* GET as well as PUT. A title that stops submitting has either
+@@ -1169,6 +1167,7 @@ static void xbox_Nv2aAckStart(void)
+ {
+ 
+     poke_init();
++    xbox_nv2a_wake_init(&g_nv2a_wake);
+     g_nv2a_ack_stop = 0;
+     g_nv2a_ack_thread = CreateThread(NULL, 0, nv2a_ack_thread,
+                                      g_nv2a_memory, 0, NULL);
+@@ -2494,13 +2493,22 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
              MEM_RESERVE | MEM_COMMIT,
              PAGE_READWRITE
          );
@@ -298,6 +946,14 @@ index a2e99fb..87ceafa 100644
          if (g_nv2a_memory) {
              DWORD old_protect;
              if (VirtualProtect((char *)g_nv2a_memory + 0x8000, 0x1000,
+@@ -2935,6 +2943,7 @@ void xbox_MemoryLayoutShutdown(void)
+     g_kernel_memory_owned = 0;
+     if (g_nv2a_ack_thread) {
+         InterlockedExchange(&g_nv2a_ack_stop, 1);
++        xbox_nv2a_wake_publish(&g_nv2a_wake);
+         WaitForSingleObject(g_nv2a_ack_thread, 1000);
+         CloseHandle(g_nv2a_ack_thread);
+         g_nv2a_ack_thread = NULL;
 diff --git a/src/usb/usb_gamepad.c b/src/usb/usb_gamepad.c
 index bd00f3f..575b5f3 100644
 --- a/src/usb/usb_gamepad.c
@@ -336,10 +992,30 @@ index bd00f3f..575b5f3 100644
              }
          }
 diff --git a/src/video/nv2a_d3d11.c b/src/video/nv2a_d3d11.c
-index b9f3fa2..f32cffe 100644
+index b9f3fa2..755de5b 100644
 --- a/src/video/nv2a_d3d11.c
 +++ b/src/video/nv2a_d3d11.c
-@@ -1413,13 +1413,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
+@@ -29,6 +29,7 @@
+ #include <string.h>
+ 
+ #include "nv2a_d3d11.h"
++#include "nv2a_shader_cache.h"
+ #include "fb_present.h"
+ #include "platform/recomp_profile.h"
+ #include "../d3d/d3d8_swizzle.h"
+@@ -871,9 +872,9 @@ static void display_config(int now);
+ static ID3DBlob *compile_def(const char *entry, const char *target, const D3D_SHADER_MACRO *def)
+ {
+     ID3DBlob *code = NULL, *err = NULL;
+-    HRESULT hr = D3DCompile(s_hlsl, sizeof s_hlsl - 1, "nv2a_d3d11", def, NULL,
++    HRESULT hr = nv_shader_cache_compile(s_hlsl, sizeof s_hlsl - 1, "nv2a_d3d11", def,
+                             entry, target, D3DCOMPILE_OPTIMIZATION_LEVEL3, 0,
+-                            &code, &err);
++                            &code, &err, NULL);
+     if (FAILED(hr)) {
+         fprintf(stderr, "[D3D11] shader %s: %s\n", entry,
+                 err ? (const char *)ID3D10Blob_GetBufferPointer(err) : "?");
+@@ -1413,13 +1414,13 @@ static void guest_span(const Surface *s, float *x0, float *x1)
  }
  
  /* Guest rows of a surface as BGRA, with the format's fixed alpha. */
@@ -356,7 +1032,7 @@ index b9f3fa2..f32cffe 100644
          uint32_t *dst = out + (size_t)y * s->w;
          if (s->bpp == 4) {
              memcpy(dst, row, (size_t)s->w * 4);
-@@ -1454,6 +1454,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
+@@ -1454,6 +1455,8 @@ static ID3D11ShaderResourceView *s_up_srv[2];
  static UINT s_up_w[2], s_up_h[2];
  static uint32_t *s_up_pixels, *s_mask_pixels;
  static size_t s_up_cap, s_mask_cap;
@@ -365,7 +1041,7 @@ index b9f3fa2..f32cffe 100644
  
  /* slot 0: image, slot 1: change mask */
  static ID3D11ShaderResourceView *upload_slot(int k, const uint32_t *pixels, UINT w, UINT h)
-@@ -1489,6 +1491,25 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1489,6 +1492,25 @@ static uint32_t *scratch_pixels(size_t count)
      return s_up_pixels;
  }
  
@@ -391,7 +1067,7 @@ index b9f3fa2..f32cffe 100644
  /* Guest memory is the authority for what the CPU writes. A shadow copy of
   * each surface's guest bytes says which pixels the CPU changed since the last
   * look; only those replace what the GPU drew. A loading screen drawn by the
-@@ -1496,22 +1517,24 @@ static uint32_t *scratch_pixels(size_t count)
+@@ -1496,22 +1518,24 @@ static uint32_t *scratch_pixels(size_t count)
  static void surface_sync_impl(Surface *s, int force)
  {
      uint32_t rowb = s->w * s->bpp, y, x, x0 = 0xFFFFFFFFu, x1 = 0, y0 = 0xFFFFFFFFu, y1 = 0;
@@ -420,7 +1096,7 @@ index b9f3fa2..f32cffe 100644
          {
              ID3D11ShaderResourceView *srv = upload_image(px, s->w, s->h);
              float x0, x1;
-@@ -1522,7 +1545,7 @@ static void surface_sync_impl(Surface *s, int force)
+@@ -1522,7 +1546,7 @@ static void surface_sync_impl(Surface *s, int force)
          return;
      }
      for (y = 0; y < s->h; y++) {
@@ -429,7 +1105,7 @@ index b9f3fa2..f32cffe 100644
          uint8_t *sh = s->shadow + (size_t)y * rowb;
          if (!memcmp(row, sh, rowb)) continue;
          if (y0 == 0xFFFFFFFFu) {
-@@ -1552,7 +1575,7 @@ static void surface_sync_impl(Surface *s, int force)
+@@ -1552,7 +1576,7 @@ static void surface_sync_impl(Surface *s, int force)
                  s->phys, s_frame, x0, y0, x1, y1);
      px = scratch_pixels((size_t)s->w * s->h);
      if (!px) return;
@@ -438,7 +1114,7 @@ index b9f3fa2..f32cffe 100644
      {
          ID3D11ShaderResourceView *srv = upload_slot(0, px, s->w, s->h);
          ID3D11ShaderResourceView *msk = upload_slot(1, s_mask_pixels, s->w, s->h);
-@@ -1572,8 +1595,11 @@ static void surface_sync(Surface *s, int force)
+@@ -1572,8 +1596,11 @@ static void surface_sync(Surface *s, int force)
      if (s_prof_on > 0) s_prof[PROF_SYNC] += qpc() - t0;
  }
  
@@ -450,7 +1126,7 @@ index b9f3fa2..f32cffe 100644
      if (s_cur_rt == s) unbind_targets();
      if (s->srv) ID3D11ShaderResourceView_Release(s->srv);
      if (s->rtv) ID3D11RenderTargetView_Release(s->rtv);
-@@ -1635,9 +1661,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
+@@ -1635,9 +1662,10 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
      } else {
          for (i = 0; i < MAX_SURFACES && !victim; i++)
              if (!s_surf[i].tex) victim = &s_surf[i];
@@ -464,18 +1140,101 @@ index b9f3fa2..f32cffe 100644
          if (!victim) victim = &s_surf[0];
      }
      surface_release(victim);
-@@ -1903,7 +1930,7 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
+@@ -1901,9 +1929,9 @@ static void yuv_pair(const uint8_t *g, int uyvy, uint32_t out[2])
+ }
+ 
  typedef struct TexEntry {
-     uint32_t phys, format, pitch, w, h, palette, used;
+-    uint32_t phys, format, pitch, w, h, palette, used;
++    uint32_t phys, format, pitch, w, h, palette, palette_len, used;
      uint64_t hash, pal_hash;
 -    uint32_t checked_frame;
 +    uint32_t checked_epoch;
      size_t bytes;
      ID3D11Texture2D *tex;
      ID3D11ShaderResourceView *srv;
-@@ -2072,7 +2099,10 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -1954,12 +1982,55 @@ static int tex_layout(const NvD3DTexture *t, TexLayout *L)
+     return 1;
+ }
+ 
++/* A 4x4 Morton tile is contiguous in guest memory. Copy pairs into its four
++ * destination rows, keeping source cache lines hot instead of visiting each
++ * image row separately. The masks advance by four texels after removing the
++ * two low coordinate bits of each dimension. */
++static void decode_swizzled_argb32(const uint8_t *src, uint32_t w, uint32_t h,
++                                 uint32_t *out, int opaque)
++{
++    uint32_t mx, my, ox, oy = 0, x, y, row;
++    uint64_t alpha = opaque ? 0xFF000000FF000000ull : 0;
++    xbox_swizzle_masks(w, h, &mx, &my);
++    mx &= ~15u; my &= ~15u;
++    for (y = 0; y < h; y += 4) {
++        ox = 0;
++        for (x = 0; x < w; x += 4) {
++            const uint8_t *tile = src + (size_t)(oy + ox) * 4;
++            uint32_t *dst = out + (size_t)y * w + x;
++            for (row = 0; row < 4; row++) {
++                uint64_t left, right;
++                uint32_t offset = (row & 1) * 8 + (row & 2) * 16;
++                memcpy(&left, tile + offset, 8);
++                memcpy(&right, tile + offset + 16, 8);
++                left |= alpha; right |= alpha;
++                memcpy(dst + (size_t)row * w, &left, 8);
++                memcpy(dst + (size_t)row * w + 2, &right, 8);
++            }
++            ox = (ox - mx) & mx;
++        }
++        oy = (oy - my) & my;
++    }
++}
++
+ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_t *src,
+                          int lv, const uint32_t *pal, uint32_t *out)
+ {
+     uint32_t w = L->level_w[lv], h = L->level_h[lv], x, y;
+     if (L->kind == K_DXT) {
+         uint32_t bw = (w + 3) / 4, bh = (h + 3) / 4, bx, by, px[16];
++        if (!(w & 3) && !(h & 3)) {
++            for (by = 0; by < bh; by++)
++                for (bx = 0; bx < bw; bx++) {
++                    uint32_t *dst = out + (size_t)by * 4 * w + bx * 4;
++                    d3d8_dxt_decode_block(src + ((size_t)by * bw + bx) * L->bpp, t->color, px);
++                    memcpy(dst, px, 16);
++                    memcpy(dst + w, px + 4, 16);
++                    memcpy(dst + 2 * w, px + 8, 16);
++                    memcpy(dst + 3 * w, px + 12, 16);
++                }
++            return;
++        }
+         for (by = 0; by < bh; by++)
+             for (bx = 0; bx < bw; bx++) {
+                 d3d8_dxt_decode_block(src + ((size_t)by * bw + bx) * L->bpp, t->color, px);
+@@ -1969,6 +2040,11 @@ static void decode_level(const NvD3DTexture *t, const TexLayout *L, const uint8_
+             }
+         return;
+     }
++    if ((t->color == 0x06 || t->color == 0x07) && w >= 4 && h >= 4 &&
++        !(w & (w - 1)) && !(h & (h - 1))) {
++        decode_swizzled_argb32(src, w, h, out, t->color == 0x07);
++        return;
++    }
+     if (L->kind == K_LIN) {
+         for (y = 0; y < h; y++) {
+             const uint8_t *row = src + (size_t)y * t->pitch;
+@@ -2064,15 +2140,20 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+     uint32_t key = (p >> 7) ^ (t->format * 2654435761u) ^ (t->pitch << 3) ^ t->width;
+     TexEntry *e, **head = &s_tex_bucket[key & (TEX_BUCKETS - 1)];
+     uint64_t h, ph = 0;
+-    uint32_t *pal = NULL;
++    uint32_t *pal = NULL, *px, *a = NULL, *b = NULL;
++    int hl, is_new;
+ 
+     if (!tex_layout(t, &L) || !guest_ok(t->addr, L.total))
+         return NULL;
+     for (e = *head; e; e = e->next)
          if (e->phys == p && e->format == t->format && e->pitch == t->pitch &&
-             e->w == t->width && e->h == t->height && e->palette == pal_p)
+-            e->w == t->width && e->h == t->height && e->palette == pal_p)
++            e->w == t->width && e->h == t->height && e->palette == pal_p &&
++            e->palette_len == t->palette_len)
              break;
 -    if (e && e->checked_frame == s_frame) {
 +    /* The CPU can refill streamed textures or palettes between submissions
@@ -485,7 +1244,7 @@ index b9f3fa2..f32cffe 100644
          e->used = s_frame;
          return e->srv;
      }
-@@ -2082,7 +2112,7 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+@@ -2082,19 +2163,41 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
          ph = hash_mem((const uint8_t *)pal, t->palette_len * 4);
      }
      if (e && e->hash == h && e->pal_hash == ph) {
@@ -494,16 +1253,123 @@ index b9f3fa2..f32cffe 100644
          e->used = s_frame;
          return e->srv;
      }
-@@ -2152,7 +2182,7 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
++    /* Prepare the whole upload before creating/publishing a cache entry or
++     * changing an existing resource. Missing generated mips otherwise stay
++     * uninitialized while the successful content hash suppresses retries. */
++    hl = host_levels(&L, t);
++    px = scratch_pixels((size_t)t->width * t->height);
++    if (!px) {
++        if (e) e->used = s_frame;
++        return e ? e->srv : NULL;
++    }
++    if (hl > L.levels) {
++        size_t n = (size_t)L.level_w[L.levels - 1] * L.level_h[L.levels - 1];
++        a = (uint32_t *)malloc(n * 4);
++        b = (uint32_t *)malloc(n * 4);
++        if (!a || !b) {
++            free(a); free(b);
++            /* Keep the last complete upload visible while the next draw
++             * retries. Do not advance its hash or checked epoch. */
++            if (e) e->used = s_frame;
++            return e ? e->srv : NULL;
++        }
++    }
++    is_new = !e;
+     if (!e) {
+         D3D11_SHADER_RESOURCE_VIEW_DESC sd;
+-        int hl = host_levels(&L, t);
++        HRESULT hr;
+         e = (TexEntry *)calloc(1, sizeof *e);
+-        if (!e) return NULL;
++        if (!e) goto upload_failed;
+         e->tex = make_texture(t->width, t->height, (UINT)hl, (UINT)L.faces,
+                               DXGI_FORMAT_B8G8R8A8_UNORM, D3D11_BIND_SHADER_RESOURCE,
+                               L.faces == 6 ? D3D11_RESOURCE_MISC_TEXTURECUBE : 0);
+-        if (!e->tex) { free(e); return NULL; }
++        if (!e->tex) goto upload_failed;
+         memset(&sd, 0, sizeof sd);
+         sd.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+         if (L.faces == 6) {
+@@ -2104,25 +2207,26 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+             sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+             sd.Texture2D.MipLevels = (UINT)hl;
+         }
+-        ID3D11Device_CreateShaderResourceView(s_dev, (ID3D11Resource *)e->tex, &sd, &e->srv);
++        hr = ID3D11Device_CreateShaderResourceView(s_dev, (ID3D11Resource *)e->tex, &sd, &e->srv);
++        if (FAILED(hr) || !e->srv) {
++            fail("texture view", FAILED(hr) ? hr : E_FAIL);
++            goto upload_failed;
++        }
+         e->phys = p; e->format = t->format; e->pitch = t->pitch;
+         e->w = t->width; e->h = t->height; e->palette = pal_p;
+-        e->bytes = (size_t)t->width * t->height * 4 * L.faces * (L.levels > 1 ? 4 : 3) / 3;
+-        e->next = *head;
+-        *head = e;
+-        s_tex_bytes += e->bytes;
+-        s_tex_count++;
++        e->palette_len = t->palette_len;
++        {
++            uint32_t w = t->width, ht = t->height;
++            int lv;
++            for (lv = 0; lv < hl; lv++) {
++                e->bytes += (size_t)w * ht * 4 * L.faces;
++                if (w > 1) w /= 2;
++                if (ht > 1) ht /= 2;
++            }
++        }
+     }
+     {
+-        int f, lv, hl = host_levels(&L, t);
+-        uint32_t *px = scratch_pixels((size_t)t->width * t->height), *a = NULL, *b = NULL;
+-        if (!px) return NULL;
+-        if (hl > L.levels) {
+-            size_t n = (size_t)L.level_w[L.levels - 1] * L.level_h[L.levels - 1];
+-            a = (uint32_t *)malloc(n * 4);
+-            b = (uint32_t *)malloc(n * 4);
+-            if (!a || !b) { free(a); free(b); a = b = NULL; }
+-        }
++        int f, lv;
+         for (f = 0; f < L.faces; f++) {
+             uint32_t w, h;
+             for (lv = 0; lv < L.levels; lv++) {
+@@ -2133,7 +2237,7 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
+                     (UINT)lv + (UINT)f * (UINT)hl, NULL,
+                     px, L.level_w[lv] * 4, 0);
+             }
+-            if (hl <= L.levels || !a) continue;
++            if (hl <= L.levels) continue;
+             w = L.level_w[L.levels - 1]; h = L.level_h[L.levels - 1];
+             memcpy(a, px, (size_t)w * h * 4);
+             for (; lv < hl; lv++) {
+@@ -2152,10 +2256,26 @@ static ID3D11ShaderResourceView *texture_get_impl(const NvD3DTexture *t)
      }
      e->hash = h;
      e->pal_hash = ph;
 -    e->checked_frame = s_frame;
 +    e->checked_epoch = s_epoch;
      e->used = s_frame;
++    if (is_new) {
++        e->next = *head;
++        *head = e;
++        s_tex_bytes += e->bytes;
++        s_tex_count++;
++    }
      tex_evict();
      return e->srv;
-@@ -2707,7 +2737,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
++
++upload_failed:
++    if (e) {
++        if (e->srv) ID3D11ShaderResourceView_Release(e->srv);
++        if (e->tex) ID3D11Texture2D_Release(e->tex);
++        free(e);
++    }
++    free(a);
++    free(b);
++    return NULL;
+ }
+ 
+ static ID3D11ShaderResourceView *texture_get(const NvD3DTexture *t)
+@@ -2707,7 +2827,11 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
          if (!mode_needs_texture(mode) || !t->addr || !t->width || !t->height)
              continue;
          tex_format(t->color, &kind);
@@ -516,7 +1382,7 @@ index b9f3fa2..f32cffe 100644
          s_draw_textured = 1;
          if (!s_draw_tex_addr) s_draw_tex_addr = t->addr;
          if (rt && rt->sx > rt->sy * 1.001f) s_draw_reads_wide = 1;
-@@ -3271,6 +3305,13 @@ typedef struct {
+@@ -3271,6 +3395,13 @@ typedef struct {
  } WbSlot;
  static WbSlot s_wb[MAX_SURFACES];
  
@@ -530,8 +1396,100 @@ index b9f3fa2..f32cffe 100644
  static int wb_slot_ready(WbSlot *k, UINT w, UINT h, int need_down)
  {
      if (k->stage && (k->w != w || k->h != h)) {
+@@ -3381,10 +3512,8 @@ int nv2a_d3d_writeback_busy(void)
+ {
+     if (!s_wb_pending || writeback_finish(0))
+         return 0;
+-    /* Map(DO_NOT_WAIT) never submits anything: with the title waiting on
+-     * GET, nothing else would, and the copies sat queued until the next
+-     * frame that could not come. */
+-    ID3D11DeviceContext_Flush(s_ctx);
++    /* writeback_surfaces already submitted the entire copy batch. Repeated
++     * Flush calls while the GPU completes it only add driver work. */
+     return 1;
+ }
+ 
+diff --git a/tests/kernel_dispatch/CMakeLists.txt b/tests/kernel_dispatch/CMakeLists.txt
+index a8e9688..cc9337d 100644
+--- a/tests/kernel_dispatch/CMakeLists.txt
++++ b/tests/kernel_dispatch/CMakeLists.txt
+@@ -7,5 +7,25 @@ add_subdirectory(../.. xboxrecomp)
+ add_executable(kernel-dispatch-thread-test kernel_dispatch_thread_test.c)
+ target_include_directories(kernel-dispatch-thread-test PRIVATE ../../src/kernel)
+ target_link_libraries(kernel-dispatch-thread-test PRIVATE xboxrecomp)
++add_executable(kernel-log-test kernel_log_test.c)
++target_include_directories(kernel-log-test PRIVATE ../../src/kernel)
++target_link_libraries(kernel-log-test PRIVATE xboxrecomp)
++add_executable(kernel-file-sharing-test kernel_file_sharing_test.c)
++target_include_directories(kernel-file-sharing-test PRIVATE ../../src/kernel)
++target_link_libraries(kernel-file-sharing-test PRIVATE xboxrecomp)
++add_executable(kernel-cs-test kernel_cs_test.c)
++target_include_directories(kernel-cs-test PRIVATE ../../src/kernel)
++target_link_libraries(kernel-cs-test PRIVATE xboxrecomp)
++add_executable(nv2a-notify-wait-test nv2a_notify_wait_test.c)
++target_include_directories(nv2a-notify-wait-test PRIVATE ../../src)
+ enable_testing()
+ add_test(NAME kernel-dispatch-thread COMMAND kernel-dispatch-thread-test)
++add_test(NAME kernel-log-quiet COMMAND kernel-log-test)
++add_test(NAME kernel-log-budget COMMAND kernel-log-test budget)
++add_test(NAME kernel-log-summary COMMAND kernel-log-test summary)
++add_test(NAME kernel-file-sharing COMMAND kernel-file-sharing-test)
++add_test(NAME kernel-cs COMMAND kernel-cs-test)
++set_tests_properties(kernel-cs PROPERTIES FAIL_REGULAR_EXPRESSION "\\[CS\\] enters=")
++add_test(NAME kernel-cs-counters COMMAND kernel-cs-test counters)
++set_tests_properties(kernel-cs-counters PROPERTIES PASS_REGULAR_EXPRESSION "\\[CS\\] enters=")
++add_test(NAME nv2a-notify-wait COMMAND nv2a-notify-wait-test)
+diff --git a/tests/kernel_dispatch/README.md b/tests/kernel_dispatch/README.md
+index dd7efb0..b6574c1 100644
+--- a/tests/kernel_dispatch/README.md
++++ b/tests/kernel_dispatch/README.md
+@@ -1,14 +1,42 @@
+-# Kernel dispatch thread regression
++# Kernel dispatch regressions
+ 
+ No game files are required. The test allocates synthetic guest memory and imports
+ KeGetCurrentIrql and KeStallExecutionProcessor. It forces a lookup on another
+ thread between the first lookup and its invocation. A shared dispatch slot
+ selects the wrong service and pops an extra argument; per-thread storage passes.
+ 
++The log tests dispatch 20,001 calls across three threads and wait beyond the
++summary interval. They verify that a zero budget stays quiet, a three-call
++budget emits exactly three unique trace lines, and `RECOMP_KERNEL_SUMMARY=1`
++retains accurate process-wide totals. Normal gameplay does not collect kernel
++summary counters or poll the summary clock after its boot trace budget ends.
++
++The sharing test opens an exclusive host file, verifies that the runtime
++returns `STATUS_SHARING_VIOLATION` consistently in the return value and I/O
++status block, and checks both native and guest-bridge DOS error conversion.
++The same open succeeds after the exclusive host handle closes, with its
++original sharing flags intact.
++
++The critical-section test races lazy initialization across four threads,
++checks recursion and mutual exclusion for forty colliding table/cache keys,
++and verifies that bridge TryEnter and Leave use the same shadow as native
++Enter/Leave. Guest critical-section bytes remain unchanged. It also reports
++the cost of independent lock pairs without using timing as a pass condition.
++The default test also rejects disabled counter output; a second run with
++`RECOMP_CS_COUNTERS=1` verifies the optional contention totals are reported.
++`RECOMP_CS_TRACE_CRT` and `RECOMP_CS_WATCH` also enable those accurate counters.
++
++The GPU notification wait test uses the runtime's exact host helper without
++starting a renderer. It checks completion before waiting, a completion injected
++between the predicate check and native wait, GET/NOP/shutdown wakeups, spurious
++wakes, concurrent guest waiters, unavailable-API fallback, and guest register
++changes without an executor notification. Host waits are bounded to 1 ms;
++only the original guest completion conditions can end the wait.
++
+ On Windows with Visual Studio:
+ 
+ ```
+ cmake -S tests/kernel_dispatch -B build/kernel-dispatch -A x64
+-cmake --build build/kernel-dispatch --config Release --target kernel-dispatch-thread-test
++cmake --build build/kernel-dispatch --config Release --target kernel-dispatch-thread-test kernel-log-test kernel-file-sharing-test kernel-cs-test nv2a-notify-wait-test
+ ctest --test-dir build/kernel-dispatch -C Release --output-on-failure
+ ```
 diff --git a/tests/nv2a_targets/test_targets.c b/tests/nv2a_targets/test_targets.c
-index 9ba2f39..cebf661 100644
+index 9ba2f39..90bca19 100644
 --- a/tests/nv2a_targets/test_targets.c
 +++ b/tests/nv2a_targets/test_targets.c
 @@ -1,4 +1,4 @@
@@ -603,7 +1561,7 @@ index 9ba2f39..cebf661 100644
      CHECK(nv2a_d3d_init());
      sample = surface_get(0x20000, 32 * 4, 8, 32, 32, 0);
      CHECK(sample);
-@@ -55,5 +99,228 @@ int main(int argc, char **argv)
+@@ -55,5 +99,236 @@ int main(int argc, char **argv)
      ID3D11DeviceContext_RSGetViewports(s_ctx, &nvp, &vp);
      CHECK(nvp == 1 && vp.Width == 64 && vp.Height == 64);
      puts("PASS: sampled-surface upload preserves draw targets and viewport");
@@ -717,7 +1675,15 @@ index 9ba2f39..cebf661 100644
 +        CHECK(s_wb_pending && s_wb[old - s_surf].pending);
 +        pixels = (uint32_t *)(ram + old->va);
 +        for (j = 0; j < 32; j++) pixels[j] = 0xFF00FF00u;
-+        CHECK(writeback_finish(1));
++        {
++            ULONGLONG deadline = GetTickCount64() + 5000;
++            /* The submission at writeback_surfaces must make progress even
++             * if the title only polls for its fence and queues no more work. */
++            while (nv2a_d3d_writeback_busy()) {
++                CHECK(GetTickCount64() < deadline);
++                Sleep(0);
++            }
++        }
 +        for (j = 0; j < 32; j++) CHECK(pixels[j] == 0xFF00FF00u);
 +        for (j = 32; j < 32 * 32; j++) CHECK(pixels[j] == 0xFFFF0000u);
 +        puts("PASS: retained target writeback preserves later CPU writes and updates untouched rows");
@@ -832,3 +1798,1562 @@ index 9ba2f39..cebf661 100644
 +    }
      return 0;
  }
+diff --git a/src/kernel/nv2a_notify_wait.h b/src/kernel/nv2a_notify_wait.h
+new file mode 100644
+index 0000000..f00a39b
+--- /dev/null
++++ b/src/kernel/nv2a_notify_wait.h
+@@ -0,0 +1,94 @@
++/* Host waiting only: guest GET/NOP/stop values remain the completion rules. */
++#ifndef XBOX_NV2A_NOTIFY_WAIT_H
++#define XBOX_NV2A_NOTIFY_WAIT_H
++
++#include "platform/xbox_winnt.h"
++#include <stdint.h>
++
++typedef struct {
++    volatile LONG generation;
++#ifdef _WIN32
++    BOOL (WINAPI *wait_address)(volatile VOID *, PVOID, SIZE_T, DWORD);
++    VOID (WINAPI *wake_all)(PVOID);
++#endif
++} XBOX_NV2A_WAKE;
++
++static void xbox_nv2a_wake_init(XBOX_NV2A_WAKE *wake)
++{
++    wake->generation = 0;
++#ifdef _WIN32
++    /* Resolve together so older hosts retain their existing yield fallback.
++     * No new library dependency is required by applications using the runtime. */
++    HMODULE module = GetModuleHandleW(L"kernelbase.dll");
++    if (!module) module = GetModuleHandleW(L"kernel32.dll");
++    wake->wait_address = module ? (BOOL (WINAPI *)(volatile VOID *, PVOID, SIZE_T, DWORD))
++        GetProcAddress(module, "WaitOnAddress") : NULL;
++    wake->wake_all = module ? (VOID (WINAPI *)(PVOID))
++        GetProcAddress(module, "WakeByAddressAll") : NULL;
++    if (!wake->wake_all) wake->wait_address = NULL;
++#endif
++}
++
++static LONG xbox_nv2a_wake_snapshot(XBOX_NV2A_WAKE *wake)
++{
++    return InterlockedCompareExchange(&wake->generation, 0, 0);
++}
++
++static void xbox_nv2a_wake_publish(XBOX_NV2A_WAKE *wake)
++{
++    /* Publish after the corresponding guest-visible completion stores. */
++    InterlockedIncrement(&wake->generation);
++#ifdef _WIN32
++    if (wake->wait_address) wake->wake_all((PVOID)&wake->generation);
++#endif
++}
++
++static BOOL xbox_nv2a_wake_wait(XBOX_NV2A_WAKE *wake, LONG observed)
++{
++#ifdef _WIN32
++    if (wake->wait_address)
++        return wake->wait_address(&wake->generation, &observed, sizeof observed, 1);
++#else
++    (void)wake; (void)observed;
++#endif
++    SwitchToThread();
++    return TRUE;
++}
++
++static int xbox_nv2a_notify_pending(volatile uint32_t *get,
++    volatile uint32_t *put, volatile LONG *notifications, LONG notified,
++    volatile LONG *stop)
++{
++    return *get != *put && *notifications == notified &&
++           !InterlockedCompareExchange(stop, 0, 0);
++}
++
++static void xbox_nv2a_notify_wait(XBOX_NV2A_WAKE *wake,
++    volatile uint32_t *get, volatile uint32_t *put,
++    volatile LONG *notifications, LONG notified, volatile LONG *stop)
++{
++    unsigned spins = 0;
++    while (xbox_nv2a_notify_pending(get, put, notifications, notified, stop)) {
++#ifdef _WIN32
++        /* Short completions avoid a host wait. Prolonged waits, including
++         * vblank pacing in the executor, release the guest thread's core. */
++        if (++spins & 63) {
++            YieldProcessor();
++            continue;
++        }
++#else
++        (void)spins;
++#endif
++        LONG observed = xbox_nv2a_wake_snapshot(wake);
++        /* Snapshot BEFORE this predicate check. A completion between the
++         * check and WaitOnAddress changes generation, so waiting on the old
++         * value returns immediately even if its wake already happened. */
++        if (!xbox_nv2a_notify_pending(get, put, notifications, notified, stop))
++            break;
++        /* The one-millisecond fallback also notices guest-origin register
++         * writes that do not pass through the executor's publishers. */
++        xbox_nv2a_wake_wait(wake, observed);
++    }
++}
++
++#endif
+diff --git a/src/video/nv2a_shader_cache.h b/src/video/nv2a_shader_cache.h
+new file mode 100644
+index 0000000..f833590
+--- /dev/null
++++ b/src/video/nv2a_shader_cache.h
+@@ -0,0 +1,272 @@
++/* Persistent D3DCompile bytecode. Cache failures always fall back to compiling;
++ * specialised shaders call this on their existing compiler worker threads. */
++#ifndef NV2A_SHADER_CACHE_H
++#define NV2A_SHADER_CACHE_H
++
++#include <windows.h>
++#include <d3dcompiler.h>
++#include <stdint.h>
++#include <stdlib.h>
++#include <string.h>
++#include <wchar.h>
++
++#define NV_SHADER_CACHE_SCHEMA 1u
++#define NV_SHADER_CACHE_MAX_CODE (16u * 1024u * 1024u)
++#define NV_SHADER_CACHE_PATH 1040
++
++/* SHA-256 keeps the filename and the bytecode checksum independent of runtime
++ * addresses, compiler struct padding, and ambiguous macro concatenations. */
++typedef struct {
++    uint32_t h[8];
++    uint64_t bytes;
++    unsigned used;
++    uint8_t block[64];
++} NvShaderHash;
++
++static uint32_t nv_shader_ror(uint32_t x, unsigned n)
++{
++    return (x >> n) | (x << (32 - n));
++}
++
++static void nv_shader_hash_block(NvShaderHash *s, const uint8_t *p)
++{
++    static const uint32_t k[64] = {
++        0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
++        0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
++        0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
++        0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
++        0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
++        0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
++        0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
++        0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
++    };
++    uint32_t w[64], a,b,c,d,e,f,g,h;
++    unsigned i;
++    for (i = 0; i < 16; i++)
++        w[i] = (uint32_t)p[i*4] << 24 | (uint32_t)p[i*4+1] << 16 |
++               (uint32_t)p[i*4+2] << 8 | p[i*4+3];
++    for (; i < 64; i++) {
++        uint32_t x = w[i-15], y = w[i-2];
++        w[i] = w[i-16] + (nv_shader_ror(x,7) ^ nv_shader_ror(x,18) ^ (x >> 3)) +
++               w[i-7] + (nv_shader_ror(y,17) ^ nv_shader_ror(y,19) ^ (y >> 10));
++    }
++    a=s->h[0]; b=s->h[1]; c=s->h[2]; d=s->h[3];
++    e=s->h[4]; f=s->h[5]; g=s->h[6]; h=s->h[7];
++    for (i = 0; i < 64; i++) {
++        uint32_t t1 = h + (nv_shader_ror(e,6) ^ nv_shader_ror(e,11) ^ nv_shader_ror(e,25)) +
++                      ((e & f) ^ (~e & g)) + k[i] + w[i];
++        uint32_t t2 = (nv_shader_ror(a,2) ^ nv_shader_ror(a,13) ^ nv_shader_ror(a,22)) +
++                      ((a & b) ^ (a & c) ^ (b & c));
++        h=g; g=f; f=e; e=d+t1; d=c; c=b; b=a; a=t1+t2;
++    }
++    s->h[0]+=a; s->h[1]+=b; s->h[2]+=c; s->h[3]+=d;
++    s->h[4]+=e; s->h[5]+=f; s->h[6]+=g; s->h[7]+=h;
++}
++
++static void nv_shader_hash_init(NvShaderHash *s)
++{
++    static const uint32_t initial[8] = {
++        0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,
++        0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19
++    };
++    memset(s, 0, sizeof *s);
++    memcpy(s->h, initial, sizeof initial);
++}
++
++static void nv_shader_hash_add(NvShaderHash *s, const void *data, size_t size)
++{
++    const uint8_t *p = (const uint8_t *)data;
++    s->bytes += size;
++    while (size) {
++        size_t n = 64 - s->used;
++        if (n > size) n = size;
++        memcpy(s->block + s->used, p, n);
++        s->used += (unsigned)n; p += n; size -= n;
++        if (s->used == 64) {
++            nv_shader_hash_block(s, s->block);
++            s->used = 0;
++        }
++    }
++}
++
++static void nv_shader_hash_finish(NvShaderHash *s, uint8_t out[32])
++{
++    uint64_t bits = s->bytes * 8;
++    uint8_t tail[72] = {0x80};
++    unsigned i, n = s->used < 56 ? 56 - s->used : 120 - s->used;
++    for (i = 0; i < 8; i++) tail[n+i] = (uint8_t)(bits >> (56-i*8));
++    nv_shader_hash_add(s, tail, n+8);
++    for (i = 0; i < 32; i++) out[i] = (uint8_t)(s->h[i/4] >> (24-(i%4)*8));
++}
++
++static void nv_shader_hash_number(NvShaderHash *s, uint64_t value)
++{
++    uint8_t bytes[8];
++    unsigned i;
++    for (i = 0; i < 8; i++) bytes[i] = (uint8_t)(value >> (i*8));
++    nv_shader_hash_add(s, bytes, sizeof bytes);
++}
++
++static void nv_shader_hash_string(NvShaderHash *s, const char *text)
++{
++    size_t n = text ? strlen(text) : 0;
++    nv_shader_hash_number(s, text ? n : UINT64_MAX);
++    if (n) nv_shader_hash_add(s, text, n);
++}
++
++static void nv_shader_cache_key(const void *source, size_t size, const char *name,
++                               const D3D_SHADER_MACRO *macros, const char *entry,
++                               const char *target, UINT flags1, UINT flags2,
++                               uint8_t key[32])
++{
++    NvShaderHash hash;
++    size_t i, count = 0;
++    if (macros) while (macros[count].Name) count++;
++    nv_shader_hash_init(&hash);
++    nv_shader_hash_number(&hash, NV_SHADER_CACHE_SCHEMA);
++    nv_shader_hash_number(&hash, size);
++    nv_shader_hash_add(&hash, source, size);
++    nv_shader_hash_string(&hash, name);
++    nv_shader_hash_string(&hash, entry);
++    nv_shader_hash_string(&hash, target);
++    nv_shader_hash_number(&hash, flags1);
++    nv_shader_hash_number(&hash, flags2);
++    nv_shader_hash_number(&hash, count);
++    for (i = 0; i < count; i++) {
++        nv_shader_hash_string(&hash, macros[i].Name);
++        nv_shader_hash_string(&hash, macros[i].Definition);
++    }
++    nv_shader_hash_finish(&hash, key);
++}
++
++static int nv_shader_cache_path(const uint8_t key[32], wchar_t path[NV_SHADER_CACHE_PATH])
++{
++    wchar_t dir[NV_SHADER_CACHE_PATH], full[NV_SHADER_CACHE_PATH], enabled[8];
++    DWORD n = GetEnvironmentVariableW(L"RECOMP_SHADER_CACHE", enabled, 8);
++    size_t length;
++    unsigned i;
++    if (n == 1 && enabled[0] == L'0') return 0;
++    n = GetEnvironmentVariableW(L"RECOMP_SHADER_CACHE_DIR", dir, NV_SHADER_CACHE_PATH);
++    if (n >= NV_SHADER_CACHE_PATH) return 0;
++    if (!n) {
++        n = GetEnvironmentVariableW(L"LOCALAPPDATA", dir, NV_SHADER_CACHE_PATH);
++        if (!n || n >= NV_SHADER_CACHE_PATH - 40) return 0;
++        wcscat_s(dir, NV_SHADER_CACHE_PATH, L"\\xboxrecomp\\ShaderCache");
++    }
++    n = GetFullPathNameW(dir, NV_SHADER_CACHE_PATH, full, NULL);
++    if (!n || n >= NV_SHADER_CACHE_PATH - 80) return 0;
++    length = wcslen(full);
++    while (length && (full[length-1] == L'\\' || full[length-1] == L'/')) length--;
++    memcpy(path, full, length * sizeof *path);
++    path[length++] = L'\\';
++    for (i = 0; i < 32; i++) {
++        static const wchar_t hex[] = L"0123456789abcdef";
++        path[length++] = hex[key[i] >> 4];
++        path[length++] = hex[key[i] & 15];
++    }
++    wcscpy_s(path + length, NV_SHADER_CACHE_PATH - length, L".bin");
++    return 1;
++}
++
++typedef struct {
++    uint8_t magic[8];
++    uint32_t schema, size;
++    uint8_t key[32], checksum[32];
++} NvShaderCacheHeader;
++
++static ID3DBlob *nv_shader_cache_read(const wchar_t *path, const uint8_t key[32])
++{
++    HANDLE file = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE,
++                              NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
++    NvShaderCacheHeader header;
++    LARGE_INTEGER length;
++    ID3DBlob *code = NULL;
++    NvShaderHash hash;
++    uint8_t checksum[32];
++    DWORD read;
++    if (file == INVALID_HANDLE_VALUE) return NULL;
++    if (!GetFileSizeEx(file, &length) ||
++        !ReadFile(file, &header, sizeof header, &read, NULL) || read != sizeof header ||
++        memcmp(header.magic, "NVSCACHE", 8) || header.schema != NV_SHADER_CACHE_SCHEMA ||
++        !header.size || header.size > NV_SHADER_CACHE_MAX_CODE ||
++        length.QuadPart != (LONGLONG)sizeof header + header.size ||
++        memcmp(header.key, key, 32) || FAILED(D3DCreateBlob(header.size, &code))) goto done;
++    if (!ReadFile(file, ID3D10Blob_GetBufferPointer(code), header.size, &read, NULL) ||
++        read != header.size) goto invalid;
++    nv_shader_hash_init(&hash);
++    nv_shader_hash_add(&hash, ID3D10Blob_GetBufferPointer(code), header.size);
++    nv_shader_hash_finish(&hash, checksum);
++    if (memcmp(checksum, header.checksum, 32)) goto invalid;
++    goto done;
++invalid:
++    ID3D10Blob_Release(code);
++    code = NULL;
++done:
++    CloseHandle(file);
++    return code;
++}
++
++static void nv_shader_cache_write(const wchar_t *path, const uint8_t key[32], ID3DBlob *code)
++{
++    static volatile LONG serial;
++    wchar_t temporary[NV_SHADER_CACHE_PATH], dir[NV_SHADER_CACHE_PATH];
++    NvShaderCacheHeader header;
++    NvShaderHash hash;
++    HANDLE file = INVALID_HANDLE_VALUE;
++    size_t size = ID3D10Blob_GetBufferSize(code), i;
++    DWORD wrote;
++    int ok;
++    if (!size || size > NV_SHADER_CACHE_MAX_CODE) return;
++    wcscpy_s(dir, NV_SHADER_CACHE_PATH, path);
++    *wcsrchr(dir, L'\\') = 0;
++    /* Parent creation is idempotent when several compiler workers arrive. */
++    for (i = 3; dir[i]; i++) if (dir[i] == L'\\' || dir[i] == L'/') {
++        wchar_t slash = dir[i]; dir[i] = 0;
++        CreateDirectoryW(dir, NULL); dir[i] = slash;
++    }
++    if (!CreateDirectoryW(dir, NULL) && GetLastError() != ERROR_ALREADY_EXISTS) return;
++    for (i = 0; i < 4 && file == INVALID_HANDLE_VALUE; i++) {
++        if (swprintf_s(temporary, NV_SHADER_CACHE_PATH, L"%s.%lu.%lu.%lu.tmp", path,
++                       GetCurrentProcessId(), GetCurrentThreadId(),
++                       (unsigned long)InterlockedIncrement(&serial)) < 0) return;
++        file = CreateFileW(temporary, GENERIC_WRITE, 0, NULL, CREATE_NEW,
++                           FILE_ATTRIBUTE_NORMAL, NULL);
++        if (file == INVALID_HANDLE_VALUE && GetLastError() != ERROR_FILE_EXISTS) return;
++    }
++    if (file == INVALID_HANDLE_VALUE) return;
++    memcpy(header.magic, "NVSCACHE", 8);
++    header.schema = NV_SHADER_CACHE_SCHEMA; header.size = (uint32_t)size;
++    memcpy(header.key, key, 32);
++    nv_shader_hash_init(&hash);
++    nv_shader_hash_add(&hash, ID3D10Blob_GetBufferPointer(code), size);
++    nv_shader_hash_finish(&hash, header.checksum);
++    ok = WriteFile(file, &header, sizeof header, &wrote, NULL) && wrote == sizeof header;
++    if (ok) ok = WriteFile(file, ID3D10Blob_GetBufferPointer(code), (DWORD)size, &wrote, NULL) && wrote == size;
++    CloseHandle(file);
++    if (!ok || !MoveFileExW(temporary, path, MOVEFILE_REPLACE_EXISTING)) DeleteFileW(temporary);
++}
++
++static HRESULT nv_shader_cache_compile(const void *source, size_t size, const char *name,
++                                      const D3D_SHADER_MACRO *macros, const char *entry,
++                                      const char *target, UINT flags1, UINT flags2,
++                                      ID3DBlob **code, ID3DBlob **errors, int *cache_hit)
++{
++    uint8_t key[32];
++    wchar_t path[NV_SHADER_CACHE_PATH];
++    int cache;
++    HRESULT hr;
++    *code = NULL;
++    if (errors) *errors = NULL;
++    if (cache_hit) *cache_hit = 0;
++    nv_shader_cache_key(source, size, name, macros, entry, target, flags1, flags2, key);
++    cache = nv_shader_cache_path(key, path);
++    if (cache && (*code = nv_shader_cache_read(path, key)) != NULL) {
++        if (cache_hit) *cache_hit = 1;
++        return S_OK;
++    }
++    hr = D3DCompile(source, size, name, macros, NULL, entry, target, flags1, flags2, code, errors);
++    if (SUCCEEDED(hr) && cache) nv_shader_cache_write(path, key, *code);
++    return hr;
++}
++
++#endif
+diff --git a/tests/kernel_dispatch/kernel_cs_test.c b/tests/kernel_dispatch/kernel_cs_test.c
+new file mode 100644
+index 0000000..010fbf0
+--- /dev/null
++++ b/tests/kernel_dispatch/kernel_cs_test.c
+@@ -0,0 +1,183 @@
++/* Permanent shadow caches must preserve native exclusion and recursion. */
++#include "kernel.h"
++#include "xbox_memory_layout.h"
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++typedef void (*guest_fn)(void);
++extern guest_fn recomp_lookup_kernel(uint32_t);
++extern RECOMP_TLS uint32_t g_eax, g_esp;
++extern ptrdiff_t g_xbox_mem_offset;
++void *recomp_lookup(ULONG address) { (void)address; abort(); }
++void *recomp_lookup_manual(ULONG address) { (void)address; abort(); }
++
++#define THREADS 4
++#define COLLISIONS 40
++#define SHARED_ITERATIONS 5000
++#define COLLISION_ITERATIONS 100
++#define BENCH_ITERATIONS 100000
++static uint8_t *memory;
++static HANDLE start_event;
++static volatile LONG failed, active;
++static uint32_t shared_count, collision_count[COLLISIONS];
++static uint32_t imports[2];
++
++static PRTL_CRITICAL_SECTION guest_lock(unsigned i)
++{
++    /* Every address shares the table bucket and thread-cache bucket. */
++    return (PRTL_CRITICAL_SECTION)(memory + 0x10000 + i * 0x10000);
++}
++
++typedef struct { unsigned id, phase; } WORKER;
++static DWORD WINAPI worker(LPVOID p)
++{
++    WORKER *w = p;
++    WaitForSingleObject(start_event, INFINITE);
++    if (w->phase == 0) {
++        for (unsigned i = 0; i < SHARED_ITERATIONS; i++) {
++            PRTL_CRITICAL_SECTION lock = guest_lock(0);
++            /* The first call races lazy initialization across all workers. */
++            xbox_RtlEnterCriticalSection(lock);
++            xbox_RtlEnterCriticalSection(lock);
++            if (active) InterlockedExchange(&failed, 1);
++            active = 1;
++            shared_count++;
++            if ((i & 255) == 0) SwitchToThread();
++            active = 0;
++            xbox_RtlLeaveCriticalSection(lock);
++            xbox_RtlLeaveCriticalSection(lock);
++        }
++    } else if (w->phase == 1) {
++        for (unsigned i = 0; i < COLLISION_ITERATIONS; i++)
++            for (unsigned j = 0; j < COLLISIONS; j++) {
++                PRTL_CRITICAL_SECTION lock = guest_lock(j);
++                xbox_RtlEnterCriticalSection(lock);
++                collision_count[j]++;
++                xbox_RtlLeaveCriticalSection(lock);
++            }
++    } else {
++        /* Independent repeated locks expose table contention without a
++         * guest-lock bottleneck. Timing is informational, never a pass gate. */
++        PRTL_CRITICAL_SECTION lock = guest_lock(w->id);
++        for (unsigned i = 0; i < BENCH_ITERATIONS; i++) {
++            xbox_RtlEnterCriticalSection(lock);
++            xbox_RtlLeaveCriticalSection(lock);
++        }
++    }
++    return 0;
++}
++
++static int run_workers(unsigned phase)
++{
++    HANDLE threads[THREADS];
++    WORKER workers[THREADS];
++    ResetEvent(start_event);
++    for (unsigned i = 0; i < THREADS; i++) {
++        workers[i].id = i;
++        workers[i].phase = phase;
++        threads[i] = CreateThread(NULL, 0, worker, &workers[i], 0, NULL);
++        if (!threads[i]) abort();
++    }
++    SetEvent(start_event);
++    DWORD wait = WaitForMultipleObjects(THREADS, threads, TRUE, 30000);
++    if (wait != WAIT_OBJECT_0) {
++        fprintf(stderr, "FAIL: lock phase %u timed out\n", phase);
++        /* Worker parameters are on this stack; do not return with live users. */
++        ExitProcess(2);
++    }
++    for (unsigned i = 0; i < THREADS; i++) CloseHandle(threads[i]);
++    return !failed;
++}
++
++static uint32_t invoke(unsigned slot)
++{
++    guest_fn fn = recomp_lookup_kernel(imports[slot]);
++    uint32_t *sp;
++    if (!fn) abort();
++    g_esp = 0x700000;
++    sp = (uint32_t *)(memory + g_esp);
++    sp[0] = 0xBEEF0001;
++    sp[1] = 0x10000;
++    fn();
++    if (g_esp != 0x700008) InterlockedExchange(&failed, 1);
++    return g_eax;
++}
++
++static DWORD WINAPI probe_try(LPVOID p)
++{
++    int expected = *(int *)p;
++    uint32_t got = invoke(0);
++    if (got != (uint32_t)expected) InterlockedExchange(&failed, 1);
++    if (got) invoke(1);
++    return 0;
++}
++
++static int try_from_other_thread(int expected)
++{
++    HANDLE thread = CreateThread(NULL, 0, probe_try, &expected, 0, NULL);
++    if (!thread) return 0;
++    if (WaitForSingleObject(thread, 5000) != WAIT_OBJECT_0) ExitProcess(3);
++    CloseHandle(thread);
++    return !failed;
++}
++
++int main(int argc, char **argv)
++{
++    LARGE_INTEGER freq, begin, end;
++    PRTL_CRITICAL_SECTION lock;
++    _putenv_s("RECOMP_CS_MODE", "");
++    _putenv_s("RECOMP_CS_TRACE_CRT", "");
++    _putenv_s("RECOMP_CS_WATCH", "");
++    _putenv_s("RECOMP_CS_COUNTERS", argc > 1 && !strcmp(argv[1], "counters") ? "1" : "0");
++    _putenv_s("RECOMP_KERNEL_LOG_BUDGET", "0");
++    memory = VirtualAlloc(NULL, 16 * 1024 * 1024,
++                          MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
++    start_event = CreateEventW(NULL, TRUE, FALSE, NULL);
++    if (!memory || !start_event) return 10;
++    g_xbox_mem_offset = (ptrdiff_t)memory;
++    for (unsigned i = 0; i < COLLISIONS; i++)
++        memset(guest_lock(i), 0xA5, 32);
++    imports[0] = 0x80000000u | 306; /* TryEnter */
++    imports[1] = 0x80000000u | 294; /* Leave */
++    memcpy(memory + 0x600000, imports, sizeof imports);
++    xbox_kernel_set_thunk_address(0x600000, 2);
++    xbox_kernel_bridge_init();
++    memcpy(imports, memory + 0x600000, sizeof imports);
++
++    if (!run_workers(0) || shared_count != THREADS * SHARED_ITERATIONS ||
++        !run_workers(1)) return 1;
++    for (unsigned i = 0; i < COLLISIONS; i++)
++        if (collision_count[i] != THREADS * COLLISION_ITERATIONS) return 2;
++
++    lock = guest_lock(0);
++    xbox_RtlEnterCriticalSection(lock);
++    xbox_RtlEnterCriticalSection(lock);
++    if (!try_from_other_thread(0)) return 3;
++    xbox_RtlLeaveCriticalSection(lock);
++    if (!try_from_other_thread(0)) return 4;
++    xbox_RtlLeaveCriticalSection(lock);
++    /* Try+bridge Leave must free the same native shadow, on every thread. */
++    if (!try_from_other_thread(1) || !try_from_other_thread(1)) return 5;
++    if (invoke(0) != 1 || invoke(0) != 1) return 6;
++    xbox_RtlLeaveCriticalSection(lock);
++    if (!try_from_other_thread(0)) return 7;
++    xbox_RtlLeaveCriticalSection(lock);
++    if (!try_from_other_thread(1)) return 8;
++
++    QueryPerformanceFrequency(&freq);
++    QueryPerformanceCounter(&begin);
++    if (!run_workers(2)) return 9;
++    QueryPerformanceCounter(&end);
++    for (unsigned i = 0; i < COLLISIONS; i++)
++        for (unsigned j = 0; j < 32; j++)
++            if (((uint8_t *)guest_lock(i))[j] != 0xA5) return 11;
++    printf("PASS: lazy initialization, recursive exclusion, 40 colliding locks, "
++           "bridge Try/Leave and unchanged guest fields; %u independent lock pairs in %.2f ms\n",
++           THREADS * BENCH_ITERATIONS,
++           (end.QuadPart - begin.QuadPart) * 1000.0 / freq.QuadPart);
++    CloseHandle(start_event);
++    VirtualFree(memory, 0, MEM_RELEASE);
++    return 0;
++}
+diff --git a/tests/kernel_dispatch/kernel_file_sharing_test.c b/tests/kernel_dispatch/kernel_file_sharing_test.c
+new file mode 100644
+index 0000000..37b0f04
+--- /dev/null
++++ b/tests/kernel_dispatch/kernel_file_sharing_test.c
+@@ -0,0 +1,108 @@
++/* A real host sharing conflict must survive the Xbox error conversion. */
++#include "kernel.h"
++#include "xbox_memory_layout.h"
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++typedef void (*guest_fn)(void);
++extern guest_fn recomp_lookup_kernel(uint32_t);
++extern RECOMP_TLS uint32_t g_eax, g_esp;
++extern ptrdiff_t g_xbox_mem_offset;
++void *recomp_lookup(ULONG address) { (void)address; abort(); }
++void *recomp_lookup_manual(ULONG address) { (void)address; abort(); }
++
++int main(void)
++{
++    wchar_t base[MAX_PATH], dir[MAX_PATH] = {0}, path[MAX_PATH] = {0};
++    HANDLE exclusive = INVALID_HANDLE_VALUE, root = INVALID_HANDLE_VALUE, opened = NULL;
++    XBOX_ANSI_STRING name;
++    XBOX_OBJECT_ATTRIBUTES oa;
++    XBOX_IO_STATUS_BLOCK ios;
++    NTSTATUS status;
++    uint8_t *memory = NULL;
++    guest_fn convert;
++    int result = 1, directory_created = 0;
++    uint32_t *sp;
++
++    if (!GetTempPathW(MAX_PATH, base) ||
++        !GetTempFileNameW(base, L"xfs", 0, dir))
++        goto done;
++    if (!DeleteFileW(dir) || !CreateDirectoryW(dir, NULL))
++        goto done;
++    directory_created = 1;
++    if (swprintf_s(path, MAX_PATH, L"%s\\sharing.bin", dir) < 0)
++        goto done;
++    exclusive = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, 0, NULL,
++                            CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
++    root = CreateFileW(dir, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
++                       NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
++    if (exclusive == INVALID_HANDLE_VALUE || root == INVALID_HANDLE_VALUE)
++        goto done;
++    memset(&name, 0, sizeof name);
++    name.Buffer = "sharing.bin";
++    name.Length = (USHORT)strlen(name.Buffer);
++    name.MaximumLength = name.Length + 1;
++    memset(&oa, 0, sizeof oa);
++    oa.RootDirectory = root;
++    oa.ObjectName = &name;
++    memset(&ios, 0xA5, sizeof ios);
++    status = xbox_NtCreateFile(&opened,
++        XBOX_GENERIC_READ | XBOX_SYNCHRONIZE | XBOX_FILE_READ_ATTRIBUTES,
++        &oa, &ios, NULL, 0x80, 1, XBOX_FILE_OPEN,
++        XBOX_FILE_SYNCHRONOUS_IO_NONALERT | XBOX_FILE_NON_DIRECTORY_FILE);
++    if (status != STATUS_SHARING_VIOLATION || ios.Status != status ||
++        ios.Information != 0 || opened != NULL ||
++        xbox_RtlNtStatusToDosError(status) != ERROR_SHARING_VIOLATION) {
++        fprintf(stderr, "FAIL: sharing conflict status=%08X ios=%08X information=%llu handle=%p\n",
++                (unsigned)status, (unsigned)ios.Status,
++                (unsigned long long)ios.Information, opened);
++        goto done;
++    }
++
++    /* Translated games use the bridge's independent status mapping. */
++    memory = VirtualAlloc(NULL, 16 * 1024 * 1024,
++                          MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
++    if (!memory)
++        goto done;
++    g_xbox_mem_offset = (ptrdiff_t)memory;
++    *(uint32_t *)(memory + 0x10000) = 0x80000000u | 301;
++    xbox_kernel_set_thunk_address(0x10000, 1);
++    xbox_kernel_bridge_init();
++    convert = recomp_lookup_kernel(*(uint32_t *)(memory + 0x10000));
++    if (!convert)
++        goto done;
++    g_esp = 0x20000;
++    sp = (uint32_t *)(memory + g_esp);
++    sp[0] = 0xBEEF0001;
++    sp[1] = (uint32_t)status;
++    convert();
++    if (g_eax != ERROR_SHARING_VIOLATION || g_esp != 0x20008) {
++        fprintf(stderr, "FAIL: bridge lost sharing error: eax=%08X esp=%08X\n", g_eax, g_esp);
++        goto done;
++    }
++
++    /* Sharing was enforced, and the same request can succeed after release. */
++    CloseHandle(exclusive);
++    exclusive = INVALID_HANDLE_VALUE;
++    status = xbox_NtCreateFile(&opened,
++        XBOX_GENERIC_READ | XBOX_SYNCHRONIZE | XBOX_FILE_READ_ATTRIBUTES,
++        &oa, &ios, NULL, 0x80, 1, XBOX_FILE_OPEN,
++        XBOX_FILE_SYNCHRONOUS_IO_NONALERT | XBOX_FILE_NON_DIRECTORY_FILE);
++    if (status != STATUS_SUCCESS || ios.Status != STATUS_SUCCESS || !opened) {
++        fprintf(stderr, "FAIL: unchanged open failed after host lock closed: %08X\n", (unsigned)status);
++        goto done;
++    }
++    puts("PASS: sharing conflict stays denied with matching NTSTATUS/IOS/DOS error, then opens after release");
++    result = 0;
++
++done:
++    if (opened && opened != INVALID_HANDLE_VALUE) xbox_NtClose(opened);
++    if (root != INVALID_HANDLE_VALUE) CloseHandle(root);
++    if (exclusive != INVALID_HANDLE_VALUE) CloseHandle(exclusive);
++    if (memory) VirtualFree(memory, 0, MEM_RELEASE);
++    if (*path) DeleteFileW(path);
++    if (directory_created) RemoveDirectoryW(dir);
++    return result;
++}
+diff --git a/tests/kernel_dispatch/kernel_log_test.c b/tests/kernel_dispatch/kernel_log_test.c
+new file mode 100644
+index 0000000..60420ee
+--- /dev/null
++++ b/tests/kernel_dispatch/kernel_log_test.c
+@@ -0,0 +1,124 @@
++/* Exercise the real dispatcher across guest threads with no game assets. */
++#include "kernel.h"
++#include "xbox_memory_layout.h"
++#include <io.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++typedef void (*guest_fn)(void);
++extern guest_fn recomp_lookup_kernel(uint32_t);
++extern RECOMP_TLS uint32_t g_eax, g_esp;
++extern ptrdiff_t g_xbox_mem_offset;
++void *recomp_lookup(ULONG address) { (void)address; abort(); }
++void *recomp_lookup_manual(ULONG address) { (void)address; abort(); }
++
++static uint8_t *memory;
++static uint32_t service;
++
++static void dispatch(guest_fn fn, uint32_t stack)
++{
++    g_esp = stack;
++    *(uint32_t *)(memory + stack) = 0xBEEF0001;
++    fn();
++    if (g_esp != stack + 4 || g_eax != 0)
++        abort();
++}
++
++static DWORD WINAPI worker(LPVOID stack)
++{
++    guest_fn fn = recomp_lookup_kernel(service);
++    unsigned i;
++    if (!fn)
++        return 1;
++    for (i = 0; i < 10000; ++i)
++        dispatch(fn, (uint32_t)(uintptr_t)stack);
++    return 0;
++}
++
++static unsigned occurrences(const char *text, const char *needle)
++{
++    unsigned count = 0;
++    while ((text = strstr(text, needle)) != NULL) {
++        count++;
++        text += strlen(needle);
++    }
++    return count;
++}
++
++int main(int argc, char **argv)
++{
++    int summary = argc == 2 && strcmp(argv[1], "summary") == 0;
++    int budget = argc == 2 && strcmp(argv[1], "budget") == 0;
++    FILE *captured;
++    int saved_stderr;
++    HANDLE threads[2];
++    char output[4096];
++    size_t length;
++    unsigned i;
++    guest_fn fn;
++    if (_putenv_s("RECOMP_KERNEL_LOG_BUDGET", budget ? "3" : "0") ||
++        _putenv_s("RECOMP_KERNEL_SUMMARY", summary ? "1" : "") ||
++        _putenv_s("RECOMP_GUEST_LOCK", "0"))
++        return 10;
++    memory = VirtualAlloc(NULL, 16 * 1024 * 1024,
++                          MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
++    if (!memory)
++        return 11;
++    g_xbox_mem_offset = (ptrdiff_t)memory;
++    *(uint32_t *)(memory + 0x10000) = 0x80000000u | 103;
++    xbox_kernel_set_thunk_address(0x10000, 1);
++    xbox_kernel_bridge_init();
++    service = *(uint32_t *)(memory + 0x10000);
++
++    fflush(stderr);
++    captured = tmpfile();
++    saved_stderr = _dup(_fileno(stderr));
++    if (!captured || saved_stderr < 0 ||
++        _dup2(_fileno(captured), _fileno(stderr)) != 0)
++        return 12;
++    for (i = 0; i < 2; ++i) {
++        threads[i] = CreateThread(NULL, 0, worker,
++                                  (LPVOID)(uintptr_t)(0x20000 + i * 0x1000), 0, NULL);
++        if (!threads[i])
++            return 13;
++    }
++    if (WaitForMultipleObjects(2, threads, TRUE, 5000) != WAIT_OBJECT_0)
++        return 14;
++    for (i = 0; i < 2; ++i) {
++        DWORD result = 1;
++        GetExitCodeThread(threads[i], &result);
++        CloseHandle(threads[i]);
++        if (result)
++            return 15;
++    }
++    /* Pass the old mandatory-summary threshold, then dispatch once more. */
++    Sleep(2100);
++    fn = recomp_lookup_kernel(service);
++    if (!fn)
++        return 16;
++    dispatch(fn, 0x22000);
++    fflush(stderr);
++    _dup2(saved_stderr, _fileno(stderr));
++    _close(saved_stderr);
++    rewind(captured);
++    length = fread(output, 1, sizeof output - 1, captured);
++    output[length] = '\0';
++    fclose(captured);
++    VirtualFree(memory, 0, MEM_RELEASE);
++
++    if (occurrences(output, "[KERNEL] #") != (budget ? 3u : 0u) ||
++        occurrences(output, "[KERNEL] summary:") != (summary ? 1u : 0u) ||
++        (budget && (occurrences(output, "[KERNEL] #1:") != 1 ||
++                    occurrences(output, "[KERNEL] #2:") != 1 ||
++                    occurrences(output, "[KERNEL] #3:") != 1)) ||
++        (summary && (!strstr(output, "20001 total calls") ||
++                     !strstr(output, "ordinal 103 x20001")))) {
++        fprintf(stderr, "FAIL: kernel log mode %s:\n%s", argc > 1 ? argv[1] : "quiet", output);
++        return 1;
++    }
++    printf("PASS: kernel log mode %s preserves quiet gameplay and explicit diagnostics\n",
++           argc > 1 ? argv[1] : "quiet");
++    return 0;
++}
+diff --git a/tests/kernel_dispatch/nv2a_notify_wait_test.c b/tests/kernel_dispatch/nv2a_notify_wait_test.c
+new file mode 100644
+index 0000000..2f5a9a8
+--- /dev/null
++++ b/tests/kernel_dispatch/nv2a_notify_wait_test.c
+@@ -0,0 +1,155 @@
++/* Exercise the exact host wait helper without GPU devices or game assets. */
++#include "kernel/nv2a_notify_wait.h"
++#include <stdio.h>
++#include <string.h>
++
++typedef struct {
++    XBOX_NV2A_WAKE wake;
++    volatile uint32_t get, put;
++    volatile LONG notifications, stop, ready_count, wait_calls;
++    HANDLE started, waiting;
++    int inject_completion;
++} FIXTURE;
++static FIXTURE *active_fixture;
++static BOOL (WINAPI *real_wait)(volatile VOID *, PVOID, SIZE_T, DWORD);
++static __declspec(thread) int t_wait_reported;
++static volatile LONG bad_timeout, missed_wake;
++
++static BOOL WINAPI observed_wait(volatile VOID *address, PVOID observed,
++                                 SIZE_T size, DWORD timeout)
++{
++    FIXTURE *f = active_fixture;
++    if (size != sizeof(LONG) || timeout != 1) InterlockedExchange(&bad_timeout, 1);
++    InterlockedIncrement(&f->wait_calls);
++    if (!t_wait_reported) {
++        t_wait_reported = 1;
++        InterlockedIncrement(&f->ready_count);
++        SetEvent(f->waiting);
++    }
++    /* This hook is entered AFTER the helper's second predicate check but
++     * BEFORE the native atomic wait. Its wake happens before any waiter can
++     * be registered, so an event-only implementation would lose it. */
++    if (f->inject_completion) {
++        f->inject_completion = 0;
++        f->get = f->put;
++        xbox_nv2a_wake_publish(&f->wake);
++        if (!real_wait(address, observed, size, timeout))
++            InterlockedExchange(&missed_wake, 1);
++        return TRUE;
++    }
++    return real_wait(address, observed, size, timeout);
++}
++
++static int init_fixture(FIXTURE *f)
++{
++    memset(f, 0, sizeof *f);
++    xbox_nv2a_wake_init(&f->wake);
++    if (!f->wake.wait_address || !f->wake.wake_all) return 0;
++    real_wait = f->wake.wait_address;
++    f->wake.wait_address = observed_wait;
++    f->put = 1;
++    f->started = CreateEventW(NULL, TRUE, FALSE, NULL);
++    f->waiting = CreateEventW(NULL, TRUE, FALSE, NULL);
++    active_fixture = f;
++    t_wait_reported = 0;
++    return f->started && f->waiting;
++}
++
++static void close_fixture(FIXTURE *f)
++{
++    CloseHandle(f->started);
++    CloseHandle(f->waiting);
++}
++
++static DWORD WINAPI waiter(LPVOID parameter)
++{
++    FIXTURE *f = parameter;
++    SetEvent(f->started);
++    xbox_nv2a_notify_wait(&f->wake, &f->get, &f->put,
++                         &f->notifications, 0, &f->stop);
++    return 0;
++}
++
++static int finish(HANDLE thread)
++{
++    if (WaitForSingleObject(thread, 5000) != WAIT_OBJECT_0) {
++        fprintf(stderr, "FAIL: guest wait did not complete\n");
++        /* Fixtures live on the calling stack; never return with a live user. */
++        ExitProcess(20);
++    }
++    CloseHandle(thread);
++    return !bad_timeout && !missed_wake;
++}
++
++static int completion_case(unsigned kind)
++{
++    FIXTURE f;
++    HANDLE thread;
++    if (!init_fixture(&f)) return 0;
++    if (kind == 4) { /* The host API is unavailable: retain yield fallback. */
++        f.wake.wait_address = NULL;
++        f.wake.wake_all = NULL;
++        if (!xbox_nv2a_wake_wait(&f.wake, 0)) return 0;
++    }
++    thread = CreateThread(NULL, 0, waiter, &f, 0, NULL);
++    if (!thread) return 0;
++    if (WaitForSingleObject(kind == 4 ? f.started : f.waiting, 5000) != WAIT_OBJECT_0)
++        ExitProcess(21);
++    /* A host wake alone must not pretend that the GPU completed work. */
++    xbox_nv2a_wake_publish(&f.wake);
++    if (WaitForSingleObject(thread, 0) != WAIT_TIMEOUT) ExitProcess(22);
++    if (kind == 1) InterlockedIncrement(&f.notifications);
++    else if (kind == 2) InterlockedExchange(&f.stop, 1);
++    else f.get = f.put;
++    /* Guest-origin GET changes are found through the bounded timeout even
++     * when there is no corresponding executor notification. */
++    if (kind != 3) xbox_nv2a_wake_publish(&f.wake);
++    int okay = finish(thread);
++    close_fixture(&f);
++    return okay;
++}
++
++static int multiple_waiters(void)
++{
++    FIXTURE f;
++    HANDLE threads[4];
++    DWORD started = GetTickCount();
++    if (!init_fixture(&f)) return 0;
++    for (unsigned i = 0; i < 4; i++) {
++        threads[i] = CreateThread(NULL, 0, waiter, &f, 0, NULL);
++        if (!threads[i]) ExitProcess(23);
++    }
++    while (InterlockedCompareExchange(&f.ready_count, 0, 0) != 4) {
++        if (GetTickCount() - started > 5000) ExitProcess(24);
++        Sleep(1);
++    }
++    f.get = f.put;
++    xbox_nv2a_wake_publish(&f.wake);
++    if (WaitForMultipleObjects(4, threads, TRUE, 5000) != WAIT_OBJECT_0) ExitProcess(25);
++    for (unsigned i = 0; i < 4; i++) CloseHandle(threads[i]);
++    close_fixture(&f);
++    return !bad_timeout;
++}
++
++int main(void)
++{
++    FIXTURE f;
++    if (!init_fixture(&f)) return 10;
++    f.get = f.put; /* Completed before entering the helper: no host wait. */
++    xbox_nv2a_notify_wait(&f.wake, &f.get, &f.put, &f.notifications, 0, &f.stop);
++    if (f.wait_calls != 0) return 1;
++    close_fixture(&f);
++
++    if (!init_fixture(&f)) return 11;
++    f.inject_completion = 1;
++    xbox_nv2a_notify_wait(&f.wake, &f.get, &f.put, &f.notifications, 0, &f.stop);
++    if (f.wait_calls != 1 || missed_wake || bad_timeout) return 2;
++    close_fixture(&f);
++
++    for (unsigned kind = 0; kind < 5; kind++)
++        if (!completion_case(kind)) return 3 + kind;
++    if (!multiple_waiters()) return 8;
++    puts("PASS: early completion, check-to-wait race, GET/NOP/stop wakes, "
++         "spurious wake, bounded fallback and multiple guest waiters");
++    return 0;
++}
+diff --git a/tests/nv2a_shader_cache/CMakeLists.txt b/tests/nv2a_shader_cache/CMakeLists.txt
+new file mode 100644
+index 0000000..006a5c7
+--- /dev/null
++++ b/tests/nv2a_shader_cache/CMakeLists.txt
+@@ -0,0 +1,8 @@
++cmake_minimum_required(VERSION 3.20)
++project(nv2a_shader_cache C)
++set(CMAKE_C_STANDARD 11)
++enable_testing()
++add_executable(nv2a_shader_cache test_main.c)
++target_include_directories(nv2a_shader_cache PRIVATE ../../src/video)
++target_link_libraries(nv2a_shader_cache PRIVATE d3dcompiler)
++add_test(NAME nv2a_shader_cache COMMAND nv2a_shader_cache)
+diff --git a/tests/nv2a_shader_cache/test_main.c b/tests/nv2a_shader_cache/test_main.c
+new file mode 100644
+index 0000000..2ca96d1
+--- /dev/null
++++ b/tests/nv2a_shader_cache/test_main.c
+@@ -0,0 +1,168 @@
++/* Compile actual HLSL to verify hits, input invalidation, and corrupt-file recovery. */
++#define COBJMACROS
++#define WIN32_LEAN_AND_MEAN
++#include <stdio.h>
++#include "nv2a_shader_cache.h"
++
++static unsigned failures;
++static const char source[] =
++    "float4 main() : SV_Target { return float4(VALUE,0,0,1); }\n"
++    "float4 other() : SV_Target { return float4(VALUE,0,0,1); }\n";
++static const D3D_SHADER_MACRO one[] = {{"VALUE", "1"}, {NULL, NULL}};
++static const D3D_SHADER_MACRO zero[] = {{"VALUE", "0"}, {NULL, NULL}};
++
++static void check(int condition, const char *label)
++{
++    printf("%s: %s\n", condition ? "PASS" : "FAIL", label);
++    if (!condition) failures++;
++}
++
++static void compile_expect(const char *text, const char *name, const D3D_SHADER_MACRO *macros,
++                           const char *entry, const char *target, UINT flags, int expect_hit,
++                           const char *label)
++{
++    ID3DBlob *code = NULL, *errors = NULL;
++    int hit = -1;
++    HRESULT hr = nv_shader_cache_compile(text, strlen(text), name, macros, entry, target,
++                                         flags, 0, &code, &errors, &hit);
++    check(SUCCEEDED(hr) && code && hit == expect_hit, label);
++    if (FAILED(hr) && errors) printf("%s\n", (char *)ID3D10Blob_GetBufferPointer(errors));
++    if (code) ID3D10Blob_Release(code);
++    if (errors) ID3D10Blob_Release(errors);
++}
++
++static void basic(int hit, const char *label)
++{
++    compile_expect(source, "test", one, "main", "ps_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, hit, label);
++}
++
++static DWORD WINAPI compile_worker(void *unused)
++{
++    ID3DBlob *code = NULL, *errors = NULL;
++    HRESULT hr;
++    (void)unused;
++    hr = nv_shader_cache_compile(source, sizeof source - 1, "parallel", one, "main", "ps_5_0",
++                                 D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &code, &errors, NULL);
++    if (code) ID3D10Blob_Release(code);
++    if (errors) ID3D10Blob_Release(errors);
++    return SUCCEEDED(hr) ? 0 : 1;
++}
++
++int main(void)
++{
++    wchar_t temp[MAX_PATH], dir[NV_SHADER_CACHE_PATH], path[NV_SHADER_CACHE_PATH], glob[NV_SHADER_CACHE_PATH];
++    uint8_t key[32], digest[32], alternate[32];
++    NvShaderHash hash;
++    HANDLE file, workers[4];
++    DWORD wrote, exit_code;
++    unsigned i;
++    WIN32_FIND_DATAW found;
++    char changed[sizeof source + 2];
++    static const uint8_t abc_sha256[32] = {
++        0xba,0x78,0x16,0xbf,0x8f,0x01,0xcf,0xea,0x41,0x41,0x40,0xde,0x5d,0xae,0x22,0x23,
++        0xb0,0x03,0x61,0xa3,0x96,0x17,0x7a,0x9c,0xb4,0x10,0xff,0x61,0xf2,0x00,0x15,0xad
++    };
++    static const char long_message[] = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq";
++    static const uint8_t long_sha256[32] = {
++        0x24,0x8d,0x6a,0x61,0xd2,0x06,0x38,0xb8,0xe5,0xc0,0x26,0x93,0x0c,0x3e,0x60,0x39,
++        0xa3,0x3c,0xe4,0x59,0x64,0xff,0x21,0x67,0xf6,0xec,0xed,0xd4,0x19,0xdb,0x06,0xc1
++    };
++    static const D3D_SHADER_MACRO boundary_a[] = {{"AB", "C"}, {NULL, NULL}};
++    static const D3D_SHADER_MACRO boundary_b[] = {{"A", "BC"}, {NULL, NULL}};
++    if (!GetTempPathW(MAX_PATH, temp)) return 2;
++    swprintf_s(dir, NV_SHADER_CACHE_PATH, L"%snv2a-shader-cache-%lu-%llu", temp,
++               GetCurrentProcessId(), (unsigned long long)GetTickCount64());
++    SetEnvironmentVariableW(L"RECOMP_SHADER_CACHE_DIR", dir);
++    SetEnvironmentVariableW(L"RECOMP_SHADER_CACHE", NULL);
++
++    nv_shader_hash_init(&hash);
++    nv_shader_hash_add(&hash, "a", 1);
++    nv_shader_hash_add(&hash, "bc", 2);
++    nv_shader_hash_finish(&hash, digest);
++    check(!memcmp(digest, abc_sha256, 32), "SHA-256 known digest with split updates");
++    nv_shader_hash_init(&hash);
++    nv_shader_hash_add(&hash, long_message, sizeof long_message - 1);
++    nv_shader_hash_finish(&hash, digest);
++    check(!memcmp(digest, long_sha256, 32), "SHA-256 multi-block padding known digest");
++    nv_shader_cache_key(source, sizeof source - 1, "test", boundary_a, "main", "ps_5_0", 0, 0, key);
++    nv_shader_cache_key(source, sizeof source - 1, "test", boundary_b, "main", "ps_5_0", 0, 0, alternate);
++    check(memcmp(key, alternate, 32) != 0, "macro names and values have separate boundaries");
++    nv_shader_cache_key(source, sizeof source - 1, "test", boundary_a, "main", "ps_5_0", 0, 1, alternate);
++    check(memcmp(key, alternate, 32) != 0, "secondary compile flags change cache identity");
++    basic(0, "first compile misses");
++    basic(1, "second compile reads bytecode");
++    compile_expect(source, "test", zero, "main", "ps_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, "macro value invalidates");
++    compile_expect(source, "test", one, "other", "ps_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, "entry point invalidates");
++    compile_expect(source, "test", one, "main", "ps_4_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, "target invalidates");
++    compile_expect(source, "test", one, "main", "ps_5_0", D3DCOMPILE_DEBUG, 0, "compile flags invalidate");
++    compile_expect(source, "renamed", one, "main", "ps_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, "source name invalidates");
++    snprintf(changed, sizeof changed, "%s ", source);
++    compile_expect(changed, "test", one, "main", "ps_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, "source bytes invalidate");
++    basic(1, "original entry survives other inputs");
++
++    nv_shader_cache_key(source, sizeof source - 1, "test", one, "main", "ps_5_0",
++                        D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, key);
++    check(nv_shader_cache_path(key, path), "cache path available");
++    file = CreateFileW(path, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
++    check(file != INVALID_HANDLE_VALUE, "cache file created");
++    if (file != INVALID_HANDLE_VALUE) {
++        uint8_t bad = 0;
++        SetFilePointer(file, -1, NULL, FILE_END);
++        WriteFile(file, &bad, 1, &wrote, NULL);
++        CloseHandle(file);
++    }
++    /* Changing the checksum unconditionally avoids depending on the final DXBC byte. */
++    file = CreateFileW(path, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
++    if (file != INVALID_HANDLE_VALUE) {
++        uint8_t bad[32] = {0};
++        SetFilePointer(file, 48, NULL, FILE_BEGIN);
++        WriteFile(file, bad, sizeof bad, &wrote, NULL);
++        CloseHandle(file);
++    }
++    basic(0, "checksum corruption recompiles");
++    basic(1, "recompiled corruption is cached");
++    file = CreateFileW(path, GENERIC_WRITE, 0, NULL, TRUNCATE_EXISTING, 0, NULL);
++    if (file != INVALID_HANDLE_VALUE) CloseHandle(file);
++    basic(0, "truncated file recompiles");
++    file = CreateFileW(path, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
++    if (file != INVALID_HANDLE_VALUE) {
++        uint32_t huge = UINT32_MAX;
++        SetFilePointer(file, 12, NULL, FILE_BEGIN);
++        WriteFile(file, &huge, sizeof huge, &wrote, NULL);
++        CloseHandle(file);
++    }
++    basic(0, "unbounded blob size rejected");
++    SetEnvironmentVariableW(L"RECOMP_SHADER_CACHE", L"0");
++    basic(0, "cache switch bypasses existing bytecode");
++    SetEnvironmentVariableW(L"RECOMP_SHADER_CACHE", NULL);
++    basic(1, "bypass preserves existing bytecode");
++    SetEnvironmentVariableW(L"RECOMP_SHADER_CACHE_DIR", path); /* An existing file cannot be a directory. */
++    basic(0, "unavailable cache directory falls back to compile");
++    SetEnvironmentVariableW(L"RECOMP_SHADER_CACHE_DIR", dir);
++
++    for (i = 0; i < 4; i++) {
++        workers[i] = CreateThread(NULL, 0, compile_worker, NULL, 0, NULL);
++        if (!workers[i]) return 2;
++    }
++    check(WaitForMultipleObjects(4, workers, TRUE, 30000) == WAIT_OBJECT_0, "parallel compiles finish");
++    for (i = 0; i < 4; i++) {
++        check(GetExitCodeThread(workers[i], &exit_code) && exit_code == 0, "concurrent compile succeeds");
++        CloseHandle(workers[i]);
++    }
++    compile_expect(source, "parallel", one, "main", "ps_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 1, "atomic concurrent write remains readable");
++
++    /* Only our newly created flat temporary cache is removed. */
++    swprintf_s(glob, NV_SHADER_CACHE_PATH, L"%s\\*", dir);
++    file = FindFirstFileW(glob, &found);
++    if (file != INVALID_HANDLE_VALUE) {
++        do {
++            if (found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
++            swprintf_s(path, NV_SHADER_CACHE_PATH, L"%s\\%s", dir, found.cFileName);
++            DeleteFileW(path);
++        } while (FindNextFileW(file, &found));
++        FindClose(file);
++    }
++    RemoveDirectoryW(dir);
++    printf("%u failed assertions\n", failures);
++    return failures ? 1 : 0;
++}
+diff --git a/tests/nv2a_textures/CMakeLists.txt b/tests/nv2a_textures/CMakeLists.txt
+new file mode 100644
+index 0000000..2ae9d7d
+--- /dev/null
++++ b/tests/nv2a_textures/CMakeLists.txt
+@@ -0,0 +1,13 @@
++cmake_minimum_required(VERSION 3.20)
++project(nv2a_textures C)
++enable_testing()
++add_executable(nv2a_textures test_textures.c)
++target_include_directories(nv2a_textures PRIVATE ../../src ../../src/video)
++if(NV2A_TEXTURE_RENDERER)
++    target_compile_definitions(nv2a_textures PRIVATE
++        NV2A_TEXTURE_RENDERER="${NV2A_TEXTURE_RENDERER}")
++endif()
++target_link_libraries(nv2a_textures PRIVATE d3d11 dxgi dxguid d3dcompiler)
++foreach(case srv_retry mip_retry palette_identity decode_equivalence)
++    add_test(NAME nv2a_texture_${case} COMMAND nv2a_textures ${case})
++endforeach()
+diff --git a/tests/nv2a_textures/README.md b/tests/nv2a_textures/README.md
+new file mode 100644
+index 0000000..2db3972
+--- /dev/null
++++ b/tests/nv2a_textures/README.md
+@@ -0,0 +1,35 @@
++# Texture cache and upload regression checks
++
++Run from the game checkout with its portable Windows toolchain:
++
++```powershell
++Set-ExecutionPolicy -Scope Process Bypass -Force
++. ./scripts/enter-env.ps1
++cmake -S tools/xboxrecomp/tests/nv2a_textures -B conformance_tmp/texture-tests -G Ninja -DCMAKE_BUILD_TYPE=Release
++cmake --build conformance_tmp/texture-tests
++ctest --test-dir conformance_tmp/texture-tests --output-on-failure
++```
++
++The three GPU cases exercise failed-resource retry, complete mip publication,
++retention of an existing upload during allocation failure, and independent
++palette-length cache identity. The CPU case compares complete ARGB/XRGB and
++DXT1/3/5 rectangles with independent per-texel addressing and decoding. It covers
++unaligned source addresses, odd compressed sizes, short mip dimensions, and
++destination boundary guards.
++
++The optional CPU microbenchmark compares the original row traversal with the
++selected decoder, using medians of seven runs. It has no timing pass/fail limit:
++
++```powershell
++./conformance_tmp/texture-tests/nv2a_textures.exe benchmark_decode
++```
++
++On the Ryzen 9 PRO 7940HS, a 1024x1024 upload took 0.248 ms for ARGB32 and
++0.209 ms for XRGB32, compared with 1.595 ms and 1.469 ms for the original
++traversal. DXT1/3/5 improved by 1.27-1.37 times. These measurements cover CPU
++decoding, not GPU upload or whole-frame time, and vary with load and clock speed.
++
++For an actual renderer snapshot comparison, configure another build with
++`-DNV2A_TEXTURE_RENDERER=C:/absolute/path/to/nv2a_d3d11.c`. The source's sibling
++headers can be resolved through the renderer include directory supplied by this
++test project.
+diff --git a/tests/nv2a_textures/test_textures.c b/tests/nv2a_textures/test_textures.c
+new file mode 100644
+index 0000000..50644d0
+--- /dev/null
++++ b/tests/nv2a_textures/test_textures.c
+@@ -0,0 +1,333 @@
++/* Drive the real cache and inspect its GPU pixels, including failed uploads. */
++#define COBJMACROS
++#define WIN32_LEAN_AND_MEAN
++#include <windows.h>
++#include <d3d11_1.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++static int fail_srv;
++static size_t fail_alloc_size;
++static int fail_alloc;
++
++static HRESULT create_srv(ID3D11Device *device, ID3D11Resource *resource,
++                          const D3D11_SHADER_RESOURCE_VIEW_DESC *desc,
++                          ID3D11ShaderResourceView **view)
++{
++    if (fail_srv) {
++        fail_srv--;
++        *view = NULL;
++        return E_OUTOFMEMORY;
++    }
++    return device->lpVtbl->CreateShaderResourceView(device, resource, desc, view);
++}
++
++static void *allocate_pixels(size_t bytes)
++{
++    if (fail_alloc && bytes == fail_alloc_size) {
++        fail_alloc--;
++        return NULL;
++    }
++    return malloc(bytes);
++}
++
++#undef ID3D11Device_CreateShaderResourceView
++#define ID3D11Device_CreateShaderResourceView create_srv
++#define malloc allocate_pixels
++#ifndef NV2A_TEXTURE_RENDERER
++#define NV2A_TEXTURE_RENDERER "../../src/video/nv2a_d3d11.c"
++#endif
++#include NV2A_TEXTURE_RENDERER
++#undef malloc
++
++static uint8_t *ram;
++ptrdiff_t xbox_GetMemoryOffset(void) { return (ptrdiff_t)ram; }
++HWND xbox_FramebufferWindowHandle(void) { return NULL; }
++int xbox_FramebufferScanSource(uint32_t *va, uint32_t *pitch) { return 0; }
++int xbox_FramebufferOverlay(XboxOverlay *ovl) { return 0; }
++void xbox_FramebufferNoteFlip(uint32_t draws) {}
++const uint32_t (*nv2a_vsh_program(uint32_t *start, uint32_t *version))[4] { return NULL; }
++const float (*nv2a_vsh_constants(uint32_t *version))[4] { return NULL; }
++
++#define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #x); return 1; } } while (0)
++
++static uint32_t read_mip(ID3D11ShaderResourceView *view, UINT mip)
++{
++    ID3D11Resource *resource = NULL;
++    ID3D11Texture2D *source = NULL, *staging = NULL;
++    D3D11_TEXTURE2D_DESC desc;
++    D3D11_MAPPED_SUBRESOURCE mapped;
++    uint32_t pixel = 0xDEADBEEFu;
++    if (!view) return pixel;
++    ID3D11ShaderResourceView_GetResource(view, &resource);
++    if (FAILED(ID3D11Resource_QueryInterface(resource, &IID_ID3D11Texture2D,
++                                            (void **)&source))) {
++        ID3D11Resource_Release(resource);
++        return pixel;
++    }
++    ID3D11Resource_Release(resource);
++    ID3D11Texture2D_GetDesc(source, &desc);
++    desc.Usage = D3D11_USAGE_STAGING;
++    desc.BindFlags = desc.MiscFlags = 0;
++    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
++    if (SUCCEEDED(ID3D11Device_CreateTexture2D(s_dev, &desc, NULL, &staging))) {
++        ID3D11DeviceContext_CopyResource(s_ctx, (ID3D11Resource *)staging,
++                                       (ID3D11Resource *)source);
++        if (SUCCEEDED(ID3D11DeviceContext_Map(s_ctx, (ID3D11Resource *)staging, mip,
++                                             D3D11_MAP_READ, 0, &mapped))) {
++            memcpy(&pixel, mapped.pData, sizeof pixel);
++            ID3D11DeviceContext_Unmap(s_ctx, (ID3D11Resource *)staging, mip);
++        }
++        ID3D11Texture2D_Release(staging);
++    }
++    ID3D11Texture2D_Release(source);
++    return pixel;
++}
++
++static int test_srv_retry(void)
++{
++    NvD3DTexture texture = {0};
++    ID3D11ShaderResourceView *view;
++    size_t count = s_tex_count, bytes = s_tex_bytes;
++    unsigned i;
++    texture.addr = 0x20000;
++    texture.color = 0x12;
++    texture.format = 0x00011200;
++    texture.width = texture.height = 4;
++    texture.pitch = 16; texture.levels = 1;
++    for (i = 0; i < 16; i++) ((uint32_t *)(ram + texture.addr))[i] = 0xFF00FF00u;
++    fail_srv = 1;
++    CHECK(texture_get(&texture) == NULL);
++    CHECK(fail_srv == 0);
++    CHECK(s_tex_count == count && s_tex_bytes == bytes);
++    /* Retry in the same kick: the failed view must never become a cache hit. */
++    view = texture_get(&texture);
++    CHECK(view && read_mip(view, 0) == 0xFF00FF00u);
++    CHECK(texture_get(&texture) == view);
++    nv2a_d3d_kick();
++    CHECK(texture_get(&texture) == view);
++    CHECK(s_tex_count == count + 1);
++    CHECK(s_tex_bytes == bytes + 16 * 4);
++    puts("PASS: failed texture SRV creation retries immediately without a poisoned cache entry");
++    return 0;
++}
++
++static int test_mip_retry(void)
++{
++    NvD3DTexture texture = {0};
++    ID3D11ShaderResourceView *view;
++    size_t count = s_tex_count, bytes = s_tex_bytes;
++    unsigned i;
++    texture.addr = 0x30000;
++    texture.color = 0x06;
++    texture.format = 0x03320600;
++    texture.width = texture.height = 8; texture.levels = 2;
++    for (i = 0; i < 64; i++) ((uint32_t *)(ram + texture.addr))[i] = 0xFFFF0000u;
++    for (i = 64; i < 80; i++) ((uint32_t *)(ram + texture.addr))[i] = 0xFF0000FFu;
++    /* The mip-generation temporary is 4x4; the top-level scratch is 8x8. */
++    fail_alloc_size = 4 * 4 * 4;
++    fail_alloc = 1;
++    CHECK(texture_get(&texture) == NULL);
++    CHECK(fail_alloc == 0);
++    CHECK(s_tex_count == count && s_tex_bytes == bytes);
++    view = texture_get(&texture);
++    CHECK(view);
++    CHECK(read_mip(view, 0) == 0xFFFF0000u);
++    for (i = 1; i < 4; i++) CHECK(read_mip(view, i) == 0xFF0000FFu);
++    CHECK(s_tex_count == count + 1);
++    CHECK(s_tex_bytes == bytes + (64 + 16 + 4 + 1) * 4);
++    /* Also retry a failed update of an existing resource. */
++    for (i = 64; i < 80; i++) ((uint32_t *)(ram + texture.addr))[i] = 0xFF00FF00u;
++    nv2a_d3d_kick();
++    fail_alloc = 1;
++    CHECK(texture_get(&texture) == view);
++    CHECK(fail_alloc == 0 && s_tex_count == count + 1);
++    for (i = 1; i < 4; i++) CHECK(read_mip(view, i) == 0xFF0000FFu);
++    CHECK(texture_get(&texture) == view);
++    for (i = 1; i < 4; i++) CHECK(read_mip(view, i) == 0xFF00FF00u);
++    puts("PASS: allocation failure cannot publish incomplete mips and retries existing uploads");
++    return 0;
++}
++
++static int test_palette_identity(void)
++{
++    NvD3DTexture texture = {0};
++    ID3D11ShaderResourceView *short_view, *long_view;
++    texture.addr = 0x40000;
++    texture.color = 0x0B; texture.format = 0x02210B00;
++    texture.width = texture.height = 4; texture.levels = 1;
++    texture.palette = 0x41000; texture.palette_len = 32;
++    memset(ram + texture.addr, 7, 16);
++    ((uint32_t *)(ram + texture.palette))[7] = 0xFFFF0000u;
++    short_view = texture_get(&texture);
++    CHECK(short_view && read_mip(short_view, 0) == 0xFFFF0000u);
++    /* PALETTE_LENGTH is a separate register from FORMAT and may change
++     * between draws of a kick. Their validation/hash spans differ. */
++    texture.palette_len = 256;
++    long_view = texture_get(&texture);
++    CHECK(long_view && long_view != short_view);
++    CHECK(read_mip(long_view, 0) == 0xFFFF0000u);
++    texture.palette_len = 32;
++    CHECK(texture_get(&texture) == short_view);
++    puts("PASS: independently changed palette length cannot bypass cache validation");
++    return 0;
++}
++
++static uint32_t random_word(uint32_t *state)
++{
++    *state ^= *state << 13; *state ^= *state >> 17; *state ^= *state << 5;
++    return *state;
++}
++
++static int test_decode_equivalence(void)
++{
++    uint32_t state = 0x12345678u;
++    uint8_t *data = malloc(65536 + 64);
++    uint32_t *allocation = malloc(65536 + 16), *decoded;
++    const unsigned formats[] = { 0x06, 0x07, 0x0C, 0x0E, 0x0F };
++    const unsigned dimensions[] = { 1, 2, 3, 4, 5, 7, 8, 12, 16, 20, 64, 128 };
++    unsigned i, offset, format, width, height, w, h, x, y;
++    CHECK(data);
++    CHECK(allocation);
++    decoded = allocation + 1;
++    for (i = 0; i < 65536 + 64; i++) data[i] = (uint8_t)random_word(&state);
++    /* Validate complete rectangles, unaligned sources, short mips and both
++     * compressed alpha modes against independent per-texel addressing. */
++    for (format = 0; format < 5; format++)
++        for (width = 0; width < sizeof dimensions / sizeof dimensions[0]; width++)
++            for (height = 0; height < sizeof dimensions / sizeof dimensions[0]; height++)
++                for (offset = 0; offset < 8; offset++) {
++                    NvD3DTexture texture = {0};
++                    TexLayout layout;
++                    w = dimensions[width]; h = dimensions[height];
++                    if (format < 2 && ((w & (w - 1)) || (h & (h - 1)))) continue;
++                    texture.color = formats[format];
++                    texture.width = w; texture.height = h; texture.levels = 1;
++                    CHECK(tex_layout(&texture, &layout));
++                    decoded[-1] = decoded[w * h] = 0xDEADC0DEu;
++                    decode_level(&texture, &layout, data + offset, 0, NULL, decoded);
++                    CHECK(decoded[-1] == 0xDEADC0DEu && decoded[w * h] == 0xDEADC0DEu);
++                    for (y = 0; y < h; y++)
++                        for (x = 0; x < w; x++) {
++                            uint32_t expected;
++                            if (layout.kind == K_DXT)
++                                CHECK(d3d8_dxt_decode_texel(data + offset, texture.color,
++                                                           x, y, w, &expected));
++                            else {
++                                uint32_t address = swizzle_offset(x, y, w, h);
++                                expected = texel(texture.color, data + offset + address * 4, NULL);
++                            }
++                            CHECK(decoded[y * w + x] == expected);
++                        }
++        }
++    free(data);
++    free(allocation);
++    puts("PASS: tiled32-bit and DXT uploads match per-texel decoding across sizes, mips and alignments");
++    return 0;
++}
++
++/* Original row-by-row implementation retained only as a benchmark reference. */
++static void decode_before(const NvD3DTexture *t, const TexLayout *L, const uint8_t *src,
++                          int lv, const uint32_t *pal, uint32_t *out)
++{
++    uint32_t w = L->level_w[lv], h = L->level_h[lv], x, y;
++    if (L->kind == K_DXT) {
++        uint32_t bw = (w + 3) / 4, bh = (h + 3) / 4, bx, by, px[16];
++        for (by = 0; by < bh; by++)
++            for (bx = 0; bx < bw; bx++) {
++                d3d8_dxt_decode_block(src + ((size_t)by * bw + bx) * L->bpp, t->color, px);
++                for (y = 0; y < 4 && by * 4 + y < h; y++)
++                    for (x = 0; x < 4 && bx * 4 + x < w; x++)
++                        out[(size_t)(by * 4 + y) * w + bx * 4 + x] = px[y * 4 + x];
++            }
++    } else {
++        uint32_t mx, my, oy = 0;
++        xbox_swizzle_masks(w, h, &mx, &my);
++        for (y = 0; y < h; y++) {
++            uint32_t ox = 0, *dst = out + (size_t)y * w;
++            for (x = 0; x < w; x++) {
++                dst[x] = texel(t->color, src + (size_t)(oy + ox) * L->bpp, pal);
++                ox = (ox - mx) & mx;
++            }
++            oy = (oy - my) & my;
++        }
++    }
++}
++
++typedef void (*DecodeFunction)(const NvD3DTexture *, const TexLayout *, const uint8_t *,
++                               int, const uint32_t *, uint32_t *);
++static volatile uint32_t decode_sink;
++
++static __declspec(noinline) double time_decode(DecodeFunction function,
++    const NvD3DTexture *texture, const TexLayout *layout, uint8_t *data,
++    uint32_t *out, unsigned repetitions)
++{
++    LARGE_INTEGER frequency;
++    int64_t start, elapsed;
++    unsigned i;
++    QueryPerformanceFrequency(&frequency);
++    start = qpc();
++    for (i = 0; i < repetitions; i++) {
++        data[0]++;
++        function(texture, layout, data, 0, NULL, out);
++        decode_sink ^= out[i & 255];
++    }
++    elapsed = qpc() - start;
++    return elapsed / (double)frequency.QuadPart;
++}
++
++static int benchmark_decode(void)
++{
++    const unsigned formats[] = { 0x06, 0x07, 0x0C, 0x0E, 0x0F };
++    uint8_t *data = malloc(4 * 1024 * 1024 + 64);
++    uint32_t *out = malloc(4 * 1024 * 1024);
++    uint32_t state = 0x1A2B3C4Du;
++    unsigned i, sample, item, repetitions;
++    double scalar[7], optimized[7];
++    CHECK(data);
++    CHECK(out);
++    for (i = 0; i < 4 * 1024 * 1024 + 64; i++) data[i] = (uint8_t)random_word(&state);
++    for (item = 0; item < 5; item++) {
++        NvD3DTexture texture = {0};
++        TexLayout layout;
++        texture.color = formats[item];
++        texture.width = texture.height = 1024; texture.levels = 1;
++        CHECK(tex_layout(&texture, &layout));
++        repetitions = 8;
++        for (sample = 0; sample < 7; sample++) {
++            scalar[sample] = time_decode(decode_before, &texture, &layout, data + 1, out, repetitions);
++            optimized[sample] = time_decode(decode_level, &texture, &layout, data + 1, out, repetitions);
++        }
++        for (i = 0; i < 7; i++)
++            for (sample = i + 1; sample < 7; sample++) {
++                double t;
++                if (scalar[sample] < scalar[i]) { t = scalar[i]; scalar[i] = scalar[sample]; scalar[sample] = t; }
++                if (optimized[sample] < optimized[i]) { t = optimized[i]; optimized[i] = optimized[sample]; optimized[sample] = t; }
++            }
++        printf("DECODE format %02X 1024x1024: before %.3f ms, selected %.3f ms per upload (%.2fx)\n",
++               formats[item], scalar[3] * 1000 / repetitions, optimized[3] * 1000 / repetitions,
++               scalar[3] / optimized[3]);
++    }
++    free(data);
++    free(out);
++    return 0;
++}
++
++int main(int argc, char **argv)
++{
++    CHECK(argc == 2);
++    if (!strcmp(argv[1], "decode_equivalence")) return test_decode_equivalence();
++    if (!strcmp(argv[1], "benchmark_decode")) return benchmark_decode();
++    ram = calloc(1, 0x100000);
++    CHECK(ram);
++    _putenv_s("RECOMP_MSAA", "1");
++    _putenv_s("RECOMP_RENDER_SCALE", "1");
++    _putenv_s("RECOMP_PS_SPEC", "0");
++    _putenv_s("RECOMP_FPS_LIMIT", "0");
++    CHECK(nv2a_d3d_init());
++    if (!strcmp(argv[1], "srv_retry")) return test_srv_retry();
++    if (!strcmp(argv[1], "mip_retry")) return test_mip_retry();
++    if (!strcmp(argv[1], "palette_identity")) return test_palette_identity();
++    CHECK(0);
++}

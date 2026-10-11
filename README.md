@@ -126,6 +126,8 @@ the availability change does not write unlock keys to your save.
 | `RECOMP_DRAW_DISTANCE` | `2` | View/LOD distance multiplier (1 = Xbox, up to 4). |
 | `RECOMP_SHARP_POINT` | `1` | `0`: plain point filtering for fonts and menu art instead of sharp outlines. |
 | `RECOMP_PS_SPEC` | `1` | `0`: skip specialised pixel shaders (slow; for debugging). |
+| `RECOMP_SHADER_CACHE` | `1` | Save compiled shaders between launches; `0` disables the cache. |
+| `RECOMP_SHADER_CACHE_DIR` | built-in | Shader cache folder; defaults to `%LOCALAPPDATA%\xboxrecomp\ShaderCache`. |
 | `MM3_SAVE_DIR` | built-in | Folder holding the HDD/save partition images. |
 | `MM3_UNLOCK_ALL_CARS` | `1` | Make every installed car selectable; `0` restores earned car availability. |
 | `MM3_DEBUG_TELEPORT` | off | Enable the teleport pipe (`tools\powershell\Send-MM3Teleport.ps1`). |
@@ -139,6 +141,8 @@ the availability change does not write unlock keys to your save.
 | `RECOMP_PAD_PRESS=<mask>[,period,hold]` | Pulse digital buttons (`0x10` = Start) periodically. |
 | `RECOMP_FRAME_CSV=<file>` | One row per flip: QPC time, frame time, pacing time. Summarise with `tools\xboxrecomp\tools\bench\frames.py`. |
 | `RECOMP_D3D_PROFILE` | Print per-second fps, worst frame and renderer stage costs to stderr. |
+| `RECOMP_KERNEL_SUMMARY` | `1`: collect and print periodic kernel-call totals (off during normal play). |
+| `RECOMP_CS_COUNTERS` | `1`: count critical-section entries/exits for contention diagnostics (off during normal play). |
 | `RECOMP_PRESENT_CAPTURE=<prefix>` | With `<prefix>.flag` containing N, save the next N frames as `<prefix>-*.bmp`. |
 | `RECOMP_CAPTURE_SURFACE` | Capture at internal resolution instead of the window. |
 | `RECOMP_XA2_PCM_DUMP=<file>` | Dump the mixed audio (s16 stereo 48 kHz). |
@@ -148,6 +152,21 @@ the availability change does not write unlock keys to your save.
 benchmark (frame-time percentiles, lows, jitter, executor time, GPU use).
 `tools\powershell\Test-MM3AiStart.ps1 -Exe <exe> -Save <save template> [-FpsLimit 60]` takes the
 same path into the first race and checks every AI car leaves the line forwards (exit 0 = pass).
+
+Compiled shaders are cached automatically. New specialised gameplay shaders
+compile in the background; later launches reuse their bytecode. Changes to
+shader source or compiler settings invalidate the matching cache entry.
+
+The renderer selects the high-performance GPU on laptops with integrated and
+dedicated graphics. Guest workers and shader compilation run on separate host
+threads; rendering keeps the ordering that the game expects. Texture conversion
+uses contiguous tile/block copies, and repeated guest locks reuse a thread-local
+lookup. Normal play skips shared diagnostic counters and redundant GPU flushes.
+GPU completion wakes waiting guest threads instead of keeping a CPU core busy;
+the same command, notification, and fence completion checks still apply.
+These reduce CPU work without lowering resolution, filtering, or draw distance.
+Frame-time benchmarks exclude screenshot capture, which adds a GPU readback and
+disk writes that can create spikes of its own.
 
 ### Diagnostics
 

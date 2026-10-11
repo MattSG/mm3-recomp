@@ -23,6 +23,7 @@ static HANDLE g_mm3_main_worker;
 static HANDLE g_mm3_main_worker_ready;
 static int g_mm3_inline_threads;
 extern void sub_00083A6C_original(void);
+extern void mm3_configure_diagnostics(void);
 
 /* Register the first XAPI worker before it can create background workers.
  * The runtime's debug handle changes on every spawn and cannot determine
@@ -141,6 +142,7 @@ int main(void)
     void *xbe_data = NULL;
     size_t xbe_size = 0;
 
+    mm3_configure_diagnostics();
     setvbuf(stdout, NULL, _IONBF, 0);
     /* Unbuffered redirected stderr made diagnostic formatting issue many
      * tiny Windows writes and stalled the renderer on the shared FILE lock.

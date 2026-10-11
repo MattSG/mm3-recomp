@@ -31,8 +31,7 @@ $csv = Join-Path $dir 'frames.csv'; $log = Join-Path $dir 'stderr.log'
 $envs = @{ RECOMP_PB_EXEC='1'; RECOMP_FB_WINDOW='1'; RECOMP_USB='1'; RECOMP_PAD_LIVE=$pad
            RECOMP_APU_DSP_ACK='0x80458810'; MM3_SAVE_DIR=(Join-Path $dir 'save')
            RECOMP_ASPECT='16:9'; RECOMP_RENDER_SCALE='3.9167'; RECOMP_FPS_LIMIT="$FpsLimit"
-           RECOMP_D3D_PROFILE='1'; MM3_DEBUG_TELEPORT='1'; RECOMP_FRAME_CSV=$csv
-           RECOMP_PRESENT_CAPTURE=(Join-Path $dir 'cap'); RECOMP_CAPTURE_SURFACE='1' }
+           RECOMP_D3D_PROFILE='1'; MM3_DEBUG_TELEPORT='1'; RECOMP_FRAME_CSV=$csv }
 foreach ($k in $envs.Keys) { Set-Item "Env:$k" $envs[$k] }
 $p = Start-Process -FilePath $Exe -WorkingDirectory $repo -PassThru `
      -RedirectStandardOutput (Join-Path $dir 'stdout.log') -RedirectStandardError $log

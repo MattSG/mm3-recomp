@@ -3,19 +3,30 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <xmmintrin.h>
+#include <windows.h>
 
 #include "recomp_types.h"
 
 typedef void (*recomp_func_t)(void);
 
+static int g_mm3_unimpl_trap;
+static int g_mm3_frontend_icall_trace;
+
+/* Configure before guest workers start. cli/sti occur in tight polling loops;
+ * querying the CRT environment on each no-op serializes those workers. */
+void mm3_configure_diagnostics(void)
+{
+    const char *trap = getenv("RECOMP_UNIMPL_TRAP");
+    g_mm3_unimpl_trap = trap && *trap && *trap != '0';
+    g_mm3_frontend_icall_trace = getenv("MM3_FRONTEND_ICALL_TRACE") != NULL;
+}
+
 void recomp_unimpl(const char *text, uint32_t va)
 {
-    static int printed;
-    const char *trap = getenv("RECOMP_UNIMPL_TRAP");
-    int stop = trap && *trap && *trap != '0';
+    static volatile LONG printed;
+    int stop = g_mm3_unimpl_trap;
 
-    if (printed < 50 || stop) {
-        printed++;
+    if (stop || (printed < 50 && InterlockedIncrement(&printed) <= 50)) {
         fprintf(stderr,
                 "[UNIMPL] untranslated instruction REACHED: `%s` at 0x%08X"
                 " (a no-op; set RECOMP_UNIMPL_TRAP=1 to stop here)\n",
@@ -935,8 +946,14 @@ void recomp_icall_fail_log(uint32_t xbox_va)
 
 void recomp_icall_not_code_log(uint32_t xbox_va)
 {
+    static volatile LONG printed;
     uint32_t caller = 0;
     uint32_t slot = 0;
+    /* An optional null callback is encountered on every frame. Once the
+     * bounded diagnostic is complete, avoid both stderr and the slot scan. */
+    if (!g_mm3_frontend_icall_trace &&
+        (printed >= 50 || InterlockedIncrement(&printed) > 50))
+        return;
     for (uint32_t va = 0x00392834u; va < 0x00392848u; va += 4) {
         if (MEM32(va) == xbox_va) {
             slot = va;
@@ -955,7 +972,7 @@ void recomp_icall_not_code_log(uint32_t xbox_va)
         caller = MEM32(g_esp);
     fprintf(stderr, "[ICALL] non-code target 0x%08X slot=0x%08X caller=0x%08X esp=0x%08X\n",
             xbox_va, slot, caller, g_esp);
-    if (getenv("MM3_FRONTEND_ICALL_TRACE") &&
+    if (g_mm3_frontend_icall_trace &&
         (caller == 0x0011FB9Cu || caller == 0x000FB05Eu)) {
         static unsigned samples;
         if (samples++ < 8) {
