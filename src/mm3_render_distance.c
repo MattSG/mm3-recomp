@@ -20,23 +20,45 @@ extern void nv2a_d3d_set_depth_view_remap(float scale, float knee);
 /* PAL MM3: increase the title's own visibility/LOD distances before its
  * native D3D11 translation sees geometry. Keep the original fade fractions,
  * frustum construction, streaming and temporary render-pass save/restore.
- * RECOMP_DRAW_DISTANCE=1 provides the Xbox baseline for comparisons. */
+ * Two knobs, both 1 = Xbox:
+ *   RECOMP_DRAW_DISTANCE (default 4): object/pedestrian/traffic LODs, blob
+ *     shadows and the particle overdraw cap. Everything stays inside the
+ *     Xbox city view distance, so nothing low-detail is exposed.
+ *   RECOMP_VIEW_DISTANCE (default 1): city view distance and far plane.
+ *     Above 1 the title draws its far city past the 700 m it was built for
+ *     (flat untextured blocks, panorama band; Paris X 643.2 Z 52.6 down the
+ *     Seine). */
+static float env_scale(const char *name, float fallback)
+{
+    const char *env = getenv(name);
+    char *end;
+    float value = env ? strtof(env, &end) : fallback;
+    if (env && (end == env || *end || !isfinite(value) || value < 1.0f || value > 4.0f)) {
+        fprintf(stderr, "[MM3_DISTANCE] invalid %s; expected 1..4, using %g\n", name, fallback);
+        value = fallback;
+    }
+    return value;
+}
+
 static float distance_scale(void)
 {
     static float scale;
     if (!scale) {
-        const char *env = getenv("RECOMP_DRAW_DISTANCE");
-        char *end;
-        float value = env ? strtof(env, &end) : 1.0f;
-        if (env && (end == env || *end || !isfinite(value) || value < 1.0f || value > 4.0f)) {
-            fprintf(stderr, "[MM3_DISTANCE] invalid RECOMP_DRAW_DISTANCE; expected 1..4, using 1\n");
-            value = 1.0f;
-        }
-        scale = value;
+        scale = env_scale("RECOMP_DRAW_DISTANCE", 4.0f);
+        fprintf(stderr, "[MM3_DISTANCE] LOD distance multiplier %.3g\n", scale);
+    }
+    return scale;
+}
+
+static float view_scale(void)
+{
+    static float scale;
+    if (!scale) {
+        scale = env_scale("RECOMP_VIEW_DISTANCE", 1.0f);
         /* MM3_FOG_REMAP=0 keeps the scaled band, for A/B comparisons. */
-        if (!getenv("MM3_FOG_REMAP") || strcmp(getenv("MM3_FOG_REMAP"), "0"))
+        if (scale > 1.0f && (!getenv("MM3_FOG_REMAP") || strcmp(getenv("MM3_FOG_REMAP"), "0")))
             nv2a_d3d_set_depth_view_remap(scale, FOG_KNEE);
-        fprintf(stderr, "[MM3_DISTANCE] draw/LOD distance multiplier %.3g\n", scale);
+        fprintf(stderr, "[MM3_DISTANCE] view distance multiplier %.3g\n", scale);
     }
     return scale;
 }
@@ -88,12 +110,12 @@ void sub_000FE71E(void)
      * cubemap passes (0x22CE39/0x22CFE3): their values come from the
      * effective camera distance and their restore must stay exact. */
     if (caller == 0x001002CEu || caller == 0x00100ED6u || caller == 0x00210EDEu)
-        MEMF(g_esp + 4) *= distance_scale();
+        MEMF(g_esp + 4) *= view_scale();
     /* City loading applies a title-specific distance cap after reading the
      * DSS. Its local is then passed straight to the camera projection, so
      * update both together rather than leaving the camera at the Xbox cap. */
     if (caller == 0x00224C4Eu) {
-        MEMF(g_esp + 4) *= distance_scale();
+        MEMF(g_esp + 4) *= view_scale();
         MEMF(g_ebp + 8) = MEMF(g_esp + 4);
     }
     sub_000FE71E_original();
@@ -119,7 +141,7 @@ void sub_000F4AC3(void)
      * changes (0x210E1E) reuse the stored far plane. City loading
      * (0x224C73) supplies the already scaled city distance and cap. */
     if (caller == 0x00210EB4u)
-        MEMF(g_esp + 0x10) *= distance_scale();
+        MEMF(g_esp + 0x10) *= view_scale();
     sub_000F4AC3_original();
 }
 
