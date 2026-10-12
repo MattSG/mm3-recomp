@@ -1,7 +1,8 @@
 # Imported car visuals
 
-The current converter generates corrected closed stencil shadows for all nine
-imported exteriors. For a fresh checkout, use the complete source recipe and
+The current converter generates corrected closed stencil shadows and aligns
+rear-light effects to the source lamps for all nine imported exteriors.
+For a fresh checkout, use the complete source recipe and
 optional imported preset below. It carries the same ten-car tuning as the
 default preset, including Mini Rally's native visuals.
 
@@ -128,8 +129,8 @@ the ignored `tools/car-mods/cars.local.json` when it exists; the tracked
 
 ## Reproduce the nine imported exteriors
 
-Use the same source revision as your game build, such as the `v2026.10.12` tag,
-and first complete the [repository build and game-data setup](../../README.md).
+Use the same source revision as your game build, following the versioned
+[repository build and game-data setup](../../README.md) instructions first.
 The converter reads the original Viper, Koenigsegg and Lotus models from your
 extracted `game_files/Data`; a compiled executable alone is insufficient.
 Neither the game data nor downloaded car meshes/textures are distributed here.
@@ -374,6 +375,60 @@ placeholders. Dedicated low-detail visible meshes can be added later.
 The retained native car shader supports at most 23 material
 slots; sources exceeding that limit need materials merged before packaging.
 
+Imported surfaces now retain authored gloss: reflective MM2 paint, glass and
+metal use the native Viper paint reflection channels, with full diffuse
+coverage so the source livery stays visible. Source materials with zero
+shininess remain matte, including tire rubber. MM1 sources lack gloss metadata;
+recognizable body, glass and wheel material names supply that fallback.
+Equal textures with different authored gloss receive separate material slots.
+
+To restore reflections in already prepared packages while preserving their
+visible geometry, stencil shadows, textures and lamp positions:
+
+```powershell
+python tools/car-models/repair_reflections.py out/car-models/packages `
+    --backup out/car-models/reflection-fix-backups/my-new-backup
+python tools/car-mods/prepare.py --config tools/car-mods/cars.imported.json --apply
+```
+
+Close the game before applying. The repair changes only packed vertex shading
+and records it in `conversion-report.json`; both near/far models are updated.
+Older Senna/Regera packages merged some matte and glossy trim sharing a texture;
+the repair uses that slot's glossy variant and records these slots under
+`reflection_merged_materials`. A fresh package build keeps those surfaces separate.
+
+### Repair lamp effects in already prepared packages
+
+Replacing the donor body alone leaves its tail, brake and reverse effect
+transforms at the donor's lamp positions. The builder now moves these effects
+to the source lamp surfaces with the same vertical alignment as the body.
+Front effects use both `HEADLIGHT0_H`/`HEADLIGHT1_H` helpers or the paired
+`HLIGHT_H` mesh. The shared native `HeadLightEnv` road illuminator follows the
+new lamp midpoint, retaining its donor's small forward offset, orientation,
+brightness and beam settings. This prevents the imported nose from hiding the
+donor's lamps and road beam. Ferrari F2007 has no front lamps; its phantom
+Lotus donor headlights and road beam are disabled without removing handles.
+Dedicated `TLIGHT`, `BLIGHT` and `RLIGHT` helpers supply positions where present.
+McLaren F1 GTR and both Sennas have their rear lamps baked into the body;
+[`light_anchors.json`](light_anchors.json) records positions measured from
+those source surfaces. The Senna anchors follow the upper lamp strips rather
+than the lower bumper reflectors. Ford's center brake bar is excluded from
+its side ring centers. Formula 1 uses its single central rear lamp, with
+surplus Lotus donor effects disabled while retaining their native handles.
+
+To update existing packages without regenerating their geometry or textures:
+
+```powershell
+python tools/car-models/repair_lights.py out/car-models/packages `
+    --backup out/car-models/light-fix-backups/my-new-backup
+```
+
+Choose a new backup directory each time; existing backups are preserved. This
+only updates the prepared near/far CMP effect metadata and conversion reports.
+It checks that native node structure and every mesh payload remain unchanged.
+It does not install game files. Close MM3 and reapply the selected packages
+through Workshop to receive the correction on the next launch.
+
 ## 4. Select the package in Car Workshop
 
 Close MM3, then open Workshop directly on the Panoz Model tab:
@@ -462,8 +517,9 @@ A successful neutral export or prepared package alone does not establish MM3
 shader compatibility, correct native winding, wheel animation or runtime
 appearance. Keep the source previews as references when rebuilding. The
 initial eight additional packages had native showroom evidence, with Cruise driving
-evidence for Senna GTR and Ferrari F2007. Separate donor collision, dashboard
-and effects remain in use; fixed initial liveries and opaque windows are still
+evidence for Senna GTR and Ferrari F2007. Separate donor collision and dashboard
+remain in use; front/rear effects and road illumination now follow the source
+lamp positions. Fixed initial liveries and opaque windows are still
 the limits of this first visual port.
 The exporter previously treated dedicated shadow slots as visible LODs and
 wrote ordinary textured surfaces into them. The native shadow shader requires

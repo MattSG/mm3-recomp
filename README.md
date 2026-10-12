@@ -1,7 +1,13 @@
-# Midtown Madness 3 recompilation
+# Midtown Madness 3 on PC improved and modded !!
 
 Static recompilation of the Xbox title Midtown Madness 3 to native x86-64 Windows, on the
 [xboxrecomp](tools/xboxrecomp) runtime, rendering through Direct3D 11.
+
+An improved and modded PC version with keyboard controls, widescreen graphics,
+custom-car tools, gameplay repairs and performance work. Build it from your own
+supported game disc with the instructions below. See the
+[upstream comparison](#upstream-comparison-2026-10-12) for which recent MattSG
+fixes are present in this fork and which still need integration.
 
 **Credits:** This project builds on the original
 [mm3-recomp by Matt Graham (MattSG)](https://github.com/MattSG/mm3-recomp) and the
@@ -33,6 +39,7 @@ reference workflow uses a bare XDVDFS XISO rather than a two-part redump image.
   uploads. Building-detail fades scale with extended draw distance, and the car
   converter builds closed body and animated-wheel shadow proxies. Widescreen
   pause menus keep button caps, labels and controller prompts joined in one layout.
+  Race maps and their checkpoint icons share one placement while expanding or turning.
   Balanced renders
   at 1536×960 and Quality at 2304×1440, both at 16:10, with
   configurable aspect, resolution, MSAA, anisotropic filtering and draw distance.
@@ -49,13 +56,95 @@ reference workflow uses a bare XDVDFS XISO rather than a two-part redump image.
   focus-aware keyboard input, and selection of all 35 supported-disc car models.
 - **Car workshop:** ten extra tuned variants, optional prepared model
   packages, editable paint and driving stats, sourced specification references
-  and a **Restore realistic setup** action. Factory engine profiles support
-  one through seven forward gears, the F2007's 19,000 RPM limit and Regera's
-  single-ratio Direct Drive. Each extra car has its own HUD/interior speedometer
+  and a **Restore default driving** action. The presets retain the stock donor
+  engine, gearbox and handling, adjusting only weight and power. Each extra
+  car has its own HUD/interior speedometer
   range; sport and Koenigsegg HUDs also show numeric speed.
 
 The detailed settings and runtime notes below describe these changes and their
 limits. See the [car-pack guide](tools/car-mods/README.md) for further tuning examples.
+
+## Upstream comparison (2026-10-12)
+
+Compared the actual local sources and generated Xbox C with
+[MattSG/mm3-recomp at `a24b737`](https://github.com/MattSG/mm3-recomp/commit/a24b737)
+and its runtime, [MattSG/xboxrecomp at `b666568`](https://github.com/MattSG/xboxrecomp/commit/b666568).
+Upstream had 33 game-repository commits outside this fork's ancestry at audit time.
+That count does not mean 33 missing fixes: some commits update documentation or
+the runtime pointer, and some repairs already have independent implementations here.
+
+**The latest upstream improvements have not been merged wholesale into this
+fork.** Its toolkit remains pinned to `2a521ff`, with this fork's reproducible
+runtime patch on top. Fetching upstream updates the comparison refs; it does
+not change the translated game, the pinned toolkit or the working executable.
+This publication preserves the current tested fork and records the remaining
+integration work below.
+
+### Fixes still missing or only partly covered
+
+| Upstream fix | Status in this fork | Code comparison and remaining work |
+|---|---|---|
+| [Collision-cell bounds](https://github.com/MattSG/mm3-recomp/commit/9ad1762): freezes, crashes and falling through roads | Missing | No grid/index sanitizer around `sub_0015A929`. Our collision-call stack repair fixes a separate fault. |
+| [Two unresolved functions](https://github.com/MattSG/mm3-recomp/commit/c91d8f1): corrupted guest registers | Partial | The graph epilogue at `0x144ED9` is repaired. The camera-related setter at `0x2534FF` is still an unresolved stub referenced by six generated thunk-tail sites. Direct unresolved-stub reporting is also absent. |
+| [Bounded push-buffer run-ahead](https://github.com/MattSG/mm3-recomp/commit/fdc33ea): one-frame dark/tunnel-lighting flicker | Missing | Our WBC flush only uses `_mm_sfence()`; it lacks upstream's 256 KiB producer-distance bound. Native command/fence waits do not implement that bound. |
+| [White rims on silhouettes](https://github.com/MattSG/xboxrecomp/commit/d62ae29) | Missing | The renderer still uses the unconditional pixel-zero snap and old Y16 depth taps. |
+| [Bright top/left frame strip](https://github.com/MattSG/xboxrecomp/commit/4d9d178) | Missing | The new edge-placement shader inputs and logic are absent. |
+| [Extended-distance haze](https://github.com/MattSG/xboxrecomp/commit/d448358) and [distant-tree fade](https://github.com/MattSG/xboxrecomp/commit/060122c) | Missing | The old linear depth remap remains. There is no post-haze foliage coverage fade or final ordered coverage pattern that removes the earlier visible white flicker at default supersampling. |
+| [Smooth horizon panorama](https://github.com/MattSG/xboxrecomp/commit/0e63cf0) | Missing | Skyline sampling is still bilinear; upstream adds B-spline sampling. |
+| [Reset fade keeps the damage bar on the gauge](https://github.com/MattSG/xboxrecomp/commit/76192ee) | Missing | The HUD-texture exclusion and fullscreen-fade grouping correction are absent. |
+| [Pause/post-race button caps remain joined](https://github.com/MattSG/xboxrecomp/commit/7367dca) | Partial | Our pause-state callback preserves the pause layout. Upstream also detects missing minimap/start rectangles across current and previous frames; equivalent post-race coverage is not established here. |
+| [Audio queue cushion](https://github.com/MattSG/xboxrecomp/commit/9b9a37c) and [audio producer priority](https://github.com/MattSG/xboxrecomp/commit/a4c2800) | Missing | `apu_xaudio2.c` lacks the silent cushion, and `apu_core.c` lacks the new time-critical frame-thread priority. Our PCM queue optimization is a separate change. |
+| [Device interrupts preempt DISPATCH](https://github.com/MattSG/xboxrecomp/commit/d359ee0): half-second freezes | Missing | The APU still holds off delivery while DISPATCH exclusion is owned. Our DPC ordering and interrupt-synchronization repairs do not implement this preemption change. |
+| [Facade slabs and capacity](https://github.com/MattSG/mm3-recomp/commit/31451f6) | Partial | Our allocation-time repair enlarges three capacities by `ceil(draw_distance^2)`, capped at 4x, with failure rollback. Upstream enlarges four fields by 5x and caps facade-zone distance at 2x. Local zones can still scale to 4x; these are different implementations. |
+| [Quiet hot-path logging](https://github.com/MattSG/xboxrecomp/commit/4f4dbc6) | Partial | Summary, path, successful-read and push-buffer logs are already reduced or opt-in here. Expected missing-file failures remain unbounded, and upstream's spike-stage split is absent. Focused building traces add work; disable them for performance comparisons. |
+
+The main implementation evidence is in `src/recomp_manual.c`,
+`src/mm3_widescreen.c`, `src/mm3_facade_capacity.c`,
+`src/mm3_render_distance.c`, `mm3_runtime_entry_repairs.json` and the patched
+runtime's `src/video/nv2a_d3d11.c`, `src/apu/apu_core.c`,
+`src/apu/apu_xaudio2.c` and `src/kernel/kernel_hal.c`. Generated Xbox C is
+rebuilt locally from the supported disc rather than bundled in this repository.
+
+### Upstream fixes already covered independently
+
+- **[80-bit `fld` throttle/gearing repair](https://github.com/MattSG/mm3-recomp/commit/fd112c6):**
+  the affected math helper is recovered with `MEMFP80`, and same-chunk calls
+  route to it. The functional fix is present, although upstream's generic
+  lifter patch is absent and the bypassed original generated function still
+  contains the old load. See `scripts/Generate-MM3RuntimeEntries.py`, the repair JSON
+  and CMake's recovered-helper routing.
+- **[DSP inlining](https://github.com/MattSG/xboxrecomp/commit/7d47dc8) and
+  [idle interrupt-check/fetch optimization](https://github.com/MattSG/xboxrecomp/commit/9d8716e):**
+  our optimized Windows build already applies `/Ob2` to the hot interpreter,
+  forces instruction-fetch inlining and skips idle interrupt work. Upstream's
+  explicit GNU `always_inline` path is not present.
+- **Developer tools off by default:** local developer features already require
+  opt-in flags. The public play script's focused building traces are a separate
+  default, documented below, and can be disabled with `-NoTraceBuildings`.
+
+### Other upstream improvements still absent
+
+- Separate `RECOMP_VIEW_DISTANCE` from detail/LOD distance, with upstream's
+  updated default distances. This fork currently uses one draw-distance control.
+- The RmlUi settings launcher, saved key/mouse bindings, menu hover/click control
+  and switchable mod registry introduced in upstream `9118262`/runtime `b666568`.
+  Our performance profiles, car workshop and driving controls are separate features.
+- Spike screenshots, game-thread sampling, guest call chains and the new timing
+  stage reports. Local hitch tracing and frame captures do not supply those features.
+- Heading display/input in the teleport GUI. The pipe already accepts an
+  optional heading in radians; the GUI still only edits position.
+- The 240 FPS launch option and achieved-FPS race-test reporting. Upstream's
+  `8cff2f2`/`965f6d0` report successful higher-rate tests and expand the launch
+  range; they do not add a new AI algorithm. This fork retains its 60 FPS cap
+  and has not reproduced those higher-rate tests.
+
+Publication validation: the `RelWithDebInfo` game build passes, along with 126
+Python tests (two optional cases skipped), 25 standalone native regressions,
+four additional factory-physics/gearing variants and 195 CTest cases across 19
+suites. The runtime patch applies to a clean export of the pinned toolkit and
+reproduces all 96 modified or added runtime files after Git newline normalization.
+These checks verify the published changes; they do not establish that the
+missing upstream fixes above are unnecessary or that every gameplay bug is fixed.
 
 ## Building from a fresh clone
 
@@ -66,8 +155,8 @@ Most examples use PowerShell 7 (`pwsh`); the pinned-version commands below use
 Windows' built-in `powershell` and also work with `pwsh`.
 
 ```powershell
-git clone --recurse-submodules https://github.com/lakshya16157/mm3-recomp.git
-cd mm3-recomp
+git clone --recurse-submodules https://github.com/lakshya16157/midtown-madness-3-on-pc-improved-and-modded.git
+cd midtown-madness-3-on-pc-improved-and-modded
 pwsh scripts\setup.ps1 -Iso "D:\Games\Midtown Madness 3 (USA).iso"
 pwsh scripts\play.ps1            # -Keyboard to drive with the keyboard
 ```
@@ -97,15 +186,18 @@ install CMake and Ninja in the venv (`python -m pip install "cmake>=3.20,<4" nin
 setup uses Ninja Multi-Config and keeps the same `build\<Config>` output paths.
 Run these commands from the repository directory, not its parent folder.
 
-### Reproduce the improved version (`v2026.10.12.1`)
+### Reproduce the improved version (`v2026.10.12.3`)
 
-The tag **[v2026.10.12.1](https://github.com/lakshya16157/mm3-recomp/tree/v2026.10.12.1)**
+The tag **[v2026.10.12.3](https://github.com/lakshya16157/midtown-madness-3-on-pc-improved-and-modded/tree/v2026.10.12.3)**
 pins this fork's current improvements: race/menu loading and heap fixes, building
 detail fades, visibility and rendering work, corrected imported-car shadow
 generation, and the ten researched car presets with their gearing and gauges.
-It also includes the joined pause-menu buttons, Space handbrake, adjusted closest
-chase camera, adjustable driving FOV and model credits. The earlier
-`v2026.10.12` tag remains available as the original snapshot.
+It also includes the joined pause-menu buttons, Space handbrake, the closest
+chase camera's 0.25 m adjustment, adjustable driving FOV, aligned race-map
+checkpoints and model credits. This snapshot adds map zoom and race guidance,
+facade-capacity scaling, building/tree diagnostics, car light and reflection
+repair tools, and restored factory driving defaults. The earlier `v2026.10.12`,
+`v2026.10.12.1` and `v2026.10.12.2` tags remain available as previous snapshots.
 Use this tag to reproduce that source and settings version after `main` moves on.
 
 If you have already extracted or recompiled the game with upstream, the generated
@@ -113,7 +205,7 @@ Xbox C alone does not contain this fork's native hooks, runtime patch or car dat
 Build this checkout in a separate directory, using your own supported disc image:
 
 ```powershell
-git clone --branch v2026.10.12.1 --recurse-submodules https://github.com/lakshya16157/mm3-recomp.git mm3-improved
+git clone --branch v2026.10.12.3 --recurse-submodules https://github.com/lakshya16157/midtown-madness-3-on-pc-improved-and-modded.git mm3-improved
 cd mm3-improved
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\setup.ps1 -Iso "D:\Games\Midtown Madness 3 (USA).iso"
 tools\venv\Scripts\python.exe tools\car-mods\prepare.py --config tools\car-mods\cars.json --apply
@@ -125,7 +217,7 @@ supported translation, configures all native hooks and builds the game. Installi
 the car preset is a separate step: setup alone does not install the ten extras.
 The explicit `--config` selects the published settings even if a machine has a
 different `cars.local.json`. `git describe --tags --exact-match` should report
-`v2026.10.12.1`; `git submodule status` should show the pinned toolkit, without a
+`v2026.10.12.3`; `git submodule status` should show the pinned toolkit, without a
 leading `+`. A dirty runtime submodule is expected after applying this fork's patch.
 
 **To reproduce the imported car bodies and repaired shadows**, obtain the nine
@@ -286,11 +378,23 @@ control); **Z** still works for A. Space is active only while driving with the
 MM3 keyboard layout. The original
 **3** accelerator, **1** brake and numpad **4/6** steering keys still work. Keyboard input
 releases when the game loses focus.
+Close the focused game with **Alt+F4**, or click the window's **X**. Closing
+the display ends the process and releases the game archives. The launcher
+captures output without attaching the game to the terminal, so terminal
+**Ctrl+C** is not the game-close shortcut.
+Hold **Ctrl** to enlarge the race map; its checkpoint icons stay aligned with the roads.
+Both map sizes smoothly show more road as speed rises above 20 km/h, reaching
+25% more visible distance at 120 km/h, then ease back as you slow down.
+Their initial framing stays stable as you approach checkpoints.
+Both map sizes draw the same ordered checkpoint course. The immediate target
+is strongest, the following target is less prominent, and the other checkpoint
+icons and world hoops are dimmed. Blitz courses stay open; checkpoint races
+include the closing lap segment.
 Choose **Manual** transmission in car setup, then tap **R** to shift up and **F** to shift down
 (the default Xbox B/X gear controls). These aliases operate only while driving.
 Set `RECOMP_KEYBOARD_LAYOUT=legacy` to use only the original runtime bindings.
 
-The closest rear chase camera sits 0.75 m farther back. Its original smoothing
+The closest rear chase camera sits 0.25 m farther back. Its original smoothing
 and collision adjustment still apply; the other camera views retain their
 original distances.
 
@@ -332,17 +436,19 @@ documents the verified Panoz, F1 GTR, Ferrari F2007, Ford GT, Senna, Senna GTR,
 FXX K, Regera and Aventador conversions. Downloaded models and generated packages
 are not distributed in this repository. Imported initial liveries remain fixed,
 glass is opaque, and interior, sounds and collision remain based on the donor.
-Defaults use sourced specifications for the imported variants. Unpublished
-race-car figures, operating-weight allowances, handling and hybrid behaviour
-remain documented game approximations rather than measured performance.
+High-speed roadside tree impacts use solid collision and penetration correction,
+while retaining the trees' native impact sounds and effects.
+Defaults retain the donor's engine curve, automatic shifting, gearbox and
+handling. Only mass and native torque scale are tuned for arcade driving.
+Manufacturer specifications remain available as references in Workshop.
 
 ### Visual editor
 
 1. Close the game, then double-click [tools/car-mods/editor.cmd](tools/car-mods/editor.cmd)
    or run `tools\car-mods\editor.cmd` from the repository root.
 2. Select an added car. **Car specs** shows its reference variant, source links
-   and calibration notes; **Restore realistic setup** restores the researched
-   preset while retaining paint and model choices. Edit its paint, menu ratings, physics, gearing, RPM
+   and calibration notes; **Restore default driving** restores the weight/power
+   preset while retaining paint, ratings, gauges and model choices. Edit its paint, menu ratings, physics, gearing, RPM
    settings and interior speedometer ranges. Blank optional physics fields inherit
    the stock donor's settings.
 3. Choose **Save** to write the selected manifest, or **Save & Apply**
@@ -406,7 +512,7 @@ paint colors in `#rrggbb` format.
 | `MaxTorqueRPM`, `MaxTurboTorqueRPM` | Peak torque RPM references; automatic shift target in donor mode. |
 | `GearStatusDownGearFactor` | Automatic downshift factor. |
 
-For example, changing Mini Rally's `physics.TorqueScale` from `149.14` to `160`
+For example, changing Mini Rally's `physics.TorqueScale` from `380` to `400`
 increases engine torque. Changing `ratings.ACCELERATION` changes only its menu bar.
 The installer validates supported value ranges before applying changes.
 
@@ -417,19 +523,20 @@ for example `[-3.3, 2.5, 1.72, 1.28, 1.0, 0.82, 0.7]`. Gear count is derived
 from this array; do not add `NGears`. Keep
 `MinRPM < MinRPMGearChange < CutRPM <= MaxRPM`, and keep both peak-torque RPM
 settings above idle and below cutoff. Donor mode retains the stock torque curve's
-8,000 RPM peak limit. The supplied presets explicitly enable
-`engine_profile: "factory"`, using bounded per-car curves and a separate shift
-target. This supports the imported Ferrari F2007's 19,000 RPM limit safely.
-Regera uses one forward ratio and a 2.73:1 final reduction, with approximated
-electric launch assistance rather than conventional gear changes.
+8,000 RPM peak limit. The supplied presets leave the donor's gear ratios,
+final drive, RPM limits and shift times unchanged. Formula 1 uses the Lotus
+five-speed gearbox; McLaren F1 and Regera use the Koenigsegg six-speed gearbox.
+The optional advanced `engine_profile: "factory"` mode remains available for
+experiments with researched curves and transmissions; it is disabled in the
+default and imported presets.
 
 Automatic upshifts depend on road speed calculated from gear ratios, final drive,
 wheel radius and the factory profile's shift target, or peak torque RPM in donor
 mode (the turbo peak for a turbo-equipped donor).
 Wheelspin can raise RPM before the car reaches its shift speed. Lowering
 `MinRPMGearChange` alone does not make automatic upshifts happen earlier.
-The pack's ratios and RPM settings address the earlier missed-shift issue, and
-the installer rejects conflicting thresholds. Select **Automatic** or **Manual**
+The default presets restore the stock shifting behavior, and the installer
+rejects conflicting thresholds in custom edits. Select **Automatic** or **Manual**
 in the game's car setup; Manual uses **R/F** on the MM3 keyboard layout or Xbox
 **B/X** to shift up/down while driving.
 
@@ -589,12 +696,19 @@ MM3 enables NT heap reclamation before startup so scene destruction returns
 large car-model buffers to the guest heap. Repeated race/menu changes reuse
 those buffers instead of exhausting the heap. Facade detail fades also retain
 their retail proportions when draw distance is extended.
+Facade vertex buffers grow at allocation time with extended draw distance,
+using the same increased counts for their real storage and allocation limits.
+The default 2x distance receives four times the original capacity; growth is
+capped at four times to preserve the guest's 16-bit vertex offsets. The Xbox
+distance and custom buffer capacities retain their original sizes.
 The hot city visibility test uses native scratch variables while preserving
 the original floating-point operations and guest state. Its differential
 regression compares 200,000 complete state and memory cases with the generated
 Xbox function: `python tests/mm3_visibility_regression.py` after entering the
 build environment. The facade fade contract is checked with
 `python tests/mm3_facade_fade_regression.py`.
+The buffer creation and allocation contract is checked with
+`python tests/mm3_facade_capacity_regression.py`.
 
 At startup, the game cache helper compares `Data_hd.zip` contents and retail
 creation-time metadata with the disc source. A mismatch invalidates the cached
@@ -825,6 +939,150 @@ coverage of every vehicle, map, mode or intermittent failure.
 ACK-worker and DXGI Present timing. Normal runs leave these extra timing probes
 disabled. Background shader compilation and a pending readback's elapsed time
 must not be mistaken for time actively spent blocking the render thread.
+
+### File and graph-call repairs
+
+The original graph-edge lookup ends through shared tail `0x00144ED9` with
+`POP EDI; POP ESI; RET 4`. Its unresolved fallback omitted both pops, which
+corrupted the outer route helper's saved registers even though `LEAVE` restored
+the final stack pointer. `mm3_runtime_entry_repairs.json` now recovers this exact
+tail through the pinned translator. The graph regression compares the real
+lifted lookup and its caller with the original XBE instructions.
+
+Non-code indirect-call diagnostics now decode the actual call operand and
+record its object/register state. A null target previously matched the first
+zero in an unrelated startup table, falsely naming `0x00392834` as its slot.
+Diagnostic reads tolerate inaccessible memory, and normal logging remains
+limited to 50 reports.
+
+File diagnostics distinguish `NOT_FOUND` and `EOF` from other errors. Host
+open errors belong to the calling thread and successful opens clear old errors.
+The guest still receives the original NTSTATUS and byte counts. The car cache
+and platform-directory misses in the supplied log precede the Shared fallback;
+missing `rats.dps` and `ScoreImage.xbx` were also absent from the retail disc.
+These probes do not require replacement game assets.
+
+After entering `scripts/enter-env.ps1`, run
+`python tests/mm3_graph_edge_regression.py` and
+`python tests/mm3_icall_diagnostics_regression.py`. The toolkit's
+`kernel-file-sharing` regression checks concurrent error provenance, malformed
+open requests, genuine absence and EOF.
+
+### Tree contact response
+
+High-speed tree contacts now use the original solid-contact and penetration
+correction path. The retail hop response added ten percent of vehicle speed
+upward while bypassing that solid contact, which could bounce the car through
+a trunk. Only a selected contact whose native LocalObject metadata identifies
+a tree takes the corrected branch. Authored flags, other roadside props,
+collision geometry, leaf effects and the final native impact-sound gate stay
+intact. This does not add destruction models to trees that lack them.
+
+The build applies a checked seam at the first hop decision in `0x001D137B`;
+regeneration that changes or duplicates that boundary fails configuration.
+After entering `scripts/enter-env.ps1`, run
+`python tests/mm3_tree_contact_regression.py` for native/original-XBE contact
+comparisons and `python tests/mm3_tree_diagnostics_regression.py` for guarded
+trace contracts. `MM3_TREE_TRACE=1` adds bounded object-render, collision-event
+and corrected solid-contact reports. Solid-contact reports have their own
+budget so frequent rendering cannot hide a physical impact.
+`MM3_TREE_TRACE=contacts` skips object-render tracing while keeping physical
+contact and collision-event reports for lighter driving captures.
+
+### Building pop-in capture
+
+Every `scripts/play.ps1` launch now writes a unique `logs/play-*.log` and a
+matching `.json`. Both output streams are captured concurrently with UTC line
+timestamps, and the log stays readable while the game runs. The JSON records
+the executable hash, launch options, runtime environment, profile defaults,
+installed car configuration and exit status. Existing environment overrides
+still take priority.
+
+Building capture is currently enabled by default in the launcher while this
+pop-in is being investigated. Use `-NoTraceBuildings` for a normal run without
+these added trace defaults. The launcher refuses a second game instance because
+both copies would open the same cache exclusively; that conflict otherwise
+appears as the title's dirty/damaged-disc screen. Close all game windows before
+starting a new run.
+
+For the repeatable upper-building gap in Paris, Blitz **Sacré Leap**, approaching
+**Boulevard Malesherbes**, close the current game when convenient and launch:
+
+```powershell
+tools\bin\powershell\pwsh.exe -NoProfile -ExecutionPolicy Bypass -File scripts\play.ps1 -TraceBuildings -Exe out\building-diagnostics\RelWithDebInfo\mm3_recomp.exe
+```
+
+`Play with building logs.cmd` prefers this separate diagnostic build when present
+and otherwise uses the normal setup build. It uses local portable PowerShell when
+installed, with Windows PowerShell as a fallback for a fresh checkout.
+Add `-Keyboard` when using the keyboard. Reproduce the approach, drive back and
+approach again, then quit normally and keep both files from that run. This build
+adds evidence; the cause of this specific gap has not yet been confirmed.
+
+`-TraceBuildings` sets three switches only where they are unset, and prints
+their actual values at launch:
+
+- `MM3_BUILDING_TRACE=1`: actual near/mid/far render paths, early visibility and
+  auxiliary rejection, camera and facade coordinates, closest distance, floor
+  cap, per-cell visibility rejection, and geometry queue/counter changes.
+  Both 28-byte vertex streams report their native head, tail and capacity,
+  before/after read validity, and middle-detail/upper-floor allocation attempts,
+  successes, failures and requested quad totals. Checked guest reads are sampled at
+  most ten times per second per facade, with 64 change events per second per
+  render thread and summaries each second. Allocation failures have a separate
+  eight-event-per-second budget and suppressed-failure counts. Counter deltas do not prove that
+  an asset is loaded or absent.
+- `RECOMP_TEXTURE_STREAM_TRACE=1`: real uploads, changed texture content, upload
+  duration, mip counts, cache occupancy, eviction totals and creation failures.
+  Cache hits stay quiet; an 80-event-per-second budget bounds output.
+- `RECOMP_ASYNC_WAIT_TRACE=1`: wait status, handle resolution, caller, stack and
+  relevant USB request snapshots. Each wait kind has separate bounded budgets
+  for ordinary results and failures, so early polling cannot hide invalid
+  handles. It leaves `RECOMP_TITLE_KEVENTS` unchanged; an explicit trace value
+  of `0` disables it even when building tracing is enabled.
+
+Diagnostic summaries flush buffered runtime output each second while active;
+wait failures and non-code indirect-call reports flush immediately. The default
+launcher keeps normal buffering. Focused tracing adds work and is intended for
+these reproduction runs, rather than performance comparisons.
+
+The building and indirect-call contracts run with
+`python tests/mm3_building_diagnostics_regression.py` and
+`python tests/mm3_icall_diagnostics_regression.py` after entering the local build
+environment. Launcher coverage is in `tests/test_play_profiles.py`. The toolkit's
+`kernel-async-wait-trace-*` cases verify real HLE wait outcomes and unchanged
+guest state, memory and host errors with tracing off/on. Its `nv2a_textures`
+suite compares actual D3D11 texture pixels and upload retry behavior with
+tracing off/on.
+
+The 2026-10-12 12:00 UTC capture contains a confirmed USB request lifetime
+failure: XPP's stack event reaches `KeWaitForSingleObject` as an invalid native
+handle, the wait returns immediately, and a later USB completion reads reused
+request memory. MM3 registers four verified XPP setter/wait return addresses
+for inline event handling. This leaves unrelated title-built GPU events on
+their existing default path. The focused native USB event fixture covers both
+completion orders, timeout/cancel follow-up, reused event storage and invalid
+headers. This startup issue has not been linked to the building gap.
+
+That capture's original `zero_queue_delta` values omit the two 28-byte streams
+used by middle detail and the near renderer's upper-floor fallback. They cannot
+establish missing geometry. The revised trace measures those streams directly;
+invalid reads produce an unknown result. Raw-XBE comparisons of middle-detail
+and near/fallback geometry, including capacity exhaustion, match the generated
+code.
+
+The 12:26 UTC capture confirms buffer exhaustion behind the upper-building gap.
+Facade `04AE20F0` passes all 30 cell visibility tests and renders its bottom ten
+cells, while all 20 upper cells fail allocation at the opaque stream's 12,288
+vertex limit. Later, the same facade remains in the near path and draws those
+20 upper cells when space is available. The capture contains 4,263 sampled
+allocation failures, and all 40 priority failure events concern that full
+opaque stream. The constructor now increases actual buffer storage and its
+matching limits before allocation at extended draw distances. A focused native
+regression checks the real guest creation path, byte counts, allocation failure
+rollback, unchanged stock/custom sizes and successful allocation of the logged
+upper-floor workload. The repaired USB waits also complete successfully in this
+capture with intact request callbacks.
 
 ### Diagnostics
 

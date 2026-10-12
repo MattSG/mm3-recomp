@@ -28,6 +28,9 @@ SPEC.loader.exec_module(prepare)
 FACTORY_SPEC = importlib.util.spec_from_file_location("mm3_factory_specs", HERE / "factory_specs.py")
 factory = importlib.util.module_from_spec(FACTORY_SPEC)
 FACTORY_SPEC.loader.exec_module(factory)
+DEFAULT_SPEC = importlib.util.spec_from_file_location("mm3_driving_defaults", HERE / "driving_defaults.py")
+defaults = importlib.util.module_from_spec(DEFAULT_SPEC)
+DEFAULT_SPEC.loader.exec_module(defaults)
 
 RATING_ORDER = ("TOPSPEED", "ACCELERATION", "MASS", "HANDLING", "DURABILITY")
 DRIVING = ("TorqueScale", "Mass", "BrakeTorque", "LatFrictionFactor", "AirKZZ", "WheelDrive")
@@ -118,8 +121,8 @@ class EditorModel:
         candidate["cars"][index] = car
         self.config = validated(candidate)
 
-    def restore_realistic(self, index: int) -> None:
-        self.replace_car(index, factory.apply_preset(self.config["cars"][index]))
+    def restore_default_driving(self, index: int) -> None:
+        self.replace_car(index, defaults.apply_preset(self.config["cars"][index]))
 
     def replace_original_speedometers(self, settings: dict) -> None:
         candidate = copy.deepcopy(self.config)
@@ -274,7 +277,7 @@ class CarEditor:
         outer = ttk.Frame(self.root, padding=18)
         outer.pack(fill="both", expand=True)
         ttk.Label(outer, text="Car Workshop", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(outer, text="Real-world car specifications, driving settings and speedometer ranges.", style="Sub.TLabel").pack(anchor="w", pady=(3, 15))
+        ttk.Label(outer, text="Donor-based driving settings, reference specifications and speedometer ranges.", style="Sub.TLabel").pack(anchor="w", pady=(3, 15))
         # Reserve the actions before the expanding editor panes, so a smaller
         # window never pushes Save/Apply below its visible client area.
         footer = ttk.Frame(outer)
@@ -324,9 +327,9 @@ class CarEditor:
         self.spec_text.configure(yscrollcommand=spec_scroll.set)
         self.spec_text.pack(side="left", fill="both", expand=True)
         self.spec_text.tag_configure("source", foreground="#2066ba", underline=True)
-        self.restore_button = ttk.Button(specs, text="Restore realistic setup", command=self.restore_realistic)
+        self.restore_button = ttk.Button(specs, text="Restore default driving", command=self.restore_default_driving)
         self.restore_button.pack(anchor="w", pady=(12, 5))
-        ttk.Label(specs, text="Restores driving settings, ratings and both dial limits. Save & Apply installs the changes.",
+        ttk.Label(specs, text="Restores donor driving with weight and power tuning. Keeps paint, models, ratings and dial limits. Save & Apply installs the changes.",
                   style="Sub.TLabel", wraplength=390).pack(anchor="w")
         ttk.Label(models, text="Prepared MM3 model package", font=("Segoe UI", 11, "bold")).pack(anchor="w")
         ttk.Label(models, text="Choose a converted model folder containing package.json. The package replaces this car's visuals and survives future Save & Apply changes.",
@@ -354,7 +357,7 @@ class CarEditor:
         self._physics_fields(transmission, TRANSMISSION, 0)
         ttk.Label(transmission, text="Gear ratios").grid(row=9, column=0, sticky="w", pady=(7, 3))
         ttk.Entry(transmission, textvariable=self.gear_var, width=37).grid(row=10, column=0, columnspan=3, sticky="ew")
-        ttk.Label(transmission, text="Reverse first; 1–7 decreasing forward ratios.", style="Sub.TLabel").grid(row=11, column=0, columnspan=3, sticky="w", pady=4)
+        ttk.Label(transmission, text="Leave blank to keep the donor's gearbox. Custom ratios: reverse first, then 1–7 decreasing forward ratios.", style="Sub.TLabel", wraplength=390).grid(row=11, column=0, columnspan=3, sticky="w", pady=4)
         ttk.Label(transmission, text="RPM order: idle < shift < cutoff ≤ redline", style="Sub.TLabel").grid(row=12, column=0, columnspan=3, sticky="w", pady=4)
         ttk.Label(transmission, text="Factory mode uses a fixed torque-curve shape and shift target; peak torque RPM is a reference. Donor mode uses the editable peak RPM fields. Wheel geometry determines rolling radius.", style="Sub.TLabel", wraplength=390).grid(row=13, column=0, columnspan=3, sticky="w", pady=(4, 0))
         ttk.Checkbutton(transmission, text="Use factory engine profile", variable=self.factory_engine).grid(row=14, column=0, columnspan=3, sticky="w", pady=(12, 0))
@@ -464,28 +467,35 @@ class CarEditor:
         lines.append(f"Transmission: {spec['gear_count']} forward gear(s)")
         lines.append(spec.get("drivetrain", ""))
         self.spec_text.insert("end", "\n".join(lines) + "\n\n")
-        self.spec_text.insert("end", "Game calibration\n" + "\n".join(reference.get("notes", [])) + "\n\nSources\n")
+        self.spec_text.insert("end", "Workshop defaults keep donor gears, RPM, grip and brakes; only weight and engine power are tuned. The specifications and factory calibration notes here are reference information.\n\nFactory reference notes\n" + "\n".join(reference.get("notes", [])) + "\n\nSources\n")
         for index, source in enumerate(reference.get("sources", [])):
             tag = f"source_{index}"
             self.spec_text.insert("end", source["title"] + "\n", ("source", tag))
             self.spec_text.tag_bind(tag, "<Button-1>", lambda _event, url=source["url"]: webbrowser.open(url))
         self.spec_text.configure(state="disabled")
 
-    def restore_realistic(self) -> None:
+    def restore_default_driving(self) -> None:
         try:
             # Tuning may be invalid while typing; the preset replaces it.
-            # Preserve only the current art selections before validation.
+            # Preserve current art, menu ratings and gauges without parsing
+            # in-progress transmission or handling fields.
             car = copy.deepcopy(self.model.config["cars"][self.current])
             car["colors"] = [variable.get().strip().lower() for variable in self.color_vars]
+            car["ratings"] = {key: number(variable.get(), key, True)
+                              for key, variable in self.rating_vars.items()}
+            car.pop("speedometer", None)
+            gauges = edited_speedometer({key: variable.get() for key, variable in self.speed_vars.items()})
+            if gauges is not None:
+                car["speedometer"] = gauges
             car.pop("model_package", None)
             if self.model_var.get().strip():
                 car["model_package"] = self.model_var.get().strip()
-            self.model.replace_car(self.current, factory.apply_preset(car))
+            self.model.replace_car(self.current, defaults.apply_preset(car))
             self._load_car(self.current)
         except (ValueError, OSError) as error:
             self._error(error)
             return
-        self.status.set("Realistic setup restored for this car. Save & Apply to install it.")
+        self.status.set("Default donor driving restored for this car. Save & Apply to install it.")
 
     def select_initial(self, car_id: int | None, tab: str) -> None:
         """Optional launch selection; ordinary launches still start at car one."""

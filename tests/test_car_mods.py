@@ -5,6 +5,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import re
 import struct
 import tempfile
 import unittest
@@ -679,6 +680,39 @@ class CarModsTest(unittest.TestCase):
             path.write_text(json.dumps(rejected))
             with self.subTest(key=key, invalid=invalid), self.assertRaises(ValueError):
                 MOD.load_config(path)
+
+    def test_shipped_tuning_changes_only_weight_power_and_keeps_every_donor_drivetrain_field(self):
+        # Native donor settings exercise cloning rather than adding a custom
+        # gearbox to every variant. Reapplication starts from these pristine
+        # fields, so a previous single-speed/high-RPM setup cannot leak back.
+        donor_values = {
+            "NGears": "5", "GearRatioVector": "-3.3 2.9 1.77 1.21 0.92 0.81",
+            "WheelRatio": "4.0", "WheelRadius": "0.34", "MinRPM": "1000.0",
+            "MinRPMGearChange": "4000.0", "CutRPM": "8000.0", "MaxRPM": "10000.0",
+            "MaxTorqueRPM": "6500.0", "MaxTurboTorqueRPM": "6750.0",
+            "TimeChangeGear": "0.4", "TimeChangeGearFR": "0.15",
+            "GearStatusDownGearFactor": "0.75", "TurboSize": "0.5",
+            "TorqueScaleFactor": "1.125", "BrakeTorque": "4000.0",
+            "LatFrictionFactor": "2.0", "AirKZZ": "0.03", "AirKZY": "2.5",
+        }
+        with zipfile.ZipFile(io.BytesIO(self.originals[MOD.ARCHIVES[0]])) as source:
+            donor = source.read("Cars/Tweak/Lotus.txt")
+        donor = donor.replace(b"End(CarBody)",
+            "".join(f"\t{key}\t{value}\r\n" for key, value in donor_values.items()).encode()
+            + b"End(CarBody)")
+        for car in self.config["cars"]:
+            with self.subTest(car=car["alias"]):
+                self.assertEqual(set(car["physics"]), {"Mass", "TorqueScale"})
+                self.assertNotIn("engine_profile", car)
+                output = MOD.tweak_variant(donor, car).decode()
+                for key, value in donor_values.items():
+                    line = re.search(r"^\s*" + key + r"\s+([^\r\n]+)", output, re.M)
+                    self.assertIsNotNone(line, key)
+                    self.assertEqual(line.group(1), value, key)
+                for key, value in car["physics"].items():
+                    self.assertRegex(output, r"\b" + key + r"\s+" + str(value) + r"\s")
+        output = self.plan()
+        self.assertEqual(len(output[MOD.FACTORY_PHYSICS_FILE].splitlines()), 1)
 
     def test_factory_profile_sidecar_opt_in_reapply_and_exact_restore(self):
         config = MOD.factory_specs.apply_presets(self.config)

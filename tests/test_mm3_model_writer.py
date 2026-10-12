@@ -14,7 +14,8 @@ sys.path.insert(0, str(ROOT / "tools" / "car-models"))
 from mm3_model import (FormatError, MeshBlock, Model, Node, convert_exterior,
                        encode_mesh, encode_shadow_mesh, is_shadow_mesh, mesh_metadata,
                        normalize_repeat_uv, read_model, remap_mesh_materials,
-                       shadow_volume_geometry, write_omb)
+                       shadow_volume_geometry, source_material_shading,
+                       GLOSS_VERTEX_SHADING, MATTE_VERTEX_SHADING, write_omb)
 sys.path.insert(0, str(ROOT / "tools" / "mm3view"))
 from mm3view import read_cmp, mesh_triangles, read_omb
 
@@ -174,6 +175,36 @@ class MM3ModelWriterTest(unittest.TestCase):
         np.testing.assert_array_equal(channels[:, 3], 0)
         for illumination in (0, .5, 1):
             self.assertTrue((channels[:, 2] + (1 - illumination) >= 1).all())
+
+    def test_authored_body_gloss_and_matte_rubber_survive_native_shader_fetch(self):
+        paint = source_material_shading(dict(name="body", shininess=.5))
+        rubber = source_material_shading(dict(name="tire", shininess=0))
+        self.assertEqual(paint, GLOSS_VERTEX_SHADING)
+        self.assertEqual(rubber, MATTE_VERTEX_SHADING)
+        block = encode_mesh("surfaces", [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
+            [[0, 0, 1]] * 3, [[0, 0], [1, 0], [0, 1]],
+            [[0, 1, 2, 7], [0, 1, 2, 8]], {7: 1, 8: 2}, template_block(115), 115,
+            material_shading={1: paint, 2: rubber})
+        words = packed_words(block)
+        channels = np.array([(words[:, 5] >> shift) & 255 for shift in (16, 8, 0, 24)]).T / 255
+        for fresnel in (0, .25, 1):
+            environment = fresnel * channels[:, 1] + channels[:, 0]
+            self.assertTrue((environment[:3] > 0).all())
+            np.testing.assert_array_equal(environment[3:], 0)
+        self.assertTrue((channels[:3, 3] > 0).all())
+        np.testing.assert_array_equal(channels[3:, 3], 0)
+        np.testing.assert_array_equal(channels[:, 2], 1)
+
+    def test_mm1_without_gloss_metadata_reflects_body_and_keeps_tires_matte(self):
+        for name in ("vpfgt17_body", "vpfgt17_body2", "vp718cayman_windows", "vpfgt17_whl"):
+            self.assertEqual(source_material_shading(dict(name=name)), GLOSS_VERTEX_SHADING)
+        for name in ("vp718cayman_tire", "rubber", "interior", "unknown"):
+            self.assertEqual(source_material_shading(dict(name=name)), MATTE_VERTEX_SHADING)
+        # Authored matte settings take precedence over any name-based guess.
+        self.assertEqual(source_material_shading(dict(name="body", shininess=0)), MATTE_VERTEX_SHADING)
+        for value in (-1, float("nan"), float("inf")):
+            with self.assertRaisesRegex(ValueError, "shininess"):
+                source_material_shading(dict(shininess=value))
 
     def test_shadow_caps_and_collapsed_walls_form_closed_extruded_volumes(self):
         p = np.array([[-1, -.5, -2], [1, -.5, -2], [-1, 1, -2], [1, 1, -2],

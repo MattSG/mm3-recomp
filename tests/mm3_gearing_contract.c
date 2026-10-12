@@ -177,8 +177,7 @@ static void test_car(const CarCase *car)
         assert(MEM32(sim + 0x2C) == gear - 1);
         assert_tables(car);
     }
-    /* A sudden stop may skip down several ratios, but never below first.
-     * The one-speed Regera has neither an upshift nor a downshift to invent. */
+    /* A sudden stop may skip down several ratios, but never below first. */
     MEM32(sim + 0x2C) = car->gears;
     MEM32(engine) = MEM32(engine + 0x10) = 0;
     shift_step(0.0f, 1000.0f, 0.01f);
@@ -190,8 +189,8 @@ static void test_car(const CarCase *car)
         shift_step(1000.0f, car->cutoff, 0.01f);
         assert(MEM32(sim + 0x2C) == 1 && MEM32(engine + 0x10) == 0);
     }
-    /* Manual upper bounds must use N as well: seventh is reachable and an
-     * extra upshift cannot read an eighth forward ratio. */
+    /* Manual upper bounds must use N as well: the final gear is reachable
+     * and an extra upshift cannot read past the forward ratio array. */
     MEM32(sim + 0x5C) = 1;
     for (gear = 1; gear <= car->gears; ++gear) {
         MEM32(sim + 0x2C) = gear;

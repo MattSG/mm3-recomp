@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "recomp_types.h"
+#include "mm3_render_distance.h"
 
 extern void nv2a_d3d_set_depth_view_remap(float scale, float knee);
 
@@ -36,6 +37,11 @@ static float distance_scale(void)
         fprintf(stderr, "[MM3_DISTANCE] draw/LOD distance multiplier %.3g\n", scale);
     }
     return scale;
+}
+
+float mm3_draw_distance_scale(void)
+{
+    return distance_scale();
 }
 
 static void pedestrian_defaults(void)

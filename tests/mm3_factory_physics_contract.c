@@ -312,8 +312,46 @@ static void wheel_path_contract(void)
     printf("PASS %u extracted native forward/reverse, FWD/RWD/AWD wheel-force/body cases\n", cases);
 }
 
+#ifdef MM3_FACTORY_DEFAULTS
+static void default_driving_contract(void)
+{
+    const char *aliases[] = {"MRly", "Panoz", "McLaren_F1", "Form1", "Ford_GTcar",
+        "Senna_Road", "Senna_GTR1", "FXXK_Racer", "Regera_GT1", "AventadorX"};
+    unsigned i;
+    assert(initialized && profile_count == 0);
+    for (i = 0; i < sizeof aliases / sizeof aliases[0]; ++i) {
+        unsigned char before[0x200];
+        unsigned curve = original_curve, torque = original_torque;
+        unsigned builder = original_builder, rpm = original_rpm;
+        fixture(!strcmp(aliases[i], "Form1") ? 5 : 6);
+        alias(aliases[i]);
+        MEMF(SIM + 0x90) = MEMF(PARAMS + 0x60) = 4;
+        MEMF(SIM + 0xCC) = 6500; MEMF(SIM + 0xD0) = 6750;
+        MEMF(SIM + 0xE0) = 10000; MEMF(SIM + 0xE4) = 8000;
+        memcpy(before, memory + SIM, sizeof before);
+        construct();
+        assert(!binding_for(CONTROLLER));
+        registers(); sub_001CF7B4();
+        assert(original_builder == builder + 1 && g_eax == 0x1234);
+        assert(!memcmp(before, memory + SIM, sizeof before));
+        registers(); sub_001CB7E8();
+        assert(original_curve == curve + 1 && g_fp_stack[g_fp_top] == -42);
+        registers(); sub_001CB881();
+        assert(original_torque == torque + 1 && g_fp_stack[g_fp_top] == -84);
+        registers(); next_rpm = 7000; g_esi = CONTROLLER; sub_001CB9A5();
+        assert(original_rpm == rpm + 1 && MEMF(SIM + 0xC) == 7000);
+        printf("PASS default %s: retail gearing, engine curve, torque and RPM paths\n", aliases[i]);
+    }
+}
+#endif
+
 int main(void)
 {
+#ifdef MM3_FACTORY_DEFAULTS
+    load_profiles();
+    default_driving_contract();
+    return 0;
+#else
     parser_contract(); torque_contract(); gearing_contract(1); gearing_contract(7);
     lifecycle_contract(); rpm_contract(); wheel_path_contract();
 #ifdef MM3_FACTORY_WINDOWS_MAPPING
@@ -333,4 +371,5 @@ int main(void)
 #endif
     puts("Factory physics integration contracts passed.");
     return 0;
+#endif
 }

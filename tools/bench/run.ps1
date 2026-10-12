@@ -17,7 +17,8 @@ param(
     [ValidateRange(5, 300)][int]$Secs = 20,
     [ValidateRange(1, 255)][int]$ParticleBudget = 24,
     [string]$ShaderCacheSeed,
-    [double]$X, [double]$Z
+    [double]$X, [double]$Z,
+    [double]$Heading = 0
 )
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
@@ -28,6 +29,9 @@ if (-not (Test-Path -LiteralPath $Exe -PathType Leaf)) { throw 'Exe must be a fi
 if (-not (Test-Path -LiteralPath $Save -PathType Container)) { throw 'Save must be a directory.' }
 if ([double]::IsNaN($X) -or [double]::IsInfinity($X) -or [double]::IsNaN($Z) -or [double]::IsInfinity($Z)) {
     throw 'Coordinates must be finite.'
+}
+if ([double]::IsNaN($Heading) -or [double]::IsInfinity($Heading)) {
+    throw 'Heading must be finite.'
 }
 if ($PSBoundParameters.ContainsKey('X') -ne $PSBoundParameters.ContainsKey('Z')) {
     throw 'Supply both X and Z, or omit both to measure the saved scene spawn.'
@@ -118,7 +122,7 @@ try {
         -RedirectStandardOutput (Join-Path $dir 'stdout.log') -RedirectStandardError $log
     foreach ($key in $previous.Keys) { [Environment]::SetEnvironmentVariable($key, $previous[$key], 'Process') }
     @{ executable=$Exe; sha256=(Get-FileHash -LiteralPath $Exe -Algorithm SHA256).Hash
-       process_id=$p.Id; profile=$Profile; scenario=$Scenario; settings=$envs; explicit_position=$explicitPosition; coordinates=@($X, $Z)
+       process_id=$p.Id; profile=$Profile; scenario=$Scenario; settings=$envs; explicit_position=$explicitPosition; coordinates=@($X, $Z); heading=$Heading
        save_template=$Save; shader_cache_seed=$ShaderCacheSeed; logical_processors=[Environment]::ProcessorCount
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $dir 'run.json')
     Write-Output "Game PID $($p.Id), evidence $dir"
@@ -151,7 +155,7 @@ try {
     if (-not $position -or -not $position.available) { throw 'No live player car; race benchmark is invalid.' }
     $position | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $dir 'position-start.json')
     if ($explicitPosition) {
-        $position = & $teleport -ProcessId $p.Id -X $X -Z $Z -Heading 0
+        $position = & $teleport -ProcessId $p.Id -X $X -Z $Z -Heading $Heading
     }
     $position | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $dir 'position.json')
     Wait-Game 4

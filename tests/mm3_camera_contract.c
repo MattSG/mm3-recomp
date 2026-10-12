@@ -25,6 +25,10 @@ void nv2a_d3d_set_hud_start(float a, float b, float c, float d) {
     assert(a == 50 && b == 320 && c == 178 && d == 448); ++hud_calls;
 }
 void nv2a_d3d_set_centered_ui_query(int (*query)(void)) { (void)query; }
+void nv2a_d3d_set_map_texture_query(int (*query)(uint32_t)) { (void)query; }
+void sub_0011C742_original(void) { g_esp += 8; }
+void sub_0011CAAC_original(void) { g_esp += 12; }
+void sub_0007CEC3_original(void) { g_esp += 8; }
 void sub_001EEC53_original(void) {
     ++solver_calls;
     memcpy(captured, (const void *)XBOX_PTR(g_esp + 4), sizeof captured);
@@ -80,7 +84,7 @@ static void chase_contract(void) {
             assert(solver_calls == calls + 1 && g_esp == stack + 8 && g_fp_top == 0);
             assert(g_ebx == 0x13579 && g_edi == 0x24680 && MEM32(stack + 8) == 0x12345678);
             for (j = 0; j < 14; ++j) {
-                if (j == 4 || j == 7) close_float(number(captured[j]), number(retail[j]) - 0.75f);
+                if (j == 4 || j == 7) close_float(number(captured[j]), number(retail[j]) - 0.25f);
                 else assert(captured[j] == retail[j]);
             }
             assert(!memcmp(before, (const void *)XBOX_PTR(params), sizeof before));
@@ -167,6 +171,6 @@ int main(int argc, char **argv) {
     g_xbox_mem_offset = (ptrdiff_t)memory;
     native_constants();
     chase_contract(); projection_contract(override);
-    printf("PASS camera: near-only +0.75m, native matrix/culling, FOV %.3g, four aspects, ABI guards\n", override);
+    printf("PASS camera: near-only +0.25m, native matrix/culling, FOV %.3g, four aspects, ABI guards\n", override);
     return 0;
 }

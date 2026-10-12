@@ -29,35 +29,7 @@
       },
       "physics": {
         "Mass": 1145,
-        "TorqueScale": 149.14,
-        "TorqueScaleFactor": 1,
-        "TurboSize": 0,
-        "WheelDrive": 0,
-        "BrakeTorque": 3800,
-        "HandBrakeTorque": 2090,
-        "LatFrictionFactor": 1.05,
-        "AirKZZ": 0.37,
-        "AirKZY": 0.05,
-        "MaxTorqueRPM": 4500,
-        "MaxTurboTorqueRPM": 4500,
-        "MinRPM": 800,
-        "MinRPMGearChange": 2000,
-        "CutRPM": 6500,
-        "MaxRPM": 6500,
-        "TimeChangeGear": 0.35,
-        "TimeChangeGearFR": 0.3,
-        "WheelRatio": 3.94,
-        "WheelRadius": 0.30425,
-        "GearRatioVector": [
-          -3.58,
-          3.417,
-          1.947,
-          1.333,
-          1.054,
-          0.846
-        ],
-        "GearStatusDownGearFactor": 0.72,
-        "SteeringEndSpeed": 140
+        "TorqueScale": 380
       },
       "colors": [
         "#f28c28",
@@ -67,8 +39,7 @@
       "speedometer": {
         "max_kmh": 220,
         "max_mph": 140
-      },
-      "engine_profile": "factory"
+      }
     },
     {
       "id": 9004,
@@ -84,36 +55,7 @@
       },
       "physics": {
         "Mass": 980,
-        "TorqueScale": 680,
-        "TorqueScaleFactor": 1,
-        "TurboSize": 0,
-        "WheelDrive": 1,
-        "BrakeTorque": 7000,
-        "HandBrakeTorque": 3850,
-        "LatFrictionFactor": 1.7,
-        "AirKZZ": 0.52,
-        "AirKZY": 0.05,
-        "MaxTorqueRPM": 5000,
-        "MaxTurboTorqueRPM": 5000,
-        "MinRPM": 1500,
-        "MinRPMGearChange": 3000,
-        "CutRPM": 8000,
-        "MaxRPM": 8000,
-        "TimeChangeGear": 0.12,
-        "TimeChangeGearFR": 0.3,
-        "WheelRatio": 2.8,
-        "WheelRadius": 0.34,
-        "GearRatioVector": [
-          -2.111111111111111,
-          2.7333333333333334,
-          2.0625,
-          1.6842105263157894,
-          1.4285714285714286,
-          1.2173913043478262,
-          1.0454545454545454
-        ],
-        "GearStatusDownGearFactor": 0.72,
-        "SteeringEndSpeed": 231
+        "TorqueScale": 750
       },
       "colors": [
         "#c7a52b",
@@ -124,7 +66,6 @@
         "max_kmh": 360,
         "max_mph": 240
       },
-      "engine_profile": "factory",
       "model_package": "../../out/car-models/packages/Panoz"
     },
     {
@@ -141,36 +82,7 @@
       },
       "physics": {
         "Mass": 1050,
-        "TorqueScale": 650,
-        "TorqueScaleFactor": 1,
-        "TurboSize": 0,
-        "WheelDrive": 1,
-        "BrakeTorque": 6800,
-        "HandBrakeTorque": 3740,
-        "LatFrictionFactor": 1.65,
-        "AirKZZ": 0.52,
-        "AirKZY": 0.05,
-        "MaxTorqueRPM": 5600,
-        "MaxTurboTorqueRPM": 5600,
-        "MinRPM": 1200,
-        "MinRPMGearChange": 3000,
-        "CutRPM": 8000,
-        "MaxRPM": 8000,
-        "TimeChangeGear": 0.22,
-        "TimeChangeGearFR": 0.3,
-        "WheelRatio": 3.045112781954887,
-        "WheelRadius": 0.335,
-        "GearRatioVector": [
-          -2.3846153846153846,
-          3.230769230769231,
-          2.1875,
-          1.7142857142857142,
-          1.391304347826087,
-          1.16,
-          0.9285714285714286
-        ],
-        "GearStatusDownGearFactor": 0.72,
-        "SteeringEndSpeed": 231
+        "TorqueScale": 800
       },
       "colors": [
         "#b9c2cc",
@@ -181,7 +93,6 @@
         "max_kmh": 360,
         "max_mph": 240
       },
-      "engine_profile": "factory",
       "model_package": "../../out/car-models/packages/McLaren_F1"
     },
     {
@@ -198,37 +109,7 @@
       },
       "physics": {
         "Mass": 600,
-        "TorqueScale": 315,
-        "TorqueScaleFactor": 1,
-        "TurboSize": 0,
-        "WheelDrive": 1,
-        "BrakeTorque": 9000,
-        "HandBrakeTorque": 4950,
-        "LatFrictionFactor": 2.1,
-        "AirKZZ": 0.78,
-        "AirKZY": 0.05,
-        "MaxTorqueRPM": 16500,
-        "MaxTurboTorqueRPM": 16500,
-        "MinRPM": 4000,
-        "MinRPMGearChange": 8000,
-        "CutRPM": 19000,
-        "MaxRPM": 19000,
-        "TimeChangeGear": 0.05,
-        "TimeChangeGearFR": 0.3,
-        "WheelRatio": 4.9,
-        "WheelRadius": 0.33,
-        "GearRatioVector": [
-          -3,
-          4.2,
-          3.2,
-          2.55,
-          2.1,
-          1.78,
-          1.55,
-          1.37
-        ],
-        "GearStatusDownGearFactor": 0.72,
-        "SteeringEndSpeed": 245
+        "TorqueScale": 420
       },
       "colors": [
         "#dc202a",
@@ -239,7 +120,6 @@
         "max_kmh": 380,
         "max_mph": 240
       },
-      "engine_profile": "factory",
       "model_package": "../../out/car-models/packages/Form1"
     },
     {
@@ -256,37 +136,7 @@
       },
       "physics": {
         "Mass": 1520,
-        "TorqueScale": 745.7,
-        "TorqueScaleFactor": 1,
-        "TurboSize": 0,
-        "WheelDrive": 1,
-        "BrakeTorque": 6500,
-        "HandBrakeTorque": 3575,
-        "LatFrictionFactor": 1.5,
-        "AirKZZ": 0.46,
-        "AirKZY": 0.05,
-        "MaxTorqueRPM": 5900,
-        "MaxTurboTorqueRPM": 5900,
-        "MinRPM": 800,
-        "MinRPMGearChange": 2200,
-        "CutRPM": 7000,
-        "MaxRPM": 7000,
-        "TimeChangeGear": 0.08,
-        "TimeChangeGearFR": 0.3,
-        "WheelRatio": 3.667,
-        "WheelRadius": 0.3515,
-        "GearRatioVector": [
-          -3.5,
-          3.397,
-          2.186,
-          1.626,
-          1.285,
-          1.029,
-          0.839,
-          0.634
-        ],
-        "GearStatusDownGearFactor": 0.72,
-        "SteeringEndSpeed": 243
+        "TorqueScale": 1000
       },
       "colors": [
         "#68b7d1",
@@ -297,7 +147,6 @@
         "max_kmh": 380,
         "max_mph": 240
       },
-      "engine_profile": "factory",
       "model_package": "../../out/car-models/packages/Ford_GTcar"
     },
     {
@@ -314,37 +163,7 @@
       },
       "physics": {
         "Mass": 1309,
-        "TorqueScale": 800,
-        "TorqueScaleFactor": 1,
-        "TurboSize": 0,
-        "WheelDrive": 1,
-        "BrakeTorque": 7600,
-        "HandBrakeTorque": 4180,
-        "LatFrictionFactor": 1.7,
-        "AirKZZ": 0.58,
-        "AirKZY": 0.05,
-        "MaxTorqueRPM": 6000,
-        "MaxTurboTorqueRPM": 6000,
-        "MinRPM": 850,
-        "MinRPMGearChange": 2500,
-        "CutRPM": 8415,
-        "MaxRPM": 8415,
-        "TimeChangeGear": 0.08,
-        "TimeChangeGearFR": 0.3,
-        "WheelRatio": 3.308,
-        "WheelRadius": 0.3485,
-        "GearRatioVector": [
-          -3.9,
-          3.982,
-          2.612,
-          1.905,
-          1.479,
-          1.16,
-          0.906,
-          0.686
-        ],
-        "GearStatusDownGearFactor": 0.72,
-        "SteeringEndSpeed": 234
+        "TorqueScale": 1000
       },
       "colors": [
         "#ff8526",
@@ -355,7 +174,6 @@
         "max_kmh": 360,
         "max_mph": 240
       },
-      "engine_profile": "factory",
       "model_package": "../../out/car-models/packages/Senna_Road"
     },
     {
@@ -372,37 +190,7 @@
       },
       "physics": {
         "Mass": 1270,
-        "TorqueScale": 800,
-        "TorqueScaleFactor": 1,
-        "TurboSize": 0,
-        "WheelDrive": 1,
-        "BrakeTorque": 8200,
-        "HandBrakeTorque": 4510,
-        "LatFrictionFactor": 1.95,
-        "AirKZZ": 0.67,
-        "AirKZY": 0.05,
-        "MaxTorqueRPM": 6000,
-        "MaxTurboTorqueRPM": 6000,
-        "MinRPM": 1000,
-        "MinRPMGearChange": 2500,
-        "CutRPM": 8250,
-        "MaxRPM": 8250,
-        "TimeChangeGear": 0.08,
-        "TimeChangeGearFR": 0.3,
-        "WheelRatio": 3.308,
-        "WheelRadius": 0.3525,
-        "GearRatioVector": [
-          -3.9,
-          3.982,
-          2.612,
-          1.905,
-          1.479,
-          1.16,
-          0.906,
-          0.686
-        ],
-        "GearStatusDownGearFactor": 0.72,
-        "SteeringEndSpeed": 227
+        "TorqueScale": 1025
       },
       "colors": [
         "#efeff2",
@@ -413,7 +201,6 @@
         "max_kmh": 360,
         "max_mph": 240
       },
-      "engine_profile": "factory",
       "model_package": "../../out/car-models/packages/Senna_GTR1"
     },
     {
@@ -430,37 +217,7 @@
       },
       "physics": {
         "Mass": 1590,
-        "TorqueScale": 950,
-        "TorqueScaleFactor": 1,
-        "TurboSize": 0,
-        "WheelDrive": 1,
-        "BrakeTorque": 8500,
-        "HandBrakeTorque": 4675,
-        "LatFrictionFactor": 1.95,
-        "AirKZZ": 0.74,
-        "AirKZY": 0.05,
-        "MaxTorqueRPM": 6500,
-        "MaxTurboTorqueRPM": 6500,
-        "MinRPM": 1000,
-        "MinRPMGearChange": 3500,
-        "CutRPM": 9250,
-        "MaxRPM": 9250,
-        "TimeChangeGear": 0.08,
-        "TimeChangeGearFR": 0.3,
-        "WheelRatio": 4.375,
-        "WheelRadius": 0.3575,
-        "GearRatioVector": [
-          -3.5,
-          3.08,
-          2.19,
-          1.626,
-          1.286,
-          1.028,
-          0.839,
-          0.693
-        ],
-        "GearStatusDownGearFactor": 0.72,
-        "SteeringEndSpeed": 245
+        "TorqueScale": 1150
       },
       "colors": [
         "#d2202c",
@@ -471,7 +228,6 @@
         "max_kmh": 400,
         "max_mph": 260
       },
-      "engine_profile": "factory",
       "model_package": "../../out/car-models/packages/FXXK_Racer"
     },
     {
@@ -488,31 +244,7 @@
       },
       "physics": {
         "Mass": 1590,
-        "TorqueScale": 2000,
-        "TorqueScaleFactor": 1,
-        "TurboSize": 0,
-        "WheelDrive": 1,
-        "BrakeTorque": 7800,
-        "HandBrakeTorque": 4290,
-        "LatFrictionFactor": 1.55,
-        "AirKZZ": 0.68,
-        "AirKZY": 0.05,
-        "MaxTorqueRPM": 4100,
-        "MaxTurboTorqueRPM": 4100,
-        "MinRPM": 800,
-        "MinRPMGearChange": 1500,
-        "CutRPM": 8250,
-        "MaxRPM": 8250,
-        "TimeChangeGear": 0.08,
-        "TimeChangeGearFR": 0.3,
-        "WheelRatio": 2.73,
-        "WheelRadius": 0.3575,
-        "GearRatioVector": [
-          -1,
-          1
-        ],
-        "GearStatusDownGearFactor": 0.72,
-        "SteeringEndSpeed": 280
+        "TorqueScale": 1250
       },
       "colors": [
         "#62abde",
@@ -523,7 +255,6 @@
         "max_kmh": 440,
         "max_mph": 280
       },
-      "engine_profile": "factory",
       "model_package": "../../out/car-models/packages/Regera_GT1"
     },
     {
@@ -540,37 +271,7 @@
       },
       "physics": {
         "Mass": 1675,
-        "TorqueScale": 690,
-        "TorqueScaleFactor": 1,
-        "TurboSize": 0,
-        "WheelDrive": 2,
-        "BrakeTorque": 6900,
-        "HandBrakeTorque": 3795,
-        "LatFrictionFactor": 1.5,
-        "AirKZZ": 0.47,
-        "AirKZY": 0.05,
-        "MaxTorqueRPM": 5500,
-        "MaxTurboTorqueRPM": 5500,
-        "MinRPM": 850,
-        "MinRPMGearChange": 3000,
-        "CutRPM": 8500,
-        "MaxRPM": 8500,
-        "TimeChangeGear": 0.08,
-        "TimeChangeGearFR": 0.3,
-        "WheelRatio": 3.5456140350877194,
-        "WheelRadius": 0.3545,
-        "GearRatioVector": [
-          -2.9285714285714284,
-          3.909090909090909,
-          2.4375,
-          1.8095238095238095,
-          1.4583333333333333,
-          1.1851851851851851,
-          0.9666666666666667,
-          0.84375
-        ],
-        "GearStatusDownGearFactor": 0.72,
-        "SteeringEndSpeed": 245
+        "TorqueScale": 1100
       },
       "colors": [
         "#e29d16",
@@ -581,7 +282,6 @@
         "max_kmh": 380,
         "max_mph": 240
       },
-      "engine_profile": "factory",
       "model_package": "../../out/car-models/packages/AventadorX"
     }
   ]

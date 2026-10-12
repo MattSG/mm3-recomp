@@ -54,6 +54,32 @@ def input_bytes(folder):
 
 
 class PackageBuilderTest(unittest.TestCase):
+    def test_equal_textures_with_different_gloss_keep_separate_surface_slots(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / "source"
+            path, source = fixture_source(folder)
+            source["materials"][1] = dict(source["materials"][0], shininess=.5)
+            source["materials"][0]["shininess"] = 0
+            path.write_text(json.dumps(source), encoding="utf-8")
+            captured = []
+
+            def capture(template, source, **kwargs):
+                captured.append(kwargs)
+                return b"test-cmp", dict(bytes=8, triangles=8)
+
+            with patch.object(builder, "Data") as data, \
+                    patch.object(builder, "alias_paths", side_effect=lambda blob, donor, alias: blob), \
+                    patch.object(builder.mm3_model, "convert_exterior", side_effect=capture), \
+                    patch.object(builder.mm3_textures, "image_to_cdds", return_value=b"test-cdds"), \
+                    patch("sys.stdout", new=io.StringIO()):
+                data.return_value.read.return_value = b"donor"
+                report = builder.build(path, Path(tmp) / "package", 9004, y_offset=0)
+            self.assertNotEqual(report["material_map"][0], report["material_map"][1])
+            for kwargs in captured:
+                shading = kwargs["material_shading"]
+                self.assertEqual(shading[report["material_map"][0]], builder.mm3_model.MATTE_VERTEX_SHADING)
+                self.assertEqual(shading[report["material_map"][1]], builder.mm3_model.GLOSS_VERTEX_SHADING)
+
     def test_constant_faces_clone_shared_vertices_without_changing_detail(self):
         mesh = mesh_fixture()
         before = copy.deepcopy(mesh)

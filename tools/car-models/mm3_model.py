@@ -33,8 +33,11 @@ MAX_MATERIAL_INDEX = 22
 # byte1 as its Fresnel multiplier. Byte0 contributes to diffuse coverage;
 # byte3 controls an additional reflection/specular term. The old viewer's
 # "specular power / ambient" labels do not describe this native shader.
-# Start imports fully covered and matte instead of baking in reflections.
+# Keep full diffuse coverage so environment highlights do not erase liveries.
 MATTE_VERTEX_SHADING = (255, 0, 0, 0)
+# Reflection channels from the retail Viper's painted body vertices. Only
+# diffuse coverage differs: imported textures already contain their shading.
+GLOSS_VERTEX_SHADING = (255, 166, 51, 128)
 MAX_MESH_INDICES = 65535
 MAX_UV_TILES_PER_TRIANGLE = 4096
 MAX_UV_SPLIT_TILES = 100000
@@ -48,6 +51,34 @@ WHEEL_NODES = {
 
 class FormatError(ValueError):
     pass
+
+
+def source_material_shading(material: dict) -> tuple[int, int, int, int]:
+    """Translate authored source gloss into MM3's native reflection channels.
+
+    MM2 shininess .5 is its ordinary reflective paint setting. MM1 sources
+    have no shininess field, so recognizable body/glass/rim names supply the
+    fallback; unknown surfaces and rubber stay matte.
+    """
+    if "shininess" in material:
+        gloss = float(material["shininess"])
+        if not math.isfinite(gloss) or gloss < 0:
+            raise ValueError("Source material shininess must be finite and nonnegative")
+        amount = min(1.0, gloss * 2)
+    else:
+        label = str(material.get("name", "")).lower()
+        amount = float(any(token in label for token in
+            ("body", "paint", "color", "ext", "glass", "window", "chrome", "rim", "whl")))
+        if any(token in label for token in ("tire", "tyre", "tread", "rubber")):
+            amount = 0.0
+    return (255, *(round(channel * amount) for channel in GLOSS_VERTEX_SHADING[1:]))
+
+
+def packed_vertex_shading(channels) -> int:
+    channels = tuple(channels)
+    if len(channels) != 4 or any(int(value) != value or not 0 <= value <= 255 for value in channels):
+        raise ValueError("Vertex shading requires four integer bytes")
+    return sum(int(value) << (8 * i) for i, value in enumerate(channels))
 
 
 class Reader:
@@ -416,13 +447,15 @@ def remap_mesh_materials(block: MeshBlock, version: int,
 def encode_mesh(name: str, positions, normals, uvs, triangles,
                 material_map: Mapping[int, int], template: MeshBlock,
                 version: int, *, specular=MATTE_VERTEX_SHADING,
+                material_shading=None,
                 flip_winding=False, material_palette_offsets=None,
                 matrix_palette_offset=4) -> MeshBlock:
     """Indexed triangle-list CMP mesh. Vertices are split at material borders.
 
     The legacy ``specular`` argument supplies packed word-5 bytes in file
     order: coverage, Fresnel reflection, constant reflection, specular term.
-    This defaults to the retail matte behavior, preserving texture colors.
+    ``material_shading`` overrides these bytes per native material slot.
+    The fallback remains matte for geometry without a surface classification.
     """
     p = np.asarray(positions, dtype=float)
     n = np.asarray(normals, dtype=float)
@@ -486,7 +519,10 @@ def encode_mesh(name: str, positions, normals, uvs, triangles,
     if (bases > 2).any() or not 0 <= matrix_palette_offset <= 255:
         raise ValueError("Unsupported native shader palette base")
     words[:, 3] = materials * 11 + bases + (int(matrix_palette_offset) << 8)
-    words[:, 5] = sum((int(value) & 255) << (8 * i) for i, value in enumerate(specular))
+    shading = material_shading or {}
+    default_shading = packed_vertex_shading(specular)
+    packed_shading = {int(mid): packed_vertex_shading(channels) for mid, channels in shading.items()}
+    words[:, 5] = [packed_shading.get(int(mid), default_shading) for mid in materials]
     index_buffer = np.asarray(packed_indices, dtype="<u2").tobytes()
     vertex_buffer = words.tobytes()
     out = bytearray(struct.pack("<f", float(np.linalg.norm(p, axis=1).max())))
@@ -624,7 +660,8 @@ def convert_exterior(template: bytes, source: dict, *, body_names=("BODY_H",),
                      interior_material_map: Mapping[int, int] | None = None,
                      source_transform=None, keep_interior=True,
                      flip_winding=True, specular=MATTE_VERTEX_SHADING,
-                     material_palette_offsets=None) -> tuple[bytes, dict]:
+                     material_palette_offsets=None,
+                     material_shading=None) -> tuple[bytes, dict]:
     """Replace body/wheels in a donor. Returns bytes and a conversion report.
 
     Visible meshes receive the imported geometry; a closed convex stencil proxy
@@ -770,7 +807,8 @@ def convert_exterior(template: bytes, source: dict, *, body_names=("BODY_H",),
                             new_meshes.append(encode_mesh(name, localp, localn, uv, tri,
                                 material_map, donor_block, model.version,
                                 specular=specular, flip_winding=flip_winding,
-                                material_palette_offsets=material_palette_offsets))
+                                material_palette_offsets=material_palette_offsets,
+                                material_shading=material_shading))
                     target.meshes = new_meshes
         children = []
         for child in node.children:

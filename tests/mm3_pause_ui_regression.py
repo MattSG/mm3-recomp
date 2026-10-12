@@ -73,6 +73,10 @@ void nv2a_d3d_set_hud_start(float a, float b, float c, float d) {
 }
 void sub_0025968E_original(void) { g_esp += 24; }
 void sub_001EEC53_original(void) { g_esp += 60; }
+void nv2a_d3d_set_map_texture_query(int (*query)(uint32_t)) { (void)query; }
+void sub_0011C742_original(void) { g_esp += 8; }
+void sub_0011CAAC_original(void) { g_esp += 12; }
+void sub_0007CEC3_original(void) { g_esp += 8; }
 #include "production_widescreen.c"
 static uint32_t eax, esi, esp;
 static void native_singleton_return(void) { SINGLETON }

@@ -18,6 +18,115 @@ extern float nv2a_d3d_display_aspect(void);
 extern void nv2a_d3d_set_edge_hud(int on);
 extern void nv2a_d3d_set_hud_start(float x0, float y0, float x1, float y1);
 extern void nv2a_d3d_set_centered_ui_query(int (*query)(void));
+extern void nv2a_d3d_set_map_texture_query(int (*query)(uint32_t texture_addr));
+
+/* MmxGameMapNode owns separate map/icon textures, not the text/HUD atlas.
+ * Cache only their Data addresses while the title owns the resources. The
+ * pushbuffer runs asynchronously: it must never follow a saved guest node or
+ * descriptor pointer, nor wait for the title thread to release a lock. */
+enum { MAP_OWNER_COUNT = 16, MAP_TEXTURE_COUNT = 10 };
+static struct {
+    uint32_t owner; /* Title thread only; an identity, never dereferenced. */
+    volatile uint32_t sequence;
+    volatile uint32_t textures[MAP_TEXTURE_COUNT];
+} s_map_owners[MAP_OWNER_COUNT];
+
+static uint32_t map_atomic_read(volatile uint32_t *word)
+{
+    return RECOMP_ATOMIC_ADD32(word, 0);
+}
+
+static void map_publish(unsigned slot, uint32_t owner, const uint32_t *textures)
+{
+    unsigned i;
+    RECOMP_ATOMIC_ADD32(&s_map_owners[slot].sequence, 1); /* odd: unpublished */
+    for (i = 0; i < MAP_TEXTURE_COUNT; ++i)
+        RECOMP_ATOMIC_CAS32(&s_map_owners[slot].textures[i],
+                           map_atomic_read(&s_map_owners[slot].textures[i]),
+                           textures ? textures[i] : 0);
+    s_map_owners[slot].owner = owner;
+    RECOMP_ATOMIC_ADD32(&s_map_owners[slot].sequence, 1); /* even: complete */
+}
+
+static void map_forget(uint32_t owner)
+{
+    unsigned i;
+    for (i = 0; i < MAP_OWNER_COUNT; ++i)
+        if (s_map_owners[i].owner == owner && owner)
+            map_publish(i, 0, NULL);
+}
+
+static int map_texture_role(uint32_t address)
+{
+    unsigned i, j;
+    /* NV2A dma_resolve maps physical contiguous Data to its 0x80000000
+     * mirror. Compare the same allocation in either representation. */
+    address &= 0x7FFFFFFFu;
+    if (!address) return 0;
+    for (i = 0; i < MAP_OWNER_COUNT; ++i) {
+        uint32_t before = map_atomic_read(&s_map_owners[i].sequence);
+        int role = 0;
+        if (!before || (before & 1) || !map_atomic_read(&s_map_owners[i].textures[0]))
+            continue;
+        for (j = 0; j < MAP_TEXTURE_COUNT; ++j)
+            if (map_atomic_read(&s_map_owners[i].textures[j]) == address) {
+                role = j ? 2 : 1;
+                break;
+            }
+        /* A racing load/reconfiguration is unclassified for this draw. No
+         * retry loop, torn generation, or stale guest pointer is possible. */
+        if (role && before == map_atomic_read(&s_map_owners[i].sequence))
+            return role;
+    }
+    return 0;
+}
+
+extern void sub_0011C742_original(void);
+void sub_0011C742(void)
+{
+    static const unsigned offsets[MAP_TEXTURE_COUNT] = {
+        0x08, 0x10, 0x14, 0x18, 0x1C, 0x20, 0x24, 0x28, 0x2C, 0x30
+    };
+    uint32_t owner = g_ecx, textures[MAP_TEXTURE_COUNT] = {0};
+    unsigned i;
+    map_forget(owner);
+    sub_0011C742_original();
+    if (!LO8(g_eax) || !MEM32(owner + 0x64)) return;
+    /* Native 11C742 has just loaded Maps/<city>+MapMask, Checkpoint, You,
+     * TagMagIcon, Shield, MapCircle, MapNorth and three arrow resources.
+     * 116509/1164F7 establish resource+24 -> descriptor; 11D4AB establishes
+     * descriptor+14 -> D3DTexture. Its +4 is the allocation's Data address. */
+    for (i = 0; i < MAP_TEXTURE_COUNT; ++i) {
+        uint32_t resource = MEM32(owner + offsets[i]);
+        uint32_t descriptor = resource ? MEM32(resource + 0x24) : 0;
+        uint32_t texture = descriptor ? MEM32(descriptor + 0x14) : 0;
+        textures[i] = texture ? MEM32(texture + 4) & 0x7FFFFFFFu : 0;
+    }
+    if (!textures[0]) return;
+    for (i = 0; i < MAP_OWNER_COUNT; ++i)
+        if (!s_map_owners[i].owner) {
+            map_publish(i, owner, textures);
+            return;
+        }
+    /* More than 16 simultaneous map nodes: retain existing owners rather
+     * than guessing which guest allocation is safe to replace. */
+}
+
+extern void sub_0011CAAC_original(void);
+void sub_0011CAAC(void)
+{
+    map_forget(g_ecx); /* Reconfiguration may replace this node's resources. */
+    sub_0011CAAC_original();
+}
+
+extern void sub_0007CEC3_original(void);
+void sub_0007CEC3(void)
+{
+    /* Shared deleting destructor used by the map vtable at 37D790. Covers
+     * direct deletion; 11CAAC separately covers configuration replacement. */
+    map_forget(g_ecx);
+    sub_0007CEC3_original();
+}
 
 static float camera_fov_degrees(void)
 {
@@ -51,8 +160,8 @@ void sub_001EEC53(void)
     if (MEM32(g_esp) == 0x001EF922u) {
         float start_z = MEMF(g_esp + 0x14), end_z = MEMF(g_esp + 0x20);
         if (isfinite(start_z) && isfinite(end_z) && start_z < 0.0f && end_z < 0.0f) {
-            MEMF(g_esp + 0x14) = start_z - 0.75f;
-            MEMF(g_esp + 0x20) = end_z - 0.75f;
+            MEMF(g_esp + 0x14) = start_z - 0.25f;
+            MEMF(g_esp + 0x20) = end_z - 0.25f;
         }
     }
     sub_001EEC53_original();
@@ -71,6 +180,7 @@ void mm3_widescreen_init(void)
 {
     /* Register after the XBE is mapped, before the renderer thread starts. */
     nv2a_d3d_set_centered_ui_query(pause_ui_active);
+    nv2a_d3d_set_map_texture_query(map_texture_role);
 }
 
 void sub_0025968E(void)

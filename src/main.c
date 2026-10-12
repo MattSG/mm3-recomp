@@ -14,6 +14,8 @@
 #include "mm3_performance_profile.h"
 #include <xbox_host.h>
 #include <xinput_xbox.h>
+#include <video/fb_present.h>
+#include <video/nv2a_d3d11.h>
 
 #define MM3_XBE_PATH "game_files/default.xbe"
 #define MM3_GAME_DIR "game_files"
@@ -27,6 +29,25 @@ static int g_mm3_inline_threads;
 extern void sub_00083A6C_original(void);
 extern void mm3_configure_diagnostics(void);
 extern void mm3_widescreen_init(void);
+
+static void mm3_close_game(void)
+{
+    /* Xbox guest workers do not observe a host WM_CLOSE. Freeing their shared
+     * memory while they run is unsafe; end the process as the title's existing
+     * firmware-exit bridge does. Windows releases its file/device handles. */
+    fprintf(stderr, "[MM3_EXIT] close requested\n");
+    fflush(stderr);
+    ExitProcess(0);
+}
+
+static BOOL WINAPI mm3_console_control(DWORD event)
+{
+    if (event != CTRL_C_EVENT && event != CTRL_BREAK_EVENT &&
+        event != CTRL_CLOSE_EVENT)
+        return FALSE;
+    mm3_close_game();
+    return TRUE;
+}
 
 /* Register the first XAPI worker before it can create background workers.
  * The runtime's debug handle changes on every spawn and cannot determine
@@ -157,6 +178,9 @@ int main(void)
     else
         setvbuf(stderr, stderr_buffer, _IOFBF, sizeof stderr_buffer);
     SetUnhandledExceptionFilter(mm3_crash_report);
+    xbox_FramebufferSetCloseHandler(mm3_close_game);
+    nv2a_d3d_set_flare_depth_test(1);
+    SetConsoleCtrlHandler(mm3_console_control, TRUE);
     puts("MM3 static recompilation");
 
     const char *profile_error = mm3_apply_performance_defaults(getenv("MM3_PERFORMANCE_PROFILE"));
@@ -234,6 +258,22 @@ int main(void)
     mm3_widescreen_init();
     xbox_InputSetKeyboardDrivingProbe(mm3_keyboard_driving);
     mm3_debug_teleport_init();
+    /* XPP submits stack-backed USB requests whose callback signals an inline
+     * KEVENT. Its explicit wait treats an invalid handle as completion, so
+     * the request can outlive its stack frame. Permit only the verified XPP
+     * setter, explicit wait/cancel wait and synchronous-submit wait sites. */
+    {
+        static const uint32_t usb_event_callers[] = {
+            0x0035C348u, 0x0035D553u, 0x0035D56Cu, 0x0035C7F1u
+        };
+        if (xbox_kernel_set_inline_event_callers(usb_event_callers,
+                sizeof(usb_event_callers) / sizeof(usb_event_callers[0])) != 0) {
+            fprintf(stderr, "cannot register MM3 USB event bridges\n");
+            xbox_MemoryLayoutShutdown();
+            free(xbe_data);
+            return 1;
+        }
+    }
     xbox_kernel_set_thunk_address(MM3_KERNEL_THUNK_ADDRESS,
                                    MM3_KERNEL_THUNK_COUNT);
     xbox_kernel_init();
@@ -257,7 +297,7 @@ int main(void)
         free(xbe_data);
         return 1;
     }
-    if (!xbox_HostGraphicsInit("MM3 Recomp")) {
+    if (!xbox_HostGraphicsInit("Midtown Madness 3 on PC improved and modded !!")) {
         xbox_HostHardwareShutdown();
         xbox_kernel_shutdown();
         xbox_MemoryLayoutShutdown();

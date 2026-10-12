@@ -203,19 +203,23 @@ class CarEditorTest(unittest.TestCase):
         cleared = editor.edited_car(self.model.config["cars"][1], **form(self.model.config["cars"][1]), model_package=" ")
         self.assertNotIn("model_package", cleared)
 
-    def test_restore_realistic_preserves_selected_model_and_paint(self):
+    def test_restore_default_driving_removes_factory_gears_and_preserves_saved_customization(self):
         car = copy.deepcopy(self.model.config["cars"][1])
         car["model_package"] = "prepared models/Panoz"
         car["colors"] = ["#123456"]
-        car["physics"]["TorqueScale"] = 1234
+        car = editor.factory.apply_preset(car)
+        car["ratings"]["TOPSPEED"] = 3
+        car["speedometer"] = {"max_kmh": 600, "max_mph": 400}
         self.model.replace_car(1, car)
-        self.model.restore_realistic(1)
+        self.model.restore_default_driving(1)
         restored = self.model.config["cars"][1]
         self.assertEqual(restored["model_package"], car["model_package"])
         self.assertEqual(restored["colors"], car["colors"])
         self.assertEqual(restored["id"], car["id"])
-        self.assertEqual(restored["engine_profile"], "factory")
-        self.assertEqual(restored["physics"], editor.factory.load_specs()[car["alias"]]["physics"])
+        self.assertEqual(restored["ratings"], car["ratings"])
+        self.assertEqual(restored["speedometer"], car["speedometer"])
+        self.assertNotIn("engine_profile", restored)
+        self.assertEqual(restored["physics"], {"Mass": 980, "TorqueScale": 750})
         self.model.save()
         self.model.reload()
         self.assertEqual(self.model.config["cars"][1], restored)
@@ -234,16 +238,42 @@ class CarEditorTest(unittest.TestCase):
         app.model.config["cars"][0]["physics"]["TorqueScale"] = float("nan")
         app.color_vars = [Mock(get=Mock(return_value="#ABCDEF"))]
         app.model_var = Mock(get=Mock(return_value="models with spaces/Mini"))
+        app.rating_vars = {key: Mock(get=Mock(return_value="3")) for key in editor.RATING_ORDER}
+        app.speed_vars = {"max_kmh": Mock(get=Mock(return_value="600")),
+                          "max_mph": Mock(get=Mock(return_value="400"))}
         app.status, app._load_car, app._error = Mock(), Mock(), Mock()
         app._collect = Mock(side_effect=ValueError("Invalid in-progress gear edit"))
-        app.restore_realistic()
+        app.restore_default_driving()
         app._collect.assert_not_called()
         app._error.assert_not_called()
         restored = app.model.config["cars"][0]
-        self.assertEqual(restored["physics"], editor.factory.load_specs()["MRly"]["physics"])
+        self.assertEqual(restored["physics"], {"Mass": 1145, "TorqueScale": 380})
         self.assertEqual(restored["colors"], ["#abcdef"])
         self.assertEqual(restored["model_package"], "models with spaces/Mini")
+        self.assertEqual(restored["ratings"], {key: 3 for key in editor.RATING_ORDER})
+        self.assertEqual(restored["speedometer"], {"max_kmh": 600, "max_mph": 400})
         app._load_car.assert_called_once_with(0)
+
+    def test_default_reset_replaces_single_speed_and_high_rpm_profiles(self):
+        for index, car in enumerate(self.model.config["cars"]):
+            realistic = editor.factory.apply_preset(car)
+            restored = editor.defaults.apply_preset(realistic)
+            self.assertEqual(restored["physics"], car["physics"])
+            self.assertEqual(set(restored["physics"]), {"Mass", "TorqueScale"})
+            self.assertNotIn("engine_profile", restored)
+            self.model.replace_car(index, restored)
+        self.assertEqual(editor.factory.factory_physics_settings(self.model.config).count(b"\n"), 1)
+
+    def test_default_reset_does_not_read_previously_saved_custom_tuning_as_a_preset(self):
+        self.model.config["cars"][0]["physics"] = {"Mass": 1800, "TorqueScale": 1900}
+        self.model.save()
+        # On a fresh checkout, Workshop can save directly to cars.json. Its
+        # edits must not become the target of Restore default driving.
+        folder = Path(self.temp.name)
+        (folder / "cars.json").write_text(json.dumps(self.model.config), encoding="utf-8")
+        with patch.object(editor, "HERE", folder):
+            self.model.restore_default_driving(0)
+        self.assertEqual(self.model.config["cars"][0]["physics"], {"Mass": 1145, "TorqueScale": 380})
 
     def test_specifications_tab_can_be_selected_on_launch(self):
         self.assertEqual(editor.parse_args([]).tab, "specs")

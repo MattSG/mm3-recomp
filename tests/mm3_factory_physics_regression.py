@@ -1,5 +1,6 @@
 """Compile the production factory hooks against a bounded guest/ABI fixture."""
 from pathlib import Path
+import json
 import shutil
 import sys
 import re
@@ -69,12 +70,20 @@ def main():
         (folder / "production_wheel_path.inc").write_text(native_wheel_path())
         data = folder / "game_files/Data"
         data.mkdir(parents=True)
-        (data / "mm3_factory_physics.ini").write_text(
-            "# Only explicit factory profiles are emitted by prepare.py\n"
-            "Viper 18000 .33 2 0 1 19000 .8\n"  # Retail identity must be ignored.
-            "Form1 18000 .33 4 0 .2 14000 1 18000 .9 19000 .8\n")
+        if "--defaults" in sys.argv:
+            sys.path.insert(0, str(ROOT / "tools/car-mods"))
+            from factory_specs import factory_physics_settings
+            config = json.loads((ROOT / "tools/car-mods/cars.json").read_text())
+            (data / "mm3_factory_physics.ini").write_bytes(factory_physics_settings(config))
+        else:
+            (data / "mm3_factory_physics.ini").write_text(
+                "# Only explicit factory profiles are emitted by prepare.py\n"
+                "Viper 18000 .33 2 0 1 19000 .8\n"  # Retail identity must be ignored.
+                "Form1 18000 .33 4 0 .2 14000 1 18000 .9 19000 .8\n")
         executable = folder / "contract.exe"
         mode = ["/O2", "/DMM3_FACTORY_WINDOWS_MAPPING"] if "--windows-mapping" in sys.argv else ["/Od"]
+        if "--defaults" in sys.argv:
+            mode.append("/DMM3_FACTORY_DEFAULTS")
         subprocess.run(["cl", "/nologo", "/W3", "/WX", "/wd4102", *mode, "/std:c11",
                         "/I" + str(folder), "/I" + str(ROOT / "tools/xboxrecomp/include"),
                         str(ROOT / "tests/mm3_factory_physics_contract.c"),

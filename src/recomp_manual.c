@@ -971,34 +971,148 @@ void recomp_icall_fail_log(uint32_t xbox_va)
             xbox_va, caller);
 }
 
+/* Diagnostics must not dereference a corrupt guest object while reporting it.
+ * The code image is stable, but heap/stack pointers may refer to freed pages. */
+static int mm3_icall_read(uint32_t va, void *out, size_t size)
+{
+    uintptr_t address, end, cursor;
+    SIZE_T copied = 0;
+    if (!size || size > 128 || va < 0x10000u ||
+        va >= 0x08000000u || size > 0x08000000u - va) return 0;
+    address = XBOX_PTR(va);
+    end = address + size;
+    if (end < address) return 0;
+    for (cursor = address; cursor < end;) {
+        MEMORY_BASIC_INFORMATION info;
+        uintptr_t next;
+        if (!VirtualQuery((void *)cursor, &info, sizeof info) ||
+            info.State != MEM_COMMIT || (info.Protect & (PAGE_NOACCESS | PAGE_GUARD)))
+            return 0;
+        next = (uintptr_t)info.BaseAddress + info.RegionSize;
+        if (next <= cursor) return 0;
+        cursor = next;
+    }
+    /* A concurrent guest free can invalidate a page after VirtualQuery.
+     * ReadProcessMemory reports that race instead of faulting in diagnostics. */
+    return ReadProcessMemory(GetCurrentProcess(), (const void *)address, out,
+                             size, &copied) && copied == size;
+}
+
+/* Decode the original near indirect CALL ending at its return address. A
+ * target-value scan cannot identify a null vtable slot: every zero in the
+ * unrelated startup callback table matches it. The common FF /2 addressing
+ * forms below include register, absolute, displacement and SIB operands.
+ * ESP at operand evaluation precedes the pushed return address by four bytes. */
+static unsigned mm3_icall_decode(uint32_t caller, uint32_t target,
+                                 uint32_t *slot, unsigned *base)
+{
+    uint32_t regs[8] = {g_eax, g_ecx, g_edx, g_ebx, g_esp + 4u,
+                        g_ebp, g_esi, g_edi};
+    unsigned length;
+    *slot = 0; *base = 9;
+    if (caller < g_xbox_code_lo + 2u || caller > g_xbox_code_hi) return 0;
+    for (length = 7; length >= 2; --length) {
+        unsigned char bytes[7];
+        unsigned mod, rm, used = 2, reg;
+        uint32_t address = 0, observed;
+        int32_t displacement = 0;
+        if (caller - g_xbox_code_lo < length ||
+            !mm3_icall_read(caller - length, bytes, length) || bytes[0] != 0xFF ||
+            ((bytes[1] >> 3) & 7u) != 2u) continue;
+        mod = bytes[1] >> 6; rm = bytes[1] & 7u;
+        if (mod == 3) {
+            if (length == 2 && regs[rm] == target) { *base = rm; return 2; }
+            continue;
+        }
+        reg = rm;
+        if (rm == 4) {
+            unsigned sib, index;
+            if (used == length) continue;
+            sib = bytes[used++]; reg = sib & 7u; index = (sib >> 3) & 7u;
+            if (index != 4) address = regs[index] << (sib >> 6);
+        }
+        if (mod == 0 && reg == 5) {
+            reg = 8; /* Absolute addressing, including a SIB without a base. */
+        } else {
+            address += regs[reg];
+        }
+        if (mod == 1) {
+            if (used + 1 != length) continue;
+            displacement = (int8_t)bytes[used++];
+        } else if (mod == 2 || reg == 8) {
+            if (used + 4 != length) continue;
+            memcpy(&displacement, bytes + used, 4); used += 4;
+        }
+        if (used != length) continue;
+        address += (uint32_t)displacement;
+        if (mm3_icall_read(address, &observed, 4) && observed != target) continue;
+        *slot = address; *base = reg;
+        return 1;
+    }
+    return 0;
+}
+
 void recomp_icall_not_code_log(uint32_t xbox_va)
 {
     static volatile LONG printed;
+    static volatile LONG sequence;
     uint32_t caller = 0;
     uint32_t slot = 0;
-    /* An optional null callback is encountered on every frame. Once the
-     * bounded diagnostic is complete, avoid both stderr and the slot scan. */
+    uint32_t slot_value = 0, object_words[8] = {0};
+    uint32_t stack_words[16] = {0}, frame_words[16] = {0};
+    uint32_t frame = g_ebp >= 0x10020u ? g_ebp - 0x20u : 0;
+    unsigned base = 9, kind, slot_read, object_read, stack_read, frame_read, sample;
+    unsigned long long tick;
+    static const char *const names[] = {
+        "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi", "absolute", "unknown"};
+    /* Broken callbacks can recur every frame. Keep a bounded diagnostic,
+     * with no decoding, pointer reads or synchronous I/O after the limit. */
     if (!g_mm3_frontend_icall_trace &&
         (printed >= 50 || InterlockedIncrement(&printed) > 50))
         return;
-    for (uint32_t va = 0x00392834u; va < 0x00392848u; va += 4) {
-        if (MEM32(va) == xbox_va) {
-            slot = va;
-            break;
-        }
+    sample = (unsigned)InterlockedIncrement(&sequence);
+    tick = (unsigned long long)GetTickCount64();
+    mm3_icall_read(g_esp, &caller, 4);
+    kind = mm3_icall_decode(caller, xbox_va, &slot, &base);
+    slot_read = kind == 1 && mm3_icall_read(slot, &slot_value, 4);
+    object_read = mm3_icall_read(g_ecx, object_words, sizeof object_words);
+    stack_read = mm3_icall_read(g_esp, stack_words, sizeof stack_words);
+    frame_read = mm3_icall_read(frame, frame_words, sizeof frame_words);
+    fprintf(stderr, "[ICALL] non-code target 0x%08X slot=0x%08X caller=0x%08X esp=0x%08X"
+            " kind=%s base=%s slot_read=%u slot_value=%08X"
+            " eax=%08X ecx=%08X edx=%08X esi=%08X edi=%08X object_read=%u"
+            " object_words=%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X"
+            " sample=%u tick_ms=%llu\n",
+            xbox_va, slot, caller, g_esp,
+            kind == 1 ? "memory" : kind == 2 ? "register" : "unknown", names[base],
+            slot_read, slot_value, g_eax, g_ecx, g_edx, g_esi, g_edi, object_read,
+            object_words[0], object_words[1], object_words[2], object_words[3],
+            object_words[4], object_words[5], object_words[6], object_words[7], sample, tick);
+    fprintf(stderr, "[ICALL_STATE] sample=%u tick_ms=%llu ebx=%08X ebp=%08X seh_ebp=%08X df=%d"
+            " stack_base=%08X stack_read=%u stack_words=", sample, tick,
+            g_ebx, g_ebp, g_seh_ebp, g_df, g_esp, stack_read);
+    for (unsigned i = 0; i < 16; ++i)
+        fprintf(stderr, "%s%08X", i ? "," : "", stack_words[i]);
+    fprintf(stderr, " frame_base=%08X frame_read=%u frame_words=", frame, frame_read);
+    for (unsigned i = 0; i < 16; ++i)
+        fprintf(stderr, "%s%08X", i ? "," : "", frame_words[i]);
+    fprintf(stderr, "\n");
+    if (caller == 0x0035D048u) {
+        uint32_t request = stack_read ? stack_words[1] : g_eax;
+        uint32_t words[16] = {0};
+        unsigned readable = mm3_icall_read(request, words, sizeof words);
+        /* This XPP call uses ECX as a callback, not a this pointer. Capture
+         * the actual USB request passed as argument one, separately from
+         * the callback target's bytes, to diagnose late or reused requests. */
+        fprintf(stderr, "[ICALL_REQUEST] sample=%u tick_ms=%llu request=%08X source=%s"
+                " request_read=%u size=%u kind=%u status=%08X callback=%08X context=%08X"
+                " request_words=", sample, tick, request, stack_read ? "stack_arg" : "eax",
+                readable, words[0] & 0xFFu, (words[0] >> 8) & 0xFFu,
+                words[1], words[2], words[3]);
+        for (unsigned i = 0; i < 16; ++i)
+            fprintf(stderr, "%s%08X", i ? "," : "", words[i]);
+        fprintf(stderr, "\n");
     }
-    if (slot == 0) {
-        for (uint32_t va = 0x00391F10u; va < 0x00392830u; va += 4) {
-            if (MEM32(va) == xbox_va) {
-                slot = va;
-                break;
-            }
-        }
-    }
-    if (g_esp >= 0x00010000u && g_esp < 0x04000000u)
-        caller = MEM32(g_esp);
-    fprintf(stderr, "[ICALL] non-code target 0x%08X slot=0x%08X caller=0x%08X esp=0x%08X\n",
-            xbox_va, slot, caller, g_esp);
     if (g_mm3_frontend_icall_trace &&
         (caller == 0x0011FB9Cu || caller == 0x000FB05Eu)) {
         static unsigned samples;
@@ -1008,15 +1122,17 @@ void recomp_icall_not_code_log(uint32_t xbox_va)
             uint32_t pointers[] = {g_eax, g_ecx, g_esi, g_edi};
             for (unsigned i = 0; i < 4; ++i) {
                 uint32_t p = pointers[i];
-                if (p >= 0x10000u && p < 0x04000000u - 0x80u) {
+                uint32_t words[32];
+                if (mm3_icall_read(p, words, sizeof words)) {
                     fprintf(stderr, "[FRONTEND_ICALL] object %08X:", p);
                     for (unsigned j = 0; j < 32; ++j)
-                        fprintf(stderr, " %08X", MEM32(p + 4u * j));
+                        fprintf(stderr, " %08X", words[j]);
                     fprintf(stderr, "\n");
                 }
             }
         }
     }
+    fflush(stderr);
 }
 
 /* Project override for the one startup allocator entry whose generated FPO

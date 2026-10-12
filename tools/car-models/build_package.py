@@ -15,6 +15,7 @@ import numpy as np
 from PIL import Image
 
 import mm3_model
+import mm3_lights
 import mm3_textures
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -127,6 +128,7 @@ def build(source_path: Path, output: Path, car_id: int, *, y_offset=None,
     averaged_faces = average_minified_repeats(source, meshes, source_dir) if average_minified else []
     used = sorted({int(tri[3]) for mesh in meshes for tri in mesh['triangles']})
     native_materials, mapping, textures, unique = [], {}, [], {}
+    material_shading = {}
     constant_materials = set()
     for source_id in used:
         material = source['materials'][source_id]
@@ -140,7 +142,10 @@ def build(source_path: Path, output: Path, car_id: int, *, y_offset=None,
                     constant_materials.add(source_id)
         else:
             constant_materials.add(source_id)
-        signature = (texture, tuple(material.get('diffuse', (1, 1, 1, 1))))
+        shading = mm3_model.source_material_shading(material)
+        # Equal textures can have different authored gloss (Senna/Regera).
+        # Keep distinct slots so reflective trim does not make matte trim shiny.
+        signature = (texture, tuple(material.get('diffuse', (1, 1, 1, 1))), shading)
         if signature in unique:
             mapping[source_id] = unique[signature]
             continue
@@ -148,6 +153,7 @@ def build(source_path: Path, output: Path, car_id: int, *, y_offset=None,
         if slot >= 23:
             raise ValueError('Exterior needs more than 23 materials; merge materials before building')
         unique[signature] = mapping[source_id] = slot
+        material_shading[slot] = shading
         record = dict(material)
         if texture:
             texture_path = (source_dir / texture).resolve()
@@ -171,6 +177,7 @@ def build(source_path: Path, output: Path, car_id: int, *, y_offset=None,
         y_offset = alignment_offset(near_template, source)
     transform = np.eye(4)
     transform[1, 3] = y_offset
+    light_anchors, light_evidence = mm3_lights.source_anchors(source)
     output.mkdir(parents=True, exist_ok=True)
     files, reports = [], {}
 
@@ -186,7 +193,9 @@ def build(source_path: Path, output: Path, car_id: int, *, y_offset=None,
         blob, report = mm3_model.convert_exterior(template, source,
             material_map=mapping, body_names=body_names,
             source_transform=transform, flip_winding=True, keep_interior=False,
-            specular=(255, 0, 0, 0))
+            material_shading=material_shading)
+        blob, report['lights'] = mm3_lights.align_lights(blob, light_anchors,
+                                                           source_transform=transform)
         asset('loose', f'Data/Shared/Cars/{alias}{suffix}/body.cmp', blob)
         reports[suffix or 'near'] = report
         material_blob = mm3_model.write_omb(native_materials)
@@ -216,7 +225,9 @@ def build(source_path: Path, output: Path, car_id: int, *, y_offset=None,
     (output / 'package.json').write_text(json.dumps(package, indent=2) + '\n', encoding='utf-8')
     report = dict(car=name, source=str(source_path.resolve()), material_map=mapping,
                   native_materials=len(native_materials), textures=len(textures),
+                  material_shading=material_shading,
                   y_offset=y_offset, alignment=alignment, body_names=body_names,
+                  light_anchors=light_anchors, light_alignment=light_evidence,
                   constant_uv_materials=sorted(constant_materials), constant_uv_faces=collapsed_faces,
                   averaged_minified_faces=averaged_faces,
                   opaque_glass=True, donor_exterior_cockpit=False, models=reports)

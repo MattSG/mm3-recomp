@@ -3,7 +3,7 @@
 ## GitHub push identity
 
 Always use the GitHub account `lakshya16157` when pushing this repository.
-Push to `origin` (`https://github.com/lakshya16157/mm3-recomp.git`). Keep the
+Push to `origin` (`https://github.com/lakshya16157/midtown-madness-3-on-pc-improved-and-modded.git`). Keep the
 Git author name and GitHub credential username set to `lakshya16157` in this
 repository's local Git configuration; do not change global settings. Verify
 the selected account before pushing, and do not fall back to another account.

@@ -1,0 +1,33 @@
+# The tree correction changes only the high-speed hop decision. In particular,
+# the final flag-2 native sound gate and all collision effects remain intact.
+function(mm3_add_tree_contacts source_variable)
+    set(content "${${source_variable}}")
+    set(original [=[loc_001D1547: ;
+    _fa = (uint32_t)(MEM8(ecx + 0x100)) & 0xFFu; _fb = (uint32_t)(2) & 0xFFu;]=])
+    set(replacement [=[loc_001D1547: ;
+    if (mm3_tree_use_solid_contact(ecx)) goto loc_001D1723;
+    _fa = (uint32_t)(MEM8(ecx + 0x100)) & 0xFFu; _fb = (uint32_t)(2) & 0xFFu;]=])
+    string(FIND "${content}" "\r\n" crlf)
+    if(NOT crlf LESS 0)
+        string(REPLACE "\n" "\r\n" original "${original}")
+        string(REPLACE "\n" "\r\n" replacement "${replacement}")
+    endif()
+    string(FIND "${content}" "${original}" position)
+    string(FIND "${content}" "mm3_tree_use_solid_contact" already)
+    if(position LESS 0 OR NOT already LESS 0)
+        message(FATAL_ERROR "MM3 tree contact: original hop boundary changed or already patched")
+    endif()
+    string(LENGTH "${original}" length)
+    math(EXPR after "${position} + ${length}")
+    string(SUBSTRING "${content}" ${after} -1 tail)
+    string(FIND "${tail}" "${original}" duplicate)
+    if(NOT duplicate LESS 0)
+        message(FATAL_ERROR "MM3 tree contact: duplicate hop boundary")
+    endif()
+    string(REPLACE "${original}" "${replacement}" content "${content}")
+    set(declaration "#include <stdint.h>\nextern int mm3_tree_use_solid_contact(uint32_t);\n")
+    if(NOT crlf LESS 0)
+        string(REPLACE "\n" "\r\n" declaration "${declaration}")
+    endif()
+    set(${source_variable} "${declaration}${content}" PARENT_SCOPE)
+endfunction()

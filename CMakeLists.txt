@@ -67,10 +67,18 @@ endif()
 # Render distance renames definitions only: renaming every reference with a
 # compile definition would bypass the hooks for callers in the same chunk.
 set(MM3_DISTANCE_FUNCTIONS sub_000D9E2E sub_000E2D5B sub_000F4AC3 sub_000FE71E
-    sub_001661D0 sub_002256C7 sub_002203E5 sub_0022F298)
+    sub_001661D0 sub_001633B7 sub_002256C7 sub_002203E5 sub_0022F298)
 set(MM3_DEFINITION_ONLY_FUNCTIONS ${MM3_DISTANCE_FUNCTIONS})
+# Building diagnostics keep same-chunk calls routed through opt-in wrappers.
+set(MM3_BUILDING_FUNCTIONS sub_00168A77 sub_001C7B15 sub_001A67BA sub_00166E01
+    sub_001681FB sub_00167DA5 sub_00166B3E sub_00162F75)
+list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS ${MM3_BUILDING_FUNCTIONS})
+# Use native solid tree contacts and bounded original object/effect diagnostics.
+list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0016AEDB sub_000E1F49 sub_001D137B)
 # Preserve same-chunk near-camera calls to the chase-distance adjustment.
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001EEC53)
+# Cache map texture ownership at native load/reconfiguration/destruction boundaries.
+list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0011C742 sub_0011CAAC sub_0007CEC3)
 # Keep same-chunk calls directed to the recovered x87 helper definitions.
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0009BC04 sub_0009BC35 sub_0009BC52)
 # Preserve same-chunk locale calls to the custom vehicle-name extension.
@@ -95,6 +103,11 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/scripts/mm3_dma_publish_seam.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/scripts/mm3_collision_call_seam.cmake")
 list(APPEND MM3_SEAM_FUNCTIONS sub_0023F09B)
 include("${CMAKE_CURRENT_SOURCE_DIR}/scripts/mm3_speedometer_seam.cmake")
+list(APPEND MM3_SEAM_FUNCTIONS sub_0011CA25 sub_0011D1E8 sub_0011D808)
+include("${CMAKE_CURRENT_SOURCE_DIR}/scripts/mm3_map_zoom_seam.cmake")
+list(APPEND MM3_SEAM_FUNCTIONS sub_00201BCA sub_0011CAE8 sub_0020C9F9 sub_00120091)
+include("${CMAKE_CURRENT_SOURCE_DIR}/scripts/mm3_race_guidance_seam.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/scripts/mm3_tree_contact_seam.cmake")
 if(MM3_NATIVE_FENCE_WAIT)
     list(APPEND MM3_SEAM_FUNCTIONS sub_00344640)
     include("${CMAKE_CURRENT_SOURCE_DIR}/scripts/mm3_fence_wait_seam.cmake")
@@ -189,6 +202,19 @@ foreach(distance_input IN LISTS distance_owners)
     if(owner_sub_0023F09B STREQUAL distance_input)
         mm3_add_speedometer_readout(distance_content)
     endif()
+    foreach(map_owner sub_0011CA25 sub_0011D1E8 sub_0011D808)
+        if(owner_${map_owner} STREQUAL distance_input)
+            mm3_add_map_zoom(distance_content ${map_owner})
+        endif()
+    endforeach()
+    foreach(race_owner sub_00201BCA sub_0011CAE8 sub_0020C9F9 sub_00120091)
+        if(owner_${race_owner} STREQUAL distance_input)
+            mm3_add_race_guidance(distance_content ${race_owner})
+        endif()
+    endforeach()
+    if(owner_sub_001D137B STREQUAL distance_input)
+        mm3_add_tree_contacts(distance_content)
+    endif()
     file(CONFIGURE OUTPUT "${distance_output}" CONTENT "${distance_content}" @ONLY)
     foreach(distance_property COMPILE_DEFINITIONS COMPILE_OPTIONS)
         get_source_file_property(distance_value "${distance_input}" ${distance_property})
@@ -211,7 +237,12 @@ add_executable(${PROJECT_NAME}
  src/mm3_stream_compat.c
  src/recomp_manual.c
  src/mm3_widescreen.c
+ src/mm3_map_zoom.c
+ src/mm3_race_guidance.c
  src/mm3_render_distance.c
+ src/mm3_facade_capacity.c
+ src/mm3_building_diagnostics.c
+ src/mm3_tree_diagnostics.c
  src/mm3_visibility.c
  src/mm3_debug_teleport.c
  src/mm3_custom_car_names.c
