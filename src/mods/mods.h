@@ -3,9 +3,9 @@
 
 /* Every change this project makes to how MM3 plays or looks is a mod: one
  * entry here, switched by its environment variable ("1" on, "0" off, unset:
- * the default). The launcher's Mods tab lists them; every one can be
- * switched off, some at the cost of the game no longer running.
- * The translation corrections (src/mm3_*.c, recomp_manual.c) are one mod. */
+ * the default; required ones are always on). The launcher's Mods tab lists
+ * them, except the translation corrections (src/mm3_*.c, recomp_manual.c),
+ * a developer switch. */
 
 #ifdef __cplusplus
 extern "C" {

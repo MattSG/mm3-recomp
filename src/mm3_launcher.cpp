@@ -26,7 +26,7 @@ struct Option {
 
 /* A key for a pad input (RECOMP_KEYMAP, defaults from
  * tools/xboxrecomp/src/input/xinput_device.c) or a developer hotkey
- * (MM3_DEV_HOTKEYS, src/mm3_debug_features.c). name is its name there. */
+ * (MM3_DEV_HOTKEYS, src/mods/dev_tools.c). name is its name there. */
 struct Bind {
     Rml::String header, label, name;
     int def, vk;
@@ -285,10 +285,13 @@ bool valid(const Option &o, const Rml::String &v)
     return false;
 }
 
-/* The Mods tab: one switch per entry of src/mods/mods.c. */
+/* The Mods tab: one switch per entry of src/mods/mods.c. The translation
+ * corrections are for developers: MM3_MOD_TRANSLATION=0 only. */
 void add_mod_options()
 {
     for (int i = 0; i < MM3_MOD_COUNT; i++) {
+        if (i == MM3_MOD_TRANSLATION)
+            continue;
         Option o;
         o.header = i ? "" : "Changes to the original game";
         o.label = mm3_mods[i].name;

@@ -15,7 +15,7 @@ const Mm3Mod mm3_mods[MM3_MOD_COUNT] = {
     [MM3_MOD_MENU_MOUSE] = {"menu_mouse", "MM3_MOD_MENU_MOUSE", "Menu mouse",
         "Pointing at a menu item selects it, a click confirms. Works with menu keys on (Controls).", 1},
     [MM3_MOD_DEV_TOOLS] = {"dev_tools", "MM3_MOD_DEV_TOOLS", "Developer tools",
-        "The retail developer HUD, debug menu and cameras (Settings, Controls hotkeys). Needs tools\\debug-features\\prepare.py.", 1},
+        "The retail developer HUD, debug menu and cameras (Settings, Controls hotkeys). Needs tools\\debug-features\\prepare.py.", 0},
     [MM3_MOD_TELEPORT] = {"teleport", "MM3_DEBUG_TELEPORT", "Teleport debugger",
         "A live car position panel and teleport by coordinates. See DEBUG_TELEPORT.md.", 0},
     [MM3_MOD_OFFLINE] = {"offline", "MM3_MOD_OFFLINE", "Offline network",

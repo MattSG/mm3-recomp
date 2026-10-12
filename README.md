@@ -76,8 +76,7 @@ F11 or Alt+Enter toggles fullscreen. The window size sets the internal resolutio
 
 Every change this project makes to how the game plays or looks is a mod, listed in
 `src/mods/mods.c` and on the launcher's Mods tab. Each has an environment variable: `1` on,
-`0` off, unset for its default. Every mod can be switched off. Corrections to the translation itself (`src/mm3_*.c`, `recomp_manual.c`) reproduce the
-original game exactly and are not changes to it. The runtime (`tools/xboxrecomp`) holds no MM3
+`0` off, unset for its default. The collision guard and disc check are always on. The runtime (`tools/xboxrecomp`) holds no MM3
 rules; mods supply them through its hooks (overlay placement, menu pointer, B-spline blend).
 
 | Mod | Variable | Default | Effect |
@@ -86,11 +85,11 @@ rules; mods supply them through its hooks (overlay placement, menu pointer, B-sp
 | Extended draw distance | `MM3_MOD_DRAW_DISTANCE` | on | `RECOMP_DRAW_DISTANCE` / `RECOMP_VIEW_DISTANCE` below apply. Off: Xbox distances. |
 | Smooth skyline | `MM3_MOD_SKY` | on | The horizon panorama sampled with a B-spline instead of bilinear. |
 | Menu mouse | `MM3_MOD_MENU_MOUSE` | on | With `RECOMP_MENU_KEYS`, pointing at a menu item selects it. |
-| Developer tools | `MM3_MOD_DEV_TOOLS` | on | The `MM3_DEV_*` options and hotkeys below. |
+| Developer tools | `MM3_MOD_DEV_TOOLS` | off | The `MM3_DEV_*` options and hotkeys below. |
 | Teleport debugger | `MM3_DEBUG_TELEPORT` | off | See `DEBUG_TELEPORT.md`. |
 | Offline network | `MM3_MOD_OFFLINE` | on | The frontend stops waiting for Xbox Live readiness (`src/mods/offline.c`). Off: about 9 s slower startup. |
 | Collision cell guard | — | always | Repairs out-of-range face indices in a Paris collision cell (`src/mods/collision_fix.c`); without it the game can freeze or drop the car through the road. |
-| Translation corrections | `MM3_MOD_TRANSLATION` | on | Hand-written fixes that make the generated code match the original (`src/mm3_*.c`, `recomp_manual.c`). Off: generated bodies run unwrapped where they exist. |
+| Translation corrections | `MM3_MOD_TRANSLATION` | on | Hand-written fixes that make the generated code match the original (`src/mm3_*.c`, `recomp_manual.c`). Off: generated bodies run unwrapped where they exist. Not on the launcher: a developer switch. |
 | Disc check bypass | — | always | The media check is patched at setup (`scripts/extract_disc.py`). |
 
 ### Options
@@ -189,3 +188,5 @@ Off unless set; for debugging the runtime, not for play. See the source named fo
 CMake options default to a clean build. `MM3_FRONTEND_WATCH`, `MM3_MOVIE_INPUT_TRACE`,
 `MM3_TRACY` and `MM3_RECOMP_ABI_CHECK` add diagnostics that cost performance (the first
 roughly halves menu frame rate); leave them off for play.
+
+Third-party licences: `THIRD_PARTY.md`.
