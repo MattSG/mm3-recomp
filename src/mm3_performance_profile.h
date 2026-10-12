@@ -27,8 +27,8 @@ static inline int mm3_profile_name_equal(const char *value, const char *name)
 
 static inline const MM3PerformanceProfile *mm3_performance_profile(const char *name)
 {
-    static const MM3PerformanceProfile balanced = {"Balanced", "2.0", "2", "2", "16", "60"};
-    static const MM3PerformanceProfile quality = {"Quality", "3.0", "4", "2", "16", "60"};
+    static const MM3PerformanceProfile balanced = {"Balanced", "2.0", "4", "2", "16", "60"};
+    static const MM3PerformanceProfile quality = {"Quality", "3.0", "8", "2", "16", "60"};
     static const MM3PerformanceProfile low_power = {"LowPower", "1.5", "1", "1", "16", "30"};
     if (mm3_profile_name_equal(name, quality.name)) return &quality;
     if (mm3_profile_name_equal(name, low_power.name)) return &low_power;

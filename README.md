@@ -58,6 +58,17 @@ reference workflow uses a bare XDVDFS XISO rather than a two-part redump image.
   converter builds closed body and animated-wheel shadow proxies. Widescreen
   pause menus keep button caps, labels and controller prompts joined in one layout.
   Race maps and their checkpoint icons share one placement while expanding or turning.
+  Yellow race guidance follows the cities' road curves and junctions, and updates
+  the path to the next checkpoint as the car moves.
+  The top HUD direction arrows and numeric speed readout are hidden; the
+  analog speedometer, minimap, route and checkpoint markers remain available.
+  Cubic B-spline sampling smooths the distant skyline, and corrected frame/depth
+  alignment removes the sampling offsets that caused bright silhouette rims
+  and uncovered top/left frame strips.
+  Native GPU coverage for these changes lives in
+  `tools/xboxrecomp/tests/nv2a_graphics_quality`: independent cubic RGBA samples,
+  panorama selection exclusions, packed depth at four scales with/without MSAA,
+  and actual vertex output for display/menu/offscreen placement.
   Balanced renders
   at 1536×960 and Quality at 2304×1440, both at 16:10, with
   configurable aspect, resolution, MSAA, anisotropic filtering and draw distance.
@@ -77,7 +88,7 @@ reference workflow uses a bare XDVDFS XISO rather than a two-part redump image.
   and a **Restore default driving** action. The presets retain the stock donor
   engine, gearbox and handling, adjusting only weight and power. Each extra
   car has its own HUD/interior speedometer
-  range; sport and Koenigsegg HUDs also show numeric speed.
+  range, with analog HUD gauges.
 
 The detailed settings and runtime notes below describe these changes and their
 limits. See the [car-pack guide](tools/car-mods/README.md) for further tuning examples.
@@ -109,10 +120,10 @@ source locations, dependencies, integration steps and acceptance tests.
 | [Collision-cell bounds](https://github.com/MattSG/mm3-recomp/commit/9ad1762): freezes, crashes and falling through roads | Missing | No grid/index sanitizer around `sub_0015A929`. Our collision-call stack repair fixes a separate fault. |
 | [Two unresolved functions](https://github.com/MattSG/mm3-recomp/commit/c91d8f1): corrupted guest registers | Partial | The graph epilogue at `0x144ED9` is repaired. The camera-related setter at `0x2534FF` is still an unresolved stub referenced by six generated thunk-tail sites. Direct unresolved-stub reporting is also absent. |
 | [Bounded push-buffer run-ahead](https://github.com/MattSG/mm3-recomp/commit/fdc33ea): one-frame dark/tunnel-lighting flicker | Missing | Our WBC flush only uses `_mm_sfence()`; it lacks upstream's 256 KiB producer-distance bound. Native command/fence waits do not implement that bound. |
-| [White rims on silhouettes](https://github.com/MattSG/xboxrecomp/commit/d62ae29) | Missing | The renderer still uses the unconditional pixel-zero snap and old Y16 depth taps. |
-| [Bright top/left frame strip](https://github.com/MattSG/xboxrecomp/commit/4d9d178) | Missing | The new edge-placement shader inputs and logic are absent. |
+| [White rims on silhouettes](https://github.com/MattSG/xboxrecomp/commit/d62ae29) | Implemented after this audit | Display passes use aligned translation; Y16 depth taps compensate their quarter-pixel offset. |
+| [Bright top/left frame strip](https://github.com/MattSG/xboxrecomp/commit/4d9d178) | Implemented after this audit | Display-sized passes remove the Xbox screen offset while offscreen targets retain pixel-zero snapping. |
 | [Extended-distance haze](https://github.com/MattSG/xboxrecomp/commit/d448358) and [distant-tree fade](https://github.com/MattSG/xboxrecomp/commit/060122c) | Missing | The old linear depth remap remains. There is no post-haze foliage coverage fade or final ordered coverage pattern that removes the earlier visible white flicker at default supersampling. |
-| [Smooth horizon panorama](https://github.com/MattSG/xboxrecomp/commit/0e63cf0) | Missing | Skyline sampling is still bilinear; upstream adds B-spline sampling. |
+| [Smooth horizon panorama](https://github.com/MattSG/xboxrecomp/commit/0e63cf0) | Implemented after this audit | Four bilinear taps reconstruct the skyline with cubic B-spline weights; MM3 opts in its panorama blend and texture signature. |
 | [Reset fade keeps the damage bar on the gauge](https://github.com/MattSG/xboxrecomp/commit/76192ee) | Missing | The HUD-texture exclusion and fullscreen-fade grouping correction are absent. |
 | [Pause/post-race button caps remain joined](https://github.com/MattSG/xboxrecomp/commit/7367dca) | Partial | Our pause-state callback preserves the pause layout. Upstream also detects missing minimap/start rectangles across current and previous frames; equivalent post-race coverage is not established here. |
 | [Audio queue cushion](https://github.com/MattSG/xboxrecomp/commit/9b9a37c) and [audio producer priority](https://github.com/MattSG/xboxrecomp/commit/a4c2800) | Missing | `apu_xaudio2.c` lacks the silent cushion, and `apu_core.c` lacks the new time-critical frame-thread priority. Our PCM queue optimization is a separate change. |
@@ -160,13 +171,19 @@ rebuilt locally from the supported disc rather than bundled in this repository.
   range; they do not add a new AI algorithm. This fork retains its 60 FPS cap
   and has not reproduced those higher-rate tests.
 
-Publication validation: the `RelWithDebInfo` game build passes, along with 126
+Earlier publication validation: the `RelWithDebInfo` game build passes, along with 126
 Python tests (two optional cases skipped), 25 standalone native regressions,
 four additional factory-physics/gearing variants and 195 CTest cases across 19
 suites. The runtime patch applies to a clean export of the pinned toolkit and
 reproduces all 96 modified or added runtime files after Git newline normalization.
 These checks verify the published changes; they do not establish that the
 missing upstream fixes above are unnecessary or that every gameplay bug is fixed.
+
+The subsequent visual upgrades pass four new native GPU cases and 38 existing
+renderer cases, plus HUD/map/menu and profile/launcher contracts. Their runtime
+patch reconstructs all 99 changed or added runtime files from the pinned
+toolkit, with fresh apply/reverse checks. The internal resolutions remain the
+same; the stronger MSAA settings have not been compared in a matched performance run.
 
 ## Building from a fresh clone
 
@@ -349,13 +366,15 @@ pwsh scripts\play.ps1 -Profile LowPower
 
 | Profile | Internal height | MSAA | Draw distance | FPS cap |
 |---|---|---|---|---|
-| Balanced (default) | 960 | 2× | 2× Xbox | 60 |
-| Quality | 1440 | 4× | 2× Xbox | 60 |
+| Balanced (default) | 960 | 4× | 2× Xbox | 60 |
+| Quality | 1440 | 8× | 2× Xbox | 60 |
 | LowPower | 720 | Off | Xbox | 30 |
 
 All three retain 16× anisotropic filtering. LowPower reduces resolution, edge
-smoothing and view distance and caps motion at 30 FPS. Quality restores the
-previous rendering settings. Direct executable launches use the same profiles
+smoothing and view distance and caps motion at 30 FPS. Balanced and Quality
+now increase edge and cutout smoothing without increasing their resolution.
+Unsupported MSAA counts fall back to the highest supported count.
+Direct executable launches use the same profiles
 through `MM3_PERFORMANCE_PROFILE=Balanced`, `Quality` or `LowPower`; unset or
 unrecognized values select Balanced. Individual `RECOMP_*` environment settings
 take priority. `-FpsLimit 45` selects a different cap when `RECOMP_FPS_LIMIT` is
@@ -365,7 +384,8 @@ Matched stationary runs on 2026-10-11 used a Ryzen 9 PRO 7940HS (8 cores,
 16 threads), an RTX 2000 Ada Generation Laptop GPU with 8 GB VRAM (8,188 MiB
 reported by `nvidia-smi`), and 32 GB system RAM. Each profile used Senna GTR in
 Paris at the same position, about 132 draws per frame, and approximately 31.8
-seconds:
+seconds. These historical runs used the earlier Balanced 2× / Quality 4× MSAA
+defaults; they do not measure the current stronger MSAA settings:
 
 | Profile | Mean FPS | 99th-percentile frame interval | Process CPU | NVIDIA GPU | GPU power |
 |---|---|---|---|---|---|
@@ -410,10 +430,11 @@ Hold **Ctrl** to enlarge the race map; its checkpoint icons stay aligned with th
 Both map sizes smoothly show more road as speed rises above 20 km/h, reaching
 25% more visible distance at 120 km/h, then ease back as you slow down.
 Their initial framing stays stable as you approach checkpoints.
-Both map sizes draw the same ordered checkpoint course. The immediate target
-is strongest, the following target is less prominent, and the other checkpoint
-icons and world hoops are dimmed. Blitz courses stay open; checkpoint races
-include the closing lap segment.
+Both map sizes draw the ordered checkpoint course along actual streets with
+an amber path. The brighter leg updates from the car to the next checkpoint,
+including after a wrong turn. Passing checkpoints keeps the full course visible. Checkpoint
+icons and world hoops retain the game's original sizes, colors and pulsing.
+Blitz courses stay open; checkpoint races include the closing lap segment.
 Choose **Manual** transmission in car setup, then tap **R** to shift up and **F** to shift down
 (the default Xbox B/X gear controls). These aliases operate only while driving.
 Set `RECOMP_KEYBOARD_LAYOUT=legacy` to use only the original runtime bindings.
@@ -460,8 +481,8 @@ documents the verified Panoz, F1 GTR, Ferrari F2007, Ford GT, Senna, Senna GTR,
 FXX K, Regera and Aventador conversions. Downloaded models and generated packages
 are not distributed in this repository. Imported initial liveries remain fixed,
 glass is opaque, and interior, sounds and collision remain based on the donor.
-High-speed roadside tree impacts use solid collision and penetration correction,
-while retaining the trees' native impact sounds and effects.
+Roadside trees fall in the impact direction at or above 18 km/h, retaining
+native impact sounds and effects while clearing the struck tree's collision.
 Defaults retain the donor's engine curve, automatic shifting, gearbox and
 handling. Only mass and native torque scale are tuned for arcade driving.
 Manufacturer specifications remain available as references in Workshop.
@@ -573,7 +594,8 @@ power, actual top speed or the `TOPSPEED` menu rating. In the workshop, use
 **Original car speedometers…** to change original sport and Koenigsegg HUDs.
 Koenigsegg, Viper and Lotus default to 800 km/h / 500 mph. Their original physics
 and interior gauges stay unchanged. Blank original limits restore the retail HUD.
-Sport and Koenigsegg HUDs also show uncapped numeric speed below the dial.
+The numeric speed readout is hidden in every HUD layout; analog dials and
+their configured ranges remain active.
 
 The installer backs up affected game archives and reuses those originals when
 reapplying, so edits do not accumulate. It does not edit saved profiles. To
@@ -593,7 +615,7 @@ tools\venv\Scripts\python.exe tools\car-mods\prepare.py --restore
 | `RECOMP_APU_DSP_ACK` | unset | DSP acknowledgement address(es) the audio needs; use `0x80458810`. |
 | `RECOMP_KEYBOARD` | off | `1`: keyboard as a pad (arrows drive/navigate, Z X A S = A B X Y, Enter = Start, Backspace = Back; MM3 layout also maps Escape to B/menu back). |
 | `RECOMP_KEYBOARD_LAYOUT` | `mm3` | Arrow driving controls; `legacy` restores the original D-pad-only arrows and 1/3 trigger keys. |
-| `MM3_PERFORMANCE_PROFILE` | `Balanced` | Shared rendering defaults for launcher and direct executable; `Quality` restores the previous settings, `LowPower` uses 720 lines and a 30 FPS cap. Individual settings override it. |
+| `MM3_PERFORMANCE_PROFILE` | `Balanced` | Shared rendering defaults for launcher and direct executable; `Quality` uses 1440 lines and 8× MSAA, `LowPower` uses 720 lines and a 30 FPS cap. Individual settings override it. |
 | `RECOMP_FPS_LIMIT` | profile: `60` or `30` | Presentation and emulated-vblank cap, 1–60. Uncapped, invalid, or higher values use 60. |
 | `RECOMP_VSYNC` | `0` | Present sync interval passed to DXGI. |
 | `RECOMP_FULLSCREEN` | off | Start fullscreen. |
@@ -602,7 +624,7 @@ tools\venv\Scripts\python.exe tools\car-mods\prepare.py --restore
 | `MM3_FOV_DEGREES` | unset | Driving horizontal FOV at the display aspect, 60–110 degrees; unset or invalid values retain the existing widescreen FOV. Set with `scripts\play.ps1 -Fov 100`. |
 | `RECOMP_SUPERSAMPLE` | `2` | In auto resolution mode, render N×N pixels per window pixel (1–4). |
 | `RECOMP_RENDER_SCALE` | profile: `2.0` | Internal height as a multiple of 480 lines (0.5–8): Balanced 960, Quality 1440, LowPower 720; `2.25` = 1080. `auto` follows the window and uses supersampling. |
-| `RECOMP_MSAA` | profile: `2` | MSAA sample count (1/2/4/8); 1 disables it. Quality uses 4; LowPower uses 1. |
+| `RECOMP_MSAA` | profile: `4` | MSAA sample count (1/2/4/8); 1 disables it. Quality uses 8; LowPower uses 1. Unsupported counts fall back. |
 | `RECOMP_ANISO` | `16` | Anisotropic filtering (1–16). |
 | `RECOMP_DRAW_DISTANCE` | profile: `2` | View/LOD distance multiplier (1 = Xbox, up to 4). LowPower uses 1. |
 | `MM3_PARTICLE_MAX_OVERDRAW` | `24` | Particle overlap budget at extended draw distances, 1–255. The Xbox distance retains its original budget of 12. |
@@ -992,24 +1014,58 @@ After entering `scripts/enter-env.ps1`, run
 `kernel-file-sharing` regression checks concurrent error provenance, malformed
 open requests, genuine absence and EOF.
 
+### Race map guidance
+
+The yellow route follows the native Paris and Washington street splines and
+their connected junctions. The brighter leg leads from the car's current road
+position to the next checkpoint and recalculates after moving four metres or
+changing checkpoints, including after a missed turn. Height helps distinguish
+bridges and roads below them. Checkpoint races keep their closing lap, while
+Blitz courses end at their final checkpoint.
+
+Road geometry is copied after native city loading and cleared on unload.
+Unavailable or disconnected paths are omitted. The line uses the same map
+projection, rotation, zoom and viewport clipping as the checkpoint markers.
+Drawing retains bends within a quarter pixel while combining straight samples,
+so expanded maps avoid a native draw submission for every six metres of road.
+After entering `scripts/enter-env.ps1`, run
+`python tests/mm3_race_guidance_regression.py` for routing, city-asset, native
+spline, projection and submission checks.
+
 ### Tree contact response
 
-High-speed tree contacts now use the original solid-contact and penetration
-correction path. The retail hop response added ten percent of vehicle speed
-upward while bypassing that solid contact, which could bounce the car through
-a trunk. Only a selected contact whose native LocalObject metadata identifies
-a tree takes the corrected branch. Authored flags, other roadside props,
-collision geometry, leaf effects and the final native impact-sound gate stay
-intact. This does not add destruction models to trees that lack them.
+Tree contacts use the original solid-contact and penetration correction path
+for the initial impact. At or above 18 km/h, native object removal clears the
+struck tree's collision and cached contacts in the striking car. Breaking it
+also removes a little forward car speed once (up to 8%, capped at 1.5 m/s),
+preserving the native lateral and vertical response. A render-only override
+keeps that instance's original model visible: it tips in the impact direction
+over 0.55–0.9 seconds depending on impact speed, slides 0.25–1.25 metres,
+settles after a small landing rebound, then sinks away between
+12 and 14 seconds. Slower contacts remain solid. Animation freezes in the pause
+menu; city changes, cell reloads and reused instances invalidate the effect.
+The retail upward-hop response is bypassed for trees. Native metadata identifies
+the selected tree contact; other roadside props retain their original response.
+Leaf effects and impact sounds still run. Falling uses the existing tree model
+and pivots at its base, so it also works without separate destruction assets.
+Falling instances use the full mesh throughout their lifetime: the native tree
+sprite ignores tilt and can otherwise leave an upright copy beside the fallen
+model during detail transitions. Other trees retain their normal detail levels.
 
-The build applies a checked seam at the first hop decision in `0x001D137B`;
+The build applies a checked seam at the selected-contact decision in `0x001D137B`;
 regeneration that changes or duplicates that boundary fails configuration.
 After entering `scripts/enter-env.ps1`, run
 `python tests/mm3_tree_contact_regression.py` for native/original-XBE contact
-comparisons and `python tests/mm3_tree_diagnostics_regression.py` for guarded
-trace contracts. `MM3_TREE_TRACE=1` adds bounded object-render, collision-event
-and corrected solid-contact reports. Solid-contact reports have their own
-budget so frequent rendering cannot hide a physical impact.
+and object-removal comparisons, and
+`python tests/mm3_tree_diagnostics_regression.py` for guarded trace contracts.
+`python tests/mm3_tree_fall_regression.py` checks speed-scaled directional falling,
+bounded travel with a grounded base, render-only visibility, matrix restoration
+and scene lifetime guards.
+It also executes the native renderer with both tree mesh queues and reproduces
+the upright sprite overlap as a negative control.
+`MM3_TREE_TRACE=1` adds bounded object-render, collision-event and tree-contact
+reports. Tree-contact reports have their own budget so frequent rendering cannot
+hide a physical impact.
 `MM3_TREE_TRACE=contacts` skips object-render tracing while keeping physical
 contact and collision-event reports for lighter driving captures.
 

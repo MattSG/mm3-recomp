@@ -2,6 +2,12 @@ MIDTOWN MADNESS 3 PC NATIVE - NEXT FIXES TO DO
 ============================================
 
 Audit date: 2026-10-12 (Europe/Paris).
+Implementation update: R01, R14 and R16 are now implemented in the native
+renderer. Their detailed audit evidence/checklists below describe the earlier
+baseline and remain as verification references. MM3 registers the panorama
+blend explicitly; only its 256x256 DXT5 skyline receives B-spline sampling.
+The top navigation arrows and digital speed readout were intentionally removed
+at the user's request; analog gauges, map routes and checkpoint markers remain.
 Purpose: a detailed implementation backlog for later work, based on code
 comparisons with MattSG's latest upstream sources. The entries distinguish
 missing fixes, partially covered fixes, independently covered fixes, optional
@@ -1130,7 +1136,7 @@ not a guarantee for this PC, this fork, or a future build.
 
 Index of all 18 toolkit commits in this backlog
 -----------------------------------------------
-R01 d62ae29  White silhouette rims                    MISSING
+R01 d62ae29  White silhouette rims                    IMPLEMENTED after audit
 R02 c694a6e  Automatic post-hitch screenshots           MISSING
 R03 7367dca  Pause/postrace button-cap alignment        PARTIAL
 R04 9b9a37c  XAudio2 empty-queue cushion                MISSING
@@ -1143,9 +1149,9 @@ R10 af98ca0  Sixteen-frame guest sample chains         MISSING
 R11 d359ee0  ISR preemption of DISPATCH_LEVEL          MISSING
 R12 9d8716e  DSP fast path / inline fetch              EQUIVALENT Windows
 R13 d448358  Exponential extended-distance haze       MISSING
-R14 4d9d178  Top/left edge coverage translation        MISSING
+R14 4d9d178  Top/left edge coverage translation        IMPLEMENTED after audit
 R15 7f22d61  Post-haze foliage depth fade              MISSING
-R16 0e63cf0  B-spline panorama sampling                MISSING
+R16 0e63cf0  B-spline panorama sampling                IMPLEMENTED after audit
 R17 060122c  Final ordered foliage coverage            MISSING
 R18 b666568  Generic input/menu/overlay hooks          MISSING upstream API
 The R14/R15/R16 order groups final behaviors for review rather than reproducing
@@ -1193,7 +1199,7 @@ title-layer backlog item; the runtime scanner does not already provide it.
 
 R01. WHITE RIMS AROUND BUILDINGS / FRAME-READ TEXEL ALIGNMENT
 -----------------------------------------------------------
-Classification: MISSING. Suggested priority: high visual correctness.
+Classification: IMPLEMENTED after audit; retain the acceptance checks below.
 Upstream commit: d62ae29daf7138db4536d4d267d4b398b31c1a68
 https://github.com/MattSG/xboxrecomp/commit/d62ae29daf7138db4536d4d267d4b398b31c1a68
 
@@ -1860,7 +1866,7 @@ pixel's haze because authored lookup/blend behavior also contributes.
 
 R14. TOP ROW / LEFT COLUMN BRIGHT STRIP: FINAL DISPLAY TRANSLATION
 ----------------------------------------------------------------
-Classification: MISSING. Suggested priority: coordinate with R01.
+Classification: IMPLEMENTED after audit together with R01.
 Upstream commit: 4d9d17882b43843c0ff80726e2faf6cdfc14a329
 https://github.com/MattSG/xboxrecomp/commit/4d9d17882b43843c0ff80726e2faf6cdfc14a329
 
@@ -1956,7 +1962,7 @@ not that intermediate artifact.
 
 R16. SMOOTH DISTANT SKYLINE / HORIZON PANORAMA SAMPLING
 ----------------------------------------------------
-Classification: MISSING. Suggested priority: visual quality after alignment.
+Classification: IMPLEMENTED after audit with title opt-in and texture gating.
 Upstream commit: 0e63cf0cf6cc90c2f54821f501cc81d3d49b8513
 https://github.com/MattSG/xboxrecomp/commit/0e63cf0cf6cc90c2f54821f501cc81d3d49b8513
 

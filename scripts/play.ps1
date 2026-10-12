@@ -195,9 +195,9 @@ try {
     # These are the runtime profile's defaults for unset settings; the complete
     # environment above records overrides, including invalid values verbatim.
     $profileDefaults = switch ($settings.MM3_PERFORMANCE_PROFILE) {
-        'Quality' { @{ render_scale = '3.0'; msaa = '4'; draw_distance = '2'; aniso = '16'; fps_limit = '60' } }
+        'Quality' { @{ render_scale = '3.0'; msaa = '8'; draw_distance = '2'; aniso = '16'; fps_limit = '60' } }
         'LowPower' { @{ render_scale = '1.5'; msaa = '1'; draw_distance = '1'; aniso = '16'; fps_limit = '30' } }
-        default { @{ render_scale = '2.0'; msaa = '2'; draw_distance = '2'; aniso = '16'; fps_limit = '60' } }
+        default { @{ render_scale = '2.0'; msaa = '4'; draw_distance = '2'; aniso = '16'; fps_limit = '60' } }
     }
     $configFiles = @('game_files\default.xbe', 'game_files\Data\mm3_factory_physics.ini',
         'game_files\Data\mm3_speedometers.ini', 'game_files\.mm3-car-mods\state.json',

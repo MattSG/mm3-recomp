@@ -306,7 +306,7 @@ static void number(const Dial *dial, unsigned value, float x, float y)
 
 static void units(const Dial *dial, int metric)
 {
-    /* Tiny line lettering leaves native numeric speed underneath the dial. */
+    /* The analog gauge supplies its units beside the needle. */
     float x = dial->cx - (metric ? 10.0f : 7.0f), y = dial->cy + 15.0f;
     float r = .62f, g = .69f, b = .77f;
     unsigned i;

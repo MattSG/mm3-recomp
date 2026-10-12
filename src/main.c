@@ -180,6 +180,7 @@ int main(void)
     SetUnhandledExceptionFilter(mm3_crash_report);
     xbox_FramebufferSetCloseHandler(mm3_close_game);
     nv2a_d3d_set_flare_depth_test(1);
+    nv2a_d3d_set_bspline_blend(0x304u, 0x305u);
     SetConsoleCtrlHandler(mm3_console_control, TRUE);
     puts("MM3 static recompilation");
 

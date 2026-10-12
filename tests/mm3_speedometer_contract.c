@@ -118,7 +118,7 @@ static void sub_000127A9(void)
 static void check(void (*branch)(void), int modified, unsigned type,
                   int split, int is_metric, double velocity)
 {
-    int readout = split || (modified && (type == 1 || type == 4));
+    int readout = !modified && split;
     memset(memory, 0, sizeof memory);
     g_xbox_mem_offset = (ptrdiff_t)memory;
     g_esp = stack; g_ebp = frame; g_ebx = node; g_esi = renderer;
@@ -157,8 +157,8 @@ static void check(void (*branch)(void), int modified, unsigned type,
         float value = is_metric ? (float)velocity :
             (float)(velocity * (double)MEMF(0x386420));
         assert(displayed == (int)value);
-        assert(rectangle[0] == (split ? 460.0f : 480.0f));
-        assert(rectangle[1] == (split ? 318.0f : 444.0f));
+        assert(rectangle[0] == 460.0f);
+        assert(rectangle[1] == 318.0f);
         assert(rectangle[2] == 105.0f && rectangle[3] == 20.0f);
         assert(rectangle[4] == 0.0f);
     }
@@ -188,7 +188,7 @@ int main(void)
             assert(g_ebx == speed_data && g_esi == renderer);
         }
     }
-    puts("PASS: native high-speed readout; km/h/mph conversion, original needle "
-         "continuation, placement, split-screen behavior, stack and text ownership");
+    puts("PASS: numeric speed hidden for all gauge types and both HUD layouts; "
+         "analog continuation, units, custom-dial override, stack and text ownership");
     return 0;
 }

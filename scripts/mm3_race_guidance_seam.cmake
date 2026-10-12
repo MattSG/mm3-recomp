@@ -1,4 +1,4 @@
-# Shared checkpoint order feeds the world hoops and both native map layouts.
+# Complete checkpoint order feeds the route in both native map layouts.
 function(mm3_add_race_guidance source_variable function_name)
     set(content "${${source_variable}}")
     set(hooks "")
@@ -7,36 +7,46 @@ function(mm3_add_race_guidance source_variable function_name)
         set(epoch_original [=[loc_00120091: ;
     PUSH32(esp, ebx);]=])
         set(epoch_call "    mm3_race_guidance_frame_begin();")
+    elseif(function_name STREQUAL "sub_0014BAE9")
+        set(hooks roads)
+        set(roads_original [=[loc_0014C10F: ;
+    POP32(esp, edi);]=])
+        set(roads_call "    mm3_race_guidance_roads(MEM32(ebp + 0x78), LO8(ebx));")
+    elseif(function_name STREQUAL "sub_0014C121")
+        set(hooks unload)
+        set(unload_original [=[loc_0014C121: ;
+    PUSH32(esp, ebp);]=])
+        set(unload_call "    mm3_race_guidance_roads(ebx, 0);")
     elseif(function_name STREQUAL "sub_00201BCA")
-        set(hooks begin current other end)
+        set(hooks begin checkpoint end)
         set(begin_original [=[loc_00201BCA: ;
     PUSH32(esp, ebp);]=])
         set(begin_call "    mm3_race_guidance_begin(MEM32(esp + 0x10));")
-        set(current_original [=[loc_00201CFA: ;
-    edi = MEM32(ebp + -24);]=])
-        set(current_call "    mm3_race_guidance_checkpoint(MEM32(ebp + 0x14), MEM32(ebp + -76), ebp - 72, MEM32(ebp + -28));")
-        set(other_original [=[loc_00201D23: ;
-    _fa = (uint32_t)(eax)]=])
-        set(other_call "${current_call}")
+        set(checkpoint_original [=[loc_00201CC0: ;
+    _fa = (uint32_t)(LO8(eax))]=])
+        set(checkpoint_call "    mm3_race_guidance_checkpoint(MEM32(ebp + 0x14), MEM32(ebp + -76), MEM32(ebp + -76) + 0x48, ebp - 40, MEM32(ebp + -28));")
         set(end_original [=[loc_00201D55: ;
     eax = MEM32(ebx);]=])
         set(end_call "    mm3_race_guidance_end(MEM32(ebp + 0x14));")
     elseif(function_name STREQUAL "sub_0011CAE8")
-        set(hooks route style color)
+        set(hooks route)
         set(route_original [=[loc_0011CB45: ;
     eax--;]=])
         set(route_call "    if (!MEM8(ebp + 0x7C))\n        mm3_race_map_route(ebx, MEM32(ebp + 0x44), MEM32(ebp + 0x70), MEM32(ebp + 0x78), MEM32(ebp + 0x74));")
-        set(style_original [=[loc_0011CC53: ;
-    { double _t = fp_top(); fp_push(_t); }]=])
-        set(style_call "    { uint32_t mm3_marker = MEM32(MEM32(ebp + 0x44) + 4) + MEM32(ebp + 0x64);\n      float mm3_size = (float)fp_top();\n      MEMF(ebp - 52) = mm3_size;\n      mm3_race_map_checkpoint_style(MEM32(ebp + 0x44), mm3_marker, ebp + 0x50, ebp - 52);\n      fp_top() = MEMF(ebp - 52); }")
-        set(color_original [=[loc_0011CF36: ;
-    eax = ebp + 0x50;]=])
-        set(color_call "    mm3_race_map_checkpoint_style(MEM32(ebp + 0x44), MEM32(MEM32(ebp + 0x44) + 4) + MEM32(ebp + 0x64), ebp + 0x50, 0);")
-    elseif(function_name STREQUAL "sub_0020C9F9")
-        set(hooks world)
-        set(world_original [=[loc_0020CD59: ;
-    _fb = (uint32_t)(0x38)]=])
-        set(world_call "    MEM32(esp) = mm3_race_world_checkpoint_color(ebx, MEM32(esp));")
+    elseif(function_name STREQUAL "sub_00116535")
+        set(hooks tag fan_first fan_other quad)
+        set(tag_original [=[loc_00116535: ;
+    PUSH32(esp, ebp);]=])
+        set(tag_call "    uint32_t mm3_route_tag = mm3_race_route_quad_tagged(ecx, MEM32(esp + 4));")
+        set(fan_first_original [=[loc_001171D4: ;
+    _fb = (uint32_t)(0x10)]=])
+        set(fan_other_original [=[loc_0011726E: ;
+    _fb = (uint32_t)(0x10)]=])
+        set(quad_original [=[loc_0011731C: ;
+    _fb = (uint32_t)(0x24)]=])
+        set(fan_first_call "    if (mm3_route_tag) mm3_race_route_tag_packed(esi);")
+        set(fan_other_call "${fan_first_call}")
+        set(quad_call "${fan_first_call}")
     else()
         message(FATAL_ERROR "MM3 race guidance: unsupported owner ${function_name}")
     endif()
@@ -88,7 +98,7 @@ function(mm3_add_race_guidance source_variable function_name)
     string(REPLACE "${body}" "${transformed}" content "${content}")
     string(FIND "${content}" "extern void mm3_race_guidance_begin(" declared)
     if(declared LESS 0)
-        set(declarations "#include <stdint.h>\nextern void mm3_race_guidance_frame_begin(void);\nextern void mm3_race_guidance_begin(uint32_t);\nextern void mm3_race_guidance_checkpoint(uint32_t, uint32_t, uint32_t, uint32_t);\nextern void mm3_race_guidance_end(uint32_t);\nextern void mm3_race_map_route(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);\nextern void mm3_race_map_checkpoint_style(uint32_t, uint32_t, uint32_t, uint32_t);\nextern uint32_t mm3_race_world_checkpoint_color(uint32_t, uint32_t);\n")
+        set(declarations "#include <stdint.h>\nextern void mm3_race_guidance_frame_begin(void);\nextern void mm3_race_guidance_roads(uint32_t, uint32_t);\nextern void mm3_race_guidance_begin(uint32_t);\nextern void mm3_race_guidance_checkpoint(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);\nextern void mm3_race_guidance_end(uint32_t);\nextern void mm3_race_map_route(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);\nextern uint32_t mm3_race_route_quad_tagged(uint32_t, uint32_t);\nextern void mm3_race_route_tag_packed(uint32_t);\n")
         if(NOT crlf LESS 0)
             string(REPLACE "\n" "\r\n" declarations "${declarations}")
         endif()

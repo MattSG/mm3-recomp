@@ -68,9 +68,9 @@ $pad = Join-Path $dir 'pad.txt'
 $csv = Join-Path $dir 'frames.csv'
 $log = Join-Path $dir 'stderr.log'
 $settings = switch ($Profile) {
-    'Quality' { @{ scale='3.0'; msaa='4'; distance='2'; fps=60 } }
+    'Quality' { @{ scale='3.0'; msaa='8'; distance='2'; fps=60 } }
     'LowPower' { @{ scale='1.5'; msaa='1'; distance='1'; fps=30 } }
-    default { @{ scale='2.0'; msaa='2'; distance='2'; fps=60 } }
+    default { @{ scale='2.0'; msaa='4'; distance='2'; fps=60 } }
 }
 if (-not $PSBoundParameters.ContainsKey('FpsLimit')) { $FpsLimit = $settings.fps }
 $envs = @{

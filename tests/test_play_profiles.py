@@ -80,6 +80,10 @@ class LauncherProfileTest(unittest.TestCase):
             self.assertIsNone(row["RECOMP_ASYNC_WAIT_TRACE"])
         self.assertTrue(result["location_restored"])
         self.assertTrue(all(value is None for value in result["after"].values()))
+        metadata = [json.loads(path.read_text(encoding="utf-8"))
+                    for path in sorted((self.folder / "logs").glob("play-*.json"))]
+        self.assertEqual([row["profile_defaults_for_unset_settings"]["msaa"] for row in metadata],
+                         ["8", "1", "4", "4"])
 
     def test_individual_environment_overrides_take_priority_and_survive_launch(self):
         overrides = {"MM3_PERFORMANCE_PROFILE": "Quality", "RECOMP_RENDER_SCALE": "2.25",

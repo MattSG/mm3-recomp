@@ -33,25 +33,27 @@ static void trace_log(const char *format,...){
 #define MM3_TREE_FLUSH() (++flushes)
 #include "mm3_tree_diagnostics.c"
 ptrdiff_t g_xbox_mem_offset;
-RECOMP_TLS uint32_t g_eax,g_ecx,g_edx,g_esp,g_ebx,g_esi,g_edi,g_ebp,g_seh_ebp,g_fs_base,g_eflags;
+RECOMP_TLS uint32_t g_eax,g_ecx,g_edx,g_esp,g_ebx,g_esi,g_edi,g_ebp,g_seh_ebp,g_fs_base;
 RECOMP_TLS int g_fp_top,g_df,g_fp_cmp;
 RECOMP_TLS uint16_t g_fp_control_word,g_fp_cc;
 RECOMP_TLS double g_fp_stack[8];
+RECOMP_TLS RecompXmm g_xmm0,g_xmm1,g_xmm2,g_xmm3,g_xmm4,g_xmm5,g_xmm6,g_xmm7;
+void sub_0016CABD(void){assert(0);}
 static unsigned char *ram,*expected;
 static unsigned calls,events;
 static int direct_call,unreadable;
 static const uint32_t stack=0x200000,object=0x120000,owner=0x130000,local=0x160000;
 static const uint32_t event=0x170000,velocity=0x180000,output=0x190000;
-typedef struct {uint32_t r[11];int m[3];uint16_t c[2];double fp[8];} State;
+typedef struct {uint32_t r[10];int m[3];uint16_t c[2];double fp[8];} State;
 static State state(void){
- State s={{g_eax,g_ecx,g_edx,g_esp,g_ebx,g_esi,g_edi,g_ebp,g_seh_ebp,g_fs_base,g_eflags},
+ State s={{g_eax,g_ecx,g_edx,g_esp,g_ebx,g_esi,g_edi,g_ebp,g_seh_ebp,g_fs_base},
  {g_fp_top,g_df,g_fp_cmp},{g_fp_control_word,g_fp_cc},{0}};
  memcpy(s.fp,g_fp_stack,sizeof s.fp);return s;
 }
 static void result_state(void){
  g_eax=0xABCDEF01;g_ecx=0xBCDEF012;g_edx=0xCDEF0123;g_esp=stack+40;
  g_ebx=0x12345678;g_esi=0x23456789;g_edi=0x3456789A;
- g_ebp=0x456789AB;g_seh_ebp=0x56789ABC;g_fs_base=0x6789ABCD;g_eflags=0x247;
+ g_ebp=0x456789AB;g_seh_ebp=0x56789ABC;g_fs_base=0x6789ABCD;
  g_fp_top=3;g_df=1;g_fp_cmp=-1;g_fp_control_word=0x37F;g_fp_cc=0x4100;
  for(unsigned i=0;i<8;i++)g_fp_stack[i]=i*1.25-3.0;
 }
@@ -59,7 +61,7 @@ void sub_000E1F49_original(void){
  ++events;MEM32(output)=0x1A1234;g_eax=0xCC000001;g_edx=0xBADF00D;g_esp+=40;
  g_fp_top=1;g_fp_stack[1]=27.0;g_fp_cc=0x4000;g_seh_ebp=0x66666666;
 }
-void sub_001D137B_original(void){assert(mm3_tree_use_solid_contact(object));result_state();}
+void sub_001D137B_original(void){assert(mm3_tree_use_solid_contact(object, 0.0f));result_state();}
 static void event_setup(void){
  g_esp=stack-128;MEM32(g_esp)=0x23BBF4;g_ecx=event;
  MEM32(g_esp+24)=velocity;MEM32(g_esp+36)=output;
@@ -142,13 +144,13 @@ int main(int argc,char **argv){
   * Contacts-only mode must keep the solid report with original-call state. */
  setup(0);MEM16(object+0x100)=2;MEM32(object+0x108)=local;
  memcpy(expected,ram,0x400000);result_state();expected_state=state();g_esp=stack;
- before=count("[TREE_SOLID_CONTACT]");sub_001D137B();actual_state=state();
+ before=count("[TREE_BREAK_CONTACT]");sub_001D137B();actual_state=state();
  assert(memcmp(expected_state.r,actual_state.r,sizeof actual_state.r)==0);
  assert(memcmp(expected_state.m,actual_state.m,sizeof actual_state.m)==0);
  assert(memcmp(expected_state.c,actual_state.c,sizeof actual_state.c)==0);
  assert(memcmp(expected_state.fp,actual_state.fp,sizeof actual_state.fp)==0);
  assert(memcmp(expected,ram,0x400000)==0 && MEM16(object+0x100)==2);
- assert(count("[TREE_SOLID_CONTACT]")-before==(tracing?1u:0u));
+ assert(count("[TREE_BREAK_CONTACT]")-before==(tracing?1u:0u));
  if(tracing)assert(strstr(logs,"response=solid original_flags=preserved"));
  free(expected);VirtualFree(ram,0,MEM_RELEASE);
  printf("PASS: tree diagnostics tracing=%d, nested original call ABI/memory, both city tree identifiers, unreadable metadata, renewable budgets and render filtering\n",tracing);
