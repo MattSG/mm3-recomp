@@ -51,6 +51,11 @@ without edits.
 
 ## Running
 
+Double-click `build\RelWithDebInfo\mm3_recomp.exe` for the settings launcher: display,
+graphics, developer options and key/mouse bindings (the options below), saved to `mm3_settings.ini` next to `game_files\`,
+which it finds by walking up from the exe. Enter plays, Esc quits. The launcher only appears
+when `RECOMP_PB_EXEC` is unset, so scripts and harnesses boot straight in.
+
 `scripts\play.ps1` sets the defaults below and runs the build from the repository root (the
 game reads `game_files\`). By hand:
 
@@ -67,6 +72,27 @@ a straight road it covers ~5% less ground in 6 s at 240 fps than at 60 fps. 60 s
 
 F11 or Alt+Enter toggles fullscreen. The window size sets the internal resolution unless pinned.
 
+### Mods
+
+Every change this project makes to how the game plays or looks is a mod, listed in
+`src/mods/mods.c` and on the launcher's Mods tab. Each has an environment variable: `1` on,
+`0` off, unset for its default. Every mod can be switched off. Corrections to the translation itself (`src/mm3_*.c`, `recomp_manual.c`) reproduce the
+original game exactly and are not changes to it. The runtime (`tools/xboxrecomp`) holds no MM3
+rules; mods supply them through its hooks (overlay placement, menu pointer, B-spline blend).
+
+| Mod | Variable | Default | Effect |
+|---|---|---|---|
+| Widescreen | `MM3_MOD_WIDESCREEN` | on | Hor+ 3D view at the window's aspect, race HUD at the screen edges. Off: 4:3. |
+| Extended draw distance | `MM3_MOD_DRAW_DISTANCE` | on | `RECOMP_DRAW_DISTANCE` / `RECOMP_VIEW_DISTANCE` below apply. Off: Xbox distances. |
+| Smooth skyline | `MM3_MOD_SKY` | on | The horizon panorama sampled with a B-spline instead of bilinear. |
+| Menu mouse | `MM3_MOD_MENU_MOUSE` | on | With `RECOMP_MENU_KEYS`, pointing at a menu item selects it. |
+| Developer tools | `MM3_MOD_DEV_TOOLS` | on | The `MM3_DEV_*` options and hotkeys below. |
+| Teleport debugger | `MM3_DEBUG_TELEPORT` | off | See `DEBUG_TELEPORT.md`. |
+| Offline network | `MM3_MOD_OFFLINE` | on | The frontend stops waiting for Xbox Live readiness (`src/mods/offline.c`). Off: about 9 s slower startup. |
+| Collision cell guard | — | always | Repairs out-of-range face indices in a Paris collision cell (`src/mods/collision_fix.c`); without it the game can freeze or drop the car through the road. |
+| Translation corrections | `MM3_MOD_TRANSLATION` | on | Hand-written fixes that make the generated code match the original (`src/mm3_*.c`, `recomp_manual.c`). Off: generated bodies run unwrapped where they exist. |
+| Disc check bypass | — | always | The media check is patched at setup (`scripts/extract_disc.py`). |
+
 ### Options
 
 | Variable | Default | Effect |
@@ -76,6 +102,8 @@ F11 or Alt+Enter toggles fullscreen. The window size sets the internal resolutio
 | `RECOMP_USB` | off | Emulate the USB controller ports so pads (XInput) reach the game. **Required** for input. |
 | `RECOMP_APU_DSP_ACK` | unset | DSP acknowledgement address(es) the audio needs; use `0x80458810`. |
 | `RECOMP_KEYBOARD` | off | `1`: keyboard as a pad (arrows, Z X A S = A B X Y, Enter = Start, Backspace = Back). |
+| `RECOMP_KEYMAP` | defaults | Rebind the keyboard pad: `NAME:VK,...`, VK in hex, mouse buttons included (`1` left, `2` right, `4` middle). Names: `A B X Y BLACK WHITE LT RT START BACK UP DOWN LEFT RIGHT LS RS LX- LX+ LY- LY+ RX- RX+ RY- RY+`. The launcher's Controls tab writes it. |
+| `RECOMP_MENU_KEYS` | off | `1`: in menus (frontend, car select, pause) the arrows, W A S D and your left-stick keys move, pointing at an item in a vertical list moves the focus to it, Space or a left click is A, Esc or a right click is B. With the keyboard pad on. |
 | `RECOMP_FPS_LIMIT` | `60` | Frame-rate cap (the emulated vblank). `0` = uncapped. Above 60 the car accelerates slightly slower (~5% at 240 fps); see above. |
 | `RECOMP_VSYNC` | `0` | Present sync interval passed to DXGI. |
 | `RECOMP_FULLSCREEN` | off | Start fullscreen. |
@@ -89,7 +117,8 @@ F11 or Alt+Enter toggles fullscreen. The window size sets the internal resolutio
 | `RECOMP_VIEW_DISTANCE` | `2` | City view distance and far-plane multiplier (1 = Xbox, up to 4). Past the Xbox 700 m the game only has low-detail blocks; the distance haze fades them into the sky (63% at 700 m, all but gone by 1400 m), so 4 looks like 2. Textured building facades reach twice as far (capped at 2). |
 | `RECOMP_PS_SPEC` | `1` | `0`: skip specialised pixel shaders (slow; for debugging). |
 | `MM3_SAVE_DIR` | built-in | Folder holding the HDD/save partition images. |
-| `MM3_DEBUG_TELEPORT` | off | Teleport debugger: a panel with live X/Y/Z and heading that places the car on the ground at a typed X/Z and heading (degrees), and the pipe `tools\powershell\Send-MM3Teleport.ps1` drives. See `DEBUG_TELEPORT.md`. |
+| `MM3_DEBUG_TELEPORT` | off | The teleport debugger mod: a panel with live X/Y/Z and heading that places the car on the ground at a typed X/Z and heading (degrees), and the pipe `tools\powershell\Send-MM3Teleport.ps1` drives. See `DEBUG_TELEPORT.md`. |
+| `MM3_DEV_HOTKEYS` | off | `HUD:VK,MENU:VK,CAMERAS:VK` (hex): toggle the developer HUD, debug menu and extended cameras with those keys in a race. Same prerequisite as below, plus probes 10-12 (re-run `prepare.py`). The launcher's Controls tab writes it (F1/F2/F3 by default). |
 | `MM3_DEV_HUD` | off | `1`: the retail build's own developer HUD (position, damage, speed/RPM/gear). Needs `tools\debug-features\prepare.py` first. |
 | `MM3_DEBUG_MENU` | off | `1`: the retail developer menu (D-pad to select and change). Same prerequisite. |
 | `MM3_EXTENDED_CAMERAS` | off | `1`: the developer camera modes. Same prerequisite. |

@@ -8,7 +8,7 @@
 
 #include "recomp_types.h"
 #include "recomp_funcs.h"
-#include "mm3_debug_teleport.h"
+#include "mods/mods.h"
 #include <xbox_host.h>
 
 #define MM3_XBE_PATH "game_files/default.xbe"
@@ -21,6 +21,7 @@ static HANDLE g_mm3_main_worker;
 static HANDLE g_mm3_main_worker_ready;
 static int g_mm3_inline_threads;
 extern void sub_00083A6C_original(void);
+int mm3_launcher(void);
 
 /* Register the first XAPI worker before it can create background workers.
  * The runtime's debug handle changes on every spawn and cannot determine
@@ -150,6 +151,10 @@ int main(void)
         setvbuf(stderr, stderr_buffer, _IOFBF, sizeof stderr_buffer);
     SetUnhandledExceptionFilter(mm3_crash_report);
     puts("MM3 static recompilation");
+    /* Scripts set RECOMP_PB_EXEC themselves; a plain start gets the launcher. */
+    const char *scripted = getenv("RECOMP_PB_EXEC");
+    if ((!scripted || !*scripted) && !mm3_launcher())
+        return 0;
 
     if (!load_file(MM3_XBE_PATH, &xbe_data, &xbe_size)) {
         fprintf(stderr, "cannot load %s\n", MM3_XBE_PATH);
@@ -176,7 +181,7 @@ int main(void)
     }
 
     g_xbox_mem_offset = xbox_GetMemoryOffset();
-    mm3_debug_teleport_init();
+    mm3_mods_init();
     xbox_kernel_set_thunk_address(MM3_KERNEL_THUNK_ADDRESS,
                                    MM3_KERNEL_THUNK_COUNT);
     xbox_kernel_init();

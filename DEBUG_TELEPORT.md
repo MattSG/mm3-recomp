@@ -53,7 +53,7 @@ and the same generated headers as the game build:
 
 ```powershell
 python tests/generate_native_teleport_test.py --xbe game_files/default.xbe --functions tools/xboxrecomp/tools/disasm/output/functions.json
-cl.exe /nologo /W4 /DMM3_TELEPORT_NATIVE_TEST /I conformance_tmp/overlay-gen /Fe:conformance_tmp/teleport_native_test.exe /Fo:conformance_tmp/ tests/mm3_teleport_contract.c conformance_tmp/native_teleport_functions.c user32.lib
+cl.exe /nologo /W4 /DMM3_TELEPORT_NATIVE_TEST /I src /I src/recomp /I src/recomp/gen /I tools/xboxrecomp/include /Fe:conformance_tmp/teleport_native_test.exe /Fo:conformance_tmp/ tests/mm3_teleport_contract.c conformance_tmp/native_teleport_functions.c user32.lib
 conformance_tmp/teleport_native_test.exe
 ```
 

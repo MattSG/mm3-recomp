@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "recomp_types.h"
+#include "mods/mods.h"
 
 void sub_00170E5D_original(void);
 void sub_000145DC_original(void);
@@ -60,7 +61,7 @@ void sub_000145DC(void)
     static int initialized, original;
     if (!initialized) {
         const char *value = getenv("RECOMP_STREAM_COPY_ORIGINAL");
-        original = value && *value && *value != '0';
+        original = (value && *value && *value != '0') || !mm3_mod_on(MM3_MOD_TRANSLATION);
         initialized = 1;
     }
     trace_copy(0x145DCu, original ? sub_000145DC_original : mm3_stream_read_copy, 12);

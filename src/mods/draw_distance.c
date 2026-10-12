@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "recomp_types.h"
+#include "mods.h"
 
 extern void nv2a_d3d_set_depth_view_remap(float scale, float knee);
 
@@ -42,7 +43,7 @@ static float distance_scale(void)
 {
     static float scale;
     if (!scale) {
-        scale = env_scale("RECOMP_DRAW_DISTANCE", 4.0f);
+        scale = mm3_mod_on(MM3_MOD_DRAW_DISTANCE) ? env_scale("RECOMP_DRAW_DISTANCE", 4.0f) : 1.0f;
         fprintf(stderr, "[MM3_DISTANCE] LOD distance multiplier %.3g\n", scale);
     }
     return scale;
@@ -52,7 +53,7 @@ static float view_scale(void)
 {
     static float scale;
     if (!scale) {
-        scale = env_scale("RECOMP_VIEW_DISTANCE", 2.0f);
+        scale = mm3_mod_on(MM3_MOD_DRAW_DISTANCE) ? env_scale("RECOMP_VIEW_DISTANCE", 2.0f) : 1.0f;
         /* MM3_FOG_REMAP=0 keeps the scaled band, for A/B comparisons. */
         if (scale > 1.0f && (!getenv("MM3_FOG_REMAP") || strcmp(getenv("MM3_FOG_REMAP"), "0")))
             nv2a_d3d_set_depth_view_remap(scale, FOG_KNEE);

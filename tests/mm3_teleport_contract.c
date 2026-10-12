@@ -1,4 +1,4 @@
-#include "../src/mm3_debug_teleport.c"
+#include "../src/mods/teleport.c"
 #include <assert.h>
 
 ptrdiff_t g_xbox_mem_offset;
@@ -52,6 +52,7 @@ static void check_panel(void) {
 }
 
 void sub_002203E5_original(void) { ++updates; assert(g_ecx == player); }
+void mm3_mods_player_update(void) {}
 #ifndef MM3_TELEPORT_NATIVE_TEST
 void sub_001CDDA3(void) {
     assert(g_eax == car); ++resets;
@@ -203,13 +204,13 @@ int main(int argc, char **argv) {
     ground_missing = 0;
     check_panel();
     /* No update arriving must cancel the request rather than execute it later. */
-    char reply[256]; request_teleport(destination, reply, sizeof(reply));
+    char reply[256]; request_teleport(destination, NAN, reply, sizeof(reply));
     assert(strstr(reply, "game update timeout") && pending == 0);
     sub_002203E5();
     assert(memcmp((void *)XBOX_PTR(player + 0x48C), (void *)XBOX_PTR(body + 0xA4), 48) == 0);
     /* Guard against a different vehicle layout. */
     MEM32(vehicle) = 0; sub_002203E5(); assert(!available);
-    request_teleport(destination, reply, sizeof(reply)); assert(strstr(reply, "no active car"));
+    request_teleport(destination, NAN, reply, sizeof(reply)); assert(strstr(reply, "no active car"));
     CloseHandle(finished); VirtualFree(ram, 0, MEM_RELEASE);
 #ifdef MM3_TELEPORT_NATIVE_TEST
     puts("PASS: original PAL ground reset; automatic Y/clearance, heading, quaternion, motion/cache/registers, ground miss, X/Z panel");

@@ -5,6 +5,12 @@
 #include "recomp_types.h"
 
 extern void sub_0020F7EB(void);
+extern int xbox_FramebufferKeyDown(int vk);
+
+/* MM3_DEV_HOTKEYS=HUD:VK,MENU:VK,CAMERAS:VK (hex) toggles each tool in
+ * gameplay through the prepared scripts: probes 1/2/3 on, 10/11/12 off. */
+static struct { const char *name; int vk, on_probe, off_probe, on, held; } hotkeys[] = {
+    {"HUD", 0, 1, 10}, {"MENU", 0, 2, 11}, {"CAMERAS", 0, 3, 12}};
 
 static int flag(const char *name)
 {
@@ -12,10 +18,10 @@ static int flag(const char *name)
     return value && *value && strcmp(value, "0");
 }
 
-/* Opt-in PAL experiment. Run the title's own Lua loader on the game thread,
- * after a player update, never from a host input/pipe thread. A numbered
+/* The developer tools mod (mods.c). Run the title's own Lua loader on the
+ * game thread, after a player update, never from a host input/pipe thread. A numbered
  * request selects a prepared script; no arbitrary guest address is accepted. */
-void mm3_debug_features_tick(void)
+void mm3_dev_tools_tick(void)
 {
     static const char *request;
     static int initialized, running;
@@ -28,7 +34,22 @@ void mm3_debug_features_tick(void)
         request = getenv("MM3_DEBUG_FEATURE_REQUEST");
         startup = (flag("MM3_DEV_HUD") << 1) | (flag("MM3_DEBUG_MENU") << 2)
                 | (flag("MM3_EXTENDED_CAMERAS") << 3) | (flag("MM3_E3_PRESET") << 7);
+        const char *keys = getenv("MM3_DEV_HOTKEYS");
+        for (unsigned i = 0; i < sizeof hotkeys / sizeof *hotkeys; ++i) {
+            const char *at = keys ? strstr(keys, hotkeys[i].name) : NULL;
+            if (at && at[strlen(hotkeys[i].name)] == ':')
+                hotkeys[i].vk = (int)strtoul(at + strlen(hotkeys[i].name) + 1, NULL, 16) & 0xFF;
+            hotkeys[i].on = (startup >> hotkeys[i].on_probe) & 1;
+        }
         initialized = 1;
+    }
+    for (unsigned i = 0; i < sizeof hotkeys / sizeof *hotkeys; ++i) {
+        int down = hotkeys[i].vk && xbox_FramebufferKeyDown(hotkeys[i].vk);
+        if (down && !hotkeys[i].held) {
+            startup |= 1u << (hotkeys[i].on ? hotkeys[i].off_probe : hotkeys[i].on_probe);
+            hotkeys[i].on = !hotkeys[i].on;
+        }
+        hotkeys[i].held = down;
     }
     if ((!request && !startup) || running || GetTickCount() - last < 200) return;
     last = GetTickCount();
@@ -39,7 +60,7 @@ void mm3_debug_features_tick(void)
     } else {
         file = fopen(request, "rb");
         if (!file) return;
-        int valid = fscanf(file, "%u %c", &probe, &extra) == 1 && probe <= 9;
+        int valid = fscanf(file, "%u %c", &probe, &extra) == 1 && probe <= 12;
         fclose(file);
         if (remove(request)) return;
         if (!valid) { fprintf(stderr, "[FEATURE_PROBE] rejected request\n"); return; }

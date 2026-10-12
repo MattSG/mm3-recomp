@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "recomp_types.h"
-#include "mm3_debug_teleport.h"
+#include "teleport.h"
 
 /* PAL XBE: player update 2203E5; primary player manager 3C5CDC+54+D8.
  * Player+19C is the vehicle interface (vtable 383768), whose +8 is the car.
@@ -15,7 +15,7 @@
  * These calls belong on the game thread, never on the pipe/UI thread. */
 extern void sub_002203E5_original(void);
 extern void sub_0021ADF3(void);
-extern void mm3_debug_features_tick(void);
+extern void mm3_mods_player_update(void);
 
 static int enabled;
 static SRWLOCK lock = SRWLOCK_INIT;
@@ -173,7 +173,7 @@ void sub_002203E5(void)
         ReleaseSRWLockExclusive(&lock);
     }
     sub_002203E5_original();
-    mm3_debug_features_tick();
+    mm3_mods_player_update();
 }
 
 static int request_teleport(const float xyz[3], float heading, char *reply, size_t size)

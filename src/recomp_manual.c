@@ -5,6 +5,7 @@
 #include <xmmintrin.h>
 
 #include "recomp_types.h"
+#include "mods/mods.h"
 
 typedef void (*recomp_func_t)(void);
 
@@ -173,6 +174,10 @@ static void call_alternate_seh_preserving(recomp_func_t body)
     uint32_t ebp = g_ebp;
     uint32_t seh_ebp = g_seh_ebp;
 
+    if (!mm3_mod_on(MM3_MOD_TRANSLATION)) {     /* the generated body as it is */
+        body();
+        return;
+    }
     body();
 
     g_ebx = ebx;

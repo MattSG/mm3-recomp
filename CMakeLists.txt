@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
-project(mm3_recomp C)
+project(mm3_recomp C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 17)
 set(XBOXRECOMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tools/xboxrecomp" CACHE PATH
     "Path to the local xboxrecomp toolkit")
 set(RECOMP_GEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/recomp/gen" CACHE PATH
@@ -13,7 +14,6 @@ option(MM3_OFFLINE_XNET "Bypass MM3 network readiness for offline startup" ON)
 option(MM3_FRONTEND_WATCH "Trace writes to the RootLevel child pointer" OFF)
 option(MM3_TRACY "Profile the host rendering pipeline with Tracy" OFF)
 if(MM3_TRACY)
-    enable_language(CXX)
     set(MM3_TRACY_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tools/bin/tracy-0.14.1" CACHE PATH "Tracy 0.14.1 sources")
     set(TRACY_ENABLE ON CACHE BOOL "Enable Tracy client" FORCE)
     set(TRACY_ON_DEMAND ON CACHE BOOL "Record only while a profiler is connected" FORCE)
@@ -21,6 +21,27 @@ if(MM3_TRACY)
 endif()
 
 add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)
+
+# Settings launcher (src/mm3_launcher.cpp): RmlUi on its Win32/D3D11 backend,
+# FreeType for its fonts. Static, fetched once at configure time.
+include(FetchContent)
+FetchContent_Declare(freetype
+    URL https://github.com/freetype/freetype/archive/refs/tags/VER-2-13-3.tar.gz
+    URL_HASH SHA256=bc5c898e4756d373e0d991bab053036c5eb2aa7c0d5c67e8662ddc6da40c4103
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_Declare(rmlui
+    URL https://github.com/mikke89/RmlUi/archive/refs/tags/6.3.tar.gz
+    URL_HASH SHA256=d977298bb6147610e5984d5db85ddf284020d655a8713913f6982074f1dbdede
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+set(BUILD_SHARED_LIBS OFF)
+set(SKIP_INSTALL_ALL ON)
+foreach(ft_dep ZLIB BZIP2 PNG HARFBUZZ BROTLI)
+    set(FT_DISABLE_${ft_dep} ON)
+endforeach()
+FetchContent_MakeAvailable(freetype)
+add_library(Freetype::Freetype ALIAS freetype)
+FetchContent_MakeAvailable(rmlui)
 if(MM3_TRACY)
     foreach(profile_target xbox_kernel xbox_video)
         target_link_libraries(${profile_target} PRIVATE Tracy::TracyClient)
@@ -38,7 +59,8 @@ file(GLOB RECOMP_GEN_SOURCES CONFIGURE_DEPENDS
 set(MM3_RENAMED_FUNCTIONS
     sub_0009BC04 sub_0009BC52    # recovered x87 helpers keep their unusual stack return
     sub_00170E5D sub_000145DC sub_001F02AD
-    sub_0025968E)                # widescreen: wraps the projection-matrix builder
+    sub_0025968E                 # widescreen: wraps the projection-matrix builder
+)
 if(MM3_MOVIE_INPUT_TRACE)
     list(APPEND MM3_RENAMED_FUNCTIONS sub_001DB6E8 sub_001F2A71 sub_001F443D sub_0035BDC0)
 endif()
@@ -141,8 +163,15 @@ endforeach()
 
 add_executable(${PROJECT_NAME}
     src/main.c
-    src/mm3_debug_features.c
-    src/mm3_collision_cells.c
+    src/mm3_launcher.cpp
+    ${rmlui_SOURCE_DIR}/Backends/RmlUi_Platform_Win32.cpp
+    ${rmlui_SOURCE_DIR}/Backends/RmlUi_Renderer_DX11.cpp
+    ${rmlui_SOURCE_DIR}/Backends/RmlUi_Backend_Win32_DX11.cpp
+    src/mods/mods.c
+    src/mods/dev_tools.c
+    src/mods/menu_mouse.c
+    src/mods/collision_fix.c
+    src/mods/widescreen_hud.c
     src/mm3_unresolved_stubs.c
  src/mm3_memory_compat.c
  src/mm3_memory_tails.c
@@ -150,9 +179,9 @@ add_executable(${PROJECT_NAME}
  src/mm3_asset_trace.c
  src/mm3_stream_compat.c
  src/recomp_manual.c
- src/mm3_widescreen.c
- src/mm3_render_distance.c
- src/mm3_debug_teleport.c
+ src/mods/widescreen.c
+ src/mods/draw_distance.c
+ src/mods/teleport.c
  src/recomp_trace_probe.c
  ${RECOMP_GEN_SOURCES})
 
@@ -162,7 +191,7 @@ if(MM3_MOVIE_INPUT_TRACE)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3_movie_input_trace.c)
 endif()
 if(MM3_OFFLINE_XNET)
-    target_sources(${PROJECT_NAME} PRIVATE src/mm3_offline_compat.c)
+    target_sources(${PROJECT_NAME} PRIVATE src/mods/offline.c)
 endif()
 if(MM3_FRONTEND_WATCH)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3_frontend_watch.c)
@@ -172,9 +201,11 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     src
     src/recomp
     ${RECOMP_GEN_DIR}
-    ${XBOXRECOMP_DIR}/include)
+    ${XBOXRECOMP_DIR}/include
+    ${XBOXRECOMP_DIR}/src/video)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE xboxrecomp)
+target_link_libraries(${PROJECT_NAME} PRIVATE xboxrecomp RmlUi::RmlUi d3d11 dxgi d3dcompiler)
+target_include_directories(${PROJECT_NAME} PRIVATE ${rmlui_SOURCE_DIR}/Backends)
 
 # MM3's CRT uses NtAllocateVirtualMemory reserve requests as heap-backed
 # buffers.  Keep the vendor runtime untouched: redirect its public reserve
