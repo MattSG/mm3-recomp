@@ -25,6 +25,8 @@ static float position[3], destination[3], heading_now;   /* radians, as the pipe
 static float destination_heading = NAN;   /* radians; NAN keeps the car's */
 static DWORD sampled;
 static unsigned serial, pending, completed;
+static DWORD pending_until;
+static uint32_t sampled_player, sampled_car, requested_player, requested_car;
 static int available;
 static char result[128] = "not ready";
 /* Every car the player update touches (AI included), for the AI-start check. */
@@ -145,10 +147,12 @@ void sub_002203E5(void)
 {
     if (enabled) sample_car(g_ecx);
     if (enabled && g_ecx == primary_player()) {
-        uint32_t car, vehicle, player = g_ecx;
+        uint32_t car = 0, vehicle = 0, player = g_ecx;
         uint32_t body = body_for(player, &car, &vehicle);
         AcquireSRWLockExclusive(&lock);
         available = body != 0;
+        sampled_player = player;
+        sampled_car = body ? car : 0;
         if (body) {
             float current[3];
             for (unsigned i = 0; i < 3; ++i) current[i] = MEMF(body + 0xC8 + i * 4);
@@ -160,7 +164,11 @@ void sub_002203E5(void)
         }
         sampled = GetTickCount();
         if (pending) {
-            if (available && mapped(g_esp - 0x400, 0x400)) {
+            if ((LONG)(GetTickCount() - pending_until) >= 0)
+                strcpy_s(result, sizeof(result), "game update timeout");
+            else if (player != requested_player || car != requested_car)
+                strcpy_s(result, sizeof(result), "active car changed; teleport cancelled");
+            else if (available && mapped(g_esp - 0x400, 0x400)) {
                 if (teleport(player, vehicle, car, body, destination)) {
                     for (unsigned i = 0; i < 3; ++i) position[i] = MEMF(body + 0xC8 + i * 4);
                     strcpy_s(result, sizeof(result), "applied");
@@ -181,12 +189,20 @@ static int request_teleport(const float xyz[3], float heading, char *reply, size
     int applied;
     AcquireSRWLockExclusive(&request_lock);
     AcquireSRWLockExclusive(&lock);
+    if (pending) {
+        snprintf(reply, size, "{\"result\":\"another teleport is pending\"}");
+        ReleaseSRWLockExclusive(&lock);
+        ReleaseSRWLockExclusive(&request_lock);
+        return 0;
+    }
     if (available && GetTickCount() - sampled < 500) {
         unsigned request = ++serial;
         memcpy(destination, xyz, sizeof(destination));
         destination_heading = heading;
         ResetEvent(finished);
         pending = request;
+        pending_until = GetTickCount() + 2000;
+        requested_player = sampled_player; requested_car = sampled_car;
         ReleaseSRWLockExclusive(&lock);
         WaitForSingleObject(finished, 2000);
         AcquireSRWLockExclusive(&lock);
@@ -201,6 +217,37 @@ static int request_teleport(const float xyz[3], float heading, char *reply, size
     ReleaseSRWLockExclusive(&lock);
     ReleaseSRWLockExclusive(&request_lock);
     return applied;
+}
+
+void mm3_teleport_state(Mm3TeleportState *state)
+{
+    AcquireSRWLockShared(&lock);
+    memcpy(state->position, position, sizeof position);
+    state->heading = heading_now;
+    state->available = enabled && available && GetTickCount() - sampled < 300;
+    state->pending = pending != 0;
+    strcpy_s(state->result, sizeof state->result, result);
+    ReleaseSRWLockShared(&lock);
+}
+
+int mm3_teleport_queue(float x, float z, float heading)
+{
+    int accepted = 0;
+    if (!isfinite(x) || !isfinite(z) || (!isfinite(heading) && !isnan(heading))) return 0;
+    if (!TryAcquireSRWLockExclusive(&request_lock)) return 0;
+    AcquireSRWLockExclusive(&lock);
+    if (enabled && available && GetTickCount() - sampled < 300 && !pending) {
+        destination[0] = x; destination[1] = 0; destination[2] = z;
+        destination_heading = heading;
+        pending = ++serial;
+        pending_until = GetTickCount() + 500;
+        requested_player = sampled_player; requested_car = sampled_car;
+        strcpy_s(result, sizeof result, "queued");
+        accepted = 1;
+    }
+    ReleaseSRWLockExclusive(&lock);
+    ReleaseSRWLockExclusive(&request_lock);
+    return accepted;
 }
 
 static DWORD WINAPI pipe_thread(void *unused)
@@ -373,14 +420,16 @@ static DWORD WINAPI panel_thread(void *unused)
 void mm3_debug_teleport_init(void)
 {
     const char *opt = getenv("MM3_DEBUG_TELEPORT");
+    const char *overlay = getenv("MM3_DEBUG_OVERLAY");
     HANDLE thread;
-    if (!opt || strcmp(opt, "1") != 0) return;
+    if ((!opt || strcmp(opt, "1") != 0) && (!overlay || strcmp(overlay, "1") != 0)) return;
     finished = CreateEventA(NULL, TRUE, FALSE, NULL);
     if (!finished) return;
     enabled = 1;
     thread = CreateThread(NULL, 0, pipe_thread, NULL, 0, NULL);
     if (!thread) { enabled = 0; CloseHandle(finished); return; }
     CloseHandle(thread);
+    if (overlay && strcmp(overlay, "1") == 0) return;
     thread = CreateThread(NULL, 0, panel_thread, NULL, 0, NULL);
     if (thread) CloseHandle(thread);
 }

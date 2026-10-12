@@ -88,6 +88,12 @@ Rml::Vector<Option> g_options = {
      "MM3_EXTENDED_CAMERAS", "", "", {{"", "Off"}, {"1", "On"}}},
     {"", "E3 preset", "Runs the shipped E3settings.lua. Needs prepare.py.",
      "MM3_E3_PRESET", "", "", {{"", "Off"}, {"1", "On"}}},
+    {"Debug overlay", "Show / hide key", "Works independently of gameplay keyboard input.",
+     "MM3_OVERLAY_KEY", "73", "", {{"73", "F4"}, {"74", "F5"}, {"77", "F8"}, {"2D", "Insert"}}, 1},
+    {"", "Show / hide controller", "Hold both buttons. Uses physical controller 1 buttons.",
+     "MM3_OVERLAY_PAD", "60", "", {{"0", "Unbound"}, {"60", "Back + left stick"}, {"C0", "Both sticks"}, {"300", "LB + RB"}}, 1},
+    {"", "Show / hide mouse", "Optional mouse button toggle.",
+     "MM3_OVERLAY_MOUSE", "0", "", {{"0", "Unbound"}, {"4", "Middle"}, {"5", "Side 1"}, {"6", "Side 2"}}, 1},
     {"Keyboard and mouse", "Use keyboard and mouse", "Plays as controller 1, alongside any pad.",
      "RECOMP_KEYBOARD", "", "", {{"", "Off"}, {"1", "On"}}, 1},
     {"", "Menu keys and mouse", "In menus: arrows, WASD or your left-stick keys move, pointing at an item "

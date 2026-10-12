@@ -6,6 +6,8 @@
 #include "mods.h"
 
 const Mm3Mod mm3_mods[MM3_MOD_COUNT] = {
+    [MM3_MOD_DEBUG_OVERLAY] = {"debug_overlay", "MM3_DEBUG_OVERLAY", "ImGui debug tools",
+        "In-game interface for developer commands and native teleport. Configure its toggle under Controls.", 0},
     [MM3_MOD_WIDESCREEN] = {"widescreen", "MM3_MOD_WIDESCREEN", "Widescreen",
         "The 3D view widens to the window and the race HUD moves out to its edges. Off: 4:3 with side bars.", 1},
     [MM3_MOD_DRAW_DISTANCE] = {"draw_distance", "MM3_MOD_DRAW_DISTANCE", "Extended draw distance",
@@ -67,6 +69,8 @@ extern void mm3_debug_teleport_init(void);                        /* teleport.c 
 void mm3_mods_init(void)
 {
     int i;
+    extern void mm3_debug_overlay_init(void);
+    mm3_debug_overlay_init();
     xbox_InputSetMenuProbe(in_menu);
     /* Without the widescreen hooks the title draws 4:3; show it that way. */
     if (!mm3_mod_on(MM3_MOD_WIDESCREEN) && !getenv("RECOMP_ASPECT"))
@@ -80,7 +84,7 @@ void mm3_mods_init(void)
         nv2a_d3d_set_bspline_blend(0x304, 0x305);      /* DST_ALPHA, ONE_MINUS_DST_ALPHA */
     if (mm3_mod_on(MM3_MOD_MENU_MOUSE))
         xbox_InputSetMenuPointer(mm3_menu_pointer);
-    if (mm3_mod_on(MM3_MOD_TELEPORT))
+    if (mm3_mod_on(MM3_MOD_TELEPORT) || mm3_mod_on(MM3_MOD_DEBUG_OVERLAY))
         mm3_debug_teleport_init();
     for (i = 0; i < MM3_MOD_COUNT; i++)
         fprintf(stderr, "[MOD] %s %s\n", mm3_mods[i].id, mm3_mod_on(i) ? "on" : "off");
@@ -89,6 +93,6 @@ void mm3_mods_init(void)
 void mm3_mods_player_update(void)
 {
     last_update = GetTickCount();
-    if (mm3_mod_on(MM3_MOD_DEV_TOOLS))
+    if (mm3_mod_on(MM3_MOD_DEV_TOOLS) || mm3_mod_on(MM3_MOD_DEBUG_OVERLAY))
         mm3_dev_tools_tick();
 }
