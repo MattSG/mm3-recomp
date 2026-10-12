@@ -5,6 +5,8 @@
 #include <RmlUi/Core.h>
 #include <RmlUi_Backend.h>
 #include <windows.h>
+#include <dwmapi.h>
+#include <Xinput.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +24,8 @@ struct Option {
     Rml::Vector<Choice> choices;
     int page; /* 0 Settings, 1 Controls, 2 Mods */
     bool toggle; /* Off/On: drawn as a switch */
+    bool fixed;  /* one choice: shown, not changeable */
+    bool dev;    /* a developer tool: shown while that mod is on */
 };
 
 /* A key for a pad input (RECOMP_KEYMAP, defaults from
@@ -32,6 +36,7 @@ struct Bind {
     int def, vk;
     Rml::String key; /* vk's display name */
     Rml::String env = "RECOMP_KEYMAP";
+    bool dev = false;
 };
 
 Rml::Vector<Option> g_options = {
@@ -41,8 +46,9 @@ Rml::Vector<Option> g_options = {
      {{"", "Auto"}, {"1280x720", "720p"}, {"1600x900", "900p"}, {"1920x1080", "1080p"}, {"2560x1440", "1440p"}}},
     {"", "Aspect ratio", "Widescreen HUD follows it.", "RECOMP_ASPECT", "", "",
      {{"", "Window"}, {"16:9", "16:9"}, {"4:3", "4:3"}}},
+    /* Not higher: above about 120 fps the race AI reverses off the start line. */
     {"", "Frame limit", "Above 60 the car accelerates slightly slower.", "RECOMP_FPS_LIMIT", "60", "",
-     {{"30", "30"}, {"60", "60"}, {"120", "120"}, {"144", "144"}, {"240", "240"}, {"0", "Off"}}},
+     {{"30", "30"}, {"60", "60"}, {"120", "120"}}},
     {"", "V-Sync", "", "RECOMP_VSYNC", "0", "",
      {{"0", "Off"}, {"1", "On"}}},
     {"Graphics", "Internal resolution", "Fixed multiple of 480 lines; overrides supersampling.",
@@ -99,6 +105,13 @@ int g_capture = -1;  /* g_binds index waiting for a key */
 bool g_armed;        /* every key was up since the capture began */
 Rml::String g_capture_label;
 Rml::DataModelHandle g_model;
+/* Keyboard and controller focus: a row of the current tab, shown from the
+ * first arrow or pad press until the mouse moves. */
+int g_row;
+int g_fo = -1, g_fb = -1; /* the focused option or bind, -1 none */
+bool g_nav;
+bool g_pad;    /* the last input was a controller: show its button hints */
+bool g_scroll; /* bring the focused row into view after the next update */
 
 const char kDocument[] = R"RML(
 <rml><head><title>Midtown Madness 3</title><style>
@@ -113,9 +126,14 @@ div, h1, h2 { display: block; }
 .tab.on { color: #ffffff; border-bottom-color: #e8a33d; }
 h1 { font-size: 20dp; font-weight: bold; color: #ffffff; }
 #sub { margin-top: 2dp; font-size: 12dp; color: #80848f; }
-#list { flex: 1; min-height: 0; padding: 0dp 28dp 8dp 28dp; overflow-y: auto; }
-h2 { margin: 18dp 0dp 4dp 0dp; font-size: 11dp; font-weight: bold; letter-spacing: 1dp; color: #e8a33d; text-transform: uppercase; }
-.opt { display: flex; align-items: center; padding: 10dp 0dp; border-bottom: 1dp #ffffff0f; }
+#list { flex: 1; min-height: 0; padding: 0dp 18dp 8dp 18dp; overflow-y: auto; }
+h2 { margin: 18dp 10dp 4dp 10dp; font-size: 11dp; font-weight: bold; letter-spacing: 1dp; color: #e8a33d; text-transform: uppercase; }
+.opt { display: flex; align-items: center; padding: 10dp 10dp 10dp 8dp; border-bottom: 1dp #ffffff0f;
+       border-left: 2dp transparent; }
+.opt.focus { background-color: #191c21; border-left-color: #e8a33d; }
+.opt.focus .seg .btn.on { background-color: #e8a33d; color: #17120a; }
+.opt.focus .key { background-color: #2a2e36; color: #ffffff; }
+.fixed { font-size: 13dp; color: #80848f; }
 .text { flex: 1 1 0; min-width: 0; padding-right: 16dp; }
 .hint { margin-top: 1dp; font-size: 12dp; color: #80848f; }
 .seg { flex: 0 1 auto; padding: 2dp; border-radius: 6dp; background-color: #1d2026; text-align: right; }
@@ -129,7 +147,7 @@ h2 { margin: 18dp 0dp 4dp 0dp; font-size: 11dp; font-weight: bold; letter-spacin
                 background-color: #9a9ea8; transition: left background-color 0.15s cubic-out; }
 .switch.on { background-color: #e8a33d; }
 .switch.on .knob { left: 19dp; background-color: #ffffff; }
-.opt.compact { padding: 5dp 0dp; }
+.opt.compact { padding-top: 5dp; padding-bottom: 5dp; }
 .key { min-width: 120dp; padding: 4dp 12dp; border-radius: 6dp; text-align: center; font-size: 13dp;
        background-color: #1d2026; cursor: pointer; }
 .key:hover { background-color: #2a2e36; }
@@ -153,6 +171,11 @@ h2 { margin: 18dp 0dp 4dp 0dp; font-size: 11dp; font-weight: bold; letter-spacin
         background-color: #0e1013; }
 .ghost { padding: 7dp 12dp; margin-right: 4dp; border-radius: 6dp; color: #9a9ea8; cursor: pointer; }
 .ghost:hover { color: #ffffff; background-color: #1d2026; }
+#hints { flex: 0 0 auto; white-space: nowrap; font-size: 12dp; color: #9a9ea8; padding-left: 4dp; }
+.glyph { display: inline-block; min-width: 12dp; padding: 1dp 5dp; margin: 0dp 4dp 0dp 12dp; border-radius: 4dp;
+         background-color: #2a2e36; color: #e6e7ea; font-size: 11dp; font-weight: bold; text-align: center; }
+.glyph.pair { margin-left: 2dp; }
+.glyph.start { vertical-align: 2dp; margin: 0dp 8dp 0dp 0dp; background-color: #00000026; color: #17120a; }
 #status { flex: 1; font-size: 12dp; color: #e8a33d; text-align: right; padding-right: 12dp; }
 #play { padding: 8dp 28dp; border-radius: 6dp; font-weight: bold; color: #17120a;
         background-color: #e8a33d; cursor: pointer; }
@@ -172,23 +195,24 @@ scrollbarvertical sliderbar { background-color: #2f333c; border-radius: 2dp; }
     <div class="tab" data-class-on="tab == 2" data-event-click="tab = 2">Mods</div>
   </div>
   <div id="list">
-    <div data-for="o, i : options"><div data-if="o.page == tab">
+    <div data-for="o, i : options"><div data-if="o.page == tab && (dev || !o.dev)" data-attr-id="'o' + i">
       <h2 data-if="o.header != ''">{{ o.header }}</h2>
-      <div class="opt">
+      <div class="opt" data-class-focus="fo == i">
         <div class="text"><div>{{ o.label }}</div><div class="hint" data-if="o.hint != ''">{{ o.hint }}</div></div>
-        <div class="seg" data-if="!o.toggle"><div class="btn" data-for="c : o.choices" data-class-on="c.value == o.value"
+        <div class="fixed" data-if="o.fixed">{{ o.choices[0].label }}</div>
+        <div class="seg" data-if="!o.toggle && !o.fixed"><div class="btn" data-for="c : o.choices" data-class-on="c.value == o.value"
              data-event-click="set(i, c.value)">{{ c.label }}</div></div>
         <div class="switch" data-if="o.toggle" data-class-on="o.value != o.choices[0].value" data-event-click="toggle(i)"><div class="knob"/></div>
       </div>
     </div></div>
     <div data-if="tab == 1">
-      <div data-for="b, i : binds">
+      <div data-for="b, i : binds"><div data-if="dev || !b.dev" data-attr-id="'b' + i">
         <h2 data-if="b.header != ''">{{ b.header }}</h2>
-        <div class="opt compact">
+        <div class="opt compact" data-class-focus="fb == i">
           <div class="text">{{ b.label }}</div>
           <div class="key" data-class-none="b.vk == 0" data-event-click="rebind(i)">{{ b.key }}</div>
         </div>
-      </div>
+      </div></div>
     </div>
   </div>
   <div id="splash" data-if="splash" data-class-fade="splash == 2" data-event-click="splash = 0">
@@ -199,13 +223,15 @@ scrollbarvertical sliderbar { background-color: #2f333c; border-radius: 2dp; }
   <div id="capture" data-if="capturing"><div id="card">
     <div class="hint">{{ capture_label }}</div>
     <div class="big">Press a key or mouse button</div>
-    <div class="hint">Esc to cancel</div>
+    <div class="hint">{{ pad ? 'Esc or B to cancel' : 'Esc to cancel' }}</div>
   </div></div>
   <div id="foot">
-    <div class="ghost" data-event-click="reset()">Defaults</div>
-    <div class="ghost" data-event-click="quit()">Quit</div>
+    <div class="ghost" data-if="!pad" data-event-click="reset()">Defaults</div>
+    <div class="ghost" data-if="!pad" data-event-click="quit()">Quit</div>
+    <div id="hints" data-if="pad"><span class="glyph">LB</span><span class="glyph pair">RB</span>Tabs<span
+      class="glyph">A</span>Change<span class="glyph">Y</span>Defaults<span class="glyph">Back</span>Quit</div>
     <div id="status"><span data-if="missing">game_files\default.xbe not found. Run scripts\setup.ps1.</span></div>
-    <div id="play" data-class-off="missing" data-event-click="play()">Play</div>
+    <div id="play" data-class-off="missing" data-event-click="play()"><span class="glyph start" data-if="pad">Start</span>Play</div>
   </div>
 </body></rml>
 )RML";
@@ -285,6 +311,21 @@ bool valid(const Option &o, const Rml::String &v)
     return false;
 }
 
+/* The developer options and hotkeys show while the developer tools mod is on. */
+bool g_dev;
+
+void options_changed()
+{
+    g_dev = false;
+    for (const Option &o : g_options)
+        if (o.env == mm3_mods[MM3_MOD_DEV_TOOLS].env)
+            g_dev = o.value == "1";
+    if (g_model) {
+        g_model.DirtyVariable("options");
+        g_model.DirtyVariable("dev");
+    }
+}
+
 /* The Mods tab: one switch per entry of src/mods/mods.c. The translation
  * corrections are for developers: MM3_MOD_TRANSLATION=0 only. */
 void add_mod_options()
@@ -299,7 +340,7 @@ void add_mod_options()
         o.env = mm3_mods[i].env;
         o.def = mm3_mods[i].default_on || mm3_mods[i].required ? "1" : "0";
         if (mm3_mods[i].required)
-            o.choices = {{"1", "Required"}};   /* shown, not switchable */
+            o.choices = {{"1", "Always on"}};
         else
             o.choices = {{"0", "Off"}, {"1", "On"}};
         o.page = 2;
@@ -313,7 +354,14 @@ void load_settings()
     add_mod_options();
     reset_all();
     for (Option &o : g_options)
+    {
         o.toggle = o.choices.size() == 2 && o.choices[0].label == "Off";
+        o.fixed = o.choices.size() == 1;
+        o.dev = o.env == "MM3_DEV_HUD" || o.env == "MM3_DEBUG_MENU" || o.env == "MM3_EXTENDED_CAMERAS" ||
+                o.env == "MM3_E3_PRESET" || o.env == "MM3_DEV_HOTKEYS_ON";
+    }
+    for (Bind &b : g_binds)
+        b.dev = b.env == "MM3_DEV_HOTKEYS";
     FILE *f = fopen(kSettingsFile, "r");
     if (!f)
         return;
@@ -417,13 +465,205 @@ void tick_splash(double now)
     if (g_splash != was) g_model.DirtyVariable("splash");
 }
 
+void start_rebind(size_t i)
+{
+    if (i >= g_binds.size() || g_capture >= 0)
+        return;
+    /* Headers only name the first input of a group; find this one's. */
+    size_t g = i;
+    while (g > 0 && g_binds[g].header.empty())
+        g--;
+    g_capture_label = g_binds[g].header + ": " + g_binds[i].label;
+    g_capture = (int)i;
+    g_armed = false;
+    g_model.DirtyVariable("capture_label");
+    g_model.DirtyVariable("capturing");
+}
+
+struct Row {
+    bool bind;
+    int i;
+};
+
+Rml::Vector<Row> rows()
+{
+    Rml::Vector<Row> r;
+    for (int i = 0; i < (int)g_options.size(); i++)
+        if (g_options[i].page == g_tab && (g_dev || !g_options[i].dev))
+            r.push_back({false, i});
+    if (g_tab == 1)
+        for (int i = 0; i < (int)g_binds.size(); i++)
+            if (g_dev || !g_binds[i].dev)
+                r.push_back({true, i});
+    return r;
+}
+
+void show_focus()
+{
+    const Rml::Vector<Row> r = rows();
+    g_row = Rml::Math::Clamp(g_row, 0, (int)r.size() - 1);
+    g_fo = g_nav && !r[g_row].bind ? r[g_row].i : -1;
+    g_fb = g_nav && r[g_row].bind ? r[g_row].i : -1;
+    g_model.DirtyVariable("fo");
+    g_model.DirtyVariable("fb");
+    g_scroll = g_nav;
+}
+
+/* d -1/+1 through the choices; wrap goes round instead of stopping at the ends. */
+void step(Option &o, int d, bool wrap)
+{
+    const int n = (int)o.choices.size();
+    int k = 0;
+    while (k < n && o.choices[k].value != o.value)
+        k++;
+    k = wrap ? (k + d + n) % n : Rml::Math::Clamp(k + d, 0, n - 1);
+    o.value = o.choices[k].value;
+    options_changed();
+}
+
+enum Nav { UP, DOWN, LEFT, RIGHT, ACCEPT, PREV_TAB, NEXT_TAB };
+
+void navigate(Nav act)
+{
+    if (act == PREV_TAB || act == NEXT_TAB) {
+        g_tab = (g_tab + (act == NEXT_TAB ? 1 : 2)) % 3;
+        g_model.DirtyVariable("tab");
+        return; /* the loop resets the row for the new tab */
+    }
+    if (!g_nav) { /* the first press shows where the focus is */
+        g_nav = true;
+        show_focus();
+        return;
+    }
+    const Row f = rows()[g_row];
+    if (act == UP || act == DOWN)
+        g_row += act == UP ? -1 : 1;
+    else if (f.bind && act == ACCEPT)
+        start_rebind(f.i);
+    else if (!f.bind)
+        step(g_options[f.i], act == LEFT ? -1 : 1, act == ACCEPT);
+    show_focus();
+}
+
+void reset()
+{
+    reset_all();
+    options_changed();
+    g_model.DirtyVariable("binds");
+}
+
+void set_pad(bool pad)
+{
+    if (pad != g_pad) {
+        g_pad = pad;
+        g_model.DirtyVariable("pad");
+    }
+}
+
+/* The first connected controller: D-pad or left stick moves (held, it
+ * repeats), A changes, LB/RB switch tabs, Y defaults, Start plays, Back
+ * quits, B cancels a key prompt. Read only while the launcher is in front. */
+void poll_pad(double now)
+{
+    static int slot = -1;
+    static double scan, repeat;
+    static WORD prev;
+    static int held = -1;
+    XINPUT_STATE s = {};
+    if (slot < 0 && now >= scan) { /* polling empty slots is slow: once a second */
+        scan = now + 1;
+        for (int p = 0; p < XUSER_MAX_COUNT && slot < 0; p++)
+            if (XInputGetState(p, &s) == ERROR_SUCCESS)
+                slot = p;
+    }
+    if (slot >= 0 && XInputGetState(slot, &s) != ERROR_SUCCESS)
+        slot = -1;
+    const bool front = GetActiveWindow() != NULL;
+    WORD b = front ? s.Gamepad.wButtons : 0;
+    const int x = s.Gamepad.sThumbLX, y = s.Gamepad.sThumbLY;
+    if (front && abs(y) > 16000 && abs(y) >= abs(x))
+        b |= y > 0 ? XINPUT_GAMEPAD_DPAD_UP : XINPUT_GAMEPAD_DPAD_DOWN;
+    else if (front && abs(x) > 16000)
+        b |= x > 0 ? XINPUT_GAMEPAD_DPAD_RIGHT : XINPUT_GAMEPAD_DPAD_LEFT;
+    const WORD pressed = b & ~prev;
+    prev = b;
+    if (pressed)
+        set_pad(true);
+    if (g_splash) {
+        if (pressed) {
+            g_splash = 0;
+            g_model.DirtyVariable("splash");
+        }
+        return;
+    }
+    if (g_capture >= 0) {
+        if (pressed & XINPUT_GAMEPAD_B)
+            end_capture();
+        held = -1;
+        return;
+    }
+    if (pressed & XINPUT_GAMEPAD_START) play();
+    if (pressed & XINPUT_GAMEPAD_BACK) g_result = 0;
+    if (pressed & XINPUT_GAMEPAD_Y) reset();
+    if (pressed & XINPUT_GAMEPAD_A) navigate(ACCEPT);
+    if (pressed & XINPUT_GAMEPAD_LEFT_SHOULDER) navigate(PREV_TAB);
+    if (pressed & XINPUT_GAMEPAD_RIGHT_SHOULDER) navigate(NEXT_TAB);
+    const int dir = b & XINPUT_GAMEPAD_DPAD_UP    ? UP
+                  : b & XINPUT_GAMEPAD_DPAD_DOWN  ? DOWN
+                  : b & XINPUT_GAMEPAD_DPAD_LEFT  ? LEFT
+                  : b & XINPUT_GAMEPAD_DPAD_RIGHT ? RIGHT : -1;
+    if (dir != held) {
+        held = dir;
+        repeat = now + 0.4;
+        if (dir >= 0)
+            navigate((Nav)dir);
+    } else if (dir >= 0 && now >= repeat) {
+        repeat = now + 0.08;
+        navigate((Nav)dir);
+    }
+}
+
+/* The mouse takes over from the focus when it moves. */
+void poll_mouse()
+{
+    static POINT last = {-1, -1};
+    POINT p;
+    if (!GetCursorPos(&p) || (p.x == last.x && p.y == last.y))
+        return;
+    const bool first = last.x == -1;
+    last = p;
+    if (first || !GetActiveWindow() || (!g_nav && !g_pad))
+        return;
+    g_nav = false;
+    set_pad(false);
+    show_focus();
+}
+
+/* A dark title bar in the launcher's colour instead of the light default. */
+void dark_title_bar()
+{
+    HWND hwnd = NULL;
+    EnumThreadWindows(GetCurrentThreadId(), [](HWND h, LPARAM p) -> BOOL {
+        if (!IsWindowVisible(h))
+            return TRUE;
+        *(HWND *)p = h;
+        return FALSE;
+    }, (LPARAM)&hwnd);
+    if (!hwnd)
+        return;
+    const BOOL dark = TRUE;
+    const COLORREF caption = RGB(0x12, 0x14, 0x18);
+    DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &dark, sizeof dark);
+    DwmSetWindowAttribute(hwnd, 35 /* DWMWA_CAPTION_COLOR, Windows 11 */, &caption, sizeof caption);
+}
+
 bool list_ready(Rml::Context *ctx)
 {
     Rml::Element *list = ctx->GetDocument(0)->GetElementById("list");
     return list && list->GetScrollTop() > 0;
 }
 
-bool on_key(Rml::Context *, Rml::Input::KeyIdentifier key, int, float, bool priority)
+bool on_key(Rml::Context *, Rml::Input::KeyIdentifier key, int mods, float, bool priority)
 {
     if (!priority)
         return true;
@@ -437,12 +677,18 @@ bool on_key(Rml::Context *, Rml::Input::KeyIdentifier key, int, float, bool prio
             end_capture();
         return false;
     }
-    if (key == Rml::Input::KI_RETURN)
-        play();
-    else if (key == Rml::Input::KI_ESCAPE)
-        g_result = 0;
-    else
-        return true;
+    set_pad(false);
+    switch (key) {
+    case Rml::Input::KI_RETURN: play(); break;
+    case Rml::Input::KI_ESCAPE: g_result = 0; break;
+    case Rml::Input::KI_UP: navigate(UP); break;
+    case Rml::Input::KI_DOWN: navigate(DOWN); break;
+    case Rml::Input::KI_LEFT: navigate(LEFT); break;
+    case Rml::Input::KI_RIGHT: navigate(RIGHT); break;
+    case Rml::Input::KI_SPACE: navigate(ACCEPT); break;
+    case Rml::Input::KI_TAB: navigate(mods & Rml::Input::KM_SHIFT ? PREV_TAB : NEXT_TAB); break;
+    default: return true;
+    }
     return false;
 }
 
@@ -491,6 +737,8 @@ bool bind_model(Rml::Context *ctx)
         o.RegisterMember("choices", &Option::choices);
         o.RegisterMember("page", &Option::page);
         o.RegisterMember("toggle", &Option::toggle);
+        o.RegisterMember("fixed", &Option::fixed);
+        o.RegisterMember("dev", &Option::dev);
     }
     m.RegisterArray<Rml::Vector<Option>>();
     if (auto b = m.RegisterStruct<Bind>()) {
@@ -498,6 +746,7 @@ bool bind_model(Rml::Context *ctx)
         b.RegisterMember("label", &Bind::label);
         b.RegisterMember("vk", &Bind::vk);
         b.RegisterMember("key", &Bind::key);
+        b.RegisterMember("dev", &Bind::dev);
     }
     m.RegisterArray<Rml::Vector<Bind>>();
     m.Bind("options", &g_options);
@@ -506,41 +755,30 @@ bool bind_model(Rml::Context *ctx)
     m.Bind("tab", &g_tab);
     m.Bind("splash", &g_splash);
     m.Bind("capture_label", &g_capture_label);
+    m.Bind("fo", &g_fo);
+    m.Bind("fb", &g_fb);
+    m.Bind("pad", &g_pad);
+    m.Bind("dev", &g_dev);
     m.BindFunc("capturing", [](Rml::Variant &v) { v = g_capture >= 0; });
     m.BindEventCallback("toggle", [](Rml::DataModelHandle h, Rml::Event &, const Rml::VariantList &args) {
         size_t i = args.empty() ? g_options.size() : args[0].Get<size_t>();
         if (i < g_options.size() && g_options[i].toggle) {
             Option &o = g_options[i];
             o.value = o.value == o.choices[0].value ? o.choices[1].value : o.choices[0].value;
-            h.DirtyVariable("options");
+            options_changed();
         }
     });
-    m.BindEventCallback("rebind", [](Rml::DataModelHandle h, Rml::Event &, const Rml::VariantList &args) {
-        size_t i = args.empty() ? g_binds.size() : args[0].Get<size_t>();
-        if (i >= g_binds.size() || g_capture >= 0)
-            return;
-        /* Headers only name the first input of a group; find this one's. */
-        size_t g = i;
-        while (g > 0 && g_binds[g].header.empty())
-            g--;
-        g_capture_label = g_binds[g].header + ": " + g_binds[i].label;
-        g_capture = (int)i;
-        g_armed = false;
-        h.DirtyVariable("capture_label");
-        h.DirtyVariable("capturing");
+    m.BindEventCallback("rebind", [](Rml::DataModelHandle, Rml::Event &, const Rml::VariantList &args) {
+        start_rebind(args.empty() ? g_binds.size() : args[0].Get<size_t>());
     });
     m.BindEventCallback("set", [](Rml::DataModelHandle h, Rml::Event &, const Rml::VariantList &args) {
         size_t i = args.size() == 2 ? args[0].Get<size_t>() : g_options.size();
         if (i < g_options.size() && valid(g_options[i], args[1].Get<Rml::String>())) {
             g_options[i].value = args[1].Get<Rml::String>();
-            h.DirtyVariable("options");
+            options_changed();
         }
     });
-    m.BindEventCallback("reset", [](Rml::DataModelHandle h, Rml::Event &, const Rml::VariantList &) {
-        reset_all();
-        h.DirtyVariable("options");
-        h.DirtyVariable("binds");
-    });
+    m.BindEventCallback("reset", [](Rml::DataModelHandle, Rml::Event &, const Rml::VariantList &) { reset(); });
     m.BindEventCallback("play", [](Rml::DataModelHandle, Rml::Event &, const Rml::VariantList &) { play(); });
     m.BindEventCallback("quit", [](Rml::DataModelHandle, Rml::Event &, const Rml::VariantList &) { g_result = 0; });
     g_model = m.GetModelHandle();
@@ -559,6 +797,7 @@ extern "C" int mm3_launcher(void)
 
     g_missing = !find_game_dir();
     load_settings();
+    options_changed();
     /* MM3_LAUNCHER_TAB=0/1/2 opens on Settings, Controls or Mods (screenshots, tests). */
     if (const char *tab = getenv("MM3_LAUNCHER_TAB"))
         g_tab = atoi(tab) >= 0 && atoi(tab) <= 2 ? atoi(tab) : 0;
@@ -572,6 +811,7 @@ extern "C" int mm3_launcher(void)
         save_and_export(); /* no launcher: play with the saved settings */
         return 1;
     }
+    dark_title_bar();
     g_system.base = Backend::GetSystemInterface();
     Rml::SetSystemInterface(&g_system);
     Rml::SetRenderInterface(Backend::GetRenderInterface());
@@ -583,10 +823,32 @@ extern "C" int mm3_launcher(void)
         if (Rml::ElementDocument *doc = ctx->LoadDocumentFromMemory(kDocument))
             doc->Show();
         g_result = -1;
-        while (g_result < 0 && Backend::ProcessEvents(ctx, on_key, g_capture < 0 && !g_splash)) {
-            tick_splash(Rml::GetSystemInterface()->GetElapsedTime());
+        int shown_tab = g_tab;
+        /* Waits for messages only in the background: in front, the controller
+         * is polled every frame (the backend presents with v-sync). */
+        while (g_result < 0 && Backend::ProcessEvents(ctx, on_key, !GetActiveWindow())) {
+            const double now = Rml::GetSystemInterface()->GetElapsedTime();
+            tick_splash(now);
             poll_capture();
+            poll_pad(now);
+            poll_mouse();
             ctx->Update();
+            Rml::ElementDocument *doc = ctx->GetDocument(0);
+            if (g_tab != shown_tab && doc) { /* a new tab starts at its top */
+                shown_tab = g_tab;
+                g_row = 0;
+                show_focus();
+                if (Rml::Element *list = doc->GetElementById("list"))
+                    list->SetScrollTop(0);
+                ctx->Update();
+            }
+            if (g_scroll && doc) {
+                g_scroll = false;
+                const Rml::String id = (g_fb >= 0 ? "b" : "o") + Rml::ToString(g_fb >= 0 ? g_fb : g_fo);
+                if (Rml::Element *row = doc->GetElementById(id))
+                    row->ScrollIntoView(Rml::ScrollIntoViewOptions(Rml::ScrollAlignment::Nearest,
+                        Rml::ScrollAlignment::Nearest, Rml::ScrollBehavior::Smooth, Rml::ScrollParentage::Closest));
+            }
             /* MM3_LAUNCHER_SCROLL=1 shows the end of the list (screenshots, tests). */
             static bool scrolled;
             if (!scrolled && getenv("MM3_LAUNCHER_SCROLL") && ctx->GetDocument(0)) {

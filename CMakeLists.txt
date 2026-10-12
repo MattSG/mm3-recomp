@@ -204,7 +204,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${XBOXRECOMP_DIR}/include
     ${XBOXRECOMP_DIR}/src/video)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE xboxrecomp RmlUi::RmlUi d3d11 dxgi d3dcompiler)
+target_link_libraries(${PROJECT_NAME} PRIVATE xboxrecomp RmlUi::RmlUi d3d11 dxgi d3dcompiler dwmapi xinput)
 target_include_directories(${PROJECT_NAME} PRIVATE ${rmlui_SOURCE_DIR}/Backends)
 
 # MM3's CRT uses NtAllocateVirtualMemory reserve requests as heap-backed

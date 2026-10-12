@@ -53,7 +53,7 @@ without edits.
 
 Double-click `build\RelWithDebInfo\mm3_recomp.exe` for the settings launcher: display,
 graphics, developer options and key/mouse bindings (the options below), saved to `mm3_settings.ini` next to `game_files\`,
-which it finds by walking up from the exe. Enter plays, Esc quits. The launcher only appears
+which it finds by walking up from the exe. Enter plays, Esc quits; arrows, Space and Tab move, change and switch tabs. With a controller: D-pad or stick, A, LB/RB, Y defaults, Start plays, Back quits. The launcher only appears
 when `RECOMP_PB_EXEC` is unset, so scripts and harnesses boot straight in.
 
 `scripts\play.ps1` sets the defaults below and runs the build from the repository root (the
