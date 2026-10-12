@@ -79,11 +79,13 @@ void mm3_map_zoom_apply(uint32_t node, uint32_t player_record)
 float mm3_map_zoom_checkpoint_scale(uint32_t node, uint32_t flags)
 {
     unsigned slot, style = flags & 0x1Fu;
+    const float icon_scale = 0.75f;
     /* 11CAE8 styles 0 and 3 use Checkpoint; 1/2/4 use You and 5 uses
      * TagMagIcon. Scale the checkpoint's pulse-adjusted half-size before
-     * native quad creation, rotation and translation, keeping its centre. */
+     * native quad creation, rotation and translation, keeping its centre.
+     * Use a smaller base size even before the speed zoom starts. */
     if (!node || (style != 0 && style != 3)) return 1.0f;
     slot = map_zoom_slot(node);
-    if (!s_map_zoom[slot].baseline) return 1.0f;
-    return 1.0f / s_map_zoom[slot].span;
+    if (!s_map_zoom[slot].baseline) return icon_scale;
+    return icon_scale / s_map_zoom[slot].span;
 }

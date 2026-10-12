@@ -433,9 +433,9 @@ Their initial framing stays stable as you approach checkpoints.
 Both map sizes draw the ordered checkpoint course along actual streets with
 an amber path. The brighter leg updates from the car to the next checkpoint,
 including after a wrong turn. Passing checkpoints keeps the full course visible. Checkpoint
-icons shrink with the map's speed zoom, reaching 80% of their original width and
-height at maximum zoom-out, while retaining their colors and pulsing. World hoops
-retain their original size.
+icons use 75% of their original width and height and shrink with the map's speed
+zoom to 60% at maximum zoom-out, while retaining their colors and pulsing. World
+hoops retain their original size.
 Blitz courses stay open; checkpoint races include the closing lap segment.
 Choose **Manual** transmission in car setup, then tap **R** to shift up and **F** to shift down
 (the default Xbox B/X gear controls). These aliases operate only while driving.

@@ -199,8 +199,15 @@ static void native_contract(void) {
         for (i = 0; i < draw_count; ++i) {
             unsigned vertex;
             assert(draws[i].texture == original[i].texture);
-            for (vertex = 0; vertex < 4; ++vertex) for (axis = 0; axis < 2; ++axis)
-                near(draws[i].xy[vertex][axis], original[i].xy[vertex][axis]);
+            for (axis = 0; axis < 2; ++axis) {
+                float centre = 0;
+                for (vertex = 0; vertex < 4; ++vertex)
+                    centre += original[i].xy[vertex][axis] * .25f;
+                for (vertex = 0; vertex < 4; ++vertex)
+                    near(draws[i].xy[vertex][axis], draws[i].texture == 4 ?
+                        centre + (original[i].xy[vertex][axis] - centre) * .75f :
+                        original[i].xy[vertex][axis]);
+            }
         }
         for (i = 0; i < 600; ++i) mm3_map_zoom_update(node, 1.0f / 60.0f);
         draw_count = 0; abi_start(node); zoom_draw(); abi_end(24);
@@ -225,7 +232,7 @@ static void native_contract(void) {
             near(b, centre + (a - centre) / span);
             check = "checkpoint icon size";
             for (i = 0; i < 4; ++i)
-                near(checkpoint_zoom->xy[i][axis] - b, (checkpoint->xy[i][axis] - a) / span);
+                near(checkpoint_zoom->xy[i][axis] - b, (checkpoint->xy[i][axis] - a) * .75f / span);
         }
         /* Native scale reconstruction prevents zoom accumulating over draws. */
         draw_count = 0; abi_start(node); zoom_draw(); abi_end(24);
