@@ -60,9 +60,10 @@ set(MM3_RENAMED_FUNCTIONS
     sub_0009BC04 sub_0009BC52    # recovered x87 helpers keep their unusual stack return
     sub_00170E5D sub_000145DC sub_001F02AD
     sub_0025968E                 # widescreen: wraps the projection-matrix builder
+    sub_001DB6E8 sub_001F2A71 sub_001F443D  # skip intro: movie play, frame, skip check
 )
 if(MM3_MOVIE_INPUT_TRACE)
-    list(APPEND MM3_RENAMED_FUNCTIONS sub_001DB6E8 sub_001F2A71 sub_001F443D sub_0035BDC0)
+    list(APPEND MM3_RENAMED_FUNCTIONS sub_0035BDC0)
 endif()
 if(MM3_OFFLINE_XNET)
     list(APPEND MM3_RENAMED_FUNCTIONS sub_0019531D)
@@ -164,6 +165,7 @@ endforeach()
 add_executable(${PROJECT_NAME}
     src/main.c
     src/mm3_launcher.cpp
+    src/mm3.rc
     ${rmlui_SOURCE_DIR}/Backends/RmlUi_Platform_Win32.cpp
     ${rmlui_SOURCE_DIR}/Backends/RmlUi_Renderer_DX11.cpp
     ${rmlui_SOURCE_DIR}/Backends/RmlUi_Backend_Win32_DX11.cpp
@@ -172,6 +174,7 @@ add_executable(${PROJECT_NAME}
     src/mods/menu_mouse.c
     src/mods/collision_fix.c
     src/mods/widescreen_hud.c
+    src/mods/skip_intro.c
     src/mm3_unresolved_stubs.c
  src/mm3_memory_compat.c
  src/mm3_memory_tails.c
@@ -189,6 +192,7 @@ set_property(SOURCE src/recomp_manual.c APPEND PROPERTY COMPILE_DEFINITIONS
     "recomp_lookup_manual=recomp_lookup_manual_base" "sub_00083A6C=sub_00083A6C_original")
 if(MM3_MOVIE_INPUT_TRACE)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3_movie_input_trace.c)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE MM3_MOVIE_INPUT_TRACE)
 endif()
 if(MM3_OFFLINE_XNET)
     target_sources(${PROJECT_NAME} PRIVATE src/mods/offline.c)

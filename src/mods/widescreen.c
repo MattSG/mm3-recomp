@@ -1,4 +1,5 @@
 #include <math.h>
+#include <stdlib.h>
 #include "recomp_types.h"
 #include "mods.h"
 
@@ -17,9 +18,32 @@ extern float nv2a_d3d_display_aspect(void);
 extern void mm3_hud_set_edge(int on);                                   /* widescreen_hud.c */
 extern void mm3_hud_set_start(float x0, float y0, float x1, float y1);
 
+/* The field-of-view mod: MM3_FOV percent (100-150) widens the race camera,
+ * tan(fovy/2) scaled, in the matrix and in the copy the culling reads. */
+static float fov_scale(void)
+{
+    static float k = -1.0f;
+    if (k < 0.0f) {
+        const char *v = getenv("MM3_FOV");
+        k = v && mm3_mod_on(MM3_MOD_FOV) ? (float)atof(v) / 100.0f : 1.0f;
+        k = k < 1.0f ? 1.0f : k > 1.5f ? 1.5f : k;
+    }
+    return k;
+}
+
+static void widen_race_fov(void)
+{
+    if (MEM32(g_esp) == 0x000F4AF5u && MEM32(g_ebp + 4) == 0x00210E1Eu && fov_scale() > 1.0f) {
+        float fovy = 2.0f * atanf(tanf(MEMF(g_esp + 8) * 0.5f) * fov_scale());
+        MEMF(g_esp + 8) = fovy;
+        MEMF(g_ebp + 8) = fovy;
+    }
+}
+
 void sub_0025968E(void)
 {
     if (!mm3_mod_on(MM3_MOD_WIDESCREEN)) {
+        widen_race_fov();
         sub_0025968E_original();
         return;
     }
@@ -57,6 +81,7 @@ void sub_0025968E(void)
         MEMF(g_esp + 8) = fovy;
         MEMF(g_ebp + 8) = fovy;
     }
+    widen_race_fov();
     sub_0025968E_original();
     /* cdecl: the caller owns its argument area; give it back unchanged. */
     if (patch)

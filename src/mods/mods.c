@@ -24,6 +24,10 @@ const Mm3Mod mm3_mods[MM3_MOD_COUNT] = {
         "Out-of-range face indices in a Paris collision cell are repaired at load; without it the game can freeze or drop the car through the road.", 1, 1},
     [MM3_MOD_DISC_CHECK] = {"disc_check", "MM3_MOD_DISC_CHECK", "Disc check bypass",
         "Skips the DVD authentication the emulated drive cannot pass.", 1, 1},
+    [MM3_MOD_SKIP_INTRO] = {"skip_intro", "MM3_MOD_SKIP_INTRO", "Skip intro movies",
+        "The logo and intro movies at start-up are skipped, as if you pressed Start. Story movies still play.", 1},
+    [MM3_MOD_FOV] = {"fov", "MM3_MOD_FOV", "Field of view",
+        "The race camera widened as set under Graphics. Off: the Xbox view.", 1},
     [MM3_MOD_TRANSLATION] = {"translation", "MM3_MOD_TRANSLATION", "Translation corrections",
         "Hand-written fixes where the generated code differed from the original game (src/mm3_*.c, recomp_manual.c). "
         "Off: the generated code runs without them wherever it has a body of its own (register/SEH preservation, the stream copy). Functions the generator never produced stay filled in.", 1},

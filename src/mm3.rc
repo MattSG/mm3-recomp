@@ -1,0 +1,2 @@
+// The exe and window icon (resource 1, which the runtime's window class loads).
+1 ICON "mm3.ico"

@@ -52,6 +52,8 @@ Rml::Vector<Option> g_options = {
      {{"30", "30"}, {"60", "60"}, {"120", "120"}}},
     {"", "V-Sync", "", "RECOMP_VSYNC", "0", "",
      {{"0", "Off"}, {"1", "On"}}},
+    {"", "In the background", "When another window is in front.", "RECOMP_PAUSE_UNFOCUSED", "1", "",
+     {{"1", "Pause"}, {"0", "Keep running"}}},
     {"Graphics", "Internal resolution", "Fixed multiple of 480 lines; overrides supersampling.",
      "RECOMP_RENDER_SCALE", "", "", {{"", "Auto"}, {"1", "480p"}, {"2", "960p"}, {"3", "1440p"}, {"4", "1920p"}}},
     {"", "Supersampling", "Pixels rendered per window pixel.", "RECOMP_SUPERSAMPLE", "2", "",
@@ -64,6 +66,8 @@ Rml::Vector<Option> g_options = {
      {{"1", "Xbox"}, {"2", "2x"}, {"3", "3x"}, {"4", "4x"}}},
     {"", "View distance", "How far the city is drawn.", "RECOMP_VIEW_DISTANCE", "2", "",
      {{"1", "Xbox"}, {"2", "2x"}, {"3", "3x"}, {"4", "4x"}}},
+    {"", "Field of view", "How wide the race camera sees.", "MM3_FOV", "", "",
+     {{"", "Xbox"}, {"110", "+10%"}, {"120", "+20%"}, {"130", "+30%"}}},
     {"Network", "Network", "System link and Xbox Live through the PC's connection.", "RECOMP_NET", "", "",
      {{"", "Off"}, {"nat", "On"}}},
     {"", "Online service", "Insignia revives Xbox Live; it needs an account on the console's hard disk.",
@@ -675,6 +679,11 @@ void dark_title_bar()
     const COLORREF caption = RGB(0x12, 0x14, 0x18);
     DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &dark, sizeof dark);
     DwmSetWindowAttribute(hwnd, 35 /* DWMWA_CAPTION_COLOR, Windows 11 */, &caption, sizeof caption);
+    /* The backend's class has the stock icon; ours is resource 1 (mm3.rc). */
+    if (HICON icon = LoadIconA(GetModuleHandleA(NULL), MAKEINTRESOURCEA(1))) {
+        SendMessageA(hwnd, WM_SETICON, ICON_BIG, (LPARAM)icon);
+        SendMessageA(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)icon);
+    }
 }
 
 bool list_ready(Rml::Context *ctx)
