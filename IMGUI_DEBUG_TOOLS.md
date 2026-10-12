@@ -1,4 +1,4 @@
-# ImGui debug tools work log
+# ImGui debug tools (WIP)
 
 Branch: `feature/imgui-debug-tools`, starting at `c1a6adc`.
 Private worktree: `I:/repos/mm3-imgui-debug-tools`.
@@ -35,9 +35,9 @@ repair do not require the prepared scripts. The ImGui controls do not expose pro
 | --- | --- | --- |
 | Developer commands | `src/mods/dev_tools.c` runs numbered prepared Lua scripts after player update, preserving guest registers | HUD and native menu were visually verified in the existing debug experiment; loader success alone does not prove other effects |
 | Teleport | `src/mods/teleport.c` queues requests to primary player update and calls native ground reset `0021ADF3` | Existing fixtures cover ABI, ground miss and cancellation; `DEBUG_TELEPORT.md` records user-confirmed live operation |
-| Position / heading | Teleport backend samples active car body under an SRW lock | Availability expires after 500 ms; UI must never read guest objects directly |
-| Input / settings | Runtime framebuffer tracks keys and mouse; launcher persists environment settings | No host UI capture seam exists yet; gamepad reads must also be suppressed during capture |
-| ImGui | No integration found in current tracked project/runtime sources | Needs pinned Dear ImGui dependency, DX11 presentation callback and synchronized Win32 event delivery |
+| Position / heading | Teleport backend samples active car body under an SRW lock | Availability expires after 300 ms; UI never reads guest objects directly |
+| Input / settings | Runtime framebuffer tracks keys and mouse; launcher persists environment settings | Optional host capture seam neutralizes gameplay input; physical-device validation pending |
+| ImGui | Dear ImGui 1.91.9b with Win32/DX11 backends | Pinned dependency, presentation callback and synchronized Win32 event delivery; live rendering pending |
 
 ## Initial scope
 
