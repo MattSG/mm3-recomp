@@ -8,6 +8,12 @@ Experimental static recompilation of the Xbox game to native x86-64 Windows,
 using [xboxrecomp](tools/xboxrecomp) and Direct3D 11. You need your own game disc
 image; game assets are not included.
 
+This project uses a custom [MattSG/xboxrecomp](https://github.com/MattSG/xboxrecomp)
+fork of [sp00nznet/xboxrecomp](https://github.com/sp00nznet/xboxrecomp), pinned
+through the `tools/xboxrecomp` submodule. Our fork changes also include AI-written
+code and carry the same rough-edge and review caveats as this project. Issues
+specific to our changes should be reported to this project or our fork.
+
 This is an unofficial community project, not affiliated with or endorsed by
 Microsoft, Xbox, Digital Illusions CE (DICE), or the game's other rights holders.
 
@@ -83,10 +89,9 @@ of crashes, corrupted saves, or lost progress.
 - [Third-party licences](THIRD_PARTY.md).
 
 PRs and cleanups are welcome, including fixes to AI-written code and incorrect
-documentation. For bugs, include the commit, settings, reproduction steps, and
-relevant logs. AI-assisted PRs are welcome, but contributors must understand
-their changes and describe their testing. Distinguish implemented behaviour
-from behaviour verified in actual gameplay, and identify what remains untested.
+documentation. See [Contributing](CONTRIBUTING.md) for how to submit PRs, report
+bugs, and describe local testing. AI-assisted contributions are welcome; review
+and understand your changes before submitting them.
 
 ## Copyright and contributions
 
