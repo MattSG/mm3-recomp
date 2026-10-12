@@ -1,0 +1,2187 @@
+MIDTOWN MADNESS 3 PC NATIVE - NEXT FIXES TO DO
+============================================
+
+Audit date: 2026-10-12 (Europe/Paris).
+Purpose: a detailed implementation backlog for later work, based on code
+comparisons with MattSG's latest upstream sources. The entries distinguish
+missing fixes, partially covered fixes, independently covered fixes, optional
+features and documentation changes. They are not claims that every listed bug
+has been reproduced in this fork, or that these fixes have already been applied.
+
+Project: https://github.com/lakshya16157/midtown-madness-3-PC-Native
+Local folder: C:\Users\lulky\Desktop\MM3\midtown-madness-3-PC-Native
+Local audited gameplay source baseline: ec4ad4dc076aa3eb1abb78d2c2a224de47f55cb7.
+The later launcher change makes focused diagnostic tracing opt-in and does not
+implement any upstream gameplay or runtime repair in this backlog.
+
+Verified upstream snapshots:
+- Game repository: a24b737f1359ff39db3035d4e708b75e69bd8982.
+  https://github.com/MattSG/mm3-recomp/commit/a24b737f1359ff39db3035d4e708b75e69bd8982
+- Runtime repository: b66656858a498deb2214565781442223a8bf9a51.
+  https://github.com/MattSG/xboxrecomp/commit/b66656858a498deb2214565781442223a8bf9a51
+- Runtime pinned by this fork: 2a521ffd2d6e084c38cb7d06aaec9104d3d8ba7b,
+  plus patches/xboxrecomp-mm3.patch. Updating an upstream tracking reference
+  does not update the working runtime, generated game code or executable.
+
+Both upstream main refs were checked with Git fetch, and their exact hashes
+were independently verified through the GitHub API during this task. Future
+implementation must fetch and re-audit anything published after these hashes.
+The previous comparison found 33 upstream-only game-repository commits and
+18 runtime commits after our runtime pin. Those counts include documentation,
+submodule bumps and superseded intermediate approaches, not 51 separate bugs.
+
+HOW TO USE THIS FILE
+-------------------
+Each detailed item below explains the symptom, upstream mechanism, local
+evidence, integration work, dependencies, risks and acceptance checks. Source
+paths are relative to the repository. Function addresses refer to the supported
+retail Xbox code, not host addresses. Generated C line numbers can change after
+regeneration; locate the function/address rather than relying on a line number.
+
+Status meanings:
+- MISSING: the upstream mechanism is absent from the checked local source.
+- PARTIAL: some behavior is covered, but an identifiable gap remains.
+- EQUIVALENT: a local implementation covers the audited behavior; preserve and
+  verify it instead of replacing it solely to match commit ancestry.
+- FEATURE: new functionality, not evidence of a bug in existing gameplay.
+- DOCUMENTATION: no gameplay repair to port by itself.
+
+Suggested implementation order:
+1. Translation/correctness: missing 0x2534FF setter and unresolved-stub reports;
+   collision-cell bounds; confirm already recovered graph/math functions.
+2. Runtime liveness: interrupt preemption, audio queue/producer behavior, and
+   bounded push-buffer producer run-ahead. Treat concurrency changes as separate
+   reviewable units with targeted regressions and real startup/gameplay trials.
+3. Rendering correctness: depth sampling/edge placement, menu/reset layout,
+   facade pools and distance ownership, haze/foliage, then panorama sampling.
+4. Optional observability and UI: opt-in spike diagnostics; generic title hooks;
+   settings/mod/keymap launcher; teleport heading; higher-FPS validation.
+The detailed dependencies in the entries take precedence over this broad order.
+
+COMMON INTEGRATION RULES
+------------------------
+- Preserve our custom-car tools, driving defaults, gauges, map zoom/checkpoints,
+  race guidance, camera/FOV controls, pause layout, tree contacts, shader caches,
+  texture/surface repairs, memory ownership and guest callback/handle fixes.
+  A clean upstream checkout does not contain all of those independent changes.
+- Separate runtime APIs from title-specific behavior. The latest upstream
+  generic-hook change moves some MM3 rules into src/mods; copying its renderer
+  alone can remove behavior that this fork currently implements elsewhere.
+- Keep the known generator version and its recovered helper routing stable
+  while porting runtime fixes. Switching to the newer lifter is a separate
+  translation project requiring regenerated-code differential testing.
+- Regenerate the complete runtime patch after any toolkit edit, including all
+  new headers and tests. Keep the submodule at a reproducible public commit;
+  do not leave a gitlink pointing to an unpublished local runtime commit.
+- Check patch application on a clean export of the pinned runtime and compare
+  every modified/added file after Git newline normalization. The publication
+  check previously reproduced all 96 locally modified/added runtime files.
+- New diagnostic features should be opt-in. Normal scripts/play.ps1 launches
+  now leave building, texture-stream and asynchronous-wait traces off by
+  default. Preserve explicit environment overrides and the diagnostic shortcut.
+- Use lakshya16157 for repository-local author/credential identity and origin
+  pushes. Keep game discs, extracted assets, generated Xbox C and local tools
+  in their existing ignored locations.
+
+BASELINE AND VALIDATION
+------------------------
+Current verification before this planning task: production RelWithDebInfo build,
+126 Python tests (two optional cases skipped), 25 standalone native regressions,
+four extra physics/gearing variants and 195 CTest cases across 19 suites passed.
+After making default tracing opt-in, all eight launcher tests passed again.
+These results are a baseline; they do not test the missing mechanisms below.
+
+Before each future repair, preserve the current source/build and a reproducible
+save/scene. Where possible, demonstrate a focused regression failing on the
+baseline and passing after the repair. Compare visible pixels, guest registers,
+stack/flags and relevant memory, rather than only checking that code compiles.
+Run targeted existing suites for the changed subsystem, then a production build
+and appropriate startup/race/pause/post-race/driving smoke checks. Performance
+comparisons must use the same save, scene, profile, cache state and input sequence,
+with focused diagnostic capture disabled for measured windows.
+
+The earlier capped driving/stationary benchmarks did not establish a broad FPS
+increase. Attribute upstream timing numbers to their reported scenario and
+machine; measure again before claiming a local speedup or complete crash fix.
+
+DETAILED GAME/TRANSLATION ITEMS
+===============================
+GAME AND GENERATED-CODE CHECKLIST FRAGMENT
+Audit date: 2026-10-12, Europe/Paris.
+Local audit snapshot: ec4ad4dc076aa3eb1abb78d2c2a224de47f55cb7 plus the existing
+working tree. All source references below are repository-relative, so they
+remain usable after the planned folder rename.
+Upstream game snapshot: a24b737f1359ff39db3035d4e708b75e69bd8982.
+Upstream runtime snapshot selected by that game revision: b666568.
+Source comparison: git diffs and the actual generated C, not ancestry alone.
+This file plans future integration. It does not say these missing fixes have
+already been implemented, and creating this checklist changes no game code.
+
+STATUS AND EVIDENCE RULES
+- MISSING: the compared implementation is absent and no equivalent was found.
+- PARTIAL: a sub-fix or a different implementation exists; remaining differences
+  are stated. Similar intent alone does not establish equivalent behavior.
+- COVERED INDEPENDENTLY: actual local code implements the affected correction,
+  although the upstream commit itself is absent from this fork's ancestry.
+- SUPERSEDED: a historical upstream step is replaced by a later upstream step;
+  integrate the final behavior, not both competing implementations.
+- UPSTREAM REPORTED: figures or reproductions from upstream commit messages.
+  They were not reproduced locally during this source audit.
+- LOCAL SOURCE VERIFIED: a current source/generated-C finding. This is stronger
+  than matching commit subjects but weaker than a new gameplay capture.
+- PLANNED ACCEPTANCE: a test to perform when implementing the item. No unchecked
+  acceptance below is presented as already passing.
+- Source line numbers identify this snapshot; find the named function/address
+  after future regeneration, edits or folder renaming.
+- Generated C under src/recomp/gen is ignored and rebuilt from the user's
+  supported disc. Repairs must live in tracked generator/JSON/hooks/runtime
+  patch files so a clean clone reproduces them. Do not publish disc data.
+
+INTEGRATION ORDER AND FORK FEATURES TO PRESERVE
+[ ] First recover the missing camera function and collision-cell bounds.
+[ ] Then integrate bounded producer run-ahead with compatible NV2A acknowledgment.
+[ ] Then coordinate facade pools, split distance knobs and final runtime haze.
+[ ] Then integrate remaining runtime rendering/audio/interrupt fixes separately.
+[ ] Only then validate higher FPS options; keep the current 60 FPS default until
+    evidence supports a change. Higher FPS is not an independent AI algorithm.
+[ ] Add the launcher/mod framework after runtime input/overlay interfaces exist.
+[ ] Finish documentation, third-party notices and reproduction notes last.
+[ ] Preserve custom/imported-car tools and ten presets, factory physics, stock
+    donor torque/gearing, manual shifting, numeric speedometer, all-car selection,
+    keyboard layout/focus handling, profiles, FOV/chase-camera behavior, map
+    zoom/map-texture ownership/checkpoint placement, race guidance, solid-tree
+    contacts, shader caches, texture conversion, USB event lifetime repairs,
+    command/fence semantics, save-root handling and diagnostic opt-ins.
+[ ] Avoid merging upstream's whole tree over this fork: the branches have large
+    structural differences and upstream does not contain many of these features.
+[ ] Every imported runtime change must survive the tracked patch application to
+    a clean export of pinned tools/xboxrecomp, not only a dirty local submodule.
+
+
+G-01. GENERAL 80-BIT FLD GENERATION; KEEP THE EXISTING THROTTLE/GEAR REPAIR
+Status: COVERED INDEPENDENTLY for the affected math helper; MISSING generic
+pinned-generator change. Priority: generation correctness before regeneration.
+
+Upstream source:
+https://github.com/MattSG/mm3-recomp/commit/fd112c691e91ba4a8a99340eaa4382798cef7de3
+The generator hunk is backported from later toolkit commit cd491b1; the game
+commit retains generator pin 967ec30f362dee229183b4e112e928cd41830484.
+Latest upstream file: scripts/generate_mm3.py:33-57.
+
+Symptoms and cause, from upstream's diff/message:
+- The pinned lifter treated FLD tbyte (10-byte x87 extended precision) as MEMF,
+  reading only four low significand bytes as a single-precision float.
+- The CRT exponential range limit at guest address 0x00393816 is 32767.5 in
+  extended precision. Its incorrect float read becomes zero, selecting the
+  overflow path for ordinary nonzero arguments and capping throttle/gears.
+- UPSTREAM REPORTED: player top speed rose from 19.2 to 51.1 units/second during
+  a 30-second bench-save throttle test. This is not a local expected-speed
+  assertion for every car/save/configuration.
+
+Local source evidence:
+- scripts/generate_mm3.py:30 pins 967ec30...; :36 uses the plain cache directory
+  tools/.generator/967ec30f362d, without the upstream -fp80 suffix/patch.
+- scripts/Generate-MM3RuntimeEntries.py:31-40 patches the operands listed in
+  each entry's x87_extended_loads from MEMF to MEMFP80, accepting either form.
+- mm3_runtime_entry_repairs.json:115-154 recovers x87 entries 0x9BB15, 0x9BB04,
+  0x9BB11, 0x9B4E2, 0x9BC04, 0x9BC35, 0x9BC52, including 0x3937F8 and 0x393816.
+- src/recomp/gen/recomp_runtime_entries.c:2910 uses MEMFP80(0x393816) inside
+  sub_0009BC52; extended-infinity loads also use MEMFP80.
+- CMakeLists.txt:82-84 keeps calls in the same generated translation unit
+  directed to recovered definitions of 0x9BC04/0x9BC35/0x9BC52.
+- The bypassed original in recomp_0008.c:68623 still contains MEMF(0x393816).
+  That stale source alone is not proof the active gameplay helper is unfixed.
+
+Concrete integration steps:
+[ ] Apply the small 10-byte FLD hunk to the pinned cache copy, using an identity
+    such as the upstream -fp80 cache suffix to avoid silently reusing old files.
+[ ] Keep the generator pin; do not replace it wholesale with the latest lifter.
+[ ] Verify the expected old hunk occurs exactly once before replacing it, and
+    fail generation clearly if the pin or source layout unexpectedly changes.
+[ ] Preserve the runtime-entry overlays, helper-unwinds-caller handling, guest
+    x87 precision/control/stack rules and recovered-helper same-chunk routing.
+[ ] Regenerate in a separate output directory first and compare all changed
+    functions; do not overwrite known-working generated output without evidence.
+[ ] Retain the overlay replacement's support for already-correct MEMFP80 input,
+    so generic FLD support and runtime entry recovery are not conflicting fixes.
+
+Risks and edge cases:
+- All 10-byte FLD operands must be handled, not only constant 0x393816.
+- This is not permission to treat 4-byte or 8-byte loads as extended precision.
+- Duplicated helper definitions, wrong wrapper routing or double cleanup can
+  corrupt x87 depth/ESP even when the numeric constant is correct.
+- The current fork also repairs underflow and overflow helper continuation/
+  caller-unwind behavior; upstream's generic FLD hunk does not replace those.
+
+Planned regression and gameplay acceptance:
+[ ] Run tests/mm3_x87_exp_regression.py: original-XBE comparisons, double-range
+    limits, overflow helper cases, x87 stack, ESP, registers and control word.
+[ ] Run tests/mm3_gearing_regression.py and factory-physics variants; preserve
+    stock donor behavior and imported preset gearing.
+[ ] Add focused generator cases for FLD sizes 4, 8 and 10, memory addressing,
+    repeated generator runs and already-patched runtime overlays.
+[ ] Prove the final active generated/helper path contains MEMFP80 for every
+    affected extended operand and no active stale MEMF copy is selected.
+[ ] Repeat the first-race held-throttle test on stock and imported cars; record
+    units, car/config/save, top speed, gear progression and achieved frame rate.
+[ ] Keep upstream speed figures labeled upstream; publish only measured local
+    comparisons as the fork's result.
+
+
+G-02. RECOVER THE CAMERA FOV SETTER AT 0x2534FF
+Status: PARTIAL for parent commit c91d8f1; this setter itself is MISSING.
+Priority: register/stack integrity before broader gameplay/performance changes.
+
+Upstream source:
+https://github.com/MattSG/mm3-recomp/commit/c91d8f12cc73b257e90c380abeeb9ee6eba15707
+Latest upstream mm3_runtime_entry_repairs.json:156 defines [0x2534FF,0x253512).
+
+Symptoms and technical cause, from upstream:
+- Camera field-of-view updates were skipped. Guest ESP remained four bytes
+  lower than the original function's RET 4 would leave it.
+- The caller then popped the float argument as ESI. Its parent restored corrupt
+  EBX/ESI, and race path code subsequently treated a code address as an object.
+- Upstream traced callee-save violations through 0x13FF6E/0xFF714/0xFA6DC,
+  null calls at 0x13FF8C and 0x14E815, and crashes in 0x2D7C9.
+- The original setter loads [ESP+4], calls 0x2513B6, then RET 4. It is reached
+  by the this-adjusting thunk 0x6EC40, vtable 0x378D44 slot +0x38, from 0xFA704.
+- UPSTREAM REPORTED: after this and the graph-epilogue recovery, six 130-second
+  drives had no freezes/crashes, with null virtual calls reduced from hundreds
+  to zero to two. This audit did not independently reproduce those counts.
+
+Local source evidence:
+- src/recomp/gen/recomp_stubs_unresolved.c:282 still defines sub_002534FF as a
+  stub that only advances ESP by four, without executing the original body.
+- recomp_0006.c:25098,25151,25196,25236,25268,25292 contains six generated
+  thunk-tail references to sub_002534FF. This is a source-reference count;
+  it does not prove six distinct sites all execute in a given race.
+- mm3_runtime_entry_repairs.json has sub_002533EB at :177, a different setter
+  already recovered. It is not a substitute for address 0x2534FF.
+- No 0x2534FF recovered-entry case exists in recomp_runtime_entries.c.
+
+Concrete integration steps:
+[ ] Add the exact [0x002534FF,0x00253512) entry to the tracked repair JSON.
+[ ] Generate through the existing runtime-entry path, rather than editing the
+    ignored stub file by hand or replacing every call with a host FOV shortcut.
+[ ] Confirm the aggregate unresolved stub is renamed by the JSON-driven CMake
+    loop and the real recovered symbol owns direct calls and indirect dispatch.
+[ ] Verify original this-pointer adjustment, float argument and RET 4 effects
+    from the supported XBE; retain both 0x2533EB and 0x2534FF.
+[ ] Keep mm3_widescreen.c FOV/culling/chase-camera modifications separate and
+    verify they consume the recovered camera state correctly.
+
+Dependencies and risks:
+- Requires the existing recovered-entry dispatcher and stub-renaming recipe.
+- Do not confuse calling-convention cleanup (RET 4 => eight bytes including
+  return address) with the current stub's four-byte return-address-only pop.
+- Do not remove the fork's FOV settings or reset camera matrices/culling state
+  incorrectly while importing this original guest function.
+
+Planned acceptance:
+[ ] Native contract: original 19-byte function, finite float input, proper
+    callee-visible pointer, original call target, ESP and saved-register effects.
+[ ] Enable MM3_RECOMP_ABI_CHECK for a focused diagnostic race and verify the
+    earlier 0xFA6DC/0xFF714/0x13FF6E violations are absent, while normal play
+    remains free of diagnostic overhead.
+[ ] Confirm 0x2534FF resolves to the recovered body and produces no unresolved
+    stub event; deliberate test stubs must still be observable.
+[ ] Drive first race, cruise, camera changes and pause/resume with default and
+    explicit MM3_FOV_DEGREES, including stock and custom vehicles.
+[ ] Run camera, graph-edge, gearing and factory-physics regressions after
+    regeneration; check no duplicate definitions or altered function boundaries.
+
+
+G-03. PRESERVE THE ALREADY-RECOVERED GRAPH EPILOGUE AT 0x144ED9
+Status: COVERED INDEPENDENTLY; no duplicate repair needed. Parent c91d8f1 remains
+PARTIAL because G-02 and direct-stub observation are still missing.
+
+Upstream source:
+https://github.com/MattSG/mm3-recomp/commit/c91d8f12cc73b257e90c380abeeb9ee6eba15707
+Upstream repair JSON:161 defines [0x144ED9,0x144EDE).
+
+Technical cause and local evidence:
+- 0x144EAE's shared successful graph-edge epilogue is POP EDI; POP ESI; RET 4.
+  A boundary-truncated tail jump instead reached an unresolved stub; the
+  missing saved-register pops left ESP eight bytes low and corrupted callers.
+- Local mm3_runtime_entry_repairs.json:192 contains exactly that shared tail.
+- Local recomp_runtime_entries.c:3629 executes POP EDI, POP ESI and ESP += 8.
+- Local recomp_0013.c:47096 tail-jumps to sub_00144ED9; JSON-driven renaming
+  prevents the aggregate fallback stub from owning that real symbol.
+- Existing tests/mm3_graph_edge_regression.py includes this recovered entry.
+
+Concrete preservation checklist:
+[ ] Retain the current JSON recovery when adding G-02; do not insert a duplicate.
+[ ] Compare boundary metadata after any generator update and preserve the
+    inherited caller frame, shared-tail dispatch and all saved-register pops.
+[ ] Run the existing graph-edge regression against actual generated bodies,
+    not an independent copy of the intended epilogue.
+[ ] Recheck callers 0x144EAE/0x144EDE and the outer 0x1F6349 frame for balanced
+    ESP/EDI/ESI on successful and unsuccessful edge lookups.
+[ ] Keep the already fixed code marked covered in documentation; missing
+    ancestry is not a reason to claim the graph tail itself is still broken.
+
+
+G-04. OBSERVE DIRECT CALLS TO UNRESOLVED GENERATED STUBS
+Status: MISSING. Priority: diagnostic coverage with bounded anomaly reporting.
+
+Upstream source:
+https://github.com/MattSG/mm3-recomp/commit/c91d8f12cc73b257e90c380abeeb9ee6eba15707
+Upstream src/mm3_unresolved_stubs.c:8-19 and CMakeLists.txt:121-123.
+
+Cause and symptom:
+- A generated function may exist only as an unresolved stub. Direct calls to
+  that symbol skip the function's body while returning as if it had run.
+- Indirect-call failure logging only covers unresolved dispatch targets; it
+  does not cover all direct calls to a function symbol that is a valid stub.
+- Upstream mm3_stub_hit records up to 512 seen addresses and prints each
+  unresolved address plus MEM32(g_esp), its guest return/caller value, once.
+
+Local source evidence:
+- recomp_stubs_unresolved.c:20-21 defines RECOMP_UNRESOLVED_STUB_OBSERVE as
+  ((void)0) unless overridden.
+- The translator emits observer calls, but local CMake does not bind this
+  observer to a real title-specific function and no mm3_stub_hit exists.
+- Existing RECOMP_ICALL_OBSERVE and tests/mm3_icall_diagnostics_regression.py
+  cover indirect-call evidence. Preserve them; they are complementary.
+
+Concrete integration steps:
+[ ] Add a title-specific observer implementation and declaration, and wire the
+    existing generated macro via the unresolved-stub translation unit only.
+[ ] Keep once-per-address bounded reporting. Normal hot paths must not print
+    repeated stub lines or scan/flush files on every successful guest call.
+[ ] Guard caller-value reads with the fork's checked guest-read mechanism when
+    ESP is invalid; a diagnostic must not create a new crash.
+[ ] Assess multiple guest threads before copying upstream's static seen array:
+    its source does not synchronize seen/count. Add a bounded safe strategy
+    if observation can occur concurrently, and test it explicitly.
+[ ] Decide how observer output integrates with the public minimal-log default:
+    first severe unresolved anomaly may remain visible, with additional caller
+    detail opt-in; document exactly which diagnostic gate controls it.
+[ ] Keep the renaming of repaired fallback symbols, so a stale unused fallback
+    is not mistaken for an active unresolved function during a source scan.
+
+Planned acceptance:
+[ ] One deliberately reached direct stub emits one address/caller report.
+[ ] Repeated calls to the same stub do not flood output; distinct stubs remain
+    distinguishable, including behavior once the fixed-size set is full.
+[ ] Observer preserves guest registers, ESP, x87 state and last-error behavior.
+[ ] Invalid ESP is reported safely without dereferencing arbitrary guest RAM.
+[ ] Concurrent callers produce bounded correct observations without data races.
+[ ] Repaired 0x144ED9, 0x2533EB and newly repaired 0x2534FF do not emit hits.
+
+
+G-05. GUARD COLLISION-CELL GRID RANGES AND FACE INDICES AT LOAD
+Status: MISSING. Priority: freezes, memory corruption and lost road collision.
+
+Upstream source:
+https://github.com/MattSG/mm3-recomp/commit/9ad17627e2bd53d972fe7d44063b5ec7396327d6
+Original file src/mm3_collision_cells.c; moved unchanged by 9118262 to
+src/mods/collision_fix.c. Latest source: :25 sanitize, :45 sub_0015A929.
+
+Symptoms and cause, from the upstream diff/message:
+- Collision query functions 0x15B1B0 and 0x15B4E1 stamp a 16-bit visited marker
+  at stamps[list[i]] with no face-index bounds check.
+- The Paris race-start cell, key 0x3400, was observed upstream decoding face
+  indices as large as 0xFFA4, beyond its face count; some grid ranges also
+  extended beyond the face-index list.
+- Stores at 0x15B42A/0x15B712 reached up to 128 KiB beyond the stamp array,
+  damaging collision-cache ring pointers and neighboring cells. The lookup at
+  0x4EB98 could loop forever; collision queries could crash or lose road faces.
+- UPSTREAM REPORTED: around half of long steering/crash runs froze or crashed
+  before the guard and none of six did after it. Do not present this as a local
+  measured failure rate or proof all collision corruption is solved.
+- Upstream explicitly leaves the reason the compressed cell input can differ
+  between runs unresolved. This guard bounds decoded output; it is not a
+  demonstrated correction of the underlying stream/decompression cause.
+
+Structure and upstream behavior:
+- sub_0015A929 is the cache loader/decompressor wrapper; entry uses g_esi cell.
+- Cell header: face count +4, face-index list pointer +8, list length +0xC,
+  grid pointer +0x10, stamp array +0x18, grid dimensions +0x44/+0x48/+0x4C.
+- Upstream accepts faces 1..0xFFFF, list length <=0xFFFF, cells <=0x10000 and
+  list/grid addresses in [0x10000,0x08000000).
+- For each grid [lo,hi) range, clamp hi to list length and lo to hi; find a valid
+  face index in that range, then replace invalid indices with a valid index.
+  With no valid index found, upstream's keep value remains zero.
+- Existing per-pass stamps suppress repeated-face work from replacement
+  duplicates. Sanitize only a successful call that replaced the cached header
+  pointer, indicating a newly decoded cell, rather than every cache hit.
+
+Local source evidence:
+- No src/mm3_collision_cells.c or equivalent cell sanitizer exists.
+- CMakeLists.txt:69-70 lacks sub_0015A929 in definition-only wrapper hooks.
+- Generated recomp_0014.c:22887 defines the original loader; collision queries
+  call it at :23261,:23778,:24331,:24872.
+- scripts/mm3_collision_call_seam.cmake fixes caller argument cleanup, not cell
+  data bounds. Keep that separate existing repair.
+
+Concrete integration steps:
+[ ] Add the load-time sanitizer as a title-specific hook using the existing
+    definition-only rewriting, so same-chunk calls still pass through it.
+[ ] Preserve g_esi, success-result semantics, original return/ESP behavior and
+    the distinction between successful decode, cache hit and load failure.
+[ ] Retain the collision-call stack seam; neither fix replaces the other.
+[ ] Validate the full list/grid spans with checked guest-address arithmetic,
+    rather than checking only their starting pointers. Treat this as fork
+    hardening in addition to the observed upstream guard, not a claim that
+    upstream already performed full span validation.
+[ ] Test checked grid-dimension multiplication before using its product.
+    Upstream multiplies three uint32_t dimensions directly; overflow/spans are
+    explicit source edge cases for integration fixtures, not locally observed
+    corruption mechanisms in this audit.
+[ ] Preserve valid cells byte-for-byte; define/log bounded repair counts only
+    in opt-in diagnostics, keeping per-query hot paths quiet.
+[ ] Keep this stability guard required if/when mods are introduced; upstream
+    marks the collision fix required and cannot turn it off in its launcher.
+
+Planned regression acceptance:
+[ ] Synthetic actual-layout cells cover all-valid, invalid face at each end,
+    mixed valid/invalid, empty range, all-invalid range, lo > hi, hi > length,
+    zero faces, maximum face/list lengths, invalid pointers and dimension/span
+    overflow. Assert no out-of-range writes and preserve unrelated RAM.
+[ ] Verify replacements belong to a valid face and duplicate suppression does
+    not invent additional collision-query results for already-valid cells.
+[ ] Verify successful new decode sanitizes once, cache hit leaves valid state
+    unchanged, and failure leaves original error path intact.
+[ ] Test register/ESP/result preservation through the real loader wrapper.
+[ ] Replay the Paris race start and drive at least two minutes with steering,
+    road transitions, crashes, resets and teleports in cruise and missions.
+[ ] Track freezes, invalid cells and falling-through-road incidents; compare
+    identical save/config controls. Include ordinary 60 FPS runs, not only
+    instrumented builds. Do not call the underlying stream cause resolved.
+
+
+G-06. BOUND PUSH-BUFFER PRODUCER RUN-AHEAD TO AVOID DARK FRAMES
+Status: MISSING. Historical unconditional-spin fix is SUPERSEDED by the bound.
+Priority: visible one-frame lighting errors while preserving performance.
+
+Upstream history:
+https://github.com/MattSG/mm3-recomp/commit/3188791794f5bd54662aee74a4594fa901ce5f47
+https://github.com/MattSG/mm3-recomp/commit/fdc33ea50553fa47aa146931ce189acf478afd85
+Final title implementation: upstream src/recomp_manual.c:1128-1149,
+sub_00344AB0; sampler addition later in 67e9443 is handled in G-07.
+
+Symptoms and cause, from upstream:
+- Making every WBC flush a bare store fence let the guest submit indefinitely
+  ahead of the executor. Some frames then used tunnel-like lighting in daylight:
+  scene dark, headlights on and night speedometer.
+- UPSTREAM REPORTED: five to 22 dark frames per 1200-frame noon drive before;
+  full waiting nearly eliminated them but cost about 21% of uncapped race FPS.
+- Truthful fences, brightness-target writeback and serializing only BlockOnFence
+  had not fixed both cruise and missions in upstream's investigation.
+- Later fdc33ea waits only when producer lag exceeds 256 KiB, or the ring wraps
+  between producer and GET. The exact mid-frame read racing the executor is
+  explicitly still unidentified upstream. This bounds the race; it does not
+  prove which result/read must be synchronized for a more exact future fix.
+- UPSTREAM REPORTED: bounded run-ahead gave zero dark frames in the tested
+  mission drives; uncapped race figures were 296 FPS for always-spin, 352 for
+  256 KiB and 373 unbounded. These are not predictions for this PC/fork.
+
+Exact final algorithm and local evidence:
+- Upstream MM3_KICK_LAG = 0x40000 bytes.
+- dev = MEM32(0x351F48); flush bank = MEM32(dev+0x17C8).
+- regs = MEM32(dev+0x17C0); cur = MEM32(dev)&0x0FFFFFFF;
+  get = MEM32(regs+0x44).
+- Preserve _mm_sfence, EAX/ECX effects and ESP += 4. If cur < get or
+  cur-get > 0x40000, write WBC bit 0x10000 at flush bank +0x100410, then wait
+  until the NV2A acknowledgment clears it.
+- Local src/recomp_manual.c:1273 has only EAX/ECX calculation, _mm_sfence and
+  ESP += 4. There is no lag bound or WBC handshake wait.
+- The fork's command-mode fence publication, GPU notify bridge and existing
+  DMA/fence seams are important independent work. They do not bound this
+  producer's distance. An executor scanning limit does not bound producer lag.
+
+Concrete integration steps:
+[ ] Import the final fdc33ea behavior directly; retain 3188791 only as history
+    and an opt-in diagnostic comparison, not the final unconditional default.
+[ ] Verify device/register offsets and WBC ack behavior against this pinned
+    runtime before enabling waits. An uncleared bit would create a new hang.
+[ ] Preserve the fork's command/fence publication and semaphore ordering;
+    expose checked state if needed rather than publishing false completion.
+[ ] Recheck memory ordering/volatile semantics and GET units (bytes here), ring
+    wrap handling and masked producer address. Avoid overflow subtraction by
+    preserving the cur < get branch.
+[ ] Keep sampling registration independent; importing G-07 requires its runtime
+    API and is not necessary to invent a host symbol for the lighting fix.
+[ ] Retain GPU-notify event registration in src/main.c and existing fence/DMA
+    seams until evidence establishes they can be safely consolidated.
+[ ] Diagnose an executor-stop/exit while waiting; any additional shutdown or
+    timeout policy must fail clearly and must not pretend GPU work completed.
+
+Planned acceptance:
+[ ] Native fixture exercises lag below/exactly/above 256 KiB, zero lag and ring
+    wrap, asserting handshake frequency and exact EAX/ECX/ESP behavior.
+[ ] A controlled acknowledgment completes waits; stalled acknowledgment is
+    detected in a bounded diagnostic/shutdown test rather than hanging CI.
+[ ] Repeat at least five 1200-frame noon captures in cruise and missions with
+    headlights/reset/collisions. Count dark frames from actual image/lighting
+    evidence, including speedometer/headlight state, not FPS alone.
+[ ] Compare unbounded, always-spin and bounded diagnostic variants under the
+    same save/config; keep ordinary 60 FPS default stable.
+[ ] Measure frame percentiles/jitter/CPU and uncapped benchmarks separately;
+    normal profiling must disable focused building/texture/wait traces.
+[ ] Run existing DMA publication, fence wait, command completion, input,
+    presentation and window-close regressions. Verify exit does not deadlock.
+
+
+G-07. REGISTER THE CORRECT GAME THREAD FOR SPIKE SAMPLING
+Status: MISSING. Depends on runtime sampling/spike infrastructure; optional.
+
+Upstream source:
+https://github.com/MattSG/mm3-recomp/commit/67e94432d9b4f2dff400b4f4cade5222063e4fba
+https://github.com/MattSG/mm3-recomp/commit/100f54a
+Latest upstream src/recomp_manual.c:1130-1136 registers the first D3D kick thread
+once via recomp_sampler_watch_current_thread(). The second commit is README
+documentation of later guest-call-chain output, not another title-code change.
+
+Cause and local evidence:
+- Sampling an arbitrary launcher/helper thread would misattribute a frame hitch.
+  D3D's guest push-buffer kick identifies the actual game's render thread.
+- Local sub_00344AB0 has no sampler registration and the local runtime lacks the
+  complete upstream spike screenshot/stage/sample/call-chain system.
+- Local hitch/frame CSV/Tracy/capture tools are useful but not equivalent proof
+  of this thread registration or the missing upstream guest-call-chain output.
+
+Concrete integration and acceptance:
+[ ] Coordinate the runtime's sampler API with title integration; do not add an
+    unresolved extern or start an always-on sampler just to match upstream text.
+[ ] Register once on the actual game/render thread, preserving thread identity
+    across launcher vs scripted startup and existing primary-worker monitoring.
+[ ] Gate screenshot capture and expensive sampling behind explicit opt-ins;
+    default play should keep minimal logs and no extra frame files.
+[ ] Test a known render-thread stall; its report must identify guest functions
+    on that thread, separate renderer/executor/present costs and preserve the
+    guest call-chain semantics from the runtime implementation.
+[ ] Test secondary worker stalls, rendering initialization, registration before
+    profiler startup and shutdown to avoid a stale thread handle.
+[ ] Document sample rate, capture limits and limitations after integration.
+    Samples indicate where execution was seen, not proof of a root cause.
+
+
+G-08. RECONCILE FACADE POOL CAPACITY AND ZONE SCALING
+Status: PARTIAL, independent allocation-time repair already present.
+Priority: building appearance; coordinate with G-09 and runtime distance haze.
+
+Upstream history:
+https://github.com/MattSG/mm3-recomp/commit/db6deeaf61343e1f5900813b9bdf9512f0eaf51c
+https://github.com/MattSG/mm3-recomp/commit/31451f6b871474576b1d3333e61cf3bd372bbbb8
+Final upstream source: src/mods/draw_distance.c:123-166.
+
+Symptoms/cause, from upstream:
+- Scaling facade zones {80,280} originally caused dark untextured stepped slabs
+  at Montmartre, while Xbox distance rendered correctly. db6deea first stopped
+  scaling those zones, suppressing the symptom.
+- Later 31451f6 identified per-frame vertex pool exhaustion: sub_00162F75
+  returns zero when full, leaving only a building's dark cloud-shadow pass.
+- Upstream enlarges capacities in constructor sub_001630A7 before
+  sub_001633B7 creates the actual VBs. Fields +0x1ED0/+0x1F2C/+0x1F88/+0x48
+  start at 0x3000/0x800/0x200/0x600 and all become five times as large.
+- Upstream facade_scale = min(view_scale,2). Scale zones only for original
+  construction/Lua calls at 0x15FA1D/0x20FABA; do not rescale temporary-pass
+  saved effective values at 0x211220/0x21153D.
+- UPSTREAM REPORTED: textured facade reach doubled from 280 to 560 m, no slabs
+  at Montmartre (X 1298.7 Z 1167.7, heading 225 degrees), Seine and street
+  spots, and a five-minute teleport soak reached 19.9k frames/max 18.7 ms.
+
+Local source and measured-evidence distinction:
+- src/mm3_facade_capacity.c:19 wraps sub_001633B7 at actual buffer creation.
+  It computes ceil(draw_scale squared), capped at four, changes only stock
+  +0x1ED0/+0x1F2C/+0x1F88, respects custom/already-expanded limits and restores
+  counters on failed creation. It does not enlarge +0x48.
+- src/mm3_render_distance.c:118-147 scales facade zones with the single draw
+  scale (up to four) and recomputes squared-distance detail-fade offsets.
+- CMakeLists.txt:69-70 hooks sub_001633B7 and sub_001661D0, not upstream's
+  sub_001630A7 constructor hook.
+- Existing tests/mm3_facade_capacity_regression.py verify creation byte counts,
+  allocation failure rollback, stock/custom limits and the logged upper-floor
+  workload; tests/mm3_facade_fade_regression.py cover local fade behavior.
+- The local README records a separate capture of upper-floor pool exhaustion.
+  That is local evidence of why this independent repair exists; it does not
+  establish upstream's exact 5x/four-field strategy already applied here.
+
+Concrete integration steps:
+[ ] Preserve the local safe creation-time checks/rollback and all already
+    allocated VB sizes. Never increase counters after allocation without
+    reallocating matching storage; that would invite out-of-bounds GPU writes.
+[ ] Inspect the fourth +0x48 pool's actual consumer, creation byte size and
+    index format before deciding whether to expand it along with three streams.
+[ ] Decide an explicit facade-zone cap (upstream two) independently of LOD and
+    city view settings. Derive pool headroom from that chosen cap, not from a
+    knob that later has a different meaning after G-09.
+[ ] Compare 4x versus 5x pool capacities under identical default 2x zones,
+    checking guest-memory budget and draw-index constraints. Do not replace
+    the local strategy merely because the upstream commit hash is missing.
+[ ] Retain local fade-offset correction if appropriate to the final zone scale;
+    apply it once from validated effective zones, including pass restore.
+[ ] Preserve custom capacities and repeated creation without multiplying again.
+[ ] Update facade diagnostics to report both active zone scale and actual
+    allocation limits with bounded opt-in output, so insufficient capacity
+    can be distinguished from visibility/fade/texture problems.
+
+Risks and edge cases:
+- Local draw=4 currently permits 4x zones while capacity factor is capped4;
+  upstream instead caps zones2. This difference needs explicit acceptance.
+- Largest upstream 0x3000 * 5 is 61440, below a 16-bit vertex boundary. Local
+  0x3000 * 4 is 49152; preserve safe index ranges for every expanded stream.
+- Failed partially allocated larger VBs do not justify keeping larger counters.
+- Old db6deea pass-through removal is a historical workaround, superseded by
+  final capacity+cap behavior; do not apply it over the local fade hook blindly.
+
+Planned acceptance:
+[ ] Extend the real guest creation/allocation regression for the selected
+    factors, fourth-pool handling, byte counts, repeated calls and failures.
+[ ] Exercise near/mid/far boundaries, exact capacities, custom small/large
+    capacities and 16-bit starting-vertex limits without writing past storage.
+[ ] Repeat the logged upper-floor workload and verify every intended upper
+    cell receives capacity while base cells/fade remain correct.
+[ ] Capture Montmartre coordinates above, Seine X 643.2 Z 52.6 and the local
+    Sacre Leap/Boulevard Malesherbes reproduction with matched sky/aspect.
+[ ] A/B Xbox distance, default new distance and maximum accepted settings;
+    assess slabs, missing upper floors, texture detail, haze and pop-in.
+[ ] Five-minute drive/teleport soak with diagnostic counts plus a separate
+    ordinary run to check timing without tracing overhead.
+
+
+G-09. SPLIT DETAIL/LOD DISTANCE FROM CITY VIEW/FAR PLANE
+Status: MISSING final split; current default two combined knob is different.
+
+Upstream history:
+https://github.com/MattSG/mm3-recomp/commit/6078bbc5f11aab4bd09610dc7ab317f989bc7473
+https://github.com/MattSG/mm3-recomp/commit/53d2e068f6b138d1dd0754de07a88b08bbeea491
+https://github.com/MattSG/mm3-recomp/commit/789cba6782e4d6ba18757d8ef408f627ddbe5f32
+Final source: upstream src/mods/draw_distance.c:42 distance_scale, :52 view_scale.
+Runtime dependency for final haze: MattSG/xboxrecomp commit d448358.
+https://github.com/MattSG/xboxrecomp/commit/d448358
+
+Symptoms and history from upstream:
+- Extending city visibility exposed flat/untextured far blocks, a panorama band
+  and trees standing visibly in front of a shifted haze wall past about 700 m.
+- 6078bbc temporarily used a combined default-one knob to hide this far city.
+- 53d2e06 split detail distance (default four) from city view (initially one),
+  improving object/traffic/pedestrian detail without extending city geometry.
+- 789cba6 changed final view default to two after exponential depth-haze remap
+  faded far blocks into the sky; upstream reports roughly 63% haze at 700 m
+  and 99.6% at 1400 m. Four was reported visually similar but more expensive.
+- These default changes are successive states, not three simultaneously
+  missing fixes to apply. The final target is detail4/view 2 plus final haze.
+
+Exact function ownership and current local evidence:
+- Local src/mm3_render_distance.c:22-39 uses one RECOMP_DRAW_DISTANCE default2
+  for all; RECOMP_VIEW_DISTANCE is absent.
+- LOD/detail users: sub_000E2D5B object distance, sub_000D9E2E/pedestrian array
+  at 0x39ADC0, sub_0022F298 blob shadows and particle constructor 0x2256C7.
+- View users: sub_000FE71E scales original city settings at return addresses
+  0x1002CE/0x100ED6/0x210EDE, plus city-load cap at 0x224C4E and EBP+8;
+  sub_000F4AC3 scales the explicit far-plane call at 0x210EB4.
+- Camera/cubemap/temporary-pass effective settings must remain unchanged when
+  saved and restored. Facade zones belong to capped view scale after G-08.
+- The local particle-overdraw budget intentionally defaults to bounded24,
+  configurable MM3_PARTICLE_MAX_OVERDRAW, rather than upstream's increased
+  maximum255 path. Preserve this measured fork performance choice unless new
+  evidence supports changing it; knob separation does not require raising it.
+- src/mm3_performance_profile.h supplies current draw2 for Balanced/Quality and
+  draw1 for LowPower. Profiles and environment override precedence must survive.
+
+Concrete integration steps:
+[ ] Add independently validated detail/view configuration helpers, values 1..4,
+    clear fallback diagnostics and Xbox baseline1 for both.
+[ ] Route only the correct functions/callers to view_scale or detail_scale,
+    preserving caller-owned arguments, city cap/local far-plane consistency.
+[ ] Coordinate view 2 default with runtime exponential haze and foliage fading;
+    enabling view 2 while retaining old linear haze is not the complete fix.
+[ ] Keep profile presets explicit for both knobs and decide migration of an
+    existing user's RECOMP_DRAW_DISTANCE value. Document its changed meaning
+    rather than silently applying old combined semantics twice.
+[ ] Cap facade zones independently and bind their capacity strategy to that
+    cap. Update mm3_draw_distance_scale API consumers with clear semantics.
+[ ] Preserve bounded particle overdraw, local building-fade refinement, camera
+    frustum matching, map ownership and all save/restore paths.
+
+Planned acceptance:
+[ ] Cross-product settings detail1/2/4 and view1/2/4, explicit environment
+    overrides, invalid/NaN/Inf/trailing-junk strings and each profile.
+[ ] Verify object/pedestrian/blob distances change with detail only, while city
+    cap and camera far plane change with view only.
+[ ] Verify city load, explicit Lua settings, cubemaps and supersampled pass
+    restore do not multiply already-effective values a second time.
+[ ] Capture Seine, Champs and Montmartre at matched sky/weather and time;
+    traffic/pedestrians should remain visible at intended LOD without dark
+    facades or blocks piercing haze at the new default.
+[ ] Measure capped 60 frame percentiles/idle time and uncapped GPU/CPU costs
+    separately, with normal minimal logs, at default and maximum settings.
+
+
+G-10. HIGHER FPS VALIDATION AND ACHIEVED-FRAME-RATE TELEMETRY
+Status: MISSING option/test reporting. No new AI algorithm exists in these
+specific upstream commits. Keep local 60 FPS behavior until validation succeeds.
+
+Upstream sources:
+https://github.com/MattSG/mm3-recomp/commit/8cff2f25276356afbe30c766eb4e1f4e905f03fa
+https://github.com/MattSG/mm3-recomp/commit/965f6d0
+Related earlier throttle test changes: fd112c6 (G-01).
+Latest files: tools/powershell/Test-MM3AiStart.ps1:31,:113,:117-123;
+scripts/play.ps1:14 permits 1..240, default 60.
+
+What upstream actually changed/reported:
+- 8cff2f2 adds RECOMP_FRAME_CSV and reports a median derived from collected
+  frame intervals. 965f6d0 expands play.ps1's range and updates documentation.
+- The first-race AI was reported moving forward at actual rates 60,120,
+  195/240,222 and353, with the old reversing symptom no longer reproducing.
+- Upstream reports about 5% less player travel over six seconds at 240 than 60
+  (four runs each, 157 versus 149 units). Simulation differences remain.
+- These commits contain no high-FPS AI control/math patch to cherry-pick.
+  They record behavior after other fixes and change permitted launch options.
+
+Local source evidence:
+- src/mm3_frame_limit.h:7-20 treats only1..60 as valid, default 60; src/main.c:196
+  normalizes the environment to that cap even if a test requests a higher value.
+- scripts/play.ps1:18 and Test-MM3AiStart.ps1:20 also validate1..60.
+- Local test holds rt:2100 every two seconds; upstream fd112c6 uses one long
+  hold and adds player speed reporting. Inspect input queue semantics before
+  assuming repeated timed presses and one hold are identical under hitches.
+- Current local test does not enable RECOMP_FRAME_CSV or print achieved FPS.
+
+Concrete integration steps:
+[ ] Add achieved-FPS telemetry before evaluating any higher-rate claim.
+[ ] Calculate the measurement window using CSV timestamps, not merely the
+    final Secs*60 records: at high FPS that record count can represent a much
+    shorter duration than Secs. This is a proposed local test refinement of
+    upstream's current sample-count heuristic, not an already-applied fix.
+[ ] Report requested cap, actual median/percentiles, frame count and time span,
+    player top speed, direction/travel metrics, car/save/config and run verdict.
+[ ] Keep the player's forward-vector sign check and current minimum-samples/
+    meaningful-forward-travel requirements; these are useful independent tests.
+[ ] Implement a consistent controlled hold covering the entire sample window,
+    and verify it does not queue bursts after a hitch or lose focus unexpectedly.
+[ ] For isolated validation, permit higher cap through a deliberate test path
+    or candidate build; changing only play.ps1 cannot bypass main's current cap.
+[ ] Integrate G-02/G-05/G-06 and runtime interrupt/audio correctness first.
+[ ] Only after passing, change all relevant public range checks consistently
+    to 240 while retaining60 default and documenting measured physics variation.
+
+Planned acceptance:
+[ ] Repeated first-race AI/player starts at requested 60,120,240; include GPU-bound
+    cases whose actual FPS differs, avoiding false conclusions from cap labels.
+[ ] Compare six-second standstill straight-road travel, braking, cornering,
+    manual/automatic shifts and collisions on stock and imported cars.
+[ ] Check race timers, countdown, reset fades, cameras, steering input, audio,
+    USB event completion, pacing and minimap/race guidance at each achieved rate.
+[ ] Record at least four matched runs per rate for travel comparisons and
+    sustained two-plus-minute drives; acceptance cannot require identical
+    high-FPS travel if the design intentionally permits documented differences.
+[ ] Extend frame-limit/profile/input contracts for allowed/bad values and
+    retained60 default; update user docs only with actual local evidence.
+
+
+G-11. OPTIONAL LAUNCHER, SETTINGS PERSISTENCE AND MOD REGISTRY
+Status: MISSING new framework; independent profiles/car workshop already exist.
+Priority: user experience after lower-level interfaces and stability fixes.
+
+Upstream sources:
+https://github.com/MattSG/mm3-recomp/commit/91182622a9947d6580b24550786c88fc675d0cf7
+https://github.com/MattSG/xboxrecomp/commit/b666568
+https://github.com/MattSG/mm3-recomp/commit/a24b737f1359ff39db3035d4e708b75e69bd8982
+
+Actual upstream structure:
+- src/mm3_launcher.cpp:553 mm3_launcher builds RmlUi Settings/Controls/Mods UI
+  with a load splash; :93 stores choices in mm3_settings.ini.
+- src/main.c:154-156 skips launcher when RECOMP_PB_EXEC is set for scripts;
+  main:184 initializes the mods before graphics/input start.
+- src/mods/mods.c:8 registry and :32 mm3_mod_on cache environment decisions.
+- Registry includes widescreen, extended distance, smooth sky, menu mouse,
+  developer tools, teleport, offline network, collision guard, disc bypass and
+  translation corrections. Collision guard/disc check are required; developer
+  tools and teleport default off in final release. Translation corrections
+  remain a developer env switch and are hidden from the public Mods list.
+- src/mods/widescreen_hud.c moves title-specific HUD placement out of the
+  runtime using NvOverlayHooks. Final file retains missing-minimap frame
+  detection and HUD-texture/fullscreen-fade corrections from earlier commits.
+- Runtime b666568 adds generic keymap, menu pointer and overlay hooks; these
+  interfaces are prerequisites, not merely a source-folder rename.
+- Upstream CMake:25-44 fetches static FreeType2.13.3/RmlUi6.3 and :166-208
+  compiles Win32/D3D11 backend sources and links RmlUi/d3d11/dxgi/d3dcompiler.
+
+Local source evidence:
+- No mm3_launcher.cpp or src/mods registry exists; main starts using profiles,
+  keyboard-driving probe, widescreen/map queries and teleport initialization.
+- Local source has additional FOV/chase-camera/map ownership and texture-role
+  knowledge; a raw import of upstream's HUD source would discard this work.
+- Local profiles and car editor are separate features, not saved launcher
+  keymaps or a switchable game-mod registry.
+
+Concrete integration plan:
+[ ] First implement compatible runtime keymap/pointer/overlay APIs in the
+    reproducible runtime patch and verify their callbacks' threading/lifetimes.
+[ ] Define fork-owned registry entries, which changes are optional and which
+    are required correctness repairs. Preserve collision/disc requirements.
+[ ] Do not expose unsafe translation corrections as a casual user toggle;
+    a24b737 intentionally removes that choice from the public launcher.
+[ ] Add Settings/Controls/Mods UI without removing existing command-line and
+    environment workflows. Scripted/bench runs must skip it deterministically.
+[ ] Preserve existing environment-over-profile precedence, custom car editor
+    workflow, FOV settings and save paths; clarify settings-file precedence.
+[ ] Merge title-specific widescreen placement into callbacks while retaining
+    map texture ownership, expanded-map/checkpoint shared anchors, pause query,
+    world-name tag placement, camera FOV/culling and local race guidance.
+[ ] Keep final upstream missing-minimap/post-race and HUD/fullscreen-fade fixes
+    when moving code. They survive in final src/mods/widescreen_hud.c:27,
+    :44,:192-211; they were not removed by the runtime extraction/refactor.
+[ ] Handle absent/corrupt/read-only settings file, unknown keys, invalid values,
+    duplicate bindings, defaults/reset and safe exit without launching the game.
+[ ] Pin/version/hash new configure dependencies and add applicable notices.
+[ ] Keep normal launcher logging minimal; no settings keymap/poll output each
+    frame, and only opt-in debug captures should create extra UI screenshots.
+
+Planned acceptance:
+[ ] Native and scripted startup, cancel/close, settings round trip and bad file
+    inputs; no launcher window appears in automated RECOMP_PB_EXEC runs.
+[ ] Every optional mod state is observable and off means intended Xbox/default
+    behavior; required guards cannot be disabled accidentally.
+[ ] Graphics settings/aspect/fullscreen/FOV, keyboard and controller behavior,
+    map zoom/checkpoint placement, pause/post-race/reset fade, save locations,
+    imported models/physics and car editor remain functional.
+[ ] Fresh clone configure/build includes only required new dependencies and
+    succeeds with normal paths; development install is not silently required.
+[ ] UI visually verified at common resolutions/DPI, keyboard traversal and
+    mouse input, with compact labels explaining meaningful player choices.
+
+
+G-12. MENU HOVER/CLICK CONTROLS AND DEVELOPER HOTKEY TOGGLES
+Status: MISSING upstream menu-pointer and toggle-hotkey behavior.
+These can be staged separately from a polished launcher, after runtime APIs.
+
+Upstream source: 9118262 above; latest src/mods/menu_mouse.c:17-110,
+src/mods/dev_tools.c:10-63, tools/debug-features/prepare.py probes 10-12.
+
+Technical behavior from source:
+- mm3_menu_pointer reads renderer-captured rectangles plus presentation bounds,
+  converts normalized client pointer to authored640x480 menu coordinates and
+  groups similarly sized/aligned button rows.
+- It estimates focused row using a texture drawn in every row but markedly
+  more opaque in one; during focus animation/ambiguous votes it returns -1
+  rather than confidently inventing selection. Result offset is hovered minus
+  focused row. It does not simply map screen Y to a fixed menu row.
+- Runtime input APIs consume pointer result/menu-mode probe; menu state is
+  inferred upstream from a gap over 300 ms since player update.
+- Hotkeys read MM3_DEV_HOTKEYS HUD/MENU/CAMERAS virtual-key bindings and execute
+  existing prepared Lua probes on the guest game thread. Probes 1/2/3 turn on;
+  new 10/11/12 turn off HUD/debug menu/extended camera binding.
+
+Current local evidence:
+- src/main.c uses xbox_InputSetKeyboardDrivingProbe; it has no menu pointer
+  registration or saved generic keymap interface.
+- tools/debug-features/prepare.py has probes 0..9 only; mm3_debug_features.c
+  accepts probe <= 9 and has no MM3_DEV_HOTKEYS parser/toggle state.
+
+Concrete integration and risks:
+[ ] Preserve fork arrow-key driving/manual shifts and focus-aware input while
+    separating menu navigation from active driving.
+[ ] Decide menu-state detection compatible with local pause map/race state;
+    upstream's 300 ms player-update gap is a source heuristic, not proof every
+    temporary stall means a menu. Test hitches and paused/foreground state.
+[ ] Wire renderer snapshot access safely across input/render threads; do not
+    read transient draw arrays directly without matching lifetime guarantees.
+[ ] Retain unknown-focus/ambiguous return values and limit repeated navigation
+    during animation so hover cannot cycle uncontrollably through menus.
+[ ] Add off scripts10..12 only as part of an authorized local data preparation
+    step; preserve original zip headers/offsets and backup behavior.
+[ ] Execute Lua actions on the guest update thread with existing register/x87/
+    XMM preservation; never run guest Lua from the host input thread.
+[ ] Default developer hotkeys/tools off; add no repeated hotkey polling logs.
+
+Planned acceptance:
+[ ] Title/profile/car-select/pause/post-race menus, list lengths, animated focus,
+    ambiguous transparency, loading screen, widescreen and scaling/letterboxes.
+[ ] Hover selects intended row, click confirms once, right-click/Esc backs out,
+    keyboard/controller navigation remains correct, and focus loss releases keys.
+[ ] HUD/debug menu/cameras toggle on/off repeatedly, missing scripts fail
+    clearly, invalid virtual-key input is rejected, and no guest state leaks.
+
+
+G-13. TELEPORT GUI HEADING DISPLAY AND OPTIONAL DEGREES INPUT
+Status: MISSING GUI extension; existing radians-based pipe support is present.
+Priority: small isolated debugger improvement, independent of launcher.
+
+Upstream source:
+https://github.com/MattSG/mm3-recomp/commit/2357370ad906370794655a05782b2b627df0ba56
+Original src/mm3_debug_teleport.c; final moved file src/mods/teleport.c:24,
+:158,:258-311.
+
+Behavior and local evidence:
+- Upstream samples heading_now=atan2f(body forward X at+0xBC, Z at+0xC4),
+  displays degrees normalized with fmod and offers a third Heading field.
+- Blank heading preserves current bearing; a finite number is degrees and
+  converts to radians with0.017453293 before request_teleport.
+- Local mm3_debug_teleport.c:277 still has two fields, X/Z, and :321 always
+  passes NAN. The pipe already accepts teleport X Z [heading radians].
+- UPSTREAM REPORTED: pipe round trips0/90/135/180/-90 degrees landed within
+  0.001 radians. No new local GUI round-trip was performed during this audit.
+
+Concrete integration steps:
+[ ] Add heading snapshot under the same synchronization/freshness rules as XYZ.
+[ ] Show an explicit Degrees label; retain radians in the existing pipe API so
+    existing tools/bench scripts do not silently change units.
+[ ] Preserve blank=keep-current behavior, finite parsing and trailing-junk
+    rejection; degrees0 must not be confused with a missing heading.
+[ ] Preserve local request cancellation/timeouts and guest-thread ground reset,
+    slope alignment, car clearance, velocity reset and no-ground no-change rule.
+[ ] Enlarge/reflow the panel for the third field without clipping at Windows
+    DPI scales; keep teleport opt-in and do not show logs on every sample.
+
+Planned acceptance:
+[ ] Actual GUI and pipe round trips0/90/135/180/-90 degrees, wraparound values
+    and blank input; bearing agrees with car forward vector and units.
+[ ] Whitespace, malformed numbers, NaN/Inf and trailing tokens rejected safely.
+[ ] Sloped ground, no ground, inactive car, paused update, canceled request and
+    timeout retain existing behavior and register/ESP contracts.
+[ ] Run tests/mm3_teleport_contract.c plus camera/map/race-start tests with a
+    consistent car/save and one opt-in diagnostic session.
+
+
+G-14. RELEASE NOTICES, DEFAULTS AND DOCUMENTATION-ONLY CHANGES
+Status: developer-tools-off behavior COVERED INDEPENDENTLY; launcher notices
+NOT APPLICABLE until G-11 adds those dependencies; normalization/documentation
+tasks remain separate from gameplay fixes.
+
+Upstream sources:
+https://github.com/MattSG/mm3-recomp/commit/a24b737f1359ff39db3035d4e708b75e69bd8982
+https://github.com/MattSG/mm3-recomp/commit/5950817
+https://github.com/MattSG/mm3-recomp/commit/43841cf
+https://github.com/MattSG/mm3-recomp/commit/100f54a
+
+Verified distinctions:
+- a24b737 changes developer-tools registry default from on to off and hides
+  translation-correction toggle from the launcher. Local mm3_debug_features.c
+  already requires opt-in startup/request flags. It is not a missing debug-HUD
+  off-by-default gameplay correction here.
+- Local focused building traces are a separate launch/default logging choice;
+  disabling them is not equivalent to switching off developer Lua features.
+- a24b737 adds THIRD_PARTY.md for FreeType2.13.3 and RmlUi6.3. Local executable
+  currently does not link these absent launcher libraries; copy their required
+  notices when actually introducing them, not as evidence a launcher exists.
+- Upstream .gitattributes adds '* text=auto', '*.iso binary', '*.xbe binary' and
+  normalizes mixed/CRLF files. Local .gitattributes intentionally preserves
+  patches/*.patch with '-text -whitespace'. Preserve that exception if adding
+  normalization, and recheck runtime patch bytes/application after changes.
+- 5950817 documents already merged developer tools and teleport debugger.
+  43841cf documents the runtime's XA2-underrun line; 100f54a documents guest
+  spike call chains. Their prose does not implement absent runtime features.
+- README portions of 39da666/d758603/67e9443 also document runtime diagnostics;
+  publish switches only after the local compiled feature implements them.
+
+Concrete completion and acceptance:
+[ ] Add required third-party notices only with actual new linked dependencies,
+    retaining upstream authors and license texts/versions/source attribution.
+[ ] Keep developer tools, teleport, hotkeys, heavy traces and spike capture
+    opt-in by default after any framework integration.
+[ ] If normalizing files, use a dedicated reviewable change and prove patch
+    apply/reapply tests still reproduce all intended runtime modified files.
+[ ] Update README with precise integrated/partial/missing status after tests,
+    describe remaining unknown root causes, and remove stale workaround claims.
+[ ] Keep original author credit and own-disc requirement; do not imply official
+    PC release status or bundle copyrighted disc/generated data for discovery.
+[ ] Verify fresh clone build, settings/defaults and documented diagnostic
+    command examples; no new features claimed solely from a fetched ref.
+
+
+PARENT-COMMIT COVERAGE INDEX: ALL 33 GAME-REPOSITORY COMMITS OUTSIDE ANCESTRY
+Each URL is the upstream game commit, including pointer-bump/documentation-only
+commits. Runtime implementation details belong in the runtime checklist fragment.
+Statuses below are source-audit states before planned integration, not new tests.
+
+01 fd112c6 - Fix throttle/gear cap: 80-bit FLD.
+   COVERED affected helper; generic generator TODO. G-01.
+   https://github.com/MattSG/mm3-recomp/commit/fd112c6
+02 5950817 - README developer tools/teleport documentation.
+   DOC-ONLY; existing local tools, missing later heading/hotkeys tracked below.
+   G-14. https://github.com/MattSG/mm3-recomp/commit/5950817
+03 2357370 - Teleport panel heading degrees.
+   MISSING GUI; pipe radians support exists. G-13.
+   https://github.com/MattSG/mm3-recomp/commit/2357370
+04 db6deea - Keep facade zones stock to hide dark slabs.
+   SUPERSEDED upstream by31451f6; PARTIAL independent local pool/fade fix. G-08.
+   https://github.com/MattSG/mm3-recomp/commit/db6deea
+05 7302337 - Runtime bump: white building rims against sky.
+   MISSING runtime correction d62ae29; runtime checklist.
+   https://github.com/MattSG/mm3-recomp/commit/7302337
+06 d758603 - Runtime spike screenshots plus README.
+   MISSING upstream spike diagnostics; own capture tools differ. G-07/runtime.
+   https://github.com/MattSG/mm3-recomp/commit/d758603
+07 6078bbc - Combined distance default1 to hide far city.
+   SUPERSEDED final split/detail4/view 2 behavior not applied. G-09.
+   https://github.com/MattSG/mm3-recomp/commit/6078bbc
+08 dfd872f - Runtime bump: pause/post-race buttons joined.
+   PARTIAL pause callback exists; missing previous/current HUD-start detection.
+   G-11/runtime. https://github.com/MattSG/mm3-recomp/commit/dfd872f
+09 9ad1762 - Collision-cell bounds guard.
+   MISSING, distinct from local caller-stack seam. G-05.
+   https://github.com/MattSG/mm3-recomp/commit/9ad1762
+10 c91d8f1 - Two unresolved functions plus direct-stub observation.
+   PARTIAL:144ED9 covered,2534FF and observer missing. G-02/G-03/G-04.
+   https://github.com/MattSG/mm3-recomp/commit/c91d8f1
+11 9866b41 - Runtime audio queue cushion.
+   MISSING silent cushion9b9a37c; local PCM optimization differs. Runtime.
+   https://github.com/MattSG/mm3-recomp/commit/9866b41
+12 3188791 - Restore full WBC spin to fix dark frames.
+   SUPERSEDED by bounded fdc33ea; local currently has neither wait. G-06.
+   https://github.com/MattSG/mm3-recomp/commit/3188791
+13 68458fb - Runtime APU producer thread priority.
+   MISSING time-critical producer change a4c2800. Runtime.
+   https://github.com/MattSG/mm3-recomp/commit/68458fb
+14 43841cf - README XA2 underrun line.
+   DOC-ONLY; diagnostics should match actual local runtime. G-14/runtime.
+   https://github.com/MattSG/mm3-recomp/commit/43841cf
+15 fdc33ea - Bound push-buffer run-ahead instead of every-kick wait.
+   MISSING final 256 KiB producer bound. G-06.
+   https://github.com/MattSG/mm3-recomp/commit/fdc33ea
+16 39da666 - Runtime quiet logging/spike-stage split plus README.
+   PARTIAL local quiet hot paths; missing expected-failure bound/stage split.
+   G-07/runtime. https://github.com/MattSG/mm3-recomp/commit/39da666
+17 0c49ef8 - Runtime APU /Ob2 for optimized MSVC builds.
+   COVERED independently by local CMake source option; retain it. Runtime.
+   https://github.com/MattSG/mm3-recomp/commit/0c49ef8
+18 67e9443 - Game-thread sampler registration plus runtime/README.
+   MISSING title registration and full runtime feature. G-07.
+   https://github.com/MattSG/mm3-recomp/commit/67e9443
+19 79224e5 - Runtime damage-bar reset fade and spike call chains.
+   MISSING HUD-texture/fade fix76192ee and full call-chain diagnostics.
+   G-11/G-07/runtime. https://github.com/MattSG/mm3-recomp/commit/79224e5
+20 a9040cd - Device interrupts preempt DISPATCH.
+   MISSING runtime delivery change d359ee0; own DPC repairs differ. Runtime.
+   https://github.com/MattSG/mm3-recomp/commit/a9040cd
+21 100f54a - README spike guest call chains.
+   DOC-ONLY; feature absent, covered under runtime diagnostics/G-14.
+   https://github.com/MattSG/mm3-recomp/commit/100f54a
+22 6baac69 - Runtime faster DSP interpreter.
+   COVERED MSVC fetch/idle-check behavior independently; GNU always_inline
+   extension absent. Runtime. https://github.com/MattSG/mm3-recomp/commit/6baac69
+23 8cff2f2 - Actual race FPS telemetry after higher-rate tests.
+   MISSING telemetry/validation; no new AI algorithm in diff. G-10.
+   https://github.com/MattSG/mm3-recomp/commit/8cff2f2
+24 965f6d0 - README/play range up to 240.
+   MISSING launch option; local deliberately caps 60. G-10.
+   https://github.com/MattSG/mm3-recomp/commit/965f6d0
+25 53d2e06 - Detail 4 / view 1 split.
+   MISSING split; view1 default superseded by next commit's2. G-09.
+   https://github.com/MattSG/mm3-recomp/commit/53d2e06
+26 789cba6 - View 2 and exponential distance haze.
+   MISSING final split/default and runtime remap d448358. G-09/runtime.
+   https://github.com/MattSG/mm3-recomp/commit/789cba6
+27 a873420 - Runtime far-tree haze fade.
+   MISSING foliage fade; use final060122c rather than intermediate dither.
+   Runtime. https://github.com/MattSG/mm3-recomp/commit/a873420
+28 31451f6 - Facade vertex pools 5x and zones capped 2.
+   PARTIAL independent local allocation-time3-field factor <= 4 fix. G-08.
+   https://github.com/MattSG/mm3-recomp/commit/31451f6
+29 7fc6d82 - Runtime smooth horizon panorama.
+   MISSING B-spline sampling0e63cf0. Runtime.
+   https://github.com/MattSG/mm3-recomp/commit/7fc6d82
+30 4b49dd3 - Runtime bright top/left strip fix.
+   MISSING edge-placement shader logic4d9d178. Runtime.
+   https://github.com/MattSG/mm3-recomp/commit/4b49dd3
+31 b176c55 - Runtime distant-tree fade without visible dither pattern.
+   MISSING final foliage implementation060122c. Commit subject describes
+   visible improvement; final code still uses ordered2x2 Bayer coverage,
+   averaged at default supersampling, rather than removing all dithering.
+   Runtime. https://github.com/MattSG/mm3-recomp/commit/b176c55
+32 9118262 - RmlUi launcher/game mods and generic runtime interfaces.
+   MISSING framework; preserve independent fork hooks/features. G-11/G-12.
+   https://github.com/MattSG/mm3-recomp/commit/9118262
+33 a24b737 - Release defaults, third-party notices and line endings.
+   COVERED dev-off behavior; notices pending actual dependency addition;
+   normalization is separate, preserving runtime patch exception. G-14.
+   https://github.com/MattSG/mm3-recomp/commit/a24b737
+
+END OF GAME CHECKLIST. The separate runtime checklist supplies more detail
+for the rendering, audio, kernel and diagnostics dependencies named above.
+
+DETAILED RUNTIME / AUDIO / RENDERER / INPUT ITEMS
+================================================
+RUNTIME / TOOLKIT FUTURE PORT BACKLOG
+Audit date: 12 October 2026, Europe/Paris.
+
+Scope and meaning of this fragment
+----------------------------------
+This is a plan for later implementation, not a claim that these changes have
+already been installed or tested in this fork. No runtime or game source was
+changed for this audit. The comparison examined the actual modified local
+files, not just the submodule pointer. Local tools/xboxrecomp is based on
+2a521ff plus substantial independent work. The latest fetched MattSG toolkit
+is b66656858a498deb2214565781442223a8bf9a51; latest fetched MattSG/mm3-recomp
+is a24b737 and points to that toolkit. There are 18 toolkit commits after the
+local base. Every one is accounted for below, including changes already
+covered by a different local implementation.
+
+Source links:
+  Toolkit comparison:
+  https://github.com/MattSG/xboxrecomp/compare/2a521ff...b666568
+  Game upstream:
+  https://github.com/MattSG/mm3-recomp
+
+All paths below are relative to the game repository unless otherwise stated.
+Line numbers describe the audited local worktree and may move in later edits.
+MISSING means the relevant behavior was absent in the inspected source.
+PARTIAL means some behavior is covered locally, but not the complete upstream
+scope. EQUIVALENT means a different local implementation covers the principal
+behavior; it does not prove identical generated machine code or performance.
+None of these classifications substitutes for checking the shipped executable
+and matching symbols. Every upstream measurement below is an upstream report,
+not a guarantee for this PC, this fork, or a future build.
+
+Index of all 18 toolkit commits in this backlog
+-----------------------------------------------
+R01 d62ae29  White silhouette rims                    MISSING
+R02 c694a6e  Automatic post-hitch screenshots           MISSING
+R03 7367dca  Pause/postrace button-cap alignment        PARTIAL
+R04 9b9a37c  XAudio2 empty-queue cushion                MISSING
+R05 a4c2800  Audio producer priority                   MISSING
+R06 4f4dbc6  Quiet logging and spike stage accounting  PARTIAL
+R07 7d47dc8  /Ob2 interpreter build policy             EQUIVALENT locally
+R08 8a70be7  Game-thread sampler / new shader counts   MISSING
+R09 76192ee  Reset fade / gauge placement              MISSING
+R10 af98ca0  Sixteen-frame guest sample chains         MISSING
+R11 d359ee0  ISR preemption of DISPATCH_LEVEL          MISSING
+R12 9d8716e  DSP fast path / inline fetch              EQUIVALENT Windows
+R13 d448358  Exponential extended-distance haze       MISSING
+R14 4d9d178  Top/left edge coverage translation        MISSING
+R15 7f22d61  Post-haze foliage depth fade              MISSING
+R16 0e63cf0  B-spline panorama sampling                MISSING
+R17 060122c  Final ordered foliage coverage            MISSING
+R18 b666568  Generic input/menu/overlay hooks          MISSING upstream API
+The R14/R15/R16 order groups final behaviors for review rather than reproducing
+the exact commit chronology. R17 supersedes the random threshold in R15.
+
+Porting constraints that apply to every entry
+-------------------------------------------
+1. Do not replace the modified toolkit tree wholesale or discard the local
+   patch archive. Preserve its independent fixes: command-mode DMA/fence
+   ordering, consumed-GET publication, native notify/fence waits, pushbuffer
+   continuation and wrap handling, CPU/GPU surface merge/writeback ownership,
+   texture hashing and decoding, sampler/binding state caches, shader bytecode
+   cache and prewarm manifests, pacing, flare depth, title map texture ownership,
+   pause centering, guest memory allocation/ownership, kernel handles and DPC
+   lifecycle, file sharing/save paths, PCM queue, voice attenuation and HRTF work.
+2. Port small behavior changes against the fork's functions. Where upstream
+   now exposes a generic API, add a deliberate adapter or migrate the title
+   hooks together with their callers. A submodule-pointer update alone cannot
+   preserve these local behaviors.
+3. Keep a before/after build, executable, PDB, runtime patch and configuration.
+   Record city, mission/cruise, season, time, weather, camera, coordinates,
+   resolution, aspect ratio, render scale, supersample, MSAA, draw distance,
+   performance profile and FPS cap for each visual/performance comparison.
+4. Run applicable existing regression harnesses after a real implementation.
+   Add targeted tests only for new behavior or uncovered integration hazards.
+   For graphics, inspect actual pixel output as well as passing logic tests.
+5. Use normal-play runs to establish timing and stability. Trace/sampler/BMP
+   modes add overhead; do not use their frame times as an unqualified shipping
+   performance result. Exclude diagnostic assets, private game files, user
+   saves and captures from future public source commits.
+
+Suggested execution grouping
+----------------------------
+First validate local equivalent DSP optimizations and preserve them. Then
+address the interrupt-preemption stall as a coordinated kernel/APU change;
+add the audio output cushion and measure scheduler priority separately.
+Port white-rim and frame-edge alignment together. Treat exponential haze,
+post-haze foliage coverage and the final Bayer distribution as one coordinated
+visual change. Port panorama filtering with the final title opt-in API.
+Combine menu/postrace/reset placement work with a deliberate generic overlay
+migration if adopting the latest API. Add optional spike diagnostics to help
+evaluate remaining hitches, and finish the logging gaps without reintroducing
+per-call overhead. The game-specific 256 KB kick-lag guard is a separate
+title-layer backlog item; the runtime scanner does not already provide it.
+
+R01. WHITE RIMS AROUND BUILDINGS / FRAME-READ TEXEL ALIGNMENT
+-----------------------------------------------------------
+Classification: MISSING. Suggested priority: high visual correctness.
+Upstream commit: d62ae29daf7138db4536d4d267d4b398b31c1a68
+https://github.com/MattSG/xboxrecomp/commit/d62ae29daf7138db4536d4d267d4b398b31c1a68
+
+Cause and symptoms:
+Two independent coordinate errors affected MM3's exact reads of its rendered
+frame. The guest full-target edge at 0.53125 was snapped to zero while texture
+coordinates retained their original relationship, offsetting the glare read.
+The LU_IMAGE_Y16 depth view also sampled a guest high-word position displaced
+by one quarter of a guest pixel. Upscaling magnified both problems into bright
+outline pixels on opposite sides of buildings against noon sky. This should
+not be diagnosed as an MSAA-only artifact: upstream also reproduced it with
+MSAA disabled and render scale one.
+
+Local evidence:
+  tools/xboxrecomp/src/video/nv2a_d3d11.c, s_hlsl/ub_vs, lines 678-679:
+    pixel-zero snap is unconditional for px and py.
+  Same file, y16d_ps, lines 1002-1004:
+    both depth variants read q.x >> 1, with no quarter-pixel correction.
+  depth_y16 near 3363 copies s_zview_remap without the horizontal offset.
+  nv2a_d3d_draw_ub lines 3954-3955 writes place[0] and place[1] only.
+
+Later implementation steps:
+  a. Distinguish guest display-sized surfaces from offscreen render targets.
+     Set the constant-buffer pixel-zero-snap control explicitly for every draw.
+     Preserve snapping for targets such as the water ripple map.
+  b. Add a scaled quarter-guest-pixel horizontal offset to depth-view constants;
+     make the corrected source index nonnegative in both single-sample and
+     Texture2DMS shader variants.
+  c. Port R14's final display-target translation at the same time. Leaving only
+     the initial no-snap rule can expose the later-discovered top/left strip.
+  d. Keep the fork's surface synchronization, readback queue and sampler cache.
+     Change depth-view construction and vertex placement without replacing the
+     surrounding modified renderer. HLSL changes must invalidate existing
+     bytecode/prewarm identities through the local source-derived cache family.
+
+Dependencies and edge risks:
+R14 supplies the final edge behavior; R13/R15 subsequently use this same depth
+view for haze. Display classification must use guest dimensions rather than
+confusing internal supersampled dimensions with the display size. Do not apply
+the depth high-word correction to ordinary color Y16 views. Check coordinate
+clamps at column zero, fractional guest positions, stereo/atlas-like reads,
+nonuniform widescreen scaling and MSAA depth SRV handling.
+
+Reproduction and acceptance:
+Upstream's reference scene is Paris cruise, Summer Noon Clear, X=643.2,
+Z=52.6. Capture identical left/right silhouette crops before and after. Test
+scale 1, 2 and 4; RECOMP_MSAA=1 plus supported multisample counts; 4:3, 16:9
+and a wider aspect. Verify no halo on either side, water/reflection/ripple
+targets remain aligned, whole-pixel menu art remains sharp and no new edge
+strip appears. Upstream reported that each half-fix alone left one outline;
+both are necessary. No guaranteed FPS improvement is implied.
+
+R02. AUTOMATIC POST-HITCH FRAME CAPTURE
+-------------------------------------
+Classification: MISSING; local manual captures are a separate feature.
+Suggested priority: optional diagnostic infrastructure.
+Upstream commit: c694a6e8ae2921727ab48292afe313b1f4ac3904
+https://github.com/MattSG/xboxrecomp/commit/c694a6e8ae2921727ab48292afe313b1f4ac3904
+
+Cause and symptoms:
+An observed long frame was difficult to connect to what appeared on screen
+immediately afterward. Upstream adds a flip-interval trigger controlled by
+RECOMP_SPIKE_CAPTURE=<prefix>[,milliseconds], with a 50 ms threshold when
+omitted. It reports total interval and interval excluding pacing, then writes
+the next two presented images. It throttles capture to one event per two
+seconds and limits the session's capture events to 200, while reporting spikes.
+
+Local evidence:
+  tools/xboxrecomp/src/video/nv2a_d3d11.c has capture_backbuffer near 4459 and
+  RECOMP_PRESENT_CAPTURE flag-driven capture. It has no spike_check or
+  RECOMP_SPIKE_CAPTURE mode. Existing RECOMP_HITCH_TRACE phase timing and the
+  expanded RECOMP_FRAME_CSV timing include useful independent information.
+
+Later implementation steps:
+  a. Factor the existing BMP readback/writer so manual and spike captures share
+     it without changing current manual flag-file semantics.
+  b. Call the trigger independently of whether FRAME_CSV is enabled; retain
+     previous flip time even when no CSV file is open.
+  c. Use the fork's pacing/accounting intervals rather than copying an older
+     upstream frame_csv body over the local successful-Present timestamps.
+  d. Add bounded capture state, prefix/threshold parsing and session counters.
+     Report when staging/readback/file creation fails rather than pretending
+     every requested image exists. Keep all work conditional on the option.
+
+Dependencies and edge risks:
+R06 adds stage breakdown, R08 adds game-thread sampling, R10 adds call chains.
+GPU staging/readback and BMP I/O can create follow-on hitches themselves.
+Validate row pitch, bottom-up BMP rows, odd-width padding, failed allocations,
+long/non-ASCII paths, commas in prefixes, disabled/empty/invalid thresholds,
+zero first interval and captures around loading/scanout without a normal flip.
+Do not capture continuously in normal play or mix this path into the fork's
+guest writeback/fence ownership.
+
+Verification and acceptance:
+Use a known slow loading transition or river dive/respawn, with and without
+FRAME_CSV. Check that each logged event matches flip timing, normal pacing is
+identified, the two captured images are the next presentations, names are
+unique, capture throttle/limit works and manual present capture still works.
+Upstream observed roughly 150-160 ms respawn spikes and images showing the
+returned car; this is a reference example, not a required duration locally.
+The option-off build must create no capture files and have no sampler/readback
+or recurring log overhead attributable to this feature.
+
+R03. PAUSE AND POST-RACE MENU BUTTONS MUST STAY WHOLE
+--------------------------------------------------
+Classification: PARTIAL. Pause has a local title-state solution; complete
+post-race/other overlay coverage has not been established.
+Suggested priority: high UI correctness, merged carefully with local map work.
+Upstream commit: 7367dcac189196522aaf24a69da5972cd3e4cfde
+https://github.com/MattSG/xboxrecomp/commit/7367dcac189196522aaf24a69da5972cd3e4cfde
+
+Cause and symptoms:
+HUD edge placement independently relocated the ends, centers and labels of
+buttons drawn as separate calls while a race HUD was latched active. Upstream
+uses the minimap's HUD-start rectangle as evidence that the HUD is present:
+without current/previous-frame HUD evidence, flat overlay draws keep one
+centered 4:3 transform. It restores edge anchoring on the frame the HUD returns.
+
+Local evidence:
+  src/mm3_widescreen.c, pause_ui_active near 169-177, reads PAL pause-singleton
+  byte 0x00429DB2 and registers nv2a_d3d_set_centered_ui_query near 182.
+  tools/xboxrecomp/src/video/nv2a_d3d11.c, nv2a_d3d_draw_ub near 3855, suppresses
+  independent anchors while that title callback is active.
+  s_frame_bg_tex already avoids many fullscreen menu/loading backgrounds.
+  There is no s_hud_seen/s_hud_prev coverage mechanism in the local renderer.
+  Latest upstream moves that mechanism into src/mods/widescreen_hud.c through
+  the generic overlay API (R18); it has not disappeared from upstream.
+
+Later implementation steps:
+  a. Trace/classify pause, post-race, mission completion/failure, zoomed map and
+     in-race overlays. Keep the reliable local pause byte for known pause UI.
+  b. Cover the other confirmed overlays using title state when available, or
+     carefully combine the upstream HUD-presence fallback with the local query.
+  c. Retain local texture-resource ownership for map base/markers. Do not center
+     every minimap-free frame if that breaks the deliberately anchored zoomed
+     map or local race tags.
+  d. If adopting NvOverlayHooks (R18), move all local and upstream placement
+     rules into one title implementation. Wire frame(), place(), hold_aspect()
+     and callers together; avoid two competing centering systems.
+
+Dependencies and edge risks:
+R09's fullscreen fade must be distinguished from a menu background. A
+previous-frame heuristic can misclassify the first menu/resume frame; pause
+state and the render thread can observe different phases of the UI transition.
+Do not turn user-facing controls into stretchable 16:9 art. Preserve world-tag
+follow mode, the local map anchor and HUD edge placement at wide aspects.
+
+Verification and acceptance:
+Run tests/test_menu_placement.py and existing map/title tests. Inspect pause,
+post-race success/failure menus and the SELECT pill at 4:3, 16:9 and ultrawide.
+Buttons must keep touching caps/center/text for every animation frame, not just
+a still image after the menu settles. Resume must immediately restore intact
+HUD placement. Repeat opening/closing while moving, resetting and switching
+map zoom. Upstream reported intact 16:9 pause controls and HUD restoration;
+local post-race behavior needs its own proof.
+
+R04. XAudio2 UNDERRUN CUSHION FOR CRACKLING DURING DRIVES
+-------------------------------------------------------
+Classification: MISSING at the output queue; local PCM queue fixes are separate.
+Suggested priority: high audio reliability.
+Upstream commit: 9b9a37c4f2de16acd6adab3b868aa7ef187143bd
+https://github.com/MattSG/xboxrecomp/commit/9b9a37c4f2de16acd6adab3b868aa7ef187143bd
+
+Cause and symptoms:
+Capacity alone does not ensure queued playback slack. The 64-slot XAudio2
+queue normally contains only audio produced so far, so repeated CPU/GPU hitches
+can empty it and produce brief silence/clicks. Upstream primes an empty queue
+with eight 256-sample silent buffers, approximately 43 ms at 48 kHz, before the
+real samples. It does this on initial fill and after an underrun, and emits an
+underrun diagnostic once for each detected empty transition.
+
+Local evidence:
+  tools/xboxrecomp/src/apu/apu_xaudio2.c, xa2_submit_samples near 193:
+    checks BuffersQueued >= XA2_NUM_BUFS but has no XA2_CUSHION/empty priming.
+  tools/xboxrecomp/src/apu/apu_dsp.c and apu_state.h contain the fork's pending
+  PCM queue/head/consumption work. That queue preserves decoded frames; it does
+  not provide the host playback cushion introduced by this commit.
+
+Later implementation steps:
+  a. Add startup/empty queue priming with silence whose storage remains alive
+     through asynchronous playback. Keep silent buffer size compatible with
+     actual submitted sample counts and channels.
+  b. Respect total queue capacity, partial SubmitSourceBuffer failure and the
+     real-buffer ring's ownership; never recycle a buffer still being played.
+  c. Add bounded underrun counters/diagnostics for comparison, without changing
+     guest PCM arithmetic or the fork's frame queue/consumed protocol.
+  d. Evaluate the cushion with R05 and R11 independently so the reason for any
+     improvement is visible. Do not use it to conceal a growing producer backlog.
+
+Dependencies and edge risks:
+R05 addresses producer scheduling, R11 addresses an ISR wait that stalls the
+producer, and R07/R12 cover DSP headroom. Priming adds playback latency, can
+delay the first audible sound and can insert a gap on refill; ensure reset,
+pause/unpause, device recreation and shutdown do not repeatedly prime an
+already healthy queue. Check mono/stereo assumptions, invalid sample lengths
+and whether silence callbacks expect buffer context. Preserve attenuation,
+HRTF and ADPCM decoding fixes.
+
+Verification and acceptance:
+Run the existing DSP/PCM queue suite. Compare identical long noon-drive routes
+with logged empty-queue events and measured audio timing. Exercise race loads,
+car resets, window resizing/focus changes, movies, pause, repeated start/stop
+and a temporary CPU load. Listen for crackle and synchronization drift; verify
+queued audio remains bounded. Upstream reported 8-14 underruns before and none
+in the next two drives after priming. Repeat locally; do not promise the same
+counts or zero underruns under all hardware/load conditions.
+
+R05. APU PRODUCER THREAD PRIORITY / SCHEDULER DELAYS
+-------------------------------------------------
+Classification: MISSING. Suggested priority: measure after the audio cushion.
+Upstream commit: a4c280095ce2a33f06be4e41735a8e29b576bea7
+https://github.com/MattSG/xboxrecomp/commit/a4c280095ce2a33f06be4e41735a8e29b576bea7
+
+Cause and symptoms:
+The frame thread produces audio in bursts and then sleeps. Guest-raised host
+thread priorities can delay its wake-up beyond the queued playback budget.
+Upstream raises the Windows frame producer to THREAD_PRIORITY_TIME_CRITICAL
+at thread entry. This attempts to preserve prompt wake-up; it does not shorten
+DSP instructions or correct queue/interrupt logic.
+
+Local evidence:
+  tools/xboxrecomp/src/apu/apu_core.c, mcpx_apu_frame_thread near 560:
+    enters with MCPX state and takes its lock, with no SetThreadPriority call.
+  A SetThreadPriority in the local renderer applies to shader compilation
+  workers, not this audio frame thread.
+
+Later implementation steps:
+  a. Introduce the Windows priority assignment at the frame-thread boundary
+     and check/record failure in an appropriate bounded diagnostic.
+  b. Compare time-critical with the existing policy using wake-up lateness,
+     audio underruns and CPU utilization; retain a way to reproduce the old
+     policy while evaluating it.
+  c. Confirm the thread actually sleeps between bursts in this fork after the
+     DSP and PCM fixes. Review all locks it holds and blocking operations.
+  d. Preserve startup/shutdown state, thread/TIB/worker-stack initialization and
+     platform guards; do not change every guest/device thread's priority.
+
+Dependencies and edge risks:
+R04 provides playback slack; R11 removes the dispatch-lock deadlock shape.
+Higher priority cannot fix an APU ISR waiting for a lock held by the game.
+This scheduling choice can starve lower-priority work if an unexpected spin,
+lock wait or sustained overload appears. The upstream claim that the mostly
+sleeping thread was harmless should be measured on this machine, not assumed.
+Check battery/LowPower configurations and limited-core CPUs.
+
+Verification and acceptance:
+Measure burst processing time, wake-up delay, queue depth and underruns over
+several drives with car resets and higher-priority guest activity. Compare
+normal play, background CPU load and minimized/unfocused operation. Confirm
+input/renderer responsiveness and graceful exit; check there is no busy loop
+when audio is disabled or a device disconnects. Upstream reported 0-3
+underruns per drive after the cushion, then none over three drives with this
+priority. Those reports are evidence for evaluating the change, not a local
+guarantee.
+
+R06. FINISH HOT-LOGGING GAPS AND ADD SPIKE STAGE BREAKDOWN
+-------------------------------------------------------
+Classification: PARTIAL; several local optimizations are already stronger.
+Suggested priority: medium performance hygiene plus diagnostic integration.
+Upstream commit: 4f4dbc6e72b1ca6c49ee5a4a00c05dcdf230f612
+https://github.com/MattSG/xboxrecomp/commit/4f4dbc6e72b1ca6c49ee5a4a00c05dcdf230f612
+
+Cause and symptoms:
+Frequent synchronous stderr writes/flushes during streaming and periodic
+kernel/GPU reports can stall the game or executor thread. Upstream gates I/O
+messages behind RECOMP_IO_TRACE, kernel summaries behind
+RECOMP_KERNEL_SUMMARY and periodic executor surveys behind tracing/explicit
+report options. The same commit enables renderer stage accounting for spike
+capture without automatically printing the normal once-per-second profile.
+
+Local evidence already covered:
+  tools/xboxrecomp/src/kernel/kernel_bridge.c, kernel_log_init/dispatch near
+  388-467: summaries explicitly enabled; ordinary gameplay stops shared
+  counter/GetTickCount work after the boot trace budget is exhausted.
+  Successful event/read/file/IOCTL messages obey KERNEL_LOG_ON budgets.
+  kernel_path.c removes normal per-path stderr output and uses optional
+  XBOX_TRACE where appropriate.
+  xbox_memory_layout.c near 2853-2868: RECOMP_PB_EXEC does not turn on recurring
+  reports; explicit options including the fork's PEEK_CHAIN/TEX_STATE remain.
+
+Remaining local gap:
+  kernel_file.c, xbox_NtCreateFile failure path, and bridge_NtCreateFile still
+  log expected NOT_FOUND/file-probe failures outside the normal budget.
+  bridge_NtReadFile can log EOF/failures unbounded. There is no
+  RECOMP_IO_TRACE helper and no RECOMP_SPIKE_CAPTURE stage split.
+
+Later implementation steps:
+  a. Keep local per-thread budget/counter exhaustion and explicit summary
+     policy. Do not paste upstream's older per-call clock/counter path over it.
+  b. Define which expected probes/EOF are routine, then gate/bound those
+     messages while keeping real sharing/access/read failures diagnosable.
+     Preserve local file-sharing ownership diagnostics and LastError values.
+  c. If adopting RECOMP_IO_TRACE, define its parsing/off semantics alongside
+     existing diagnostics; ensure default play avoids filesystem/log flushes.
+  d. Add per-spike stage snapshots after R02 without enabling the once-per-
+     second RECOMP_D3D_PROFILE line. Handle profile counter reset correctly;
+     document that exec(all) overlaps constituent stages rather than summing
+     every number as independent wall time.
+
+Dependencies, verification and acceptance:
+Exercise kernel_log_test and existing async-wait/file-sharing tests. Capture
+stderr counts and normal frame timing on the same route with trace options
+off/on. Verify summaries appear only when requested, missing-file cache probes
+do not spam, real missing required game assets remain understandable and
+failure diagnostics do not alter errno/GetLastError. With R02, verify stage
+times persist through the one-second reset and disabled profile printing.
+Upstream reported stderr falling from about 21,000 to 4,600 lines in a
+two-minute drive and worst observed hitch from 498 to 104 ms. Local already
+implements much of this, so those gains cannot be claimed again for this fork.
+
+R07. APU /Ob2 BUILD OPTIMIZATION: KEEP LOCAL COVERAGE, VERIFY BUILD FLAGS
+----------------------------------------------------------------------
+Classification: EQUIVALENT for the principal optimized Windows DSP source.
+Suggested priority: validation/documentation, not duplicate implementation.
+Upstream commit: 7d47dc852c41668fda5cc696a7470c249ee16127
+https://github.com/MattSG/xboxrecomp/commit/7d47dc852c41668fda5cc696a7470c249ee16127
+
+Cause and behavior:
+RelWithDebInfo's MSVC default /Ob1 can leave small DSP interpreter helpers out
+of line. Upstream adds /Ob2 to the APU target for that configuration so those
+helpers can be automatically inlined. This is a compiler policy change, not an
+audio semantic fix.
+
+Local evidence:
+  CMakeLists.txt option MM3_DSP_AUTO_INLINE defaults ON near line 17.
+  Lines 27-34 add /Ob2 to tools/xboxrecomp/src/apu/dsp/interp/dsp_cpu.c for
+  non-Debug MSVC configurations through TARGET_DIRECTORY xbox_apu.
+  Local application is intentionally limited to the measured hot interpreter
+  source; the upstream target-wide RelWithDebInfo policy is broader.
+
+Later work:
+  a. Inspect actual verbose compile commands for the application, not only
+     CMake source, to ensure the final dsp_cpu.c option is /Ob2 and the local
+     option was not turned off in a cached build.
+  b. If moving optimization policy into the toolkit, preserve the local user
+     option and debug behavior; remove duplicates only after equivalent flags
+     are proven. Do not imply every APU source requires target-wide /Ob2.
+  c. Benchmark an option ON/OFF pair using identical replay data and build
+     type. Keep bit-exact DSP arithmetic checks and matching PDBs.
+
+Dependencies and edge risks:
+R12 also force-inlines the instruction fetch and removes idle interrupt work.
+Inlining affects code size/debug stacks and may alter compiler scheduling;
+keep numerical outputs fixed. A standalone toolkit harness has different
+CMake policy from the parent game build, so check its flags independently.
+Clang/GNU do not accept MSVC's /Ob2; no cross-platform improvement follows
+automatically from this existing Windows option.
+
+Verification and acceptance:
+Build Debug and RelWithDebInfo with explicit option values, replay GP/EP frames
+and run the existing DSP suite. Confirm Debug remains debug-friendly and
+optimized output remains bit-exact. Upstream measured a recorded GP frame
+around 400 to 330 microseconds and an in-game mean around 551 to 472
+microseconds, within a 667-microsecond budget. These figures were measured in
+upstream's workload and cannot be reused as this fork's measured improvement.
+
+R08. GAME-THREAD SPIKE SAMPLER AND NEW-SHADER COUNTS
+-------------------------------------------------
+Classification: MISSING; local phase tracing and Tracy are complementary.
+Suggested priority: optional investigation support before remaining hitch work.
+Upstream commit: 8a70be7bb9db230400b39768be5aad7202d64316
+https://github.com/MattSG/xboxrecomp/commit/8a70be7bb9db230400b39768be5aad7202d64316
+
+Purpose and behavior:
+Renderer timers do not identify which guest function the game thread is
+executing or waiting in. Upstream adds spike_sampler.c, a diagnostic-only
+Windows thread that suspends a registered game thread approximately every
+millisecond, samples its instruction pointer and later resolves samples with
+the executable's PDB. It reports commonly sampled functions around a spike.
+It also reports how many specialized pixel shaders recently became ready,
+which can help distinguish shader first-use/driver work from game loading.
+
+Local evidence:
+  tools/xboxrecomp/src/video/spike_sampler.c is absent.
+  Local video/CMakeLists.txt has no sampler source or associated dbghelp/winmm
+  linkage. nv2a_d3d11.h lacks sampler registration/report declarations.
+  The local specialization pipeline has independent cache-hit/create timing,
+  bytecode persistence, manifests, prewarm queues and warm-entry promotion.
+  It has no upstream spike-window ready-shader counter.
+
+Later implementation steps:
+  a. Add an explicitly opt-in sampler with registration on the actual game
+     execution thread; coordinate with the parent sampler registration commit.
+     Registering on the UI, input or GPU worker would produce misleading data.
+  b. Integrate build/link declarations and non-Windows no-op behavior.
+  c. Keep sample storage bounded. Handle DuplicateHandle, thread exit,
+     SuspendThread/GetThreadContext failures and SymInitialize failures.
+     Design stop/cleanup behavior so temporary diagnostics do not leak a live
+     worker or timer-resolution request through shutdown/restarts.
+  d. Count shader readiness in the local compiler completion path with safe
+     synchronization; distinguish cached/prewarmed/current-use shaders.
+     Retain the local cache and prewarm implementation, not upstream's older
+     worker queue.
+
+Dependencies and edge risks:
+Requires R02/R06 for trigger/window/stage reports; R10 adds caller unwinding.
+PDB must match the exact executable. DbgHelp access needs consistent thread
+ownership. A suspend sampler perturbs timing and can sample while locks are
+held, so never attribute its own overhead to uninstrumented gameplay. Check
+thread lifetime, symbol fallback and architectures; CONTEXT.Rip is x64-specific.
+
+Verification and acceptance:
+With sampling off, no extra sampler thread, suspend calls or file output.
+With it on, verify known loader/guest symbols and a controlled wait produce
+plausible sampled functions; missing symbols degrade gracefully. Compare cold
+and warm shader-cache launches, and validate ready counts rather than calling
+them compiler misses. Upstream observed a 4.7-second Washington race load in
+loader functions and first-frame stalls of 110-128 ms with 7-12 newly ready
+shaders. These are illustrative upstream findings, not a local diagnosis.
+
+R09. RESET FADE / DAMAGE BAR / FULL-WIDTH HUD BATCHES
+--------------------------------------------------
+Classification: MISSING. Suggested priority: visible correctness with R03/R18.
+Upstream commit: 76192eec8bf8ad790094db018a15ea53d14501ea
+https://github.com/MattSG/xboxrecomp/commit/76192eec8bf8ad790094db018a15ea53d14501ea
+
+Cause and symptoms:
+The car-reset dim/fade is a fullscreen sprite using the speedometer HUD atlas.
+It was mistaken for menu artwork, disabling later HUD edge anchoring. Some
+frames batch it with the needle and damage bar; its fullscreen bounds also
+merged otherwise independent clusters. The result is a damage bar outside the
+gauge and, if only the background classifier is fixed, a fade restricted to
+the centered 4:3 area instead of the whole window.
+
+Local evidence:
+  tools/xboxrecomp/src/video/nv2a_d3d11.c, hud_split near 3701: no exclusion
+  preventing a full-width piece from merging overlapping clusters.
+  Its final per-vertex placement only handles follow/left/right cases, with
+  no full-width unsqueeze branch.
+  nv2a_d3d_draw_ub near 3848: fullscreen textured background classifier
+  excludes local map parts but not a learned HUD-atlas texture.
+  Latest upstream preserves all three rules in src/mods/widescreen_hud.c
+  after R18's API migration.
+
+Later implementation steps:
+  a. Recognize HUD-atlas fullscreen fades and exclude them from menu-background
+     latching, while retaining actual menu/loading background exclusion.
+  b. Keep full-width primitives independent during HUD cluster union.
+  c. Undo the 4:3 squeeze for the fade vertices so dimming covers the display.
+  d. Preserve local map base/marker ownership, pause centering and world-tag
+     follow placement. Integrate with the final overlay adapter if migrating.
+
+Dependencies and edge risks:
+R03's centering and R18's placement ownership affect the same calls. Texture
+learning can survive resource reuse incorrectly; reset its lifetime when
+entering/leaving/reloading a level. Bounding boxes can include multiple
+triangles; check full-width detection around the guest 0.5 edge and floating
+point tolerance. Do not unsqueeze a genuine centered background/control or
+allow fades to collapse clusters in a mixed gauge/text batch.
+
+Verification and acceptance:
+Trigger Back/car reset repeatedly during drives at multiple aspects and view
+resolutions. Capture frames through the entire fade, including those with
+needle/bar in the same draw. The bar stays inside the gauge, the needle does
+not shift, dimming reaches every column and normal HUD/menu placement returns.
+Exercise pause during/after reset, track reload and damage changes. Extend the
+existing menu placement tests with mixed fullscreen-fade/HUD clusters.
+Upstream checked four resets; perform a longer local repetition rather than
+assuming those four cover this fork's drawing and map rules.
+
+R10. GUEST CALL CHAINS IN SPIKE REPORTS
+-------------------------------------
+Classification: MISSING. Suggested priority: after the basic sampler.
+Upstream commit: af98ca0831bfe61c00d86a91f7985c693d6489ed
+https://github.com/MattSG/xboxrecomp/commit/af98ca0831bfe61c00d86a91f7985c693d6489ed
+
+Purpose and behavior:
+An instruction-pointer sample inside ntdll or a host wait only says that the
+thread is blocked. Upstream unwinds the suspended x64 thread using Windows
+unwind metadata, retains up to sixteen caller addresses in the executable and
+reports representative guest sub_ call chains. It can name a host wait
+together with the guest function that requested it. Upstream used these
+chains to identify the DirectSound pending-bit spin addressed by R11.
+
+Local evidence:
+There is no local spike_sampler.c or sixteen-frame sample ring. Existing
+guest-aware async-wait/hitch logs capture selected known call boundaries;
+they do not sample arbitrary suspended stacks or aggregate guest chains.
+
+Later implementation steps:
+  a. Extend R08's bounded sample record with the caller list, executable image
+     range and the register context needed for unwinding.
+  b. Use RtlLookupFunctionEntry/RtlVirtualUnwind with a conservative depth cap,
+     and handle leaf-return addresses without reading beyond valid stack memory.
+  c. Keep raw addresses alongside resolved names so an unknown symbol does not
+     erase evidence. Avoid repeating a guest leaf when forming the chain.
+  d. Aggregate/report a bounded number of chains outside the suspend-critical
+     path. Keep module boundaries, unloads and matching PDBs explicit.
+
+Dependencies and edge risks:
+R08 provides thread lifetime/suspension; R02/R06 provide reporting windows.
+Unwinding malformed, optimized, hand-adapted or transient stacks can fail.
+The fork has guest worker stacks/TIB handling and custom hooks, so verify those
+contexts rather than assuming all host return chains are ordinary generated
+functions. Protect stack reads, ensure the watched thread is always resumed
+after failures and avoid symbol work while it is suspended. CPU percentage
+from sampled chains is an estimate, not an exact duration or causal proof.
+
+Verification and acceptance:
+Use a controlled guest-to-kernel wait to demonstrate a host wait followed by
+the correct sub_ caller, and a nested generated call to exercise multiple
+frames. Test missing PDBs, leaf functions, truncated/deep chains and game exit.
+Cross-check a captured R11-style pending-bit stall with kernel/IRQL logs, then
+repeat without instrumentation. Reports must be bounded/readable and option
+off must leave gameplay unaffected. Upstream's discovery of a 0.5-second audio
+spin is attributable to its sampled run; this fork's remaining hitches may
+have other causes.
+
+R11. DEVICE ISRS MUST PREEMPT DISPATCH_LEVEL WITHOUT ALLOWING DPC OVERLAP
+------------------------------------------------------------------------
+Classification: MISSING. Suggested priority: highest kernel/audio stability.
+Upstream commit: d359ee07288bc54f0b42c18842deed60a99131f9
+https://github.com/MattSG/xboxrecomp/commit/d359ee07288bc54f0b42c18842deed60a99131f9
+
+Cause and symptoms:
+DirectSound stops a voice while the guest game thread is at DISPATCH_LEVEL
+and waits for the APU interrupt to clear a pending bit. The local dispatch
+processor lock is also taken by the device ISR thread when crossing upward,
+so the ISR waits for the same game thread that is spinning for the ISR.
+Upstream observed periodic roughly half-second pauses until a timeout broke
+the cycle. The APU also delayed interrupt delivery for fifty raised-IRQL polls,
+adding about 33 ms to stops even when the full timeout did not occur.
+
+Local evidence:
+  tools/xboxrecomp/src/kernel/kernel_hal.c, irql_track lines 208-212:
+    every upward DISPATCH threshold crossing takes g_dispatch_lock.
+  xbox_IrqlEnterInterrupt/Leave near 247-265 have no unlocked-device-ISR
+  ownership flags or g_dispatch_owned/g_isr_unlocked tracking.
+  tools/xboxrecomp/src/apu/apu_core.c, apu_deliver_irq near 144-153:
+    held_off and xbox_IrqlBlocksInterrupts retain the fifty-poll gate.
+  The fork's kernel_bridge.c has independent DPC queue/drain/exclusion,
+  interrupt synchronization and lower-IRQL lifecycle changes that must survive.
+
+Later implementation steps:
+  a. Model a hardware ISR above DISPATCH_LEVEL separately from a DPC: allow a
+     device interrupt entered from below DISPATCH to avoid the processor lock,
+     while publishing its raised IRQL and retaining correct raised accounting.
+  b. Track actual per-thread dispatch-lock ownership so leave/lower never
+     releases a lock the ISR thread did not acquire.
+  c. When a DPC is invoked from an unlocked ISR context, acquire the required
+     processor exclusion for the DPC and release it using a distinct saved
+     state flag. Cover nested contexts and all restoration paths.
+  d. Remove the APU's inappropriate raised-DISPATCH holdoff only in the same
+     coordinated change, preserving interrupt object/ISR synchronization and
+     pending DPC semantics. Reconcile the local guest KfLowerIrql drain-before-
+     unlock rule rather than overwriting it with older bridge code.
+
+Dependencies and edge risks:
+The change is a semantic concurrency fix; changing audio priority alone does
+not resolve this lock cycle. Device ISR access can now overlap a guest at
+DISPATCH, so retain all required interrupt spinlocks and synchronization.
+Do not permit a USB/audio DPC to overlap a raised guest thread, corrupt global
+raised counts, release another thread's lock, recurse a DPC on the same guest
+stack or lose pending work. Saved IRQL with flag bits must be decoded before
+publishing guest-visible bytes. Audit nested ISR/DPC and callbacks that alter
+IRQL, not only the happy APU path.
+
+Verification and acceptance:
+Run kernel_dpc_exclusion_test, kernel_dpc_lower_test, kernel_dpc_queue_test,
+kernel_interrupt_sync_test, kernel_dispatch_thread_test and relevant lifecycle
+tests. Add an explicit two-thread case where a DISPATCH holder spins for a
+device ISR completion: ISR must run, and DPC must remain excluded until safe.
+Test balanced ownership/counts through nesting and early returns. Conduct
+several 12-minute drives with voice stops/car resets, USB/controller input,
+menus and shutdown, both with diagnostics and normally. Upstream reported
+1-2 freezes per 12-minute drive before, then zero over three drives, and sampled
+94% APU frame-thread time in the lock wait. Those are upstream results; local
+success requires its own freeze counts and stress evidence.
+
+R12. DSP IDLE-INTERRUPT FAST PATH / FORCED-INLINE INSTRUCTION FETCH
+----------------------------------------------------------------
+Classification: EQUIVALENT for optimized MSVC Windows; portability gap remains.
+Suggested priority: preserve/test existing work; consider GNU policy separately.
+Upstream commit: 9d8716edaeab1c57a79b8f202ce803f6b39bf62c
+https://github.com/MattSG/xboxrecomp/commit/9d8716edaeab1c57a79b8f202ce803f6b39bf62c
+
+Cause and behavior:
+Calling the full interrupt handler after every DSP instruction is wasted work
+when neither an interrupt nor its pipeline countdown is active. Instruction
+fetch also benefits from deliberate inlining in optimized builds. Upstream
+conditions the handler on interrupt_counter or DSP_INTERRUPT_DISABLED and
+uses __forceinline on MSVC, always_inline on GNU-style compilers.
+
+Local evidence:
+  tools/xboxrecomp/src/apu/dsp/interp/dsp_cpu.c lines 51-58:
+    DSP_PREAD_INLINE is __forceinline only for optimized non-_DEBUG MSVC.
+  Lines 64-72 implement dsp_postexecute_interrupts_if_needed with the same
+  pending/pipeline condition and the instruction-fetch declaration.
+  Line 725 invokes the helper; read_memory_p definition is near line 962.
+  tests/dsp/dsp_interrupt_fastpath_test.c already exercises this local behavior.
+  Non-MSVC DSP_PREAD_INLINE is currently empty; it does not explicitly request
+  GNU always_inline. The Debug call boundary/assertions are deliberate locally.
+
+Later work:
+  a. Mark the Windows optimization as covered, rather than claim a new speedup
+     by copying identical upstream logic.
+  b. Preserve interrupt pipeline progression after its pending count becomes
+     zero; do not reduce the condition to interrupt_counter alone.
+  c. If supporting Clang/GCC optimized builds, evaluate a guarded inline/
+     always_inline spelling there, retaining Debug assertions and buildability.
+     Inspect the compiled fetch/call path to determine whether it is needed.
+  d. Keep the existing PCM queue and DSP correctness fixes; merge only the
+     uncovered portability policy, not the whole older interpreter.
+
+Dependencies and verification:
+R07's automatic inlining is already configured in the parent game CMake.
+Run DSP instruction/interrupt tests and GP/EP recorded frame replay against
+the independent pinned reference where available. Include pending, disabled,
+fast/long interrupt, countdown and no-pending cases. Benchmark matching input
+and compiler/build flags; separate this change from any /Ob2 change.
+Upstream reported bit-exact output on four captured frames, replay around
+323 to 292 microseconds and in-game GP mean around 472 to 298 microseconds.
+Those cannot establish an additional local gain because the principal Windows
+behavior is already present.
+
+R13. EXPONENTIAL DEPTH-HAZE REMAP FOR EXTENDED DRAW DISTANCE
+---------------------------------------------------------
+Classification: MISSING. Suggested priority: combined with R15/R17.
+Upstream commit: d4483589c2f8b19ad7584fe817195c35dbef7041
+https://github.com/MattSG/xboxrecomp/commit/d4483589c2f8b19ad7584fe817195c35dbef7041
+
+Cause and symptoms:
+Increasing the far plane while stretching the original haze ramp linearly
+lets low-detail far-city geometry remain too clear. Upstream fills the band
+past the original haze knee exponentially, preserving the original slope at
+the knee and keeping sky depth at one. It makes the extended region blend
+toward sky rather than exposing hard distant building bands.
+
+Local evidence:
+  tools/xboxrecomp/src/video/nv2a_d3d11.c, y16d_ps line 1008:
+    retains the linear scale/knee-to-new-far formula.
+  src/mm3_render_distance.c calls nv2a_d3d_set_depth_view_remap, uses FOG_KNEE
+  and validates RECOMP_DRAW_DISTANCE; the fork already widens visibility/LOD
+  range. Its comments still describe the earlier stretching policy.
+
+Later implementation steps:
+  a. Replace only the remap tail above the knee with the upstream exponential
+     form, keeping the original branch below the knee and untouched sky depth.
+  b. Retain input validation and the fork's extended visibility/LOD/camera
+     integration. Update title/header documentation to describe the final
+     mapping, not the superseded linear stretch.
+  c. Rebuild depth-view shader variants and preserve the R01 horizontal tap
+     correction. Verify the cache family changes with the HLSL source.
+  d. Port R15's matching post-haze foliage fade and R17's final distribution
+     together so buildings and later foliage use consistent haze behavior.
+
+Dependencies and edge risks:
+scale=1 must keep the Xbox baseline; guard knee values approaching one and
+sky depth saturation. Changes affect any title depth-as-Y16 view that uses
+the opt-in remap, not ordinary color textures. Check distance transitions,
+z-buffer versus w-buffer paths, depth precision, seasons/weather and far-plane
+changes in menu/camera transitions. Do not globally increase fog or hide close
+geometry to compensate for an unrelated skyline or texture defect.
+
+Verification and acceptance:
+Compare draw distance 1, 2 and 4 in Paris and Washington, sunny/foggy/night
+conditions, near and far cameras. Inspect geometry around the old far plane
+and around the knee, ensuring a continuous fade, unchanged nearby rendering
+and intact sky/clouds. Run local surface/depth/readback tests and inspect
+actual frames. Upstream described approximately 63% filling of the remapped
+band at the old far plane and 99.6% at twice that plane; those mathematical
+mapping properties should not be presented as percentages of every final
+pixel's haze because authored lookup/blend behavior also contributes.
+
+R14. TOP ROW / LEFT COLUMN BRIGHT STRIP: FINAL DISPLAY TRANSLATION
+----------------------------------------------------------------
+Classification: MISSING. Suggested priority: coordinate with R01.
+Upstream commit: 4d9d17882b43843c0ff80726e2faf6cdfc14a329
+https://github.com/MattSG/xboxrecomp/commit/4d9d17882b43843c0ff80726e2faf6cdfc14a329
+
+Cause and symptoms:
+After preserving display-target edge coordinates for halo alignment, the
+guest 0.53125 screen-space offset could leave the earliest host pixels of
+column/row zero uncovered by haze/glare quads. Those pixels retained the
+prior scene and appeared brighter. Upstream subtracts that offset as a
+translation for display-sized geometry and offset-bearing flat vertices,
+which retains exact frame-read alignment while covering the display edge.
+
+Local evidence:
+  tools/xboxrecomp/src/video/nv2a_d3d11.c s_hlsl/ub_vs near 678-679 has the old
+  snap behavior; no ub_place.w conditional translation exists.
+  nv2a_d3d_draw_ub near 3954-3955 does not initialize place[2]/place[3].
+
+Later implementation steps:
+  a. Add the display-target translation using the same target classification
+     as R01. Populate the fourth placement constant explicitly on every draw.
+  b. For flat w=1 draws, apply it only to positions carrying the fractional
+     D3D offset, leaving whole-pixel menu coordinates alone. For 3D geometry,
+     match upstream's screen-space translation before clip-space conversion.
+  c. Keep the fork's squeeze/shift/dx map and pause placement algebra; confirm
+     the translation does not get applied twice during wider-target transforms.
+  d. Test both fixes as the final pair, including offscreen maps that retain
+     the old snap rather than receiving display translation.
+
+Dependencies and edge risks:
+R01's initial no-snap behavior is incomplete without this later adjustment.
+Fractional tests near the 0.5..0.5625 window can affect authored sprite edges;
+inspect tolerances and negative/fractional positions. Check clipped surfaces,
+resize/aspect changes, supersample and postprocessing feedback alignment.
+Preserve vertex-program interpretation and cached constant-buffer invalidation.
+
+Verification and acceptance:
+Inspect every outermost row/column in menu and Paris cruise captures at scale
+1, 2 and 4 and supported MSAA counts. There must be no bright stale scene
+strip, no right/left white silhouette halo and no shifted whole-pixel text.
+Check water maps, fullscreen fades and movie overlay alignment. Upstream
+reported matching edge rows/columns during its Paris/menu checks; reproduce
+locally across the fork's profiles and aspect choices. Logic tests alone do
+not demonstrate correct rasterized coverage.
+
+R15. POST-HAZE FOLIAGE MUST FADE USING ITS OWN DEPTH
+--------------------------------------------------
+Classification: MISSING. Suggested priority: with R13 and final R17.
+Upstream commit: 7f22d613bdea4548c324c28b38d1f08ad3cb5056
+https://github.com/MattSG/xboxrecomp/commit/7f22d613bdea4548c324c28b38d1f08ad3cb5056
+
+Cause and symptoms:
+MM3 draws some trees/foliage after its screen-wide depth-read haze pass.
+With an extended far plane those draws remain crisp in front of the already
+hazed city. Upstream remembers when depth has been read as Y16 during the
+frame, then applies matching depth-based MSAA coverage reduction only to
+later depth-tested, depth-writing w-buffer draws. The existing hazed scene
+shows through the reduced coverage.
+
+Local evidence:
+  tools/xboxrecomp/src/video/nv2a_d3d11.c, ps_wdepth lines 927-933:
+    computes depth/bias/output only, with no post-haze coverage block.
+  No s_depth_hazed flag, depth_y16 marker, per-frame reset or zp1.z/w fade
+  constants exist in the local pipeline. s_zview_remap itself does exist.
+
+Later implementation steps:
+  a. Add a per-frame depth-haze marker when a real depth Y16 view is read;
+     reset it at the appropriate flip/frame boundary.
+  b. Configure scale/knee only for eligible later draws with depth_test and
+     depth_mask and an extended remap. Keep zp1.z disabled otherwise so stale
+     constants cannot fade unrelated draws.
+  c. Add the matching exponential depth-coverage expression to ps_wdepth,
+     preserving the current alpha-test/coverage result and depth bias.
+  d. Use R17's final 2x2 Bayer distribution immediately. Do not ship the
+     intermediate random-threshold variant merely to recreate history.
+
+Dependencies and edge risks:
+Requires the same remap as R13 and valid depth-view alignment from R01.
+The sky dome has no depth write and must remain excluded; fading every
+post-haze draw previously damaged clouds/sky upstream. Do not fade HUD,
+color-only passes, z-buffer geometry or an original-far-plane baseline.
+Check SV_Coverage masks at 1/2/4/8 samples, alpha-test foliage edges and the
+fork's flare depth opt-in. Ensure shader specialization uses the new runtime
+constants correctly without forcing a stale compiled state.
+
+Verification and acceptance:
+Inspect trees beyond the original far plane in Paris along the Seine and in
+Washington at draw distance 1/2/4. Trees blend consistently with their city
+backdrop; sky/clouds remain solid, close trees unchanged and no dotted sky or
+unexpected transparency appears. Include MSAA off and several resolutions.
+Run applicable NV2A binding/depth/surface tests, then visual comparisons and
+motion captures. Upstream's initial commit fixed overly crisp trees but
+introduced visible noisy distribution; acceptance is the final R17 behavior,
+not that intermediate artifact.
+
+R16. SMOOTH DISTANT SKYLINE / HORIZON PANORAMA SAMPLING
+----------------------------------------------------
+Classification: MISSING. Suggested priority: visual quality after alignment.
+Upstream commit: 0e63cf0cf6cc90c2f54821f501cc81d3d49b8513
+https://github.com/MattSG/xboxrecomp/commit/0e63cf0cf6cc90c2f54821f501cc81d3d49b8513
+
+Cause and symptoms:
+The game's distant-city strip is a low-resolution DXT5 texture magnified
+across the horizon. Ordinary bilinear filtering reveals large texel blocks
+and steps in skyline alpha. Upstream adds cubic B-spline reconstruction using
+four bilinear taps, scoped to stage zero of the panorama's no-depth-test,
+destination-alpha blend draw (0x304/0x305). Choosing a coarser mip instead
+reduced the alpha silhouette and exposed the underlying flat horizon band.
+
+Local evidence:
+  tools/xboxrecomp/src/video/nv2a_d3d11.c, samp2 near line 754: stage zero uses
+  T2D0.Sample; there is no bspline0, s_draw_bspline or ps_flags panorama bit.
+  setup_pipeline near 3375-3571 already contains modified texture/sampler/
+  feedback/binding caching that must be kept.
+  The local PsKey includes ps_flags and source-derived persistent cache family
+  logic near 1079-1128, so new sampling variants must remain represented.
+
+Later implementation steps:
+  a. Add the B-spline shader helper and opt-in sampling bit with correct texture
+     dimensions and safe tap math; retain normal filtering for other stages.
+  b. Use the final generic nv2a_d3d_set_bspline_blend API from R18 and register
+     MM3's blend pair in title initialization. Do not hardcode all destination-
+     alpha draws or force all textures through the helper.
+  c. Preserve mip/sampler/cube/palette/cache behavior; account for the new
+     ps_flags in specialized shaders and persistent cache/prewarm records.
+  d. Review the final b666568 addition of optional TMP_PANO_MIP/TMP_NOPANO and
+     t8 feedback experiments separately. Their names are debug controls, not
+     evidence that they should become shipping defaults. If retaining any
+     final feedback path, integrate with local read/write hazard cleanup and
+     slot-eight unbinding rather than assuming the existing eight-slot helpers
+     already cover it.
+
+Dependencies and edge risks:
+R13/R15 address actual scene haze; panorama filtering addresses texture shape.
+Do not blur sky/clouds/HUD globally or use opacity changes to hide missing
+geometry. Test UV seams/wrap, source mip count, alpha edge softness, feedback
+copies and MSAA resolves, plus device shader model/compiler support. Additional
+taps can cost GPU time; measure instead of assuming a free quality improvement.
+
+Verification and acceptance:
+Use Paris Montmartre city views and the end of the Seine, checking the skyline
+at substantial magnification while panning. Blocks/stair steps diminish, the
+horizon does not turn into an opaque/flat band, and ordinary sky/cloud/menu
+textures stay unchanged. Compare fixed render-scale profiles and auto
+resolution/supersample, cold/warm shader caches, multiple times/weather and
+both cities. Run shader-cache/prewarm/sampler/binding tests and D3D debug-layer
+checks when practical. Upstream reported smoother panorama alpha; no measured
+local GPU cost or guaranteed performance improvement is established.
+
+R17. FINAL DISTANT-TREE DISTRIBUTION: REMOVE VISIBLE WHITE FLICKER
+----------------------------------------------------------------
+Classification: MISSING because the complete post-haze fade is absent locally.
+Suggested priority: inseparable from R15; do not ship the superseded version.
+Upstream commit: 060122c457502908133e8660c16ff6713461311f
+https://github.com/MattSG/xboxrecomp/commit/060122c457502908133e8660c16ff6713461311f
+Parent pin update: b176c55cd9d645c1d3c6a42ec91384c20de4cb1e
+https://github.com/MattSG/mm3-recomp/commit/b176c55cd9d645c1d3c6a42ec91384c20de4cb1e
+
+Chronology and final behavior:
+R15 initially chose sample coverage with a screen-random threshold. It could
+leave checker/stripe structure and moving holes exposing bright haze in
+distant trees. This follow-up replaces that threshold with ordered ranks
+within each 2x2 host-pixel block. At the upstream default true 2x supersample,
+the four host pixels average to the intended coverage fraction, reducing the
+visible pattern/white shimmer. The algorithm still uses dithering/coverage
+distribution; the parent description 'without a dither pattern' describes the
+visible result, not deletion of all dithering. Latest b666568 retains it.
+
+Local evidence:
+  The local ps_wdepth near 927-933 lacks any post-haze fade and either
+  threshold form. No q=(uint2(i.pos.xy)&1) rank or associated coverage branch
+  exists. This is a missing final feature, not a local regression introduced
+  by an already-installed noisy fade.
+
+Later implementation steps:
+  a. Combine with R13/R15 using the final ordered q.x/q.y rank expression and
+     floor-based sample count. Preserve earlier coverage from alpha testing.
+  b. Verify the definition of host-pixel position and the actual downsampling
+     footprint in the fork. Its Balanced/Quality/LowPower profiles use fixed
+     render scales by default; they are not automatically equivalent to the
+     upstream true 2x supersample relationship at every window resolution.
+  c. Evaluate output for scale/supersample combinations without a full 2x2
+     average, particularly MSAA=1. If those modes still show patterns, record
+     that limit rather than labeling the port universally flicker-free.
+  d. Keep coverage masks within supported sample counts and reset haze state
+     at each frame; do not add temporal randomness that reintroduces shimmer.
+
+Dependencies and edge risks:
+Requires R15 and consistent exponential remap R13. Integer host coordinates,
+noninteger presentation scaling, aspect resizing and supersample one/four may
+change how ranks average. Preserve foliage alpha-test cutouts and sky exclusion.
+Do not conflate this with texture anisotropy, LOD transitions or collision
+flicker; those are different symptoms with different evidence.
+
+Verification and acceptance:
+Reference upstream scene: Paris, Seine, winter night, 1600x900. Drive and pan
+slowly past faded distant trees; inspect motion, not only static frames.
+Test auto mode with RECOMP_SUPERSAMPLE=2, supersample 1/4, MSAA 1/2/4/8, the
+fork's fixed-scale profiles and odd/changed window sizes. At the intended
+averaging mode no distracting white checker/stripe shimmer should remain,
+trees should still disappear smoothly into haze, and close foliage/sky stay
+unchanged. Record any residual pattern in other modes and the GPU cost locally.
+
+R18. GENERIC KEYMAP, MENU MOUSE AND OVERLAY API MIGRATION
+-------------------------------------------------------
+Classification: MISSING upstream API/features, with useful local custom input
+and overlay alternatives that must be retained.
+Suggested priority: planned cross-layer migration, not a blind toolkit bump.
+Upstream commit: b66656858a498deb2214565781442223a8bf9a51
+https://github.com/MattSG/xboxrecomp/commit/b66656858a498deb2214565781442223a8bf9a51
+Latest game integration snapshot:
+https://github.com/MattSG/mm3-recomp/tree/a24b737/src/mods
+
+New behavior and architecture:
+The runtime gains RECOMP_KEYMAP named bindings to virtual keys, including
+mouse buttons; RECOMP_MENU_KEYS menu navigation from arrows/WASD/stick keys,
+Space/left click confirmation and Escape/right click back; title-provided
+menu-state and pointer hooks; renderer collection of menu quad bounds and
+final vertex tint so the title can identify the focused menu item; and
+NvOverlayHooks frame/place/hold_aspect callbacks. MM3-specific HUD rules move
+from the toolkit renderer into the game. Panorama blend selection also
+becomes title opt-in. This is an API/caller migration, not simply a bugfix.
+
+Local evidence:
+  tools/xboxrecomp/src/input/xinput_device.c contains
+  xbox_InputSetKeyboardDrivingProbe and RECOMP_KEYBOARD_LAYOUT=mm3, with
+  context-aware arrow acceleration/braking/steering and R/F/Space/C aliases.
+  It does not contain load_keymap, RECOMP_KEYMAP, RECOMP_MENU_KEYS,
+  xbox_InputSetMenuProbe or xbox_InputSetMenuPointer.
+  fb_present.c lacks the upstream mouse coordinates/move-counter input API.
+  nv2a_d3d11.h exposes local centered_ui/map_texture/flare APIs rather than
+  NvOverlayDraw/NvOverlayHooks/NvMenuRect/b-spline/menu-tint APIs.
+  nv2a_pb_exec.c does not gather final per-vertex menu tint for hit testing.
+  src/mm3_widescreen.c owns reliable local pause and map-resource identification.
+  Latest upstream src/mods/widescreen_hud.c owns the minimap-presence and
+  reset-fade rules from R03/R09; src/mods/menu_mouse.c owns title menu behavior.
+
+Later implementation sequence:
+  a. Inventory all local callers and init order. Decide on a compatibility
+     adapter or a complete title-hook migration before changing signatures.
+  b. Implement keymap parsing with clear default/fallback rules and validate
+     named inputs/virtual keys. Preserve the existing MM3 driving layout and
+     corrected black/white controller shoulder mapping; define how explicit
+     bindings interact with driving aliases instead of silently overriding them.
+  c. Add menu mode/probe and pointer input with focus loss/release handling.
+     Avoid WASD generating both menu navigation and analog/face actions.
+  d. Collect mouse state in the framebuffer message thread and transform client
+     fractions using the actual presentation rectangle, aspect and letterbox.
+     Preserve the fork's WM_CLOSE callback and shutdown ownership.
+  e. Add menu quad/tint collection in the executor/renderer, scoped to menus,
+     while retaining local pos/index/buffer bounds checks and caches. Publish
+     shown-frame hit rectangles with appropriate locking/generation lifetime.
+  f. Implement title hover/focus-row selection and deferred click behavior;
+     retain ordinary pad navigation and ensure mouse/keys do not fight.
+  g. Migrate frame/place/hold_aspect callbacks as a coherent set. Merge the
+     upstream R03/R09 rules with local pause-byte centering, resource-owned map
+     anchors, world tags, full-screen art and flare behavior. Keep generic
+     runtime free of new hardcoded MM3 addresses.
+  h. Register MM3 panorama blend opt-in (R16), adjust every build declaration
+     and non-Windows fallback, and update launcher/help/configuration options
+     only after behavior exists. Review upstream temporary panorama experiment
+     controls separately from supported user features.
+
+Dependencies and edge risks:
+R03/R09/R16 depend on retaining the right title ownership when adopting this
+API. Latest upstream and local old APIs cannot be mixed without adaptation.
+Hover is based on observed rendered highlight/tint, so animated highlights,
+stale frame rectangles, sliders and unrecognized menus can cause focus/click
+mistakes. Do not issue a click before the requested focus arrives. Test left/
+right click held/repeated, no movement, navigation keys overriding hover,
+dragging, outside-window pointer, DPI scaling, resize/fullscreen/letterbox and
+menus that require more than one poll to update. Register hooks before worker
+threads start and keep callbacks fast, nonblocking and read-only when required.
+Preserve local controller input, map resource unload/reallocate lifetimes,
+thread-safe state reads and user-selected window settings.
+
+Verification and acceptance:
+Port/add the upstream tests/keymap parser harness plus local input tests for
+legacy/MM3 driving/menu layouts, conflicting aliases, simultaneous opposite
+keys, held mouse buttons and focus loss. Run menu placement/map/renderer
+binding/cache/pacing regressions. Manually test frontend, pause, post-race,
+vehicle selection and options using mouse, keyboard and controller, including
+screens whose hover target cannot be recognized. Confirmation must activate
+the hovered intended item, back must work consistently, scrolling/highlight
+animation must remain stable, controller-only play must still work and race
+driving controls must not change unexpectedly. Verify aspect changes are held
+only when appropriate and no menu collection work is active outside the
+requested feature. Upstream's commit supplies features and tests, not a
+measured universal performance gain; migration can increase menu CPU work and
+must be evaluated against the fork's existing optimized paths.
+
+RELATED TITLE-LEVEL DEPENDENCY: BOUNDED KICK RUN-AHEAD IS NOT ALREADY COVERED
+-------------------------------------------------------------------------
+This is outside the 18 toolkit commits, but it matters when integrating their
+timing/fence improvements. Parent commit:
+fdc33ea50553fa47aa146931ce189acf478afd85
+https://github.com/MattSG/mm3-recomp/commit/fdc33ea50553fa47aa146931ce189acf478afd85
+
+Local src/recomp_manual.c, sub_00344AB0 near 1273-1279, only reads the guest
+register values and executes _mm_sfence. It has no current-PB-minus-DMA_GET
+comparison, 0x40000-byte producer lag bound or wrap-triggered wait. The local
+nv2a_pb_scan.c bounds an executor pass at 0x100000 words and preserves parser
+continuation; its optional ring snapshot is explicitly evidence-only and
+execution still reads live guest RAM. Neither mechanism bounds the guest
+producer to 256 KB ahead or protects an unidentified mid-frame brightness read.
+
+The fork has more careful command-mode fence/notify/readback completion than
+the initial upstream fence patch. Preserve it. It still does not demonstrate
+that the game-level tunnel-lighting flicker race is fixed. Plan the bounded
+kick guard in the title backlog and verify mission plus cruise frames; do not
+claim the local parser limit is an equivalent solution. Upstream reported
+zero dark frames in five 1200-frame mission runs at a 256 KB bound and measured
+uncapped race averages around 296 fps for every-kick serialization, 352 fps
+for the 256 KB bound and 373 fps unbounded. These compare upstream policies,
+not this fork's current speed or guaranteed gains.
+
+Completion evidence required before any future 'applied' claim
+------------------------------------------------------------
+For each implemented item record the local commit, chosen upstream source,
+exact merge/adaptation decisions, configuration/build flags, regression test
+result and before/after runtime evidence. Mark equivalent items as verified
+coverage, not newly applied speedups. Mark remaining edge cases explicitly.
+Maintain the independent toolkit patch archive and setup replay process so a
+fresh public checkout obtains the same runtime fixes. A README title, a newer
+submodule pin, a successful compilation or a screenshot from upstream alone
+does not establish that this fork's decompiled game uses these improvements.

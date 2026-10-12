@@ -98,6 +98,10 @@ not change the translated game, the pinned toolkit or the working executable.
 This publication preserves the current tested fork and records the remaining
 integration work below.
 
+The detailed future implementation checklist is saved in
+[Next fixes to do.txt](Next%20fixes%20to%20do.txt), including root causes,
+source locations, dependencies, integration steps and acceptance tests.
+
 ### Fixes still missing or only partly covered
 
 | Upstream fix | Status in this fork | Code comparison and remaining work |
@@ -137,8 +141,8 @@ rebuilt locally from the supported disc rather than bundled in this repository.
   forces instruction-fetch inlining and skips idle interrupt work. Upstream's
   explicit GNU `always_inline` path is not present.
 - **Developer tools off by default:** local developer features already require
-  opt-in flags. The public play script's focused building traces are a separate
-  default, documented below, and can be disabled with `-NoTraceBuildings`.
+  opt-in flags. The public play script also leaves focused building traces off
+  by default; use `-TraceBuildings` only for a diagnostic capture.
 
 ### Other upstream improvements still absent
 
@@ -207,7 +211,7 @@ Run these commands from the repository directory, not its parent folder.
 ### Reproduce the improved version (`v2026.10.12.3`)
 
 The tag **[v2026.10.12.3](https://github.com/lakshya16157/midtown-madness-3-PC-Native/tree/v2026.10.12.3)**
-pins this fork's current improvements: race/menu loading and heap fixes, building
+pins this fork's gameplay improvements at that snapshot: race/menu loading and heap fixes, building
 detail fades, visibility and rendering work, corrected imported-car shadow
 generation, and the ten researched car presets with their gearing and gauges.
 It also includes the joined pause-menu buttons, Space handbrake, the closest
@@ -217,6 +221,8 @@ facade-capacity scaling, building/tree diagnostics, car light and reflection
 repair tools, and restored factory driving defaults. The earlier `v2026.10.12`,
 `v2026.10.12.1` and `v2026.10.12.2` tags remain available as previous snapshots.
 Use this tag to reproduce that source and settings version after `main` moves on.
+The minimal-logging launcher default and detailed future-fix checklist were
+added later on `main`.
 
 If you have already extracted or recompiled the game with upstream, the generated
 Xbox C alone does not contain this fork's native hooks, runtime patch or car data.
@@ -1016,9 +1022,11 @@ the executable hash, launch options, runtime environment, profile defaults,
 installed car configuration and exit status. Existing environment overrides
 still take priority.
 
-Building capture is currently enabled by default in the launcher while this
-pop-in is being investigated. Use `-NoTraceBuildings` for a normal run without
-these added trace defaults. The launcher refuses a second game instance because
+Normal launches use minimal logging: focused building, texture-stream and
+asynchronous-wait tracing is off by default. Use `-TraceBuildings` to opt in
+when investigating pop-in; `-NoTraceBuildings` remains available to explicitly
+disable that switch. Existing environment overrides still take priority.
+The launcher refuses a second game instance because
 both copies would open the same cache exclusively; that conflict otherwise
 appears as the title's dirty/damaged-disc screen. Close all game windows before
 starting a new run.

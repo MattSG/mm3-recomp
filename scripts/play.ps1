@@ -8,8 +8,8 @@ Run the recompiled Midtown Madness 3 built by scripts\setup.ps1.
 Any RECOMP_*/MM3_* variable already set in your shell overrides these
 defaults (see README "Options"). F11 or Alt+Enter toggles fullscreen.
 Every launch saves combined, timestamped output and launch metadata under logs\.
-Focused building/texture/stream-wait diagnostics are on by default during the
-current pop-in investigation. -NoTraceBuildings leaves those switches unset.
+Normal launches leave focused building/texture/stream-wait diagnostics off.
+Use -TraceBuildings to enable them for a pop-in investigation.
 #>
 param(
     [switch]$Keyboard,
@@ -17,7 +17,7 @@ param(
     [ValidateSet('Balanced', 'Quality', 'LowPower')][string]$Profile = 'Balanced',
     [ValidateRange(1, 60)][int]$FpsLimit,
     [ValidateRange(60, 110)][double]$Fov,
-    [switch]$TraceBuildings = $true,
+    [switch]$TraceBuildings,
     [switch]$NoTraceBuildings,
     [string]$Exe
 )

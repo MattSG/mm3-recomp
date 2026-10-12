@@ -75,9 +75,9 @@ class LauncherProfileTest(unittest.TestCase):
             self.assertIsNone(row["RECOMP_RENDER_SCALE"])
             self.assertEqual(row["RECOMP_PB_EXEC"], "1")
             self.assertEqual(row["RECOMP_APU_DSP_ACK"], "0x80458810")
-            self.assertEqual(row["MM3_BUILDING_TRACE"], "1")
-            self.assertEqual(row["RECOMP_TEXTURE_STREAM_TRACE"], "1")
-            self.assertEqual(row["RECOMP_ASYNC_WAIT_TRACE"], "1")
+            self.assertIsNone(row["MM3_BUILDING_TRACE"])
+            self.assertIsNone(row["RECOMP_TEXTURE_STREAM_TRACE"])
+            self.assertIsNone(row["RECOMP_ASYNC_WAIT_TRACE"])
         self.assertTrue(result["location_restored"])
         self.assertTrue(all(value is None for value in result["after"].values()))
 
