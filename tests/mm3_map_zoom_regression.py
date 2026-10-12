@@ -13,8 +13,8 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-SEAMS = ("sub_0011CA25", "sub_0011D1E8", "sub_0011D808")
-MATH = ("sub_0011CAE8", "sub_0002DC95", "sub_0006ACC3", "sub_000C6ADC",
+SEAMS = ("sub_0011CA25", "sub_0011D1E8", "sub_0011D808", "sub_0011CAE8")
+MATH = ("sub_0002DC95", "sub_0006ACC3", "sub_000C6ADC",
         "sub_0006AC61", "sub_0006AE0C", "sub_0006AEE2", "sub_0001259E",
         "sub_0006AD9F", "sub_0006AE60")
 
@@ -55,7 +55,13 @@ def main():
     if not shutil.which("cl") or not shutil.which("cmake"):
         raise SystemExit("Run scripts/enter-env.ps1 first so cl.exe and CMake are available.")
     cmake = (ROOT / "CMakeLists.txt").read_text()
-    assert "list(APPEND MM3_SEAM_FUNCTIONS " + " ".join(SEAMS) + ")" in cmake
+    # The marker owner also has race-guidance seams; both owner groups can
+    # register it before CMake removes duplicates.
+    registered = set()
+    for group in re.findall(r"list\(APPEND MM3_SEAM_FUNCTIONS\s+([^)]+)\)", cmake):
+        registered.update(group.split())
+    assert set(SEAMS) <= registered
+    assert "foreach(map_owner " + " ".join(SEAMS) + ")" in cmake
     assert 'include("${CMAKE_CURRENT_SOURCE_DIR}/scripts/mm3_map_zoom_seam.cmake")' in cmake
     assert "mm3_add_map_zoom(distance_content ${map_owner})" in cmake
     assert "src/mm3_map_zoom.c" in cmake
@@ -85,8 +91,16 @@ def main():
             SEAMS[0]: "    mm3_map_zoom_reset(ecx);\n",
             SEAMS[1]: "    mm3_map_zoom_update(ecx, MEMF(esp + 0x10));\n",
             SEAMS[2]: "    mm3_map_zoom_apply(ebx, MEM32(ebp + -4));\n",
+            SEAMS[3]: "    fp_top() = RECOMP_FP_PC(fp_top() * mm3_map_zoom_checkpoint_scale(ebx, MEM32(ebp + 0x40)));\n",
         }
-        labels = {SEAMS[0]: "loc_0011CA25", SEAMS[1]: "loc_0011D1E8", SEAMS[2]: "loc_0011D8F6"}
+        labels = {SEAMS[0]: "loc_0011CA25", SEAMS[1]: "loc_0011D1E8",
+                  SEAMS[2]: "loc_0011D8F6", SEAMS[3]: "loc_0011CC53"}
+        instructions = {
+            SEAMS[0]: "    PUSH32(esp, ebp);",
+            SEAMS[1]: "    PUSH32(esp, ebp);",
+            SEAMS[2]: "    PUSH32(esp, edi);",
+            SEAMS[3]: "    { double _t = fp_top(); fp_push(_t); } /* fld st(0) */",
+        }
         for name in SEAMS:
             modified[name] = transform(native[name], name)
             assert transform(native[name].replace("\n", "\r\n"), name) == modified[name]
@@ -96,7 +110,7 @@ def main():
             transform(native[name].replace(labels[name] + ": ;", labels[name] + "BAD: ;"), name, True)
             transform(native[name] + "\n" + native[name], name, True)
             label = labels[name] + ": ;\n"
-            instruction = "    PUSH32(esp, edi);" if name == SEAMS[2] else "    PUSH32(esp, ebp);"
+            instruction = instructions[name]
             transform(native[name].replace(label, label + instruction + "\n" + label), name, True)
             unrelated = "\nvoid unrelated(void)\n{\n" + label + instruction + "\n}\n"
             separate = transform(native[name] + unrelated, name)
@@ -104,7 +118,7 @@ def main():
             assert separate.count(calls[name]) == 1
             transform(modified[name], name, True)
         body = "\n".join(native[name] for name in MATH)
-        for name, title in zip(SEAMS, ("reset", "update", "draw")):
+        for name, title in zip(SEAMS, ("reset", "update", "draw", "marker")):
             body += "\n" + native[name].replace("void " + name, "void retail_" + title, 1)
             body += "\n" + modified[name].replace("void " + name, "void zoom_" + title, 1)
         declarations = "\n".join("void " + name + "(void);" for name in MATH)

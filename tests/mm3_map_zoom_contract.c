@@ -20,6 +20,7 @@ typedef struct { uint32_t texture; float xy[4][2]; } Draw;
 static Draw draws[16];
 static unsigned draw_count;
 static int player_present = 1;
+static int zoom_markers;
 static const char *check = "speed";
 
 #include "production_map_zoom.c"
@@ -28,10 +29,14 @@ static void push_float(double value) {
     g_fp_top = (g_fp_top + 7) & 7;
     g_fp_stack[g_fp_top] = value;
 }
-void sub_0011CAE8(void);
+void retail_marker(void);
+void zoom_marker(void);
 static void fake_icall(uint32_t address) {
     if (address == 0x100) { push_float(0); g_esp += 8; return; }
-    if (address == 0x0011CAE8) { sub_0011CAE8(); return; }
+    if (address == 0x0011CAE8) {
+        if (zoom_markers) zoom_marker(); else retail_marker();
+        return;
+    }
     if (address == 0x0002DC7E) {
         memset((void *)XBOX_PTR(g_ecx), 0, 0x24); g_esp += 4; return;
     }
@@ -183,9 +188,11 @@ static void native_contract(void) {
         MEMF(markers) = -20; MEMF(markers + 8) = 12; MEM32(markers + 12) = 0;
         MEM8(node + 0x34) = 1;
         player_present = 1; draw_count = 0;
+        zoom_markers = 0;
         abi_start(node); retail_draw(); abi_end(24);
         original_count = draw_count; memcpy(original, draws, sizeof original);
         mm3_map_zoom_reset(node);
+        zoom_markers = 1;
         draw_count = 0; abi_start(node); zoom_draw(); abi_end(24);
         near(MEMF(node + 0x50), native_scale);
         assert(draw_count == original_count);
@@ -218,7 +225,7 @@ static void native_contract(void) {
             near(b, centre + (a - centre) / span);
             check = "checkpoint icon size";
             for (i = 0; i < 4; ++i)
-                near(checkpoint_zoom->xy[i][axis] - b, checkpoint->xy[i][axis] - a);
+                near(checkpoint_zoom->xy[i][axis] - b, (checkpoint->xy[i][axis] - a) / span);
         }
         /* Native scale reconstruction prevents zoom accumulating over draws. */
         draw_count = 0; abi_start(node); zoom_draw(); abi_end(24);

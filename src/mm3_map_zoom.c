@@ -1,7 +1,7 @@
 #include <math.h>
 #include "recomp_types.h"
 
-/* The title owns these map nodes and calls all three helpers on its update/
+/* The title owns these map nodes and calls the helpers on its update/
  * draw thread. Keep only identities and scalars here; no saved guest pointer
  * is followed after a scene change. 11CA25 resets a node's layout on entry. */
 enum { MAP_ZOOM_SLOTS = 16 };
@@ -68,9 +68,22 @@ void mm3_map_zoom_apply(uint32_t node, uint32_t player_record)
      * while accelerating and cancel the speed zoom. Preserve this layout's
      * initial framing (including native split-screen scaling), then hold it
      * as the speed curve's baseline. Roads and 11CAE8's marker positions all
-     * read +50; their window and icon size calculations remain native. */
+     * read +50; the window calculations remain native. Checkpoint icon
+     * dimensions use the same span through mm3_map_zoom_checkpoint_scale. */
     if (isfinite(scale) && scale > 0.0f) {
         if (!s_map_zoom[slot].baseline) s_map_zoom[slot].baseline = scale;
         MEMF(node + 0x50) = s_map_zoom[slot].baseline / s_map_zoom[slot].span;
     }
+}
+
+float mm3_map_zoom_checkpoint_scale(uint32_t node, uint32_t flags)
+{
+    unsigned slot, style = flags & 0x1Fu;
+    /* 11CAE8 styles 0 and 3 use Checkpoint; 1/2/4 use You and 5 uses
+     * TagMagIcon. Scale the checkpoint's pulse-adjusted half-size before
+     * native quad creation, rotation and translation, keeping its centre. */
+    if (!node || (style != 0 && style != 3)) return 1.0f;
+    slot = map_zoom_slot(node);
+    if (!s_map_zoom[slot].baseline) return 1.0f;
+    return 1.0f / s_map_zoom[slot].span;
 }

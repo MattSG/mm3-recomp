@@ -1,5 +1,6 @@
 # Apply speed zoom to the map's common world scale, after native scale setup
-# and before any roads or markers. Preserve all original guest instructions.
+# and before any roads or markers. Match checkpoint dimensions to that zoom.
+# Preserve all original guest instructions.
 function(mm3_add_map_zoom source_variable function_name)
     set(content "${${source_variable}}")
     set(reset_original [=[loc_0011CA25: ;
@@ -17,12 +18,17 @@ function(mm3_add_map_zoom source_variable function_name)
     set(apply_replacement [=[loc_0011D8F6: ;
     mm3_map_zoom_apply(ebx, MEM32(ebp + -4));
     PUSH32(esp, edi);]=])
+    set(checkpoint_original [=[loc_0011CC53: ;
+    { double _t = fp_top(); fp_push(_t); } /* fld st(0) */]=])
+    set(checkpoint_replacement [=[loc_0011CC53: ;
+    fp_top() = RECOMP_FP_PC(fp_top() * mm3_map_zoom_checkpoint_scale(ebx, MEM32(ebp + 0x40)));
+    { double _t = fp_top(); fp_push(_t); } /* fld st(0) */]=])
     string(FIND "${content}" "\r\n" crlf_position)
     if(crlf_position LESS 0)
         set(newline "\n")
     else()
         set(newline "\r\n")
-        foreach(block reset update apply)
+        foreach(block reset update apply checkpoint)
             string(REPLACE "\n" "\r\n" ${block}_original "${${block}_original}")
             string(REPLACE "\n" "\r\n" ${block}_replacement "${${block}_replacement}")
         endforeach()
@@ -33,6 +39,8 @@ function(mm3_add_map_zoom source_variable function_name)
         set(block update)
     elseif(function_name STREQUAL "sub_0011D808")
         set(block apply)
+    elseif(function_name STREQUAL "sub_0011CAE8")
+        set(block checkpoint)
     else()
         message(FATAL_ERROR "MM3 map zoom: unsupported owner ${function_name}")
     endif()
@@ -62,7 +70,7 @@ function(mm3_add_map_zoom source_variable function_name)
     endif()
     string(REPLACE "${${block}_original}" "${${block}_replacement}" transformed "${body}")
     string(REPLACE "${body}" "${transformed}" content "${content}")
-    set(declarations "#include <stdint.h>${newline}extern void mm3_map_zoom_reset(uint32_t);${newline}extern void mm3_map_zoom_update(uint32_t, float);${newline}extern void mm3_map_zoom_apply(uint32_t, uint32_t);${newline}")
+    set(declarations "#include <stdint.h>${newline}extern void mm3_map_zoom_reset(uint32_t);${newline}extern void mm3_map_zoom_update(uint32_t, float);${newline}extern void mm3_map_zoom_apply(uint32_t, uint32_t);${newline}extern float mm3_map_zoom_checkpoint_scale(uint32_t, uint32_t);${newline}")
     string(FIND "${content}" "extern void mm3_map_zoom_reset(" declared)
     if(declared LESS 0)
         set(content "${declarations}${content}")
