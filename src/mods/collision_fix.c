@@ -20,13 +20,25 @@
  * known; the guard holds whatever the decoded indices are. */
 extern void sub_0015A929_original(void);
 
-static int ok_addr(uint32_t a) { return a >= 0x10000u && a < 0x08000000u; }
+static int ok_range(uint32_t a, uint32_t bytes)
+{
+    return a >= 0x10000u && a < 0x08000000u && bytes <= 0x08000000u - a;
+}
 
 static void sanitize(uint32_t hdr)
 {
-    uint32_t faces = MEM32(hdr + 4), list = MEM32(hdr + 8), len = MEM32(hdr + 0xC), grid = MEM32(hdr + 0x10);
-    uint32_t cells = MEM32(hdr + 0x44) * MEM32(hdr + 0x48) * MEM32(hdr + 0x4C), g, r;
-    if (!faces || faces > 0xFFFF || len > 0xFFFF || cells > 0x10000 || !ok_addr(list) || !ok_addr(grid))
+    uint32_t faces, list, len, grid, cells = 1, g, r;
+    if (!ok_range(hdr, 0x50)) return;
+    faces = MEM32(hdr + 4); list = MEM32(hdr + 8);
+    len = MEM32(hdr + 0xC); grid = MEM32(hdr + 0x10);
+    /* Bound each multiplication before it can wrap to a small cell count. */
+    for (g = 0; g < 3; ++g) {
+        uint32_t dim = MEM32(hdr + 0x44 + 4 * g);
+        if (!dim || dim > 0x10000u / cells) return;
+        cells *= dim;
+    }
+    if (!faces || faces > 0xFFFF || len > 0xFFFF ||
+        !ok_range(list, 2 * len) || !ok_range(grid, 4 * cells))
         return;
     for (g = 0; g < cells; g++) {
         uint32_t lo = MEM16(grid + 4 * g), hi = MEM16(grid + 4 * g + 2), keep = 0;
@@ -44,8 +56,8 @@ static void sanitize(uint32_t hdr)
 
 void sub_0015A929(void)
 {
-    uint32_t cell = g_esi, before = ok_addr(cell) ? MEM32(cell) : 0;
+    uint32_t cell = g_esi, before = ok_range(cell, 4) ? MEM32(cell) : 0;
     sub_0015A929_original();
-    if (ok_addr(cell) && (g_eax & 0xFF) && MEM32(cell) != before && ok_addr(MEM32(cell)))
+    if (ok_range(cell, 4) && (g_eax & 0xFF) && MEM32(cell) != before)
         sanitize(MEM32(cell));                 /* this call decoded the cell */
 }

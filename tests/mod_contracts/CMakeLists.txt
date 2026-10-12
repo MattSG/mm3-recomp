@@ -1,0 +1,18 @@
+cmake_minimum_required(VERSION 3.20)
+project(mm3_mod_contracts C)
+set(CMAKE_C_STANDARD 11)
+# Use the project's canonical runtime header; no generated game code or assets.
+configure_file(../../src/mm3_recomp_types.h recomp_types.h COPYONLY)
+foreach(mod collision offline)
+    add_executable(mm3_${mod}_contract ../mm3_${mod}_contract.c)
+    target_include_directories(mm3_${mod}_contract PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
+        ../../tools/xboxrecomp/include)
+    if(MSVC)
+        target_compile_options(mm3_${mod}_contract PRIVATE /UNDEBUG)
+    endif()
+endforeach()
+enable_testing()
+add_test(NAME collision COMMAND mm3_collision_contract)
+foreach(mode "" 0 nat 1 mod-off)
+    add_test(NAME "offline-${mode}" COMMAND mm3_offline_contract "${mode}")
+endforeach()

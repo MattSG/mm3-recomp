@@ -14,6 +14,11 @@ through the `tools/xboxrecomp` submodule. Our fork changes also include AI-writt
 code and carry the same rough-edge and review caveats as this project. Issues
 specific to our changes should be reported to this project or our fork.
 
+Generic improvements in our fork that could help other original Xbox game
+recompilations should eventually be tidied up, tested, and submitted as focused
+PRs to [upstream XboxRecomp](https://github.com/sp00nznet/xboxrecomp). Keep
+MM3-specific hooks and workarounds in this repository.
+
 This is an unofficial community project, not affiliated with or endorsed by
 Microsoft, Xbox, Digital Illusions CE (DICE), or the game's other rights holders.
 
