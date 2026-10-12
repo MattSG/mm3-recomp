@@ -112,11 +112,19 @@ issue without reposting the disputed material.
 
 ## Licence
 
-Original project code is licensed under the [MIT License](LICENSE). Original
-contributions submitted to this project are provided under the same licence.
-Third-party components retain their own licences; see [THIRD_PARTY.md](THIRD_PARTY.md)
-and the [runtime's licence](tools/xboxrecomp/LICENSE).
+Original project code is licensed under the [GNU General Public License,
+version 3](LICENSE) (`GPL-3.0-only`). Original contributions submitted to this
+project are provided under the same licence.
 
-The MIT licence covers only rights the project's contributors can grant. It
-does not license Midtown Madness 3, Xbox software, game assets, trademarks,
-or other third-party material, or replace the need for appropriate permissions.
+When distributing covered binaries or modified versions, comply with GPLv3,
+including its corresponding-source and licensing requirements. Private
+modifications do not have to be published. Earlier revisions released under
+MIT remain available under MIT; this change does not revoke those permissions.
+
+Third-party components retain their own licences; see [THIRD_PARTY.md](THIRD_PARTY.md)
+and the [runtime's licence](tools/xboxrecomp/LICENSE). Preserve their notices
+and comply with their terms when combining or distributing code.
+
+This licence covers only rights the project's contributors can grant. It does
+not license Midtown Madness 3, Xbox software, game assets, trademarks, or other
+third-party material, or replace the need for appropriate permissions.
