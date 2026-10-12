@@ -1,6 +1,8 @@
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 /* The menu mouse mod (mods.c): which menu item the pointer is on, and how
  * far that is from the focused one, read off the frame the renderer drew.
@@ -14,14 +16,78 @@
  * state or blending). The fade takes a few hundred ms, during which no row
  * stands out and the answer is "not known yet". */
 
+#include <windows.h>
 #include "nv2a_d3d11.h"
 
 #define RECTS 1024
 #define ROWS 32
 #define ROW_TEXS 16
 
+/* Car select's strip: same-size dimmed cards on one row, the chosen car a
+ * larger opaque card in a gap among them, an arrow quad at either end. It
+ * scrolls, so it is clicked, not hovered: 2 with *offset cars right of the
+ * chosen one (negative left), or 0 when the pointer is not on such a strip. */
+static int strip_pointer(const NvMenuRect *r, int n, const NvMenuRect *hit, int *offset)
+{
+    float hw = hit->x1 - hit->x0, hh = hit->y1 - hit->y0, cx = (hit->x0 + hit->x1) * 0.5f;
+    float cards[ROWS], fx = 0;
+    int ncards = 0, focus = 0, i, j, before = 0, after = 0;
+    const NvMenuRect *card = NULL;
+    /* The card the pointer is on, or the row's cards beside an arrow. */
+    for (i = 0; i < n && !card; i++) {
+        float w = r[i].x1 - r[i].x0, h = r[i].y1 - r[i].y0;
+        if (w >= h * 3 && h >= 12 && (r[i].argb >> 24) < 0xC0 &&
+            r[i].y0 < hit->y1 && r[i].y1 > hit->y0)
+            card = &r[i];
+    }
+    if (!card)
+        return 0;
+    hw = card->x1 - card->x0; hh = card->y1 - card->y0;
+    for (i = 0; i < n && ncards < ROWS; i++) {
+        float c = (r[i].x0 + r[i].x1) * 0.5f;
+        if (fabsf(r[i].x1 - r[i].x0 - hw) > 2 || fabsf(r[i].y1 - r[i].y0 - hh) > 2 ||
+            fabsf(r[i].y0 - card->y0) > 2)
+            continue;
+        for (j = 0; j < ncards && fabsf(cards[j] - c) > 4; j++) {}
+        if (j == ncards) cards[ncards++] = c;
+    }
+    /* The chosen car: bigger than a card, opaque, over the same row. */
+    for (i = 0; i < n && !focus; i++) {
+        float w = r[i].x1 - r[i].x0, h = r[i].y1 - r[i].y0;
+        if (w > hw * 1.5f && h > hh * 1.5f && (r[i].argb >> 24) >= 0xF0 && w >= h * 3 &&
+            r[i].y0 <= card->y0 && r[i].y1 >= card->y1) {
+            fx = (r[i].x0 + r[i].x1) * 0.5f;
+            focus = 1;
+        }
+    }
+    if (ncards < 3 || !focus)
+        return 0;
+    for (i = 0; i < ncards; i++) {
+        before += cards[i] < fx;
+        after += cards[i] > fx;
+    }
+    if (!before && !after)   /* locked cars past the end draw differently */
+        return 0;
+    /* An arrow: square, at the row, not a card. */
+    if (fabsf(hit->x1 - hit->x0 - (hit->y1 - hit->y0)) < 8 && (hit->x1 - hit->x0) >= 40 &&
+        !(fabsf(hit->x1 - hit->x0 - hw) <= 2 && fabsf(hit->y1 - hit->y0 - hh) <= 2)) {
+        *offset = cx < fx ? -1 : 1;
+        return 2;
+    }
+    if (fabsf(hit->x1 - hit->x0 - hw) > 2 || fabsf(hit->y0 - card->y0) > 2)
+        return 0;
+    /* The cards between the chosen car and this one, this one included. */
+    *offset = 0;
+    for (i = 0; i < ncards; i++) {
+        if (cx < fx && cards[i] < fx && cards[i] >= cx - 4) (*offset)--;
+        if (cx > fx && cards[i] > fx && cards[i] <= cx + 4) (*offset)++;
+    }
+    return *offset ? 2 : 0;
+}
+
 /* For a client-area fraction: 0 off any item, 1 on one (*offset rows below
- * the focused item, negative above), -1 on one whose focus is not known. */
+ * the focused item, negative above), -1 on one whose focus is not known,
+ * 2 on a strip that moves by *offset items sideways when clicked. */
 int mm3_menu_pointer(float cx, float cy, int *offset)
 {
     static NvMenuRect r[RECTS];                  /* input thread only */
@@ -35,6 +101,18 @@ int mm3_menu_pointer(float cx, float cy, int *offset)
         return 0;
     gx = (cx - present[0]) / present[2] * 640.0f;
     gy = (cy - present[1]) / present[3] * 480.0f;
+    {   /* MM3_MENU_DUMP: the quads of the frame, every 5 s, for a new layout */
+        static unsigned long long dumped;
+        unsigned long long now = GetTickCount64();
+        if (now - dumped > 5000 && getenv("MM3_MENU_DUMP")) {
+            dumped = now;
+            fprintf(stderr, "[MENU] pointer %.0f,%.0f, %d quads\n", gx, gy, n);
+            for (i = 0; i < n; i++)
+                fprintf(stderr, "[MENU] %4.0f %4.0f %4.0f %4.0f tex %08X argb %08X\n",
+                        r[i].x0, r[i].y0, r[i].x1, r[i].y1, r[i].tex, r[i].argb);
+            fflush(stderr);
+        }
+    }
     for (i = 0; i < n; i++) {
         float w = r[i].x1 - r[i].x0, h = r[i].y1 - r[i].y0;
         if (w < 24 || h < 12 || h > 64 || gx < r[i].x0 || gx > r[i].x1 || gy < r[i].y0 || gy > r[i].y1)
@@ -43,6 +121,18 @@ int mm3_menu_pointer(float cx, float cy, int *offset)
     }
     if (!hit)
         return 0;
+    i = strip_pointer(r, n, hit, offset);
+    if (getenv("MM3_MENU_DUMP")) {
+        static float lx, ly;
+        if (fabsf(lx - gx) + fabsf(ly - gy) > 2) {
+            lx = gx; ly = gy;
+            fprintf(stderr, "[MENU] at %.0f,%.0f hit %.0f %.0f %.0f %.0f strip %d offset %d\n", gx, gy,
+                    hit->x0, hit->y0, hit->x1, hit->y1, i, i ? *offset : 0);
+            fflush(stderr);
+        }
+    }
+    if (i)
+        return i;
     /* The column's rows, by centre. */
     hh = (hit->y1 - hit->y0) * 0.5f;
     left = hit->x0; right = hit->x1;
