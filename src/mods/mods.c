@@ -28,6 +28,8 @@ const Mm3Mod mm3_mods[MM3_MOD_COUNT] = {
         "The logo and intro movies at start-up are skipped, as if you pressed Start. Story movies still play.", 1},
     [MM3_MOD_FOV] = {"fov", "MM3_MOD_FOV", "Field of view",
         "The race camera widened as set under Graphics. Off: the Xbox view.", 1},
+    [MM3_MOD_FRAMERATE] = {"framerate", "MM3_MOD_FRAMERATE", "Console-rate simulation",
+        "The world updates at the Xbox's rate whatever the frame rate (30 a second, or 60 under Settings), so handling, speed and the AI play as on the console. Off: tied to the frame rate.", 1},
     [MM3_MOD_TRANSLATION] = {"translation", "MM3_MOD_TRANSLATION", "Translation corrections",
         "Hand-written fixes where the generated code differed from the original game (src/mm3_*.c, recomp_manual.c). "
         "Off: the generated code runs without them wherever it has a body of its own (register/SEH preservation, the stream copy). Functions the generator never produced stay filled in.", 1},

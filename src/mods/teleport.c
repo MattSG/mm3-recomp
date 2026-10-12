@@ -215,6 +215,7 @@ static DWORD WINAPI pipe_thread(void *unused)
         if (pipe == INVALID_HANDLE_VALUE) return 1;
         if (ConnectNamedPipe(pipe, NULL) || GetLastError() == ERROR_PIPE_CONNECTED) {
             char command[128] = {0}, reply[2048], extra;
+            unsigned peek_at = 0, peek_len = 0;
             DWORD bytes;
             float xyz[3];
             if (ReadFile(pipe, command, sizeof(command) - 1, &bytes, NULL)) {
@@ -239,6 +240,14 @@ static DWORD WINAPI pipe_thread(void *unused)
                     }
                     ReleaseSRWLockShared(&lock);
                     snprintf(reply + n, sizeof(reply) - n, "]}");
+                } else if (sscanf(command, "peek %x %x", &peek_at, &peek_len) == 2) {
+                    /* Guest memory as hex, for working out a structure. */
+                    size_t n = 0;
+                    if (peek_len > 512) peek_len = 512;
+                    if (mapped(peek_at, peek_len))
+                        for (unsigned i = 0; i < peek_len && n + 3 < sizeof(reply); i++)
+                            n += (size_t)snprintf(reply + n, sizeof(reply) - n, "%02X", MEM8(peek_at + i));
+                    reply[n] = 0;
                 } else if (strcmp(command, "position") == 0) {
                     AcquireSRWLockShared(&lock);
                     snprintf(reply, sizeof(reply), "{\"available\":%s,\"x\":%.9g,\"y\":%.9g,\"z\":%.9g}",

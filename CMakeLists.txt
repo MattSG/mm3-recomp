@@ -61,6 +61,7 @@ set(MM3_RENAMED_FUNCTIONS
     sub_00170E5D sub_000145DC sub_001F02AD
     sub_0025968E                 # widescreen: wraps the projection-matrix builder
     sub_001DB6E8 sub_001F2A71 sub_001F443D  # skip intro: movie play, frame, skip check
+    sub_00025422 sub_0002545A sub_001E7590  # console rate: processes, states, world update
 )
 if(MM3_MOVIE_INPUT_TRACE)
     list(APPEND MM3_RENAMED_FUNCTIONS sub_0035BDC0)
@@ -175,6 +176,7 @@ add_executable(${PROJECT_NAME}
     src/mods/collision_fix.c
     src/mods/widescreen_hud.c
     src/mods/skip_intro.c
+    src/mods/framerate.c
     src/mm3_unresolved_stubs.c
  src/mm3_memory_compat.c
  src/mm3_memory_tails.c

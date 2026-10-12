@@ -60,13 +60,17 @@ For a direct launch that skips the settings window:
 pwsh scripts/play.ps1 -Keyboard    # optional: -Fullscreen -FpsLimit 120
 ```
 
-Use 60 FPS as the default; higher rates can change physics behaviour. Lower
-supersampling or internal resolution in Settings if performance is poor.
+The world simulation runs at the console's rate whatever the frame rate (30 Hz,
+as the Xbox did, or 60 under Settings > Simulation), so handling and speed are
+the same at any frame rate. From about 110 FPS the race AI still misbehaves at
+the start, so the launcher's frame limit stops at 90. Lower supersampling or
+internal resolution in Settings if performance is poor.
 
 ## Features and limits
 
 The launcher exposes widescreen, extended draw distance, skyline filtering,
-field of view, menu mouse support, intro skipping, and offline-network bypass.
+field of view, menu mouse support, intro skipping, console-rate simulation, and
+offline-network bypass.
 Optional developer tools and a teleport debugger are also available. The
 [mod registry](src/mods/mods.c) lists their switches and defaults.
 
