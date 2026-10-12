@@ -104,6 +104,15 @@ Rml::Vector<Bind> g_binds = {
     {"", "Left", "LX-", VK_NUMPAD4}, {"", "Right", "LX+", VK_NUMPAD6}, {"", "Click", "LS", VK_SHIFT},
     {"Right stick", "Up", "RY+", 'I'}, {"", "Down", "RY-", 'K'},
     {"", "Left", "RX-", 'J'}, {"", "Right", "RX+", 'L'}, {"", "Click", "RS", VK_CONTROL},
+    /* Controller buttons (RECOMP_PADMAP): vk is the source button + 1. */
+    {"Controller", "A", "A", 1, 0, "", "RECOMP_PADMAP"}, {"", "B", "B", 2, 0, "", "RECOMP_PADMAP"},
+    {"", "X", "X", 3, 0, "", "RECOMP_PADMAP"}, {"", "Y", "Y", 4, 0, "", "RECOMP_PADMAP"},
+    {"", "Black", "BLACK", 5, 0, "", "RECOMP_PADMAP"}, {"", "White", "WHITE", 6, 0, "", "RECOMP_PADMAP"},
+    {"", "Start", "START", 7, 0, "", "RECOMP_PADMAP"}, {"", "Back", "BACK", 8, 0, "", "RECOMP_PADMAP"},
+    {"", "Left stick click", "LS", 9, 0, "", "RECOMP_PADMAP"}, {"", "Right stick click", "RS", 10, 0, "", "RECOMP_PADMAP"},
+    {"", "D-pad up", "UP", 11, 0, "", "RECOMP_PADMAP"}, {"", "D-pad down", "DOWN", 12, 0, "", "RECOMP_PADMAP"},
+    {"", "D-pad left", "LEFT", 13, 0, "", "RECOMP_PADMAP"}, {"", "D-pad right", "RIGHT", 14, 0, "", "RECOMP_PADMAP"},
+    {"", "Left trigger", "LT", 15, 0, "", "RECOMP_PADMAP"}, {"", "Right trigger", "RT", 16, 0, "", "RECOMP_PADMAP"},
     {"Developer hotkeys", "Developer HUD", "HUD", VK_F1, 0, "", "MM3_DEV_HOTKEYS"},
     {"", "Debug menu", "MENU", VK_F2, 0, "", "MM3_DEV_HOTKEYS"},
     {"", "Extended cameras", "CAMERAS", VK_F3, 0, "", "MM3_DEV_HOTKEYS"},
@@ -241,7 +250,7 @@ scrollbarvertical sliderbar { background-color: #2f333c; border-radius: 2dp; }
   </div>
   <div id="capture" data-if="capturing"><div id="card">
     <div class="hint">{{ capture_label }}</div>
-    <div class="big">Press a key or mouse button</div>
+    <div class="big">{{ capture_pad ? 'Press a controller button' : 'Press a key or mouse button' }}</div>
     <div class="hint">{{ pad ? 'Esc or B to cancel' : 'Esc to cancel' }}</div>
   </div></div>
   <div id="foot">
@@ -280,10 +289,28 @@ Rml::String key_name(int vk)
     return name;
 }
 
+/* The controller's buttons by RECOMP_PADMAP's names, and their XInput bits
+ * (tools/xboxrecomp/src/input/xinput_device.c); the last two are triggers. */
+const char *const kPadSources[16] = {"A", "B", "X", "Y", "LB", "RB", "START", "BACK", "LS", "RS",
+                                     "UP", "DOWN", "LEFT", "RIGHT", "LT", "RT"};
+const char *const kPadSourceNames[16] = {"A", "B", "X", "Y", "LB", "RB", "Start", "Back", "Left stick",
+                                         "Right stick", "D-pad up", "D-pad down", "D-pad left",
+                                         "D-pad right", "Left trigger", "Right trigger"};
+const WORD kPadBits[14] = {XINPUT_GAMEPAD_A, XINPUT_GAMEPAD_B, XINPUT_GAMEPAD_X, XINPUT_GAMEPAD_Y,
+                           XINPUT_GAMEPAD_LEFT_SHOULDER, XINPUT_GAMEPAD_RIGHT_SHOULDER, XINPUT_GAMEPAD_START,
+                           XINPUT_GAMEPAD_BACK, XINPUT_GAMEPAD_LEFT_THUMB, XINPUT_GAMEPAD_RIGHT_THUMB,
+                           XINPUT_GAMEPAD_DPAD_UP, XINPUT_GAMEPAD_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_LEFT,
+                           XINPUT_GAMEPAD_DPAD_RIGHT};
+
+bool pad_bind(const Bind &b) { return b.env == "RECOMP_PADMAP"; }
+
 void set_key(Bind &b, int vk)
 {
     b.vk = vk;
-    b.key = key_name(vk);
+    if (pad_bind(b))
+        b.key = vk >= 1 && vk <= 16 ? kPadSourceNames[vk - 1] : "Unbound";
+    else
+        b.key = key_name(vk);
 }
 
 /* NAME:VK,... with VK in hex, as the runtime reads RECOMP_KEYMAP. */
@@ -296,8 +323,18 @@ void parse_keymap(const char *env, const char *p)
         /* Names are matched whole: LX- must not match inside RLX-. */
         while (at && at != p && at[-1] != ',')
             at = strstr(at + 1, (b.name + ":").c_str());
-        if (at)
-            set_key(b, (int)strtoul(at + b.name.size() + 1, NULL, 16) & 0xFF);
+        if (!at)
+            continue;
+        const char *v = at + b.name.size() + 1;
+        if (!pad_bind(b)) {
+            set_key(b, (int)strtoul(v, NULL, 16) & 0xFF);
+            continue;
+        }
+        for (int s = 0; s < 16; s++) { /* NAME:SOURCE, the source by name */
+            size_t n = strlen(kPadSources[s]);
+            if (!strncmp(v, kPadSources[s], n) && (v[n] == ',' || !v[n]))
+                set_key(b, s + 1);
+        }
     }
 }
 
@@ -308,7 +345,12 @@ Rml::String keymap(const char *env)
     for (const Bind &b : g_binds) {
         if (b.env != env)
             continue;
-        snprintf(item, sizeof item, "%s%s:%X", out.empty() ? "" : ",", b.name.c_str(), b.vk);
+        if (pad_bind(b) && (b.vk < 1 || b.vk > 16))
+            continue;
+        if (pad_bind(b))
+            snprintf(item, sizeof item, "%s%s:%s", out.empty() ? "" : ",", b.name.c_str(), kPadSources[b.vk - 1]);
+        else
+            snprintf(item, sizeof item, "%s%s:%X", out.empty() ? "" : ",", b.name.c_str(), b.vk);
         out += item;
     }
     return out;
@@ -394,7 +436,7 @@ void load_settings()
         if (!eq)
             continue;
         *eq = 0;
-        if (!strcmp(line, "RECOMP_KEYMAP") || !strcmp(line, "MM3_DEV_HOTKEYS"))
+        if (!strcmp(line, "RECOMP_KEYMAP") || !strcmp(line, "MM3_DEV_HOTKEYS") || !strcmp(line, "RECOMP_PADMAP"))
             parse_keymap(line, eq + 1);
         for (Option &o : g_options)
             if (o.env == line && valid(o, eq + 1))
@@ -411,12 +453,15 @@ void save_and_export()
             fprintf(f, "%s=%s\n", o.env.c_str(), o.value.c_str());
         _putenv_s(o.env.c_str(), o.value.c_str()); /* "" removes the variable */
     }
-    const Rml::String keys = keymap("RECOMP_KEYMAP"), hotkeys = keymap("MM3_DEV_HOTKEYS");
+    const Rml::String keys = keymap("RECOMP_KEYMAP"), hotkeys = keymap("MM3_DEV_HOTKEYS"),
+                      pad = keymap("RECOMP_PADMAP");
     if (f) {
-        fprintf(f, "RECOMP_KEYMAP=%s\nMM3_DEV_HOTKEYS=%s\n", keys.c_str(), hotkeys.c_str());
+        fprintf(f, "RECOMP_KEYMAP=%s\nMM3_DEV_HOTKEYS=%s\nRECOMP_PADMAP=%s\n", keys.c_str(), hotkeys.c_str(),
+                pad.c_str());
         fclose(f);
     }
     _putenv_s("RECOMP_KEYMAP", keys.c_str());
+    _putenv_s("RECOMP_PADMAP", pad.c_str());
     _putenv_s("MM3_DEV_HOTKEYS", getenv("MM3_DEV_HOTKEYS_ON") ? hotkeys.c_str() : "");
     /* What scripts\play.ps1 sets: the window, D3D11 executor, pads and audio. */
     _putenv_s("RECOMP_PB_EXEC", "1");
@@ -454,6 +499,7 @@ void end_capture()
 {
     g_capture = -1;
     g_model.DirtyVariable("capturing");
+    g_model.DirtyVariable("capture_pad");
     g_model.DirtyVariable("binds");
 }
 
@@ -462,8 +508,8 @@ void end_capture()
  * prompt is let go first. */
 void poll_capture()
 {
-    if (g_capture < 0 || !GetActiveWindow())
-        return;
+    if (g_capture < 0 || !GetActiveWindow() || pad_bind(g_binds[g_capture]))
+        return;   /* controller binds are captured in poll_pad */
     int down = 0;
     for (int vk = 1; vk < 0xFF && !down; vk++)
         if (vk != VK_ESCAPE && !(vk >= VK_LSHIFT && vk <= VK_RMENU) && (GetAsyncKeyState(vk) & 0x8000))
@@ -500,6 +546,7 @@ void start_rebind(size_t i)
     g_armed = false;
     g_model.DirtyVariable("capture_label");
     g_model.DirtyVariable("capturing");
+    g_model.DirtyVariable("capture_pad");
 }
 
 struct Row {
@@ -621,9 +668,28 @@ void poll_pad(double now)
         return;
     }
     if (g_capture >= 0) {
-        if (pressed & XINPUT_GAMEPAD_B)
-            end_capture();
         held = -1;
+        if (!pad_bind(g_binds[g_capture])) {   /* a key prompt: B cancels */
+            if (pressed & XINPUT_GAMEPAD_B)
+                end_capture();
+            return;
+        }
+        /* A controller bind: the first button (or trigger) to go down after
+         * every one was let go. Esc or a click cancels. */
+        const WORD raw = front ? s.Gamepad.wButtons : 0;
+        const bool lt = front && s.Gamepad.bLeftTrigger > 128, rt = front && s.Gamepad.bRightTrigger > 128;
+        if (!g_armed) {
+            g_armed = !raw && !lt && !rt;
+            return;
+        }
+        int source = lt ? 15 : rt ? 16 : 0;
+        for (int i = 0; i < 14 && !source; i++)
+            if (raw & kPadBits[i])
+                source = i + 1;
+        if (source) {
+            set_key(g_binds[g_capture], source);
+            end_capture();
+        }
         return;
     }
     if (pressed & XINPUT_GAMEPAD_START) play();
@@ -802,6 +868,7 @@ bool bind_model(Rml::Context *ctx)
     m.Bind("pad", &g_pad);
     m.Bind("dev", &g_dev);
     m.BindFunc("capturing", [](Rml::Variant &v) { v = g_capture >= 0; });
+    m.BindFunc("capture_pad", [](Rml::Variant &v) { v = g_capture >= 0 && pad_bind(g_binds[g_capture]); });
     m.BindEventCallback("toggle", [](Rml::DataModelHandle h, Rml::Event &, const Rml::VariantList &args) {
         size_t i = args.empty() ? g_options.size() : args[0].Get<size_t>();
         if (i < g_options.size() && g_options[i].toggle) {
