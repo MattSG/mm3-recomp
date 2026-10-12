@@ -229,7 +229,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE xboxrecomp mm3_imgui RmlUi::RmlUi 
 target_include_directories(${PROJECT_NAME} PRIVATE ${rmlui_SOURCE_DIR}/Backends)
 
 # Focused offline checks; explicitly built, never part of the game build.
-foreach(check teleport dev_tools overlay)
+foreach(check teleport dev_tools overlay input_capture)
     if(check STREQUAL "overlay")
         set(check_ext cpp)
     else()
@@ -261,4 +261,19 @@ endif()
 
 if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /bigobj)
+endif()
+
+target_link_libraries(mm3_input_capture_contract PRIVATE xinput)
+target_include_directories(mm3_input_capture_contract PRIVATE ${XBOXRECOMP_DIR}/src)
+
+add_executable(mm3_launcher_settings_contract EXCLUDE_FROM_ALL
+    tests/mm3_launcher_settings_contract.cpp src/mods/mods.c
+    ${rmlui_SOURCE_DIR}/Backends/RmlUi_Platform_Win32.cpp
+    ${rmlui_SOURCE_DIR}/Backends/RmlUi_Renderer_DX11.cpp
+    ${rmlui_SOURCE_DIR}/Backends/RmlUi_Backend_Win32_DX11.cpp)
+target_include_directories(mm3_launcher_settings_contract PRIVATE src
+    ${rmlui_SOURCE_DIR}/Backends ${XBOXRECOMP_DIR}/src/video)
+target_link_libraries(mm3_launcher_settings_contract PRIVATE RmlUi::RmlUi d3d11 dxgi d3dcompiler dwmapi xinput user32)
+if(MSVC)
+    target_compile_options(mm3_launcher_settings_contract PRIVATE /UNDEBUG)
 endif()

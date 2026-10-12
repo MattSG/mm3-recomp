@@ -3,6 +3,7 @@
 #include <d3d11.h>
 #include <stdlib.h>
 #include <math.h>
+#include <mutex>
 #include "imgui.h"
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
@@ -18,12 +19,13 @@ volatile LONG visible;
 volatile LONG pad_block;
 int toggle_key = VK_F4, toggle_mouse;
 WORD toggle_pad = XINPUT_GAMEPAD_BACK | XINPUT_GAMEPAD_LEFT_THUMB;
-struct Event { HWND h; UINT m; WPARAM w; LPARAM l; };
-SRWLOCK event_lock = SRWLOCK_INIT;
-// ponytail: bounded event queue; overflow clears input and closes safely.
-Event events[256];
-unsigned event_count;
-bool overflow;
+// Win32 backend calls (capture, key modifiers and cursor) belong on the
+// window thread. Serialize them with render-thread ImGui calls; recursive
+// locking permits synchronous WM_CAPTURECHANGED during ReleaseCapture.
+std::recursive_mutex imgui_lock;
+bool backend_ready;
+Mm3TeleportState bookmark = {};
+bool bookmark_saved;
 
 unsigned setting(const char *name, unsigned fallback, unsigned maximum)
 {
@@ -42,6 +44,7 @@ bool input_message(UINT m)
 
 int message(HWND h, UINT m, WPARAM w, LPARAM l)
 {
+    std::lock_guard<std::recursive_mutex> guard(imgui_lock);
     if (m == WM_KILLFOCUS || (m == WM_ACTIVATEAPP && !w))
         InterlockedExchange(&visible, 0);
     bool key_toggle = (m == WM_KEYDOWN || m == WM_SYSKEYDOWN) &&
@@ -50,11 +53,9 @@ int message(HWND h, UINT m, WPARAM w, LPARAM l)
                 m == WM_XBUTTONDOWN ? (GET_XBUTTON_WPARAM(w) == XBUTTON1 ? VK_XBUTTON1 : VK_XBUTTON2) : 0;
     if (key_toggle || (toggle_mouse && mouse == toggle_mouse))
         InterlockedExchange(&visible, !visible);
-    AcquireSRWLockExclusive(&event_lock);
-    if (event_count < IM_ARRAYSIZE(events)) events[event_count++] = {h,m,w,l};
-    else overflow = true;
-    ReleaseSRWLockExclusive(&event_lock);
-    return input_message(m) && (visible || key_toggle || (toggle_mouse && mouse == toggle_mouse));
+    LRESULT handled = backend_ready ? ImGui_ImplWin32_WndProcHandler(h, m, w, l) : 0;
+    return (visible && handled) ||
+           (input_message(m) && (visible || key_toggle || (toggle_mouse && mouse == toggle_mouse)));
 }
 
 int capture()
@@ -79,10 +80,8 @@ void command(unsigned probe)
     mm3_dev_tools_request(probe);
 }
 
-void draw_tools()
+void draw_tools(const Mm3TeleportState &state)
 {
-    Mm3TeleportState state = {};
-    mm3_teleport_state(&state);
     ImGui::SetNextWindowSize(ImVec2(550, 430), ImGuiCond_FirstUseEver);
     bool open = visible != 0;
     if (ImGui::Begin("Midtown Madness 3 | Debug tools", &open)) {
@@ -110,8 +109,6 @@ void draw_tools()
             if (ImGui::BeginTabItem("Teleport")) {
                 static float x, z, heading;
                 static bool set_heading;
-                static Mm3TeleportState bookmark = {};
-                static bool saved;
                 ImGui::Text("Position: %.3f / %.3f / %.3f", state.position[0], state.position[1], state.position[2]);
                 ImGui::Text("Heading: %.1f degrees", state.heading * 57.2957795f);
                 ImGui::BeginDisabled(!state.available || state.pending);
@@ -126,18 +123,32 @@ void draw_tools()
                 if (ImGui::Button("Teleport to ground"))
                     mm3_teleport_queue(x, z, set_heading ? heading * 0.0174532925f : NAN);
                 ImGui::EndDisabled();
-                if (ImGui::Button("Remember this position")) { bookmark = state; saved = true; }
-                ImGui::SameLine(); ImGui::BeginDisabled(!saved);
+                if (ImGui::Button("Remember this position")) { bookmark = state; bookmark_saved = true; }
+                ImGui::SameLine(); ImGui::BeginDisabled(!bookmark_saved);
                 if (ImGui::Button("Return to remembered position"))
                     mm3_teleport_queue(bookmark.position[0], bookmark.position[2], bookmark.heading);
                 ImGui::EndDisabled();
                 ImGui::EndDisabled();
-                ImGui::TextWrapped("Height and car placement use native ground reset. A ground miss leaves the car unchanged. Remembered position lasts for this session only; use within the same city.");
+                ImGui::TextWrapped("Height and car placement use native ground reset. A ground miss leaves the car unchanged. Remembered position clears when gameplay becomes unavailable or the world changes.");
+                ImGui::TextWrapped("%s", state.result);
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Vehicle")) {
+                ImGui::TextWrapped("Uses the game's native repair and ground-reset functions.");
+                ImGui::BeginDisabled(!state.available || state.pending);
+                if (ImGui::Button("Repair current vehicle")) command(MM3_DEV_REPAIR);
+                if (ImGui::Button("Recover at current position"))
+                    mm3_teleport_queue(state.position[0], state.position[2], state.heading);
+                ImGui::EndDisabled();
+                ImGui::TextWrapped("Recovery places the vehicle on usable ground and clears motion. It does not search for a road or move to a known safe destination.");
+                char status[128]; mm3_dev_tools_status(status, sizeof status);
+                ImGui::TextWrapped("%s", status);
                 ImGui::TextWrapped("%s", state.result);
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("Diagnostics")) {
                 ImGui::Text("Active car: %s", state.available ? "available" : "unavailable");
+                ImGui::Text("Player: %08X | car: %08X | world: %08X", state.player, state.car, state.world);
                 ImGui::Text("Teleport: %s", state.pending ? "pending" : "idle");
                 ImGui::Text("Position: %.3f, %.3f, %.3f", state.position[0], state.position[1], state.position[2]);
                 ImGui::TextWrapped("Keyboard: arrows / Tab, Enter or Space. Controller: D-pad / stick, A to activate, shoulders to change tabs. Use your configured binding to close.");
@@ -153,11 +164,12 @@ void draw_tools()
 
 void render(void *h, void *device, void *context, void *target)
 {
-    static bool initialized, failed, pad_held;
+    std::lock_guard<std::recursive_mutex> guard(imgui_lock);
+    static bool failed, pad_held;
     if (!h || !device || !context || !target) return;
     if (failed) return;
     HWND window = (HWND)h;
-    if (!initialized) {
+    if (!backend_ready) {
         IMGUI_CHECKVERSION(); ImGui::CreateContext();
         ImGuiIO &io = ImGui::GetIO();
         io.IniFilename = nullptr; // Session layout, no extra settings file.
@@ -173,16 +185,8 @@ void render(void *h, void *device, void *context, void *target)
             ImGui::DestroyContext(); failed = true;
             InterlockedExchange(&visible, 0); return;
         }
-        initialized = true;
+        backend_ready = true;
     }
-    Event local[256]; unsigned count; bool lost;
-    AcquireSRWLockExclusive(&event_lock);
-    count = event_count; memcpy(local, events, count * sizeof(Event)); event_count = 0;
-    lost = overflow; overflow = false;
-    ReleaseSRWLockExclusive(&event_lock);
-    if (lost) { ImGui::GetIO().ClearInputKeys(); InterlockedExchange(&visible, 0); }
-    for (unsigned i=0; i<count; ++i)
-        ImGui_ImplWin32_WndProcHandler(local[i].h, local[i].m, local[i].w, local[i].l);
     XINPUT_STATE pad = {};
     bool focused = GetForegroundWindow() == window;
     bool down = focused && toggle_pad && XInputGetState(0, &pad) == ERROR_SUCCESS &&
@@ -194,7 +198,10 @@ void render(void *h, void *device, void *context, void *target)
     pad_held = down;
     if (!focused) InterlockedExchange(&visible, 0);
     ImGui_ImplDX11_NewFrame(); ImGui_ImplWin32_NewFrame(); ImGui::NewFrame();
-    if (visible) draw_tools();
+    Mm3TeleportState state = {};
+    mm3_teleport_state(&state);
+    if (!state.available || state.world != bookmark.world) bookmark_saved = false;
+    if (visible) draw_tools(state);
     ImGui::Render();
     auto *ctx = (ID3D11DeviceContext *)context;
     auto *rtv = (ID3D11RenderTargetView *)target;

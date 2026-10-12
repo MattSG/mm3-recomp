@@ -4,8 +4,10 @@
 #include <string.h>
 #include "recomp_types.h"
 #include "dev_tools.h"
+#include "teleport.h"
 
 extern void sub_0020F7EB(void);
+extern void sub_0021CAE8(void); /* vehicleRepair's native backend; ESI = player */
 extern int xbox_FramebufferKeyDown(int vk);
 
 /* MM3_DEV_HOTKEYS=HUD:VK,MENU:VK,CAMERAS:VK (hex) toggles each tool in
@@ -15,6 +17,7 @@ static struct { const char *name; int vk, on_probe, off_probe, on, held; } hotke
 
 static unsigned ui_command; /* probe + 1; zero means empty; status_lock */
 static DWORD ui_requested_at;
+static uint32_t ui_player, ui_car, ui_world;
 static volatile LONG gameplay_at;
 static SRWLOCK status_lock = SRWLOCK_INIT;
 static char status_text[128] = "No command requested";
@@ -29,12 +32,19 @@ void mm3_dev_tools_status(char *text, unsigned size)
 int mm3_dev_tools_request(unsigned probe)
 {
     int accepted;
-    if (probe > 12 || !gameplay_at || GetTickCount() - (DWORD)gameplay_at > 300) return 0;
+    Mm3TeleportState vehicle = {0};
+    if (probe > MM3_DEV_REPAIR || !gameplay_at || GetTickCount() - (DWORD)gameplay_at > 300) return 0;
+    if (probe == MM3_DEV_REPAIR) {
+        mm3_teleport_state(&vehicle);
+        if (!vehicle.available) return 0;
+    }
     AcquireSRWLockExclusive(&status_lock);
     accepted = !ui_command;
     if (accepted) {
         ui_requested_at = GetTickCount();
         ui_command = probe + 1;
+        ui_player = vehicle.player; ui_car = vehicle.car;
+        ui_world = vehicle.world;
     }
     ReleaseSRWLockExclusive(&status_lock);
     return accepted;
@@ -86,6 +96,8 @@ void mm3_dev_tools_tick(void)
     AcquireSRWLockExclusive(&status_lock);
     unsigned command = ui_command;
     DWORD requested_at = ui_requested_at;
+    uint32_t requested_player = ui_player, requested_car = ui_car;
+    uint32_t requested_world = ui_world;
     ui_command = 0;
     ReleaseSRWLockExclusive(&status_lock);
     if (command) {
@@ -115,6 +127,22 @@ void mm3_dev_tools_tick(void)
     RecompXmm xmm[] = {g_xmm0,g_xmm1,g_xmm2,g_xmm3,g_xmm4,g_xmm5,g_xmm6,g_xmm7};
     memcpy(fp, g_fp_stack, sizeof fp);
     running = 1;
+    if (probe == MM3_DEV_REPAIR) {
+        uint32_t player = mm3_debug_repair_player();
+        Mm3TeleportState vehicle;
+        mm3_teleport_state(&vehicle);
+        if (!vehicle.available || player != requested_player || vehicle.car != requested_car || vehicle.world != requested_world)
+            player = 0;
+        if (player) {
+            g_esi = player;
+            PUSH32(g_esp, 0);
+            sub_0021CAE8();
+        }
+        AcquireSRWLockExclusive(&status_lock);
+        strcpy_s(status_text, sizeof status_text, player ? "Native vehicle repair executed" : "Repair cancelled: vehicle not ready or changed");
+        ReleaseSRWLockExclusive(&status_lock);
+        goto restore;
+    }
     snprintf(name, sizeof name, "feature_probe_%u.lua", probe);
     uint32_t text = g_esp - 0x100u;
     memcpy((void *)XBOX_PTR(text), name, strlen(name) + 1);
@@ -130,6 +158,7 @@ void mm3_dev_tools_tick(void)
     ReleaseSRWLockExclusive(&status_lock);
     fprintf(stderr, "[FEATURE_PROBE] end %u loaded=%u facade_floors=%u\n",
             probe, g_eax & 0xFF, MEM32(0x003A8C3Cu)); fflush(stderr);
+restore:
     g_eax=regs[0]; g_ecx=regs[1]; g_edx=regs[2]; g_esp=regs[3]; g_ebx=regs[4];
     g_esi=regs[5]; g_edi=regs[6]; g_ebp=regs[7]; g_seh_ebp=regs[8];
     memcpy(g_fp_stack, fp, sizeof fp);
