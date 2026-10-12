@@ -1,7 +1,8 @@
-# Midtown Madness 3 on PC improved and modded !!
+# Midtown Madness 3 PC Native
 
-Static recompilation of the Xbox title Midtown Madness 3 to native x86-64 Windows, on the
-[xboxrecomp](tools/xboxrecomp) runtime, rendering through Direct3D 11.
+**Midtown Madness 3 PC Native** brings the Xbox arcade racing game to Windows
+10 and Windows 11 x64 through static recompilation. This native MM3 PC port
+uses the [xboxrecomp](tools/xboxrecomp) runtime and a Direct3D 11 renderer.
 
 An improved and modded PC version with keyboard controls, widescreen graphics,
 custom-car tools, gameplay repairs and performance work. Build it from your own
@@ -17,6 +18,23 @@ belongs to the original author and upstream contributors.
 This fork is maintained by [lakshya16157](https://github.com/lakshya16157), with
 assistance from OpenAI Codex on performance and runtime improvements, gameplay
 fixes, and the custom-car tools.
+
+## Project keywords
+
+Terms that describe this project and help players find the right repository:
+
+- **Game and project:** Midtown Madness 3, Midtown Madness 3 PC Native,
+  Midtown Madness 3 on PC, Midtown Madness 3 PC port, Midtown Madness 3 for
+  Windows, MM3 PC, MM3 native, MM3 recompilation, mm3-recomp.
+- **Platform and technology:** Xbox to PC, native PC gaming, Windows 10,
+  Windows 11, x64, x86-64, static recompilation, Xbox recompilation,
+  xboxrecomp, Direct3D 11, D3D11.
+- **Mods and improvements:** Midtown Madness 3 mods, MM3 car mods, custom cars,
+  car workshop, car model conversion, keyboard controls, widescreen,
+  graphics fixes, gameplay bug fixes, performance improvements,
+  shader caching, frame pacing, improved draw distance.
+- **Gameplay:** arcade racing, driving game, Paris, Washington DC,
+  free-roam driving, Blitz races, Checkpoint races.
 
 ## How this fork was developed
 
@@ -155,8 +173,8 @@ Most examples use PowerShell 7 (`pwsh`); the pinned-version commands below use
 Windows' built-in `powershell` and also work with `pwsh`.
 
 ```powershell
-git clone --recurse-submodules https://github.com/lakshya16157/midtown-madness-3-on-pc-improved-and-modded.git
-cd midtown-madness-3-on-pc-improved-and-modded
+git clone --recurse-submodules https://github.com/lakshya16157/midtown-madness-3-PC-Native.git
+cd midtown-madness-3-PC-Native
 pwsh scripts\setup.ps1 -Iso "D:\Games\Midtown Madness 3 (USA).iso"
 pwsh scripts\play.ps1            # -Keyboard to drive with the keyboard
 ```
@@ -188,7 +206,7 @@ Run these commands from the repository directory, not its parent folder.
 
 ### Reproduce the improved version (`v2026.10.12.3`)
 
-The tag **[v2026.10.12.3](https://github.com/lakshya16157/midtown-madness-3-on-pc-improved-and-modded/tree/v2026.10.12.3)**
+The tag **[v2026.10.12.3](https://github.com/lakshya16157/midtown-madness-3-PC-Native/tree/v2026.10.12.3)**
 pins this fork's current improvements: race/menu loading and heap fixes, building
 detail fades, visibility and rendering work, corrected imported-car shadow
 generation, and the ten researched car presets with their gearing and gauges.
@@ -205,7 +223,7 @@ Xbox C alone does not contain this fork's native hooks, runtime patch or car dat
 Build this checkout in a separate directory, using your own supported disc image:
 
 ```powershell
-git clone --branch v2026.10.12.3 --recurse-submodules https://github.com/lakshya16157/midtown-madness-3-on-pc-improved-and-modded.git mm3-improved
+git clone --branch v2026.10.12.3 --recurse-submodules https://github.com/lakshya16157/midtown-madness-3-PC-Native.git mm3-improved
 cd mm3-improved
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\setup.ps1 -Iso "D:\Games\Midtown Madness 3 (USA).iso"
 tools\venv\Scripts\python.exe tools\car-mods\prepare.py --config tools\car-mods\cars.json --apply
