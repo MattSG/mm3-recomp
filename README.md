@@ -8,6 +8,9 @@ Experimental static recompilation of the Xbox game to native x86-64 Windows,
 using [xboxrecomp](tools/xboxrecomp) and Direct3D 11. You need your own game disc
 image; game assets are not included.
 
+This is an unofficial community project, not affiliated with or endorsed by
+Microsoft, Xbox, Digital Illusions CE (DICE), or the game's other rights holders.
+
 ## Build and play
 
 Requirements: Windows 10/11 x64, Visual Studio 2022 or newer with **Desktop
@@ -66,6 +69,10 @@ regressions; a successful build does not establish that every feature works.
 Network support is experimental: Insignia sign-in and full system-link matches
 are not verified, and the system-link browser has remained empty in testing.
 
+**Back up your saves before testing new builds.** This experimental software is
+provided as is, without warranty. Use it at your own risk, including the risk
+of crashes, corrupted saves, or lost progress.
+
 ## Development
 
 - [Setup script](scripts/setup.ps1): toolchain checks, extraction, generation, and build.
@@ -77,4 +84,33 @@ are not verified, and the system-link browser has remained empty in testing.
 
 PRs and cleanups are welcome, including fixes to AI-written code and incorrect
 documentation. For bugs, include the commit, settings, reproduction steps, and
-relevant logs. Keep game assets and saves out of submissions.
+relevant logs. AI-assisted PRs are welcome, but contributors must understand
+their changes and describe their testing. Distinguish implemented behaviour
+from behaviour verified in actual gameplay, and identify what remains untested.
+
+## Copyright and contributions
+
+Midtown Madness 3 and Xbox software, assets, names, and trademarks belong to
+their respective rights holders. This project grants no rights to that material.
+Use your own lawfully obtained game dump and comply with applicable law;
+owning a copy does not by itself grant permission to redistribute it.
+
+Do not commit, upload, or attach any of the following to this repository,
+issues, PRs, or releases:
+
+- Disc images, game executables, DLC, or extracted game assets such as textures,
+  models, music, movies, and archives.
+- Original or leaked game source, or disassembled, decompiled, or generated
+  translations of game code. Generate translated code locally during setup.
+- Xbox BIOS/firmware, encryption keys, proprietary SDK files, or private saves
+  and account data.
+- Links to unauthorised copies of these materials.
+
+Submit only code and materials you created or have permission to share, and
+preserve applicable third-party notices. Report copyright concerns through an
+issue without reposting the disputed material.
+
+A project-wide licence for original project code has not yet been selected.
+Third-party components retain their own licences; see [THIRD_PARTY.md](THIRD_PARTY.md)
+and the [runtime's licence](tools/xboxrecomp/LICENSE). These notices do not grant
+a licence to the original game or replace the need for appropriate permissions.
