@@ -102,7 +102,7 @@ static int alias_equal(const char *a, const char *b)
 
 static int allowed_alias(const char *alias)
 {
-    static const char *const names[] = {"MRly", "Panoz", "McLaren_F1", "Form1",
+    static const char *const names[] = {"Panoz", "McLaren_F1", "Form1",
         "Ford_GTcar", "Senna_Road", "Senna_GTR1", "FXXK_Racer", "Regera_GT1", "AventadorX"};
     unsigned i;
     for (i = 0; i < sizeof names / sizeof names[0]; ++i)

@@ -24,7 +24,7 @@ class ImportedPresetTest(unittest.TestCase):
         # Includes identity, order, paint, tuning, profile and both gauge units.
         self.assertEqual(stripped, self.defaults)
 
-    def test_nine_paths_resolve_portably_and_mini_keeps_native_visuals(self):
+    def test_all_nine_paths_resolve_portably_and_removed_mini_is_absent(self):
         expected = {
             9004: "Panoz", 9005: "McLaren_F1", 9006: "Form1",
             9009: "Ford_GTcar", 9010: "Senna_Road", 9011: "Senna_GTR1",
@@ -40,8 +40,8 @@ class ImportedPresetTest(unittest.TestCase):
             self.assertFalse(PurePosixPath(value).is_absolute())
             self.assertNotIn("\\", value)
             self.assertEqual((MODS / value).resolve(), ROOT / "out/car-models/packages" / alias)
-        mini = next(car for car in self.imported["cars"] if car["id"] == 9001)
-        self.assertNotIn("model_package", mini)
+        self.assertEqual(len(self.imported["cars"]), 9)
+        self.assertNotIn(9001, {car["id"] for car in self.imported["cars"]})
 
     def test_configuration_validation_does_not_need_downloaded_models(self):
         # The installer validates asset existence separately when making a plan.

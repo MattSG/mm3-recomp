@@ -63,7 +63,7 @@ class CarModsTest(unittest.TestCase):
             baseline = MOD.load_config(tracked)
             custom = copy.deepcopy(baseline)
             custom["cars"][0]["physics"]["TorqueScale"] = 777
-            custom["cars"][1]["model_package"] = "models/Panoz"
+            custom["cars"][0]["model_package"] = "models/Panoz"
             local.write_text(json.dumps(custom), encoding="utf-8")
             self.assertEqual(MOD.default_config_path(folder), local)
             self.assertEqual(MOD.load_config(MOD.default_config_path(folder)), custom)
@@ -102,7 +102,7 @@ class CarModsTest(unittest.TestCase):
             text += "\tCOLOR\t0 0x443322 0x443322\r\n\tSKIN\t1 0xff0000 0xff0000\r\n"
             text += "\tLOCKED\r\n\tHIDDEN\r\n\tADMITTANCE\t0 0 2\r\n"
             text += "".join(f"\t{k}\t1\r\n" for k in MOD.RATINGS)
-            text += "\tVEHICLECLASS\t1\r\nEnd(CarInfo)\r\nBegin(CarBody)\r\n"
+            text += f"\tVEHICLECLASS\t1\r\n\tSPEEDOMETERTYPE\t{stock_id % 3}\r\nEnd(CarInfo)\r\nBegin(CarBody)\r\n"
             text += "\tMass\t1500\r\n\tTorqueScale\t300\r\n\tNWheels\t4\r\nEnd(CarBody)\r\n"
             text += "Begin(CarWheel0)\r\n\tMass\t9\r\nEnd(CarWheel0)\r\n"
             text += "Begin(CarCamera)\r\n\tHoodPos\t0 1 2\r\n\tSpeedometerMaxKmh\t620\r\n\tSpeedometerMaxMph\t500\r\nEnd(CarCamera)\r\n"
@@ -154,7 +154,7 @@ class CarModsTest(unittest.TestCase):
             (folder / source).write_bytes(data)
         (folder / "package.json").write_text(json.dumps(package), encoding="utf-8")
         config = copy.deepcopy(self.config)
-        config["cars"][1]["model_package"] = "prepared models/panoz"
+        config["cars"][0]["model_package"] = "prepared models/panoz"
         return folder, package, config, assets
 
     def test_prepared_model_survives_stats_reapply_and_restore_is_exact(self):
@@ -169,7 +169,7 @@ class CarModsTest(unittest.TestCase):
             self.assertEqual(hd.read("SoundScripts/Cars/Panoz/Vehicle.mcs"), b"native engine script")
         MOD.apply_plan(self.game, None, self.originals, output, config)
         state, originals = MOD.read_install(self.game)
-        config["cars"][1]["physics"]["TorqueScale"] += 1
+        config["cars"][0]["physics"]["TorqueScale"] += 1
         changed, _ = MOD.build_plan(self.game, originals, config, manifest.parent)
         MOD.apply_plan(self.game, state, originals, changed, config)
         for archive, path, _, data in assets:
@@ -179,7 +179,7 @@ class CarModsTest(unittest.TestCase):
                 with zipfile.ZipFile(self.game / "Data" / archive) as installed:
                     self.assertEqual(installed.read(path), data)
         with zipfile.ZipFile(self.game / MOD.ARCHIVES[0]) as hd:
-            self.assertIn(f"TorqueScale\t\t{config['cars'][1]['physics']['TorqueScale']}\r\n".encode(), hd.read("Cars/Tweak/Panoz.txt"))
+            self.assertIn(f"TorqueScale\t\t{config['cars'][0]['physics']['TorqueScale']}\r\n".encode(), hd.read("Cars/Tweak/Panoz.txt"))
         state, originals = MOD.read_install(self.game)
         MOD.restore(self.game, state, originals)
         for relative, original in self.originals.items():
@@ -198,7 +198,7 @@ class CarModsTest(unittest.TestCase):
         output, _ = MOD.build_plan(self.game, self.originals, config, self.game)
         MOD.apply_plan(self.game, None, self.originals, output, config)
         state, originals = MOD.read_install(self.game)
-        config["cars"][1]["model_package"] = ""
+        config["cars"][0]["model_package"] = ""
         fallback, _ = MOD.build_plan(self.game, originals, config, self.game)
         MOD.apply_plan(self.game, state, originals, fallback, config)
         self.assertEqual((self.game / "Data/Shared/Cars/Panoz/body.cmp").read_bytes(), fallback["Data/Shared/Cars/Panoz/body.cmp"])
@@ -296,14 +296,42 @@ class CarModsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "destination"):
             MOD.build_plan(self.game, self.originals, config, self.game)
 
+    def test_package_selection_background_is_owned_reapplied_and_restored(self):
+        folder, package, config, _ = self.model_package()
+        target = "Data/Shared/Cars/Panoz/bg.cdds"
+        background = {"archive": "loose", "path": target, "source": "texture.cdds"}
+        package["files"].append(background)
+        (folder / "package.json").write_text(json.dumps(package))
+        # A background cloned from the donor must be replaced by the package.
+        (self.game / "Data/Shared/Cars/Viper/bg.cdds").write_bytes(b"donor backdrop")
+        output, _ = MOD.build_plan(self.game, self.originals, config, self.game)
+        self.assertEqual(output[target], b"custom panoz texture")
+        MOD.apply_plan(self.game, None, self.originals, output, config)
+        state, originals = MOD.read_install(self.game)
+        config["cars"][0]["physics"]["TorqueScale"] += 1
+        reapplied, _ = MOD.build_plan(self.game, originals, config, self.game)
+        MOD.apply_plan(self.game, state, originals, reapplied, config)
+        self.assertEqual((self.game / target).read_bytes(), b"custom panoz texture")
+        state, originals = MOD.read_install(self.game)
+        MOD.restore(self.game, state, originals)
+        self.assertFalse((self.game / target).exists())
+        self.assertEqual((self.game / "Data/Shared/Cars/Viper/bg.cdds").read_bytes(), b"donor backdrop")
+        for forbidden in ("Data/Shared/Cars/Viper/bg.cdds",
+                          "Data/Shared/Cars/Panoz/texture.cdds",
+                          "Data/Shared/Cars/Panoz_lod1/bg.cdds"):
+            background["path"] = forbidden
+            (folder / "package.json").write_text(json.dumps(package))
+            with self.subTest(target=forbidden), self.assertRaises(ValueError):
+                MOD.load_model_package(config["cars"][0], self.game)
+
     def test_optional_model_package_accepts_old_manifest_and_absolute_folder(self):
         folder, package, config, _ = self.model_package()
-        config["cars"][1]["model_package"] = str(folder)
+        config["cars"][0]["model_package"] = str(folder)
         output, _ = MOD.build_plan(self.game, self.originals, config, self.game / "unrelated")
         self.assertEqual(output["Data/Shared/Cars/Panoz/body.cmp"], b"custom panoz body")
         path = self.game / "model-path.json"
         for value in (None, {}, 42, "bad\x00path"):
-            config["cars"][1]["model_package"] = value
+            config["cars"][0]["model_package"] = value
             path.write_text(json.dumps(config))
             with self.subTest(value=value), self.assertRaises(ValueError):
                 MOD.load_config(path)
@@ -335,30 +363,30 @@ class CarModsTest(unittest.TestCase):
                 key=lambda car: -sum(car["ratings"][key] for key in MOD.OVERALL_RATINGS))]
             expected += [12, 8, 11, 15, 18]  # Every stock fixture has four one-point ratings.
             self.assertEqual([int(line) for line in hd.read("Cars/Tweak/SortOrder").splitlines()], expected)
-            text = hd.read("Cars/Tweak/MRly.txt").decode()
-            self.assertIn("ID\t\t9001", text)
-            mini = next(car for car in self.config["cars"] if car["alias"] == "MRly")
-            self.assertIn(f"Mass\t\t{mini['physics']['Mass']}", text)
-            self.assertIn(f"HANDLING\t\t{mini['ratings']['HANDLING']}", text)
+            text = hd.read("Cars/Tweak/Panoz.txt").decode()
+            self.assertIn("ID\t\t9004", text)
+            panoz = next(car for car in self.config["cars"] if car["alias"] == "Panoz")
+            self.assertIn(f"Mass\t\t{panoz['physics']['Mass']}", text)
+            self.assertIn(f"HANDLING\t\t{panoz['ratings']['HANDLING']}", text)
             self.assertIn("\tMass\t9\r\nEnd(CarWheel0)", text)
             self.assertNotIn("LOCKED", text)
             self.assertNotIn("SKIN", text)
-            paint = hd.read("Cars/MRly/materialSet00.omb")
-            self.assertIn(b"Cars\\MRly\\texture.dds", paint)
-            self.assertIn(bytes.fromhex("288cf2"), paint)
-            self.assertIn(b"Cars\\MRly_lod1\\texture.dds", hd.read("Cars/MRly_lod1/materialSet00.omb"))
-        mesh = output["Data/Shared/Cars/MRly/body.cmp"]
-        self.assertIn(b"Cars\\MRly\\materialSet00.oms", mesh)
-        self.assertEqual(len(mesh), len((self.game / "Data/Shared/Cars/mini/body.cmp").read_bytes()))
+            paint = hd.read("Cars/Panoz/materialSet00.omb")
+            self.assertIn(b"Cars\\Panoz\\texture.dds", paint)
+            self.assertIn(bytes.fromhex("2ba5c7"), paint)
+            self.assertIn(b"Cars\\Panoz_lod1\\texture.dds", hd.read("Cars/Panoz_lod1/materialSet00.omb"))
+        mesh = output["Data/Shared/Cars/Panoz/body.cmp"]
+        self.assertIn(b"Cars\\Panoz\\materialSet00.oms", mesh)
+        self.assertEqual(len(mesh), len((self.game / "Data/Shared/Cars/Viper/body.cmp").read_bytes()))
         with zipfile.ZipFile(io.BytesIO(output[MOD.ARCHIVES[1]])) as dvd:
             for car in self.config["cars"]:
                 self.assertEqual(dvd.read(f"LoadingScreens/Default_{car['alias']}.tga"), dvd.read(f"LoadingScreens/Default_{car['donor']}.tga"))
 
     def test_requested_cars_are_independent_variants_of_shared_donors(self):
         expected = ["Panoz GTR-1", "McLaren F1", "Formula 1", "Ford GT"]
-        self.assertEqual([car["display_name"] for car in self.config["cars"][1:5]], expected)
+        self.assertEqual([car["display_name"] for car in self.config["cars"][:4]], expected)
         ids = set(car["id"] for car in self.config["cars"])
-        self.assertEqual(ids, {9001, 9004, 9005, 9006, 9009, 9010, 9011, 9012, 9013, 9014})
+        self.assertEqual(ids, {9004, 9005, 9006, 9009, 9010, 9011, 9012, 9013, 9014})
         self.assertEqual(ids, set(MOD.IDENTITIES))
         output = self.plan()
         with zipfile.ZipFile(io.BytesIO(output[MOD.ARCHIVES[0]])) as hd:
@@ -432,7 +460,7 @@ class CarModsTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "numeric HANDLING"):
                 MOD.catalog_ranking(archive, self.config)
 
-    def test_expanded_catalog_installs_all_ten_without_changing_old_settings(self):
+    def test_expanded_catalog_installs_all_nine_without_changing_old_settings(self):
         config = copy.deepcopy(self.config)
         config["cars"] = [car for car in config["cars"] if car["id"] <= 9009]
         original_cars = copy.deepcopy(config["cars"])
@@ -444,12 +472,12 @@ class CarModsTest(unittest.TestCase):
             car.update(id=ident, alias=alias, donor=donor, display_name=name)
             car.pop("engine_profile", None)  # This tests legacy cloned tuning, not factory presets.
             config["cars"].append(car)
-        path = self.game / "ten-cars.json"
+        path = self.game / "nine-cars.json"
         path.write_text(json.dumps(config))
         self.assertEqual(MOD.load_config(path), config)
         output, counts = MOD.build_plan(self.game, self.originals, config, self.game)
-        self.assertEqual(counts["cars"], 10)
-        self.assertEqual(config["cars"][:5], original_cars)
+        self.assertEqual(counts["cars"], 9)
+        self.assertEqual(config["cars"][:len(original_cars)], original_cars)
         with zipfile.ZipFile(io.BytesIO(output[MOD.ARCHIVES[0]])) as hd:
             order = hd.read("Cars/Tweak/SortOrder").splitlines()
             for car in config["cars"]:
@@ -461,7 +489,7 @@ class CarModsTest(unittest.TestCase):
                     self.assertEqual(len(mesh), len((self.game / f"Data/Shared/Cars/{car['donor']}{suffix}/body.cmp").read_bytes()))
         MOD.apply_plan(self.game, None, self.originals, output, config)
         state, originals = MOD.read_install(self.game)
-        self.assertEqual(state["config"]["cars"][:5], original_cars)
+        self.assertEqual(state["config"]["cars"][:len(original_cars)], original_cars)
         MOD.restore(self.game, state, originals)
         for relative, original in self.originals.items():
             self.assertEqual((self.game / relative).read_bytes(), original)
@@ -474,7 +502,7 @@ class CarModsTest(unittest.TestCase):
             gauges = next(car for car in self.config["cars"] if car["alias"] == "Senna_Road")["speedometer"]
             self.assertEqual(tweak.count(f"SpeedometerMaxKmh\t\t{gauges['max_kmh']}\r\n"), 2)
             self.assertEqual(tweak.count(f"SpeedometerMaxMph\t\t{gauges['max_mph']}\r\n"), 2)
-            self.assertIn("SPEEDOMETERTYPE\t\t1\r\n", tweak)
+            self.assertIn("SPEEDOMETERTYPE\t0\r\n", tweak)
             self.assertIn("HoodPos\t0 1 2", tweak)
             self.assertIn("OutFarStartZ\t6", tweak)
         legacy = copy.deepcopy(self.config)
@@ -483,7 +511,7 @@ class CarModsTest(unittest.TestCase):
         MOD.load_config(path)
         legacy_output = self.plan(legacy)
         with zipfile.ZipFile(io.BytesIO(legacy_output[MOD.ARCHIVES[0]])) as hd:
-            self.assertIn(b"SpeedometerMaxKmh\t620\r\n", hd.read("Cars/Tweak/MRly.txt"))
+            self.assertIn(b"SpeedometerMaxKmh\t620\r\n", hd.read("Cars/Tweak/Panoz.txt"))
         for value in [{"max_kmh": 800}, {"max_kmh": 800, "max_mph": 500, "bogus": 1},
                       {"max_kmh": 1201, "max_mph": 500}, {"max_kmh": 800, "max_mph": 0},
                       {"max_kmh": float("nan"), "max_mph": 500}, {"max_kmh": 800, "max_mph": True}, None]:
@@ -493,27 +521,30 @@ class CarModsTest(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 MOD.load_config(path)
 
-    def test_speedometer_sidecar_serializes_original_and_independent_variant_ranges(self):
+    def test_speedometer_sidecar_contains_only_original_hud_overrides(self):
         config = copy.deepcopy(self.config)
-        config["cars"][1]["speedometer"] = {"max_kmh": 650, "max_mph": 404}
-        del config["cars"][0]["speedometer"]
+        config["cars"][0]["speedometer"] = {"max_kmh": 650, "max_mph": 404}
+        del config["cars"][1]["speedometer"]
         output = self.plan(config)
         settings = output[MOD.SPEEDOMETER_FILE].decode("ascii")
         rows = [line.split() for line in settings.splitlines() if not line.startswith("#")]
         actual = {alias: (float(kmh), float(mph)) for alias, kmh, mph in rows}
         expected = {alias: (limits["max_kmh"], limits["max_mph"])
                     for alias, limits in config["original_speedometers"].items()}
-        expected.update({car["alias"]: (car["speedometer"]["max_kmh"], car["speedometer"]["max_mph"])
-                         for car in config["cars"] if "speedometer" in car})
         self.assertEqual(actual, expected)
         self.assertEqual(len(rows), len(actual))
-        self.assertNotIn("MRly", actual)
+        self.assertFalse({car["alias"] for car in config["cars"]} & set(actual))
         self.assertEqual(actual["Koenigsegg"], (800, 500))
-        self.assertEqual(actual["Panoz"], (650, 404))
         with zipfile.ZipFile(io.BytesIO(output[MOD.ARCHIVES[0]])) as hd, \
                 zipfile.ZipFile(io.BytesIO(self.originals[MOD.ARCHIVES[0]])) as before:
             for alias in config["original_speedometers"]:
                 self.assertEqual(hd.read(f"Cars/Tweak/{alias}.txt"), before.read(f"Cars/Tweak/{alias}.txt"))
+            self.assertEqual(hd.read("Cars/Tweak/Panoz.txt").count(b"SpeedometerMaxKmh\t\t650\r\n"), 2)
+            for car in config["cars"]:
+                donor = before.read(f"Cars/Tweak/{car['donor']}.txt")
+                variant = hd.read(f"Cars/Tweak/{car['alias']}.txt")
+                original_style = next(line for line in donor.splitlines() if b"SPEEDOMETERTYPE" in line)
+                self.assertEqual([line for line in variant.splitlines() if b"SPEEDOMETERTYPE" in line], [original_style])
 
     def test_original_speedometer_validation_and_version_one_compatibility(self):
         path = self.game / "original-speedometers.json"
@@ -521,7 +552,7 @@ class CarModsTest(unittest.TestCase):
         legacy.pop("original_speedometers")
         path.write_text(json.dumps(legacy))
         self.assertEqual(MOD.load_config(path), legacy)
-        self.assertNotIn(b"Koenigsegg ", self.plan(legacy)[MOD.SPEEDOMETER_FILE])
+        self.assertEqual(self.plan(legacy)[MOD.SPEEDOMETER_FILE].count(b"\n"), 1)
         for value in (None, [], {"UnknownCar": {"max_kmh": 800, "max_mph": 500}},
                       {"Koenigsegg": {"max_kmh": 800}},
                       {"Koenigsegg": {"max_kmh": 800, "max_mph": float("inf")}},
@@ -562,18 +593,19 @@ class CarModsTest(unittest.TestCase):
         changed, _ = MOD.build_plan(self.game, stock, changed_config)
         self.assertGreater(MOD.apply_plan(self.game, state, stock, changed, changed_config), 0)
         with zipfile.ZipFile(self.game / MOD.ARCHIVES[0]) as archive:
-            text = archive.read("Cars/Tweak/MRly.txt")
+            text = archive.read("Cars/Tweak/Panoz.txt")
             self.assertIn(b"Mass\t\t1050", text)
             self.assertIn(b"HANDLING\t\t8", text)
         state, stock = MOD.read_install(self.game)
         MOD.restore(self.game, state, stock)
         for name, original in self.originals.items():
             self.assertEqual((self.game / name).read_bytes(), original)
-        self.assertFalse((self.game / "Data/Shared/Cars/MRly/body.cmp").exists())
+        self.assertFalse((self.game / "Data/Shared/Cars/Panoz/body.cmp").exists())
         self.assertEqual((self.game / "UDATA/profile").read_bytes(), b"do not change player save")
 
     def test_reapply_removes_retired_cars_without_changing_survivors_or_backups(self):
-        retired = {9002: ("MustangGT", "MFastBack", "Mustang GT"),
+        retired = {9001: ("MRly", "mini", "Mini Rally"),
+                   9002: ("MustangGT", "MFastBack", "Mustang GT"),
                    9003: ("VRace", "Viper", "Viper Race"),
                    9007: ("BChiron_GT", "Koenigsegg", "Bugatti Chiron"),
                    9008: ("BBolide_GT", "Koenigsegg", "Bugatti Bolide")}
@@ -587,6 +619,8 @@ class CarModsTest(unittest.TestCase):
             manifest.write_text(json.dumps({"version": 1, "cars": [car]}))
             with self.assertRaisesRegex(ValueError, "fixed identities"):
                 MOD.load_config(manifest)
+        native_mini = {path: path.read_bytes() for suffix in ("", "_lod1")
+                       for path in (self.game / f"Data/Shared/Cars/mini{suffix}").iterdir()}
         # Recreate the previous installation, whose state can contain identities
         # that are no longer accepted by the current editable catalog.
         previous = self.plan(legacy)
@@ -619,11 +653,13 @@ class CarModsTest(unittest.TestCase):
                     order = archive.read("Cars/Tweak/SortOrder").splitlines()
                     self.assertFalse(set(str(ident).encode() for ident in retired) & set(order))
         self.assertEqual(package.read_bytes(), b"keep downloaded source")
+        for path, original in native_mini.items():
+            self.assertEqual(path.read_bytes(), original)
         self.assertEqual((self.game / "UDATA/profile").read_bytes(), b"do not change player save")
 
     def test_conflicting_edits_and_alias_collisions_fail_before_writes(self):
         output = self.plan()
-        target = self.game / "Data/Shared/Cars/MRly/body.cmp"
+        target = self.game / "Data/Shared/Cars/Panoz/body.cmp"
         target.parent.mkdir()
         target.write_bytes(b"unrelated existing mod")
         with self.assertRaisesRegex(ValueError, "already exists"):
@@ -648,7 +684,7 @@ class CarModsTest(unittest.TestCase):
 
     def test_gearing_serialization_and_validation(self):
         config = copy.deepcopy(self.config)
-        panoz = config["cars"][1]
+        panoz = config["cars"][0]
         ratios = [-3.3, 2.5, 1.72, 1.28, 1, 0.82, 0.7]
         panoz["physics"].update({"GearRatioVector": ratios, "WheelRatio": 3.8, "TimeChangeGear": 0.3})
         path = self.game / "gearing.json"
@@ -662,7 +698,7 @@ class CarModsTest(unittest.TestCase):
             self.assertIn(b"GearRatioVector\t\t-3.3 2.5 1.72 1.28 1 0.82 0.7\r\n", tweak)
             self.assertIn(b"WheelRatio\t\t3.8\r\n", tweak)
         fewer_gears = copy.deepcopy(config)
-        fewer_gears["cars"][1]["physics"]["GearRatioVector"] = [-3.3, 2.5, 1.5, 0.8]
+        fewer_gears["cars"][0]["physics"]["GearRatioVector"] = [-3.3, 2.5, 1.5, 0.8]
         fewer_output = self.plan(fewer_gears)
         with zipfile.ZipFile(io.BytesIO(fewer_output[MOD.ARCHIVES[0]])) as archive:
             tweak = archive.read("Cars/Tweak/Panoz.txt")
@@ -676,7 +712,7 @@ class CarModsTest(unittest.TestCase):
                              ("WheelRatio", 0), ("MinRPMGearChange", 9000),
                              ("CutRPM", 11000), ("GearStatusDownGearFactor", 1)]:
             rejected = copy.deepcopy(config)
-            rejected["cars"][1]["physics"][key] = invalid
+            rejected["cars"][0]["physics"][key] = invalid
             path.write_text(json.dumps(rejected))
             with self.subTest(key=key, invalid=invalid), self.assertRaises(ValueError):
                 MOD.load_config(path)
@@ -725,7 +761,7 @@ class CarModsTest(unittest.TestCase):
         self.assertIn(MOD.FACTORY_PHYSICS_FILE, state["installed"])
         del config["cars"][0]["engine_profile"]
         changed = self.plan(config)
-        self.assertNotIn(b"\nMRly ", changed[MOD.FACTORY_PHYSICS_FILE])
+        self.assertNotIn(b"\nPanoz ", changed[MOD.FACTORY_PHYSICS_FILE])
         # The opt-in is metadata for the runtime hook, not a native tweak key.
         for archive in MOD.ARCHIVES:
             self.assertEqual(output[archive], changed[archive])
@@ -755,7 +791,7 @@ class CarModsTest(unittest.TestCase):
         for name, original in self.originals.items():
             self.assertEqual((self.game / name).read_bytes(), original)
         self.assertFalse((self.game / MOD.STATE_DIR / "state.json").exists())
-        self.assertFalse((self.game / "Data/Shared/Cars/MRly/body.cmp").exists())
+        self.assertFalse((self.game / "Data/Shared/Cars/Panoz/body.cmp").exists())
 
     def test_automatic_shifts_cannot_require_rpm_beyond_cutoff_or_native_torque_table(self):
         path = self.game / "rpm.json"

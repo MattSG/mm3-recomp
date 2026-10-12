@@ -16,32 +16,6 @@
   },
   "cars": [
     {
-      "id": 9001,
-      "alias": "MRly",
-      "donor": "mini",
-      "display_name": "Mini Rally",
-      "ratings": {
-        "TOPSPEED": 5,
-        "ACCELERATION": 4,
-        "MASS": 4,
-        "HANDLING": 5,
-        "DURABILITY": 5
-      },
-      "physics": {
-        "Mass": 1145,
-        "TorqueScale": 380
-      },
-      "colors": [
-        "#f28c28",
-        "#f2f2f2",
-        "#174c28"
-      ],
-      "speedometer": {
-        "max_kmh": 220,
-        "max_mph": 140
-      }
-    },
-    {
       "id": 9004,
       "alias": "Panoz",
       "donor": "Viper",

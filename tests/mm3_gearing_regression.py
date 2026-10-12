@@ -17,7 +17,7 @@ import tempfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-ACTIVE_IDS = {9001, 9004, 9005, 9006, 9009, 9010, 9011, 9012, 9013, 9014}
+ACTIVE_IDS = {9004, 9005, 9006, 9009, 9010, 9011, 9012, 9013, 9014}
 
 
 def generated_function(name):
@@ -49,7 +49,7 @@ def case_definitions(config_path=ROOT / "tools/car-mods/cars.json"):
     config = json.loads(config_path.read_text())
     ids = [car["id"] for car in config["cars"]]
     if len(ids) != len(ACTIVE_IDS) or set(ids) != ACTIVE_IDS:
-        raise ValueError("Expected each of the ten active custom cars exactly once")
+        raise ValueError("Expected each of the nine active custom cars exactly once")
     definitions = []
     gear_counts = set()
     # Read actual retail values rather than inventing fallback gearbox values.

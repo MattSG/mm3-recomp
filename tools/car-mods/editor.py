@@ -277,7 +277,7 @@ class CarEditor:
         outer = ttk.Frame(self.root, padding=18)
         outer.pack(fill="both", expand=True)
         ttk.Label(outer, text="Car Workshop", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(outer, text="Donor-based driving settings, reference specifications and speedometer ranges.", style="Sub.TLabel").pack(anchor="w", pady=(3, 15))
+        ttk.Label(outer, text="Donor-based driving settings, reference specifications and interior speedometer ranges.", style="Sub.TLabel").pack(anchor="w", pady=(3, 15))
         # Reserve the actions before the expanding editor panes, so a smaller
         # window never pushes Save/Apply below its visible client area.
         footer = ttk.Frame(outer)
@@ -343,7 +343,7 @@ class CarEditor:
         self.model_clear_button = ttk.Button(model_buttons, text="Use donor model", command=lambda: self.model_var.set(""))
         self.model_clear_button.pack(side="left", padx=8)
         ttk.Label(models, textvariable=self.model_status, style="Sub.TLabel", wraplength=390).pack(anchor="w", pady=(4, 12))
-        ttk.Label(models, text="Blank uses the original donor body. Raw MM2 .ar/.pkg files need conversion before they can be selected here. Donor physics, collision and sounds stay in use. A prepared package supplies its own livery and materials; paint controls do not recolor fixed imported textures. Stats and speedometer settings still work.",
+        ttk.Label(models, text="Blank uses the original donor body. Raw MM2 .ar/.pkg files need conversion before they can be selected here. Donor physics, collision and sounds stay in use. A prepared package supplies its own livery and materials; paint controls do not recolor fixed imported textures. Stats and interior speedometer settings still work.",
                   style="Sub.TLabel", wraplength=390).pack(anchor="w")
         ttk.Label(driving, text="Driving physics", font=("Segoe UI", 11, "bold")).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
         self._physics_fields(driving, DRIVING, 1)
@@ -379,7 +379,7 @@ class CarEditor:
         self.remove_button = ttk.Button(palette_buttons, text="− Paint", command=self.remove_color, style="Small.TButton")
         self.remove_button.pack(side="right")
         ttk.Separator(preview).pack(fill="x", pady=7)
-        ttk.Label(preview, text="Speedometer maximum", font=("Segoe UI", 11, "bold")).pack(anchor="w")
+        ttk.Label(preview, text="Interior speedometer maximum", font=("Segoe UI", 11, "bold")).pack(anchor="w")
         self.gauge = tk.Canvas(preview, width=245, height=118, background="#f3f5f8", highlightthickness=0)
         self.gauge.pack(pady=3)
         limits = getattr(prepare, "SPEEDOMETER", {"max_kmh": (100, 1200), "max_mph": (60, 750)})
@@ -390,7 +390,7 @@ class CarEditor:
             low, high = limits[key]
             ttk.Spinbox(row, from_=low, to=high, increment=10, textvariable=self.speed_vars[key], width=10).pack(side="left")
             self.speed_vars[key].trace_add("write", self._draw)
-        ttk.Label(preview, text=f"On-screen dial and interior needle.\nBoth blank = original range.\nkm/h {limits['max_kmh'][0]}–{limits['max_kmh'][1]}; mph {limits['max_mph'][0]}–{limits['max_mph'][1]}.", style="Sub.TLabel", wraplength=245).pack(anchor="w", pady=4)
+        ttk.Label(preview, text=f"Interior dashboard needle range.\nHUD uses the donor font and style.\nBoth blank = donor interior range.\nkm/h {limits['max_kmh'][0]}–{limits['max_kmh'][1]}; mph {limits['max_mph'][0]}–{limits['max_mph'][1]}.", style="Sub.TLabel", wraplength=245).pack(anchor="w", pady=4)
         self.original_speed_button = ttk.Button(preview, text="Original car speedometers…", command=self.original_speedometers,
                                                style="Small.TButton")
         self.original_speed_button.pack(fill="x", pady=(4, 0))

@@ -33,7 +33,7 @@ class CarEditorTest(unittest.TestCase):
         tracked.write_text(json.dumps(baseline), encoding="utf-8")
         custom = copy.deepcopy(baseline)
         custom["cars"][0]["physics"]["TorqueScale"] = 777
-        custom["cars"][1]["model_package"] = "prepared models/Panoz"
+        custom["cars"][0]["model_package"] = "prepared models/Panoz"
         local.write_text(json.dumps(custom), encoding="utf-8")
         selector = editor.prepare.default_config_path
         with patch.object(editor.prepare, "default_config_path", lambda: selector(folder)):
@@ -183,36 +183,36 @@ class CarEditorTest(unittest.TestCase):
         self.assertNotIn("--restore", command)
 
     def test_model_package_path_survives_stats_edit_save_and_reload(self):
-        original = self.model.config["cars"][1]
+        original = self.model.config["cars"][0]
         fields = form(original)
         folder = "models with spaces/panoz"
         car = editor.edited_car(original, **fields, model_package=folder)
-        self.model.replace_car(1, car)
+        self.model.replace_car(0, car)
         self.model.save()
         self.model.reload()
-        car = self.model.config["cars"][1]
+        car = self.model.config["cars"][0]
         self.assertEqual(car["model_package"], folder)
         fields = form(car)
         fields["physics"]["TorqueScale"] = "700"
         edited = editor.edited_car(car, **fields)
         self.assertEqual(edited["model_package"], folder)
-        self.model.replace_car(1, edited)
+        self.model.replace_car(0, edited)
         self.model.save()
         self.model.reload()
-        self.assertEqual(self.model.config["cars"][1]["model_package"], folder)
-        cleared = editor.edited_car(self.model.config["cars"][1], **form(self.model.config["cars"][1]), model_package=" ")
+        self.assertEqual(self.model.config["cars"][0]["model_package"], folder)
+        cleared = editor.edited_car(self.model.config["cars"][0], **form(self.model.config["cars"][0]), model_package=" ")
         self.assertNotIn("model_package", cleared)
 
     def test_restore_default_driving_removes_factory_gears_and_preserves_saved_customization(self):
-        car = copy.deepcopy(self.model.config["cars"][1])
+        car = copy.deepcopy(self.model.config["cars"][0])
         car["model_package"] = "prepared models/Panoz"
         car["colors"] = ["#123456"]
         car = editor.factory.apply_preset(car)
         car["ratings"]["TOPSPEED"] = 3
         car["speedometer"] = {"max_kmh": 600, "max_mph": 400}
-        self.model.replace_car(1, car)
-        self.model.restore_default_driving(1)
-        restored = self.model.config["cars"][1]
+        self.model.replace_car(0, car)
+        self.model.restore_default_driving(0)
+        restored = self.model.config["cars"][0]
         self.assertEqual(restored["model_package"], car["model_package"])
         self.assertEqual(restored["colors"], car["colors"])
         self.assertEqual(restored["id"], car["id"])
@@ -222,7 +222,7 @@ class CarEditorTest(unittest.TestCase):
         self.assertEqual(restored["physics"], {"Mass": 980, "TorqueScale": 750})
         self.model.save()
         self.model.reload()
-        self.assertEqual(self.model.config["cars"][1], restored)
+        self.assertEqual(self.model.config["cars"][0], restored)
 
     def test_factory_engine_form_switch_is_explicit_and_preserved(self):
         car = editor.factory.apply_preset(self.model.config["cars"][0])
@@ -237,7 +237,7 @@ class CarEditorTest(unittest.TestCase):
         app.model, app.current = self.model, 0
         app.model.config["cars"][0]["physics"]["TorqueScale"] = float("nan")
         app.color_vars = [Mock(get=Mock(return_value="#ABCDEF"))]
-        app.model_var = Mock(get=Mock(return_value="models with spaces/Mini"))
+        app.model_var = Mock(get=Mock(return_value="models with spaces/Panoz"))
         app.rating_vars = {key: Mock(get=Mock(return_value="3")) for key in editor.RATING_ORDER}
         app.speed_vars = {"max_kmh": Mock(get=Mock(return_value="600")),
                           "max_mph": Mock(get=Mock(return_value="400"))}
@@ -247,9 +247,9 @@ class CarEditorTest(unittest.TestCase):
         app._collect.assert_not_called()
         app._error.assert_not_called()
         restored = app.model.config["cars"][0]
-        self.assertEqual(restored["physics"], {"Mass": 1145, "TorqueScale": 380})
+        self.assertEqual(restored["physics"], {"Mass": 980, "TorqueScale": 750})
         self.assertEqual(restored["colors"], ["#abcdef"])
-        self.assertEqual(restored["model_package"], "models with spaces/Mini")
+        self.assertEqual(restored["model_package"], "models with spaces/Panoz")
         self.assertEqual(restored["ratings"], {key: 3 for key in editor.RATING_ORDER})
         self.assertEqual(restored["speedometer"], {"max_kmh": 600, "max_mph": 400})
         app._load_car.assert_called_once_with(0)
@@ -273,7 +273,7 @@ class CarEditorTest(unittest.TestCase):
         (folder / "cars.json").write_text(json.dumps(self.model.config), encoding="utf-8")
         with patch.object(editor, "HERE", folder):
             self.model.restore_default_driving(0)
-        self.assertEqual(self.model.config["cars"][0]["physics"], {"Mass": 1145, "TorqueScale": 380})
+        self.assertEqual(self.model.config["cars"][0]["physics"], {"Mass": 980, "TorqueScale": 750})
 
     def test_specifications_tab_can_be_selected_on_launch(self):
         self.assertEqual(editor.parse_args([]).tab, "specs")
@@ -303,7 +303,7 @@ class CarEditorTest(unittest.TestCase):
         self.model.save()
         self.model.reload()
         self.assertEqual(self.model.config["cars"][:len(before)], before)
-        self.assertEqual(len(self.model.config["cars"]), 10)
+        self.assertEqual(len(self.model.config["cars"]), 9)
         for ident, car in zip(range(9010, 9015), self.model.config["cars"][len(before):]):
             self.assertEqual(car["id"], ident)
             self.assertEqual(car["model_package"], f"models/{editor.prepare.IDENTITIES[ident][0]}")

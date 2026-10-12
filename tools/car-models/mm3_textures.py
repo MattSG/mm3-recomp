@@ -133,6 +133,56 @@ def image_to_cdds(path: Path, *, max_size: int = 1024) -> bytes:
     return dds_to_cdds(image_to_dds(path, max_size=max_size))
 
 
+def image_to_background_dds(path: Path) -> bytes:
+    """Encode a 640x480 car-selection background like the native RGB565 asset.
+
+    These full-screen UI images are linear, opaque and have no mip chain.
+    Their non-power-of-two dimensions must not use the car-texture resizing
+    path. The size field and caps retain the retail background header values.
+    """
+    with Image.open(path) as source:
+        if source.size != (640, 480):
+            raise ValueError('Car-selection backgrounds must be exactly 640x480')
+        image = source.convert('RGB')
+        pixels = bytearray()
+        rgb = image.tobytes()
+        for red, green, blue in zip(rgb[0::3], rgb[1::3], rgb[2::3]):
+            pixels.extend(struct.pack('<H', (red >> 3) << 11 |
+                                      (green >> 2) << 5 | (blue >> 3)))
+    header = [0] * 32
+    header[:8] = [0x20534444, 124, 0x100F, 480, 640, len(pixels), 0, 0]
+    header[19:28] = [32, 0x40, 0, 16, 0xF800, 0x07E0, 0x001F, 0, 0x401008]
+    return struct.pack('<32I', *header) + pixels
+
+
+def image_to_background_cdds(path: Path) -> bytes:
+    return dds_to_cdds(image_to_background_dds(path))
+
+
+def image_to_menu_dds(path: Path) -> bytes:
+    """Keep native-size vehicle icon pixels lossless in straight-alpha ARGB32.
+
+    DXT color blocks share only four colors across sixteen pixels, which mixes
+    bright body paint into nearby black tires and windows at these small UI
+    sizes. MM3's DDS loader accepts A8R8G8B8 and performs any Xbox swizzling;
+    ordinary DDS pixels remain linear BGRA bytes without premultiplication.
+    """
+    with Image.open(path) as source:
+        if source.size not in ((128, 64), (64, 64), (256, 64)):
+            raise ValueError('Vehicle menu icons must be 128x64, 64x64 or 256x64')
+        width, height = source.size
+        pixels = source.convert('RGBA').tobytes('raw', 'BGRA')
+    header = [0] * 32
+    header[:8] = [0x20534444, 124, 0x100F, height, width, width * 4, 0, 0]
+    header[19:28] = [32, 0x41, 0, 32, 0x00FF0000, 0x0000FF00,
+                     0x000000FF, 0xFF000000, 0x401008]
+    return struct.pack('<32I', *header) + pixels
+
+
+def image_to_menu_cdds(path: Path) -> bytes:
+    return dds_to_cdds(image_to_menu_dds(path))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('input', type=Path)

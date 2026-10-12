@@ -219,8 +219,14 @@ def build(source_path: Path, output: Path, car_id: int, *, y_offset=None,
                 icon = next((icons / (prefix + '_' + source_name)
                              for prefix in ('Car', 'Panoz')
                              if (icons / (prefix + '_' + source_name)).is_file()), icon)
-            blob = mm3_textures.image_to_cdds(icon, max_size=128)
+            blob = mm3_textures.image_to_menu_cdds(icon)
             asset('Data_dvd.zip', f'Menu/Gfx/Vehicles/{alias}{suffix}.cdds', blob)
+        background = next((icons / filename for filename in
+                           ('Background.png', 'Car_Background.png', 'Panoz_Background.png')
+                           if (icons / filename).is_file()), None)
+        if background is not None:
+            asset('loose', f'Data/Shared/Cars/{alias}/bg.cdds',
+                  mm3_textures.image_to_background_cdds(background))
     package = dict(format='mm3-car-model-v1', alias=alias, car_id=car_id, files=files)
     (output / 'package.json').write_text(json.dumps(package, indent=2) + '\n', encoding='utf-8')
     report = dict(car=name, source=str(source_path.resolve()), material_map=mapping,

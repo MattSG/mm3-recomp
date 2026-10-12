@@ -33,19 +33,31 @@ def main():
         settings.write_text(
             "# alias max_kmh max_mph\n"
             "KoEnIgSeGg 800 500\n"
+            "Viper 650 404\n"
+            "Lotus 500 311\n"
+            "AudiTT 1200 750\n"
+            "# Old installer entries must never replace added-car retail HUDs.\n"
             "Panoz 650 404\n"
+            "McLaren_F1 800 500\n"
+            "Form1 800 500\n"
+            "Ford_GTcar 800 500\n"
+            "Senna_Road 800 500\n"
+            "Senna_GTR1 800 500\n"
+            "FXXK_Racer 800 500\n"
+            "Regera_GT1 800 500\n"
+            "AventadorX 800 500\n"
             "MRly 500 311\n"
             "ThisAliasIsLongerThan15 1200 750\n"
-            "BadNan nan 500\n"
-            "BadInfinity 800 inf\n"
-            "TooLarge 1201 500\n"
-            "TooSmall 99 500\n"
-            "BadMph 800 751\n"
-            "HalfRange 800\n", encoding="ascii")
+            "Avant nan 500\n"
+            "Avalanche 800 inf\n"
+            "Corvette 1201 500\n"
+            "ChevySSR 99 500\n"
+            "Crossfire 800 751\n"
+            "NewBeetle 800\n", encoding="ascii")
         subprocess.run([str(executable), "configured"], check=True, cwd=folder)
-        settings.write_text("Koenigsegg nan 500\nPanoz 800 751\n", encoding="ascii")
+        settings.write_text("Koenigsegg nan 500\nViper 800 751\n", encoding="ascii")
         subprocess.run([str(executable), "invalid"], check=True, cwd=folder)
-    print("PASS: production dial parser, alias/units, fallbacks, calibrated labels/needle, native quad ABI and guest state")
+    print("PASS: added-car retail HUD fallback with legacy settings, unchanged original overrides, parser, native quad ABI and guest state")
 
 
 if __name__ == "__main__":

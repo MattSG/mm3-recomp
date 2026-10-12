@@ -25,7 +25,7 @@ class FactorySpecsTest(unittest.TestCase):
             return PREPARE.load_config(path)
 
     def test_apply_preserves_models_paints_identity_original_gauges_and_input(self):
-        self.config["cars"][0]["model_package"] = "my models/Mini"
+        self.config["cars"][0]["model_package"] = "my models/Panoz"
         self.config["cars"][0]["colors"] = ["#012345"]
         before = copy.deepcopy(self.config)
         result = FACTORY.apply_presets(self.config)
@@ -38,7 +38,7 @@ class FactorySpecsTest(unittest.TestCase):
         result["cars"][0]["colors"][0] = "#ffffff"
         result["cars"][0]["physics"]["TorqueScale"] = 1
         self.assertEqual(before, self.config)
-        self.assertNotEqual(FACTORY.load_specs()["MRly"]["physics"]["TorqueScale"], 1)
+        self.assertNotEqual(FACTORY.load_specs()["Panoz"]["physics"]["TorqueScale"], 1)
 
     def test_removed_slots_are_not_resurrected_and_unknowns_fail_clearly(self):
         self.config["cars"] = self.config["cars"][:1]
@@ -46,7 +46,7 @@ class FactorySpecsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "No factory reference"):
             FACTORY.apply_preset({"alias": "RemovedCar"})
 
-    def test_all_ten_presets_validate_and_serialize_native_gear_counts(self):
+    def test_all_nine_presets_validate_and_serialize_native_gear_counts(self):
         config = FACTORY.apply_presets(self.config)
         self.assertEqual(self.validate(config), config)
         self.assertEqual(set(FACTORY.load_specs()), {car["alias"] for car in config["cars"]})
@@ -60,7 +60,7 @@ class FactorySpecsTest(unittest.TestCase):
             self.assertLess(text.index("NGears"), text.index("GearRatioVector"))
             self.assertIn("TurboSize\t\t0\r\n", text)
             self.assertNotIn("engine_profile", text)
-        self.assertEqual(counts, {1, 5, 6, 7})
+        self.assertEqual(counts, {1, 6, 7})
 
     def test_legacy_alias_does_not_enable_factory_torque_or_high_rpm(self):
         for car in self.config["cars"]:
@@ -80,8 +80,8 @@ class FactorySpecsTest(unittest.TestCase):
         config = FACTORY.apply_presets(self.config)
         del config["cars"][0]["engine_profile"]
         lines = FACTORY.factory_physics_settings(config).decode().splitlines()[1:]
-        self.assertEqual(len(lines), 9)
-        self.assertNotIn("MRly", {line.split()[0] for line in lines})
+        self.assertEqual(len(lines), 8)
+        self.assertNotIn("Panoz", {line.split()[0] for line in lines})
         for line in lines:
             alias, shift, radius, count, *points = line.split()
             count = int(count)
@@ -96,7 +96,7 @@ class FactorySpecsTest(unittest.TestCase):
 
     def test_verified_power_matches_curve_without_promoting_estimates_to_facts(self):
         specs = FACTORY.load_specs()
-        for alias in ("MRly", "McLaren_F1", "Ford_GTcar", "Senna_Road", "Senna_GTR1", "AventadorX"):
+        for alias in ("McLaren_F1", "Ford_GTcar", "Senna_Road", "Senna_GTR1", "AventadorX"):
             entry = specs[alias]
             fact, cal = entry["specification"], entry["calibration"]
             rpm = fact["power_rpm"]

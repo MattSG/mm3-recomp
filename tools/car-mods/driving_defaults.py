@@ -11,7 +11,6 @@ import copy
 # Alias: (mass in kg, native MM3 torque scale). Keep reset presets separate from
 # editable manifests so saving custom tuning cannot overwrite the reset target.
 TUNING = {
-    "MRly": (1145, 380),
     "Panoz": (980, 750),
     "McLaren_F1": (1050, 800),
     "Form1": (600, 420),

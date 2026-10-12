@@ -3,20 +3,18 @@
 The current converter generates corrected closed stencil shadows and aligns
 rear-light effects to the source lamps for all nine imported exteriors.
 For a fresh checkout, use the complete source recipe and
-optional imported preset below. It carries the same ten-car tuning as the
-default preset, including Mini Rally's native visuals.
+optional imported preset below. It carries the same nine-car tuning as the
+default preset.
 
 ## Extra car names and model credits
 
-The [imported preset](../car-mods/cars.imported.json) has ten extra slots:
-nine imported exteriors from eight downloadable packs, plus Mini Rally's
-original MM3 exterior. The shorter Workshop names are shown alongside the
-exact source-model names below. Source credits were checked against the
+The [imported preset](../car-mods/cars.imported.json) has nine extra slots:
+nine imported exteriors from eight downloadable packs. The shorter Workshop
+names are shown alongside the exact source-model names below. Source credits were checked against the
 original MM2X listings and the readmes included with the downloaded packs.
 
 | Workshop name (car ID) | Exterior model | Original model pack / source | Model and conversion credits |
 |---|---|---|---|
-| Mini Rally (9001) | Original MM3 Mini | Your own Midtown Madness 3 game data; no external model download | Original MM3 assets by the game's development team, Digital Illusions CE (DICE), published by Microsoft Game Studios. No individual Mini model artist is identified here. |
 | Panoz GTR-1 (9004) | Panoz GTR-1 | [Panoz GTR-1](https://www.mm2x.com/download-1336-panoz-gtr-1#1336), including its paintjob patch | ISI: original rFactor model; Aaro4130: MM2 conversion; Thunder-ice and Alexi99: skins. |
 | McLaren F1 (9005) | 1995 McLaren F1 GTR | [1995 McLaren F1 GTR](https://www.mm2x.com/download-2214-1995-mclaren-f1-gtr#2214) | Firemint: Real Racing 2 model and textures; Tsutarja495: MM2 conversion. |
 | Formula 1 (9006) | Ferrari F2007 F1 | [Ferrari F2007 F1](https://www.mm2x.com/download-1220-ferrari-f2007-f1#1220) | Image Space Incorporated: original rFactor model; Kunal / Kunal2045: MM2 conversion. The readme records an intermediate GTA IV conversion; see the additional pack credits below. |
@@ -27,11 +25,9 @@ original MM2X listings and the readmes included with the downloaded packs.
 | Koenigsegg Regera (9013) | 2015 Koenigsegg Regera | [2015 Koenigsegg Regera](https://www.mm2x.com/download-1715-2015-koenigsegg-regera#1715) | Firemonkeys Studios: Real Racing 3 source model; Matyii / Matyasd: MM2 conversion. |
 | Lamborghini Aventador (9014) | Lamborghini Aventador LP700-4 | [Lamborghini Aventador LP700-4](https://www.mm2x.com/download-1465-lamborghini-aventador-lp700-4#1465) | Firemonkeys: Real Racing 3 body; Gameloft: GT Racing 2 wheels, brake discs and calipers; BUGATTIMAN253MPH: MM2 conversion. |
 
-Microsoft's [original MM3 announcement](https://news.microsoft.com/source/2002/04/24/microsoft-game-studios-turns-midtown-madness-3-loose-on-city-streets/)
-identifies the retail game's developer and publisher. Mini Rally reuses the
-native `mini` assets under an extra-car alias. The other nine rows identify the
-downloaded exterior models; the [roster below](#imported-roster) records their
-MM3 collision, interior and sound donors. Workshop's manufacturer specification
+The nine rows identify the downloaded exterior models; the
+[roster below](#imported-roster) records their MM3 collision, interior and sound
+donors. Workshop's manufacturer specification
 references are separate sources for the driving presets. A source-pack year
 or racing variant can therefore differ from the specification reference.
 
@@ -66,17 +62,15 @@ Screenshots and telemetry are saved in `out/car-models/verification`.
 The expanded import roster adds the eight sources listed below. **All eight
 additional imports passed native showroom checks**. At that verification the
 catalog contained 49 car IDs (35 original plus 14 extra slots), and its
-42-label native contract passed. The current catalog contains **45 car IDs**:
-35 originals and 10 extras, comprising these nine imported cars and Mini Rally.
-The Mustang GT, Viper Race, Chiron and Bolide extra slots have since been
-retired. The Senna GTR header was also confirmed during the original checks.
+42-label native contract passed. The current catalog contains **44 car IDs**:
+35 originals and nine extras, comprising these nine imported cars.
+The Mini Rally, Mustang GT, Viper Race, Chiron and Bolide extra slots have since
+been retired. The Senna GTR header was also confirmed during the original checks.
 Screenshots are collected in
 `out/car-models/verification/remaining/index.html`.
 
-Car Workshop supports the ten active extra-car slots. Mini Rally retains its
-native Mini body and shadow geometry in both near and far models; only their
-asset paths are aliased. The nine imported cars receive generated body and
-wheel shadow proxies when rebuilt. Retired IDs remain unused.
+Car Workshop supports the nine active extra-car slots. The nine imported cars
+receive generated body and wheel shadow proxies when rebuilt. Retired IDs remain unused.
 
 Cruise telemetry recorded the Senna GTR accelerating from **17.2 to 114.8
 km/h** and the Ferrari F2007 from **8.0 to 90.5 km/h**. Runtime stat comparisons
@@ -109,7 +103,8 @@ the separate Viper dashboard asset remains available for the interior camera.
 ## Conversion requirements
 
 Run the commands below from the repository root. These model tools require
-**NumPy, SciPy and Pillow**, separately from Workshop's standard-library GUI. The
+**NumPy and Pillow** for previews and artwork repair, plus **SciPy** when building
+new model packages, separately from Workshop's standard-library GUI. The
 system Python on this computer has all three; the Workshop's smaller `tools/venv`
 environment does not include Pillow. Check your selected interpreter with:
 
@@ -229,8 +224,7 @@ The resulting nine folders match the relative paths in
 [`cars.imported.json`](../car-mods/cars.imported.json). This optional tracked
 preset is identical to `cars.json` in tuning, paint, ratings, factory profiles
 and speedometer ranges; only the nine `model_package` selections differ.
-Mini Rally keeps its native Mini model and requires no download. Close the
-game, preview the installation, then apply this explicit preset:
+Close the game, preview the installation, then apply this explicit preset:
 
 ```powershell
 python tools/car-mods/prepare.py --config tools/car-mods/cars.imported.json
@@ -239,7 +233,7 @@ tools\car-mods\editor.cmd --config tools/car-mods/cars.imported.json --car-id 90
 ```
 
 The explicit `--config` avoids an existing `cars.local.json` silently selecting
-a different setup. To use the same ten-car tuning with donor visuals instead,
+a different setup. To use the same nine-car tuning with donor visuals instead,
 apply `tools/car-mods/cars.json` explicitly. For personal edits without modifying
 the tracked imported preset, copy it to `cars.local.json` and then select that
 file explicitly. Rebuild and reapply both near/far models to receive shadow
@@ -322,7 +316,9 @@ keep their original UVs. The default conversion retains full UV detail and
 rejects excessively broad repeats instead of silently flattening them.
 
 `--icons` also produces transparent `Panoz_Menu.png` (**128 x 64**) and
-`Panoz_Small.png` (**64 x 64**), matching the donor menu image dimensions.
+`Panoz_Small.png` (**64 x 64**), plus `Panoz_Background.png` (**640 x 480**)
+for the blue selection screen. Texture filtering preserves repeating UVs and
+reduces noise in small icons; transparent surfaces use depth-correct alpha.
 Other sources can use `--include` with a regular expression selecting their
 body/wheel mesh names. For the complete static exterior of the other imported
 MM2 cars, use `--include '(?:BODY|BREAK.*|FNDR.*|WHL[0-3])_H'`: wings, mirrors
@@ -356,7 +352,9 @@ The package contains:
 - `package.json`, identifying the target car and its owned asset paths.
 - Near/far `.cmp` models with the imported exterior and wheels.
 - `.omb` material sets and MM3 `.cdds` textures.
-- Imported menu thumbnails when `--icons` is supplied.
+- Imported menu thumbnails when `--icons` is supplied, plus a selection
+  background when `Background.png`, `Car_Background.png` or
+  `Panoz_Background.png` exists in that directory.
 - `conversion-report.json`, recording material mapping, mesh replacements and
   alignment settings, plus source readmes copied from the source directory.
 
@@ -428,6 +426,45 @@ only updates the prepared near/far CMP effect metadata and conversion reports.
 It checks that native node structure and every mesh payload remain unchanged.
 It does not install game files. Close MM3 and reapply the selected packages
 through Workshop to receive the correction on the next launch.
+
+### Repair selection-menu artwork in already prepared packages
+
+Older imports kept the donor car in the blue selection background. Their small
+previews also used nearest texture sampling and could show noisy carbon or tire
+patterns and overlapping glass seams. Regenerate only the menu artwork with:
+
+```powershell
+python tools/car-models/repair_menu.py out/car-models/packages `
+    --backup out/car-models/menu-fix-backups/my-new-backup
+tools\venv\Scripts\python.exe tools/car-mods/prepare.py `
+    --config tools/car-mods/cars.imported.json --apply
+```
+
+Use the Python interpreter with NumPy and Pillow installed for the repair.
+Choose a new backup directory. Close MM3 before applying. The repair renders
+the package's selected source exterior into a matching blue 640 x 480 background
+and transparent 128 x 64 / 64 x 64 icons. It filters repeated textures and uses
+depth-correct alpha. Backgrounds retain the native opaque RGB565 format and
+icons use lossless 32-bit A8R8G8B8 with straight alpha and no mip chains.
+This avoids DXT compression spreading paint colors into tires and windows.
+Models, driving settings,
+body textures and source credits remain unchanged. The original package assets
+and manifests are backed up; new files are listed in `created-files.json`.
+Review the generated PNGs under `out/car-models/menu-repair` before installation.
+The first argument may be one package folder or a parent containing package
+folders. The command validates every package before replacing assets and rolls
+package writes back if installation fails. The source `model.json` and its
+textures referenced by `conversion-report.json` must still be available.
+Select your own `--config` when applying if your model choices live in another
+Workshop manifest; the command above explicitly selects the imported preset.
+
+To regenerate only the two vehicle icons while keeping the installed blue
+backgrounds, add `--icons-only` to the repair command. The generated icon
+pixels survive DDS/CDDS encoding exactly, including their transparent edges.
+
+New `preview.py --icons` output also includes `<prefix>_Background.png`. The
+package builder accepts `Background.png`, `Car_Background.png` or
+`Panoz_Background.png` alongside the two icons.
 
 ## 4. Select the package in Car Workshop
 

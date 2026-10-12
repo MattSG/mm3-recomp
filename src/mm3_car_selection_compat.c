@@ -14,6 +14,7 @@ void sub_001DDFC5(void)
     uint32_t donor;
 
     switch (requested) {
+    case 9001u: donor = 12u; break;  /* Mini Rally -> original Mini. */
     case 9002u: donor = 8u; break;   /* Mustang GT -> Mustang Fastback. */
     case 9003u: donor = 11u; break;  /* Viper Race -> Dodge Viper. */
     case 9007u:                    /* Chiron / Bolide -> Koenigsegg. */

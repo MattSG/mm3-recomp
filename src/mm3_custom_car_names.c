@@ -15,9 +15,6 @@ static const struct {
     const char *key;
     const char *value;
 } car_names[] = {
-    { "SID_CAR_MF_9001", "MINI" },
-    { "SID_CAR_MODEL_9001", "Rally" },
-    { "SID_CAR_SHORT_9001", "MINI Rally" },
     { "SID_CAR_MF_9004", "Panoz" },
     { "SID_CAR_MODEL_9004", "GTR-1" },
     { "SID_CAR_SHORT_9004", "Panoz GTR-1" },

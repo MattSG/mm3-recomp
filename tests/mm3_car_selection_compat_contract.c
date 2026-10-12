@@ -13,8 +13,8 @@ static const uint32_t catalog = 0x100, entries = 0x200, stack = 0xC00;
 static unsigned original_calls;
 static uint32_t expected_request, expected_result;
 static const uint32_t installed_ids[] = {
-    8, 11, 15, /* Original donors remain ordinary catalog entries. */
-    9000, 9001, 9004, 9005, 9006, 9009, 9010, 9011, 9012, 9013
+    8, 11, 12, 15, /* Original donors remain ordinary catalog entries. */
+    9000, 9004, 9005, 9006, 9009, 9010, 9011, 9012, 9013
 };
 
 void sub_001DDFC5_original(void)
@@ -92,6 +92,7 @@ int main(void)
         MEM32(entry) = installed_ids[i];
     }
 
+    check_lookup(9001u, 12u);
     check_lookup(9002u, 8u);
     check_lookup(9003u, 11u);
     check_lookup(9007u, 15u);
@@ -99,7 +100,7 @@ int main(void)
     /* Exhaustive passthrough covers every original ID, all retained custom
      * IDs and unknown IDs on both sides of the retired selections. */
     for (id = 0; id <= 0xFFFFu; ++id) {
-        if (id != 9002u && id != 9003u && id != 9007u && id != 9008u)
+        if (id != 9001u && id != 9002u && id != 9003u && id != 9007u && id != 9008u)
             check_lookup(id, id);
     }
     check_lookup(0x10000u, 0x10000u);
@@ -109,11 +110,12 @@ int main(void)
     MEM32(catalog + 12) = entries;
     for (i = 0; i < sizeof installed_ids / sizeof installed_ids[0]; ++i)
         MEM32(entries + (uint32_t)i * 4u) = 0;
+    check_lookup(9001u, 12u);
     check_lookup(9002u, 8u);
     check_lookup(9003u, 11u);
     check_lookup(9007u, 15u);
     check_lookup(9008u, 15u);
-    puts("PASS: four retired IDs resolve to donors; 65,532 other low IDs and "
+    puts("PASS: five retired IDs resolve to donors; 65,531 other low IDs and "
          "32-bit boundaries pass through; missing donors, RET 4, registers, "
          "catalog and stack bytes preserved");
     return 0;

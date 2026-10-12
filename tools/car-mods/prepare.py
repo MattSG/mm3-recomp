@@ -72,7 +72,6 @@ PAINT_MATERIALS = {
     "lotus": ({"Lacken", "Lacktexturh"}, {"TextureBlank"}),
 }
 IDENTITIES = {
-    9001: ("MRly", "mini", "Mini Rally"),
     9004: ("Panoz", "Viper", "Panoz GTR-1"),
     9005: ("McLaren_F1", "Koenigsegg", "McLaren F1"),
     9006: ("Form1", "Lotus", "Formula 1"),
@@ -223,10 +222,9 @@ def validate_speedometer(settings: dict) -> None:
 
 
 def speedometer_settings(config: dict) -> bytes:
-    """Write only explicit overrides; absent aliases use the retail HUD."""
+    """Write original-car HUD overrides; added cars retain the donor HUD."""
     lines = ["# MM3 speedometer maxima: alias max_kmh max_mph"]
     entries = list(config.get("original_speedometers", {}).items())
-    entries += [(car["alias"], car["speedometer"]) for car in config["cars"] if "speedometer" in car]
     for alias, limits in entries:
         lines.append(f"{alias} {limits['max_kmh']:g} {limits['max_mph']:g}")
     return ("\n".join(lines) + "\n").encode("ascii")
@@ -295,10 +293,13 @@ def load_model_package(car: dict, config_dir: Path) -> list[tuple[str, str, byte
         match = re.fullmatch(pattern, target)
         thumbnail = archive != "loose" and re.fullmatch(r"Menu/Gfx/Vehicles/" + alias + r"(?:_Small)?\.cdds", target)
         loading = archive != "loose" and re.fullmatch(r"LoadingScreens/Default_" + alias + r"\.tga", target)
-        if not (match or thumbnail or loading):
-            raise ValueError("Model destination must be a visual asset in this car's own folder, thumbnail or loading screen")
-        extension = match.group(1) if match else ("cdds" if thumbnail else "tga")
-        if (archive == "loose") != (extension == "cmp"):
+        # The vehicle-selection backdrop is a loose texture, unlike the
+        # archived body textures. Permit exactly this car's native UI path.
+        background = archive == "loose" and target == f"Data/Shared/Cars/{car['alias']}/bg.cdds"
+        if not (match or thumbnail or loading or background):
+            raise ValueError("Model destination must be a visual asset in this car's own folder, thumbnail, selection background or loading screen")
+        extension = match.group(1) if match else ("cdds" if thumbnail or background else "tga")
+        if not background and (archive == "loose") != (extension == "cmp"):
             raise ValueError("Model CMP files must be loose; OMB materials and CDDS textures must be archived")
         destination = (archive, target.casefold())
         if destination in seen:
@@ -324,9 +325,6 @@ def update_section(text: str, section: str, values: dict, remove: set[str] = fro
 def tweak_variant(original: bytes, car: dict) -> bytes:
     text = original.decode("ascii")
     info = {"ID": car["id"], **car["ratings"], "PAINTJOBNAME": car["alias"]}
-    if "speedometer" in car:
-        # The sport HUD supports the native extended digital speed readout.
-        info["SPEEDOMETERTYPE"] = 1
     text = update_section(text, "CarInfo", info, {"LOCKED", "HIDDEN", "ADMITTANCE", "SKIN", "COLOR"})
     colors = "".join(f"\tCOLOR\t\t{i} 0x{c[1:]} 0x{c[1:]}\r\n" for i, c in enumerate(car["colors"]))
     text = text.replace("End(CarInfo)", colors + "End(CarInfo)", 1)

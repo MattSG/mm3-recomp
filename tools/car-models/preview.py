@@ -15,7 +15,7 @@ from pathlib import Path
 import re
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 
 def world_mesh(mesh):
@@ -67,6 +67,64 @@ def textures(model, folder):
     return result
 
 
+def texture_mipmaps(texture):
+    """Filter associated RGB so transparent texels cannot stain icon edges."""
+    current = np.asarray(texture, dtype=float).copy()
+    current[..., :3] *= current[..., 3, None]
+    levels = [current]
+    while current.shape[0] > 1 or current.shape[1] > 1:
+        height, width = current.shape[:2]
+        padded = np.pad(current, ((0, height % 2), (0, width % 2), (0, 0)), mode="edge")
+        current = padded.reshape((height + 1) // 2, 2, (width + 1) // 2, 2, 4).mean(axis=(1, 3))
+        levels.append(current)
+    return levels
+
+
+def sample_texture(mipmaps, coords, *, repeat=False, level=0):
+    """Bilinear/trilinear sampling with the source's top-left UV origin."""
+    level = float(np.clip(level, 0, len(mipmaps) - 1))
+    lower = int(np.floor(level))
+
+    def bilinear(texture):
+        height, width = texture.shape[:2]
+        xy = coords * np.asarray([width, height]) - 0.5
+        base = np.floor(xy).astype(int)
+        fraction = xy - base
+        x0, y0 = base[:, 0], base[:, 1]
+        x1, y1 = x0 + 1, y0 + 1
+        if repeat:
+            x0, x1, y0, y1 = x0 % width, x1 % width, y0 % height, y1 % height
+        else:
+            x0, x1 = np.clip(x0, 0, width - 1), np.clip(x1, 0, width - 1)
+            y0, y1 = np.clip(y0, 0, height - 1), np.clip(y1, 0, height - 1)
+        fx, fy = fraction[:, 0, None], fraction[:, 1, None]
+        top = texture[y0, x0] * (1 - fx) + texture[y0, x1] * fx
+        bottom = texture[y1, x0] * (1 - fx) + texture[y1, x1] * fx
+        return top * (1 - fy) + bottom * fy
+
+    rgba = bilinear(mipmaps[lower])
+    if level > lower:
+        rgba = rgba * (1 - level + lower) + bilinear(mipmaps[lower + 1]) * (level - lower)
+    rgba[:, :3] /= np.maximum(rgba[:, 3, None], 1e-12)
+    return rgba
+
+
+def texture_level(screen, uv, texture):
+    """Estimate the texture footprint of one output pixel on this triangle."""
+    edges = screen[1:] - screen[0]
+    gradient = np.linalg.solve(edges, uv[1:] - uv[0])
+    footprint = np.linalg.norm(gradient * np.asarray([texture.shape[1], texture.shape[0]]), axis=1).max()
+    return max(0.0, float(np.log2(max(footprint, 1e-12))))
+
+
+def edge_coverage(weights, start, end, denominator):
+    # One triangle owns a shared edge. Including it in both leaves darker
+    # diagonal seams when glass or a filtered cutout is blended twice.
+    delta = (end - start) * (1 if denominator > 0 else -1)
+    top_left = delta[1] < 0 or (abs(delta[1]) < 1e-12 and delta[0] > 0)
+    return (weights > 1e-9) | ((np.abs(weights) <= 1e-9) & top_left)
+
+
 def render(meshes, texture_images, direction, size, label, name, *, transparent_background=False):
     width, height = size
     world = [world_mesh(mesh) for mesh in meshes]
@@ -90,7 +148,10 @@ def render(meshes, texture_images, direction, size, label, name, *, transparent_
     light = np.asarray([-0.4, 0.8, -0.35], dtype=float)
     light /= np.linalg.norm(light)
     triangles = []
-    transparent_materials = [bool(np.any((texture[..., 3] > 0.05) & (texture[..., 3] < 0.95)))
+    mipmaps = [texture_mipmaps(texture) for texture in texture_images]
+    opaque_materials = [bool(np.any(texture[..., 3] >= 0.999)) for texture in texture_images]
+    # Bilinear filtering also creates blended pixels on binary cutout edges.
+    transparent_materials = [bool(np.any(texture[..., 3] < 0.999) and np.any(texture[..., 3] > 0.03))
                              for texture in texture_images]
     for p, normals, uv, tris in world:
         local = p - center
@@ -99,10 +160,14 @@ def render(meshes, texture_images, direction, size, label, name, *, transparent_
         depths = local @ forward
         for tri in tris:
             indices, material = tri[:3], int(tri[3])
-            transparent = transparent_materials[material]
-            triangles.append((transparent, float(depths[indices].mean()), screen[indices], depths[indices],
-                              normals[indices], uv[indices], material))
-    # Opaque depth test first, then glass from back to front without depth writes.
+            triangle = (float(depths[indices].mean()), screen[indices], depths[indices],
+                        normals[indices], uv[indices], material)
+            if opaque_materials[material]:
+                triangles.append((False, *triangle))
+            if transparent_materials[material]:
+                triangles.append((True, *triangle))
+    # Depth-test opaque pixels even when their atlas also contains glass.
+    # Blend only partial-alpha pixels from back to front without depth writes.
     triangles.sort(key=lambda item: (item[0], -item[1] if item[0] else item[1]))
     for transparent, _, screen, depths, normals, uv, material in triangles:
         x0, y0 = np.floor(screen.min(axis=0)).astype(int)
@@ -120,7 +185,8 @@ def render(meshes, texture_images, direction, size, label, name, *, transparent_
         wc = 1 - wa - wb
         local_depth = wa * depths[0] + wb * depths[1] + wc * depths[2]
         view_depth = depth_buffer[y0:y1 + 1, x0:x1 + 1]
-        mask = (wa >= -1e-6) & (wb >= -1e-6) & (wc >= -1e-6) & (local_depth < view_depth + 1e-6)
+        mask = (edge_coverage(wa, b, c, denominator) & edge_coverage(wb, c, a, denominator)
+                & edge_coverage(wc, a, b, denominator) & (local_depth < view_depth + 1e-6))
         if not np.any(mask):
             continue
         weights = np.stack((wa[mask], wb[mask], wc[mask]), axis=-1)
@@ -128,12 +194,11 @@ def render(meshes, texture_images, direction, size, label, name, *, transparent_
         # The neutral format explicitly declares a top-left UV origin. Never
         # flip V here: doing so would disguise a conversion orientation bug.
         texture = texture_images[material]
-        if np.any(uv < -1e-6) or np.any(uv > 1 + 1e-6):
-            coords %= 1  # The source uses tiled UVs on tires/carbon/interior.
-        tx = np.rint(np.clip(coords[:, 0], 0, 1) * (texture.shape[1] - 1)).astype(int)
-        ty = np.rint(np.clip(coords[:, 1], 0, 1) * (texture.shape[0] - 1)).astype(int)
-        rgba = texture[ty, tx]
-        valid = rgba[:, 3] > 0.03
+        repeat = bool(np.any(uv < -1e-6) or np.any(uv > 1 + 1e-6))
+        rgba = sample_texture(mipmaps[material], coords, repeat=repeat,
+                              level=texture_level(screen, uv, texture))
+        valid = ((rgba[:, 3] > 0.03) & (rgba[:, 3] < 0.999) if transparent
+                 else rgba[:, 3] >= 0.999)
         if not np.any(valid):
             continue
         ni = weights @ normals
@@ -163,15 +228,65 @@ def render(meshes, texture_images, direction, size, label, name, *, transparent_
     return image
 
 
+def render_menu_icons(meshes, texture_images, name, *, supersample=4):
+    """Return the two transparent menu thumbnails at native dimensions."""
+    images = {}
+    for suffix, dimensions in (("Menu", (128, 64)), ("Small", (64, 64))):
+        image = render(meshes, texture_images, (4, 2, -6),
+                       tuple(value * supersample for value in dimensions), "", name,
+                       transparent_background=True)
+        images[suffix] = image.resize(dimensions, Image.Resampling.LANCZOS)
+    return images
+
+
+def render_selection_background(meshes, texture_images, name, *, size=(640, 480), supersample=2):
+    """Compose source front/rear portraits in the menu's dark blue palette."""
+    width, height = size
+    xs, ys = np.meshgrid(np.linspace(0, 1, width), np.linspace(0, 1, height))
+    glow = np.exp(-((xs - .65) / .8) ** 2 - ((ys - .43) / .25) ** 2)
+    background = np.asarray([.017, .032, .083]) + glow[..., None] * np.asarray([.025, .071, .155])
+    image = Image.fromarray(np.rint(background * 255).astype(np.uint8)).convert("RGBA")
+    bands = Image.new("RGBA", size)
+    draw = ImageDraw.Draw(bands)
+    draw.polygon([(0, height * .48), (width, height * .24), (width, height * .27),
+                  (0, height * .54)], fill=(34, 92, 181, 22))
+    draw.polygon([(0, height * .69), (width, height * .59), (width, height * .62),
+                  (0, height * .72)], fill=(42, 105, 205, 28))
+    image = Image.alpha_composite(image, bands)
+    # Match the native layout: a complete rear view on the right and a
+    # quieter, cropped front portrait on the left. No donor artwork is used.
+    portraits = (((-4, 2, 6), (.76, .74), (.20, .13), 1.0),
+                 ((4, 2, -6), (.76, .71), (-.30, .20), .74))
+    for direction, fraction, position, opacity in portraits:
+        dimensions = (round(width * fraction[0]), round(height * fraction[1]))
+        portrait = render(meshes, texture_images, direction,
+                          tuple(value * supersample for value in dimensions), "", name,
+                          transparent_background=True).resize(dimensions, Image.Resampling.LANCZOS)
+        rgba = np.asarray(portrait, dtype=float) / 255
+        luminance = rgba[..., :3] @ np.asarray([.2126, .7152, .0722])
+        tone = np.power(luminance, .8)
+        rgba[..., :3] = np.asarray([.02, .06, .14]) + tone[..., None] * np.asarray([.11, .31, .65])
+        rgba[..., 3] *= opacity
+        blue = Image.fromarray(np.rint(np.clip(rgba, 0, 1) * 255).astype(np.uint8))
+        x, y = round(width * position[0]), round(height * position[1])
+        shadow = Image.new("RGBA", size)
+        ImageDraw.Draw(shadow).ellipse((x + dimensions[0] * .08, y + dimensions[1] * .72,
+                                       x + dimensions[0] * .95, y + dimensions[1] * .91),
+                                      fill=(0, 3, 12, 110))
+        image = Image.alpha_composite(image, shadow.filter(ImageFilter.GaussianBlur(width * .015)))
+        image.alpha_composite(blue, (x, y))
+    return image.convert("RGB")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("model", type=Path)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--name", default="Panoz GTR-1")
-    parser.add_argument("--include", default=r"BODY_H|WHL[0-3]_H")
+    parser.add_argument("--include", default=r"(?:BODY|BREAK\d+|FNDR[01]|WHL[0-3])_H")
     parser.add_argument("--width", type=int, default=1200)
     parser.add_argument("--height", type=int, default=800)
-    parser.add_argument("--icons", action="store_true", help="Also render transparent 128x64 and 64x64 menu icons")
+    parser.add_argument("--icons", action="store_true", help="Also render native menu icons and a 640x480 blue selection background")
     parser.add_argument("--icon-prefix", default="Car")
     args = parser.parse_args()
     model = json.loads(args.model.read_text(encoding="utf-8"))
@@ -189,11 +304,11 @@ def main():
         render(meshes, texture_images, direction, (args.width, args.height), label, args.name).save(args.out / (filename + ".png"))
         print(f"Rendered {filename}")
     if args.icons:
-        for suffix, dimensions in (("Menu", (128, 64)), ("Small", (64, 64))):
-            image = render(meshes, texture_images, (4, 2, -6), tuple(value * 4 for value in dimensions),
-                           "", args.name, transparent_background=True)
-            image.resize(dimensions, Image.Resampling.LANCZOS).save(args.out / f"{args.icon_prefix}_{suffix}.png")
-            print(f"Rendered transparent {args.icon_prefix}_{suffix}.png {dimensions}")
+        for suffix, image in render_menu_icons(meshes, texture_images, args.name).items():
+            image.save(args.out / f"{args.icon_prefix}_{suffix}.png")
+            print(f"Rendered transparent {args.icon_prefix}_{suffix}.png {image.size}")
+        render_selection_background(meshes, texture_images, args.name).save(args.out / f"{args.icon_prefix}_Background.png")
+        print(f"Rendered {args.icon_prefix}_Background.png (640, 480)")
     images = "".join(f'<figure><img src="{filename}.png"><figcaption>{label}</figcaption></figure>'
                      for filename, _, label in views)
     page = ('<!doctype html><meta charset="utf-8"><title>' + html.escape(args.name) +

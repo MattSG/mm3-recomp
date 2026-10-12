@@ -270,7 +270,7 @@ static void contract_check_geometry(unsigned type, int metric, float maximum, do
 
 static void contract_fallbacks(void)
 {
-    static const char *aliases[] = {"UnknownCar", "BadNan", "BadInfinity", "TooLarge", "TooSmall", "BadMph", "HalfRange"};
+    static const char *aliases[] = {"UnknownCar", "Avant", "Avalanche", "Corvette", "ChevySSR", "Crossfire", "NewBeetle"};
     unsigned i;
     for (i = 0; i < sizeof aliases / sizeof aliases[0]; ++i) {
         contract_initialize(aliases[i], 1, 1);
@@ -292,6 +292,27 @@ static void contract_fallbacks(void)
     contract_initialize("Koenigsegg", 4, 1);
     MEM8(0x13000 + 0x1DC + 4 + 10) = 'X';
     assert(!contract_draw(100) && !contract_quad_count);
+}
+
+static void contract_added_cars_retain_retail(void)
+{
+    static const char *aliases[] = {
+        "Panoz", "McLaren_F1", "Form1", "Ford_GTcar", "Senna_Road",
+        "Senna_GTR1", "FXXK_Racer", "Regera_GT1", "AventadorX", "MRly",
+        "ThisAliasIsLongerThan15"
+    };
+    unsigned alias, type, metric;
+    int loaded = initialized;
+    /* These aliases have valid ranges in the legacy sidecar fixture. Added
+     * cars must still leave the complete native texture and needle path in
+     * control, without submitting replacement quads or loading that file. */
+    for (alias = 0; alias < sizeof aliases / sizeof aliases[0]; ++alias)
+        for (type = 1; type <= 4; type += 3)
+            for (metric = 0; metric <= 1; ++metric) {
+                contract_initialize(aliases[alias], type, (int)metric);
+                assert(!contract_draw(400) && !contract_quad_count);
+                assert(initialized == loaded);
+            }
 }
 
 static void contract_check_cached_geometry(void)
@@ -323,16 +344,17 @@ static void contract_check_cached_geometry(void)
 int main(int argc, char **argv)
 {
     static const struct { const char *alias; float kmh, mph; } cars[] = {
-        {"koenigsegg", 800, 500}, {"PANOZ", 650, 404}, {"MRly", 500, 311},
-        {"ThisAliasIsLongerThan15", 1200, 750}
+        {"koenigsegg", 800, 500}, {"VIPER", 650, 404}, {"Lotus", 500, 311},
+        {"AudiTT", 1200, 750}
     };
     static const double fractions[] = {0, .5, 1, 2, -1};
     unsigned car, type, metric, speed;
     assert(argc == 2);
+    contract_added_cars_retain_retail();
     if (strcmp(argv[1], "configured")) {
         contract_initialize("Koenigsegg", 4, 1);
         assert(!contract_draw(800) && !contract_quad_count);
-        contract_initialize("Panoz", 1, 0);
+        contract_initialize("Viper", 1, 0);
         assert(!contract_draw(800) && !contract_quad_count);
         puts("PASS: absent/invalid settings retain the complete retail dial and guest state");
         return 0;
@@ -353,8 +375,15 @@ int main(int argc, char **argv)
     assert(contract_draw(NAN)); contract_check_geometry(4, 1, 800, NAN);
     contract_initialize("Koenigsegg", 4, 1);
     assert(contract_draw(INFINITY)); contract_check_geometry(4, 1, 800, INFINITY);
+    /* Keep heap-backed guest-string coverage for an eligible retail alias. */
+    contract_initialize("AudiTT", 4, 1);
+    MEM32(0x13000 + 0x1DC + 0x18) = 31;
+    MEM32(0x13000 + 0x1DC + 4) = 0x14000;
+    memcpy((void *)XBOX_PTR(0x14000), "AudiTT", 7);
+    assert(contract_draw(600)); contract_check_geometry(4, 1, 1200, 600);
+    contract_added_cars_retain_retail();
     contract_fallbacks();
     contract_check_cached_geometry();
-    puts("PASS: 82 configured dials; decoded labels, calibrated clamped needles, native ABI, complete guest state, fallbacks and exact cached geometry (two trig calls per warm frame)");
+    puts("PASS: added cars retain complete retail dials before/after legacy settings load; 83 unchanged original overrides, decoded labels, calibrated clamped needles, native ABI, complete guest state, fallbacks and exact cached geometry");
     return 0;
 }

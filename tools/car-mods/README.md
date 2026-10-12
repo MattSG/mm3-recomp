@@ -1,6 +1,6 @@
 # Extra cars and editable stats
 
-Car Workshop supports ten separately selectable extra-car identities.
+Car Workshop supports nine separately selectable extra-car identities.
 The original 35 cars remain in the catalog. Each variant has its own name,
 ratings and driving setup, with an original MM3 donor providing physics,
 interior, sound and collision. A selected prepared model package supplies its
@@ -12,7 +12,6 @@ reference information.
 
 | Added car | Original MM3 donor |
 |---|---|
-| Mini Rally | Mini |
 | Panoz GTR-1 | Dodge Viper |
 | McLaren F1 | Koenigsegg |
 | Formula 1 | Lotus |
@@ -34,7 +33,7 @@ of the game's ratings, not a measured lap-time or real-world performance claim.
 
 Equal scores keep the originals' relative retail order, followed by custom
 cars in manifest order. Every apply recalculates `Cars/Tweak/SortOrder` for all
-45 cars without changing physics, ratings, IDs, or model selections. The preview
+44 cars without changing physics, ratings, IDs, or model selections. The preview
 prints each car's position and score; original cars use their archive aliases.
 Changing a custom menu rating can therefore change its position on the next
 apply, while editing physics alone does not change its rank.
@@ -60,7 +59,7 @@ tools\car-mods\editor.cmd --car-id 9004 --tab model
 ```
 
 Tabs are `specs`, `driving`, `gears`, `advanced` and `model`. The added car IDs are
-9001, 9004–9006 and 9009–9014. Removed IDs 9002, 9003, 9007 and 9008 remain
+9004–9006 and 9009–9014. Removed IDs 9001–9003, 9007 and 9008 remain
 unused, so the remaining cars keep their existing identities. Older manifests
 containing a removed car must have that entry removed before applying.
 
@@ -69,7 +68,7 @@ file exists, otherwise [cars.json](cars.json). The local file is ignored by
 Git, so your model selections and tuning can stay on this computer. To start
 local settings on a fresh checkout, copy `cars.json` to `cars.local.json`
 before opening Workshop. An explicit `--config <path>` always selects that
-manifest. The tracked ten-car defaults contain no imported model paths;
+manifest. The tracked nine-car defaults contain no imported model paths;
 downloaded sources and prepared model packages are kept outside the release.
 
 The **Car specs** tab opens first and identifies the actual model: the F1
@@ -85,9 +84,10 @@ The reset values live in [driving_defaults.py](driving_defaults.py), so saving
 custom tuning into a manifest does not change the reset target.
 
 Choose a car on the left. Edit its paint colors, menu ratings, physics, gearing,
-RPM thresholds and **Speedometer maximum** values. The maximum km/h and mph
-values set both the on-screen dial scale and the interior needle range for added
-cars. **Original car speedometers…** opens a selector for the original sports
+RPM thresholds and **Interior speedometer maximum** values. The maximum km/h
+and mph values set the interior dashboard needle range for added cars. Their
+on-screen speedometers keep the donor's native font, artwork, gauge style and
+scale. **Original car speedometers…** opens a selector for the original sports
 cars, including Koenigsegg, Viper and Lotus. Edit their dial maxima, then choose
 **Keep changes** before saving in the main window. Original-car physics stay
 unchanged. The paint preview is a
@@ -128,7 +128,9 @@ selected car. File paths use forward slashes. Only loose `.cmp` meshes and
 archived `.omb` materials or `.cdds` textures in that alias's car/LOD folders
 are accepted. Packages may also supply archived menu icons at
 `Menu/Gfx/Vehicles/<alias>.cdds` and `<alias>_Small.cdds`, and the associated
-`LoadingScreens/Default_<alias>.tga`. Other cars' icons and loading screens are
+`LoadingScreens/Default_<alias>.tga`. The car's selection background is allowed
+at the exact loose path `Data/Shared/Cars/<alias>/bg.cdds`. Other loose textures,
+other cars' icons, backgrounds and loading screens are
 rejected. Source files must remain inside the package and cannot be links
 or junctions. Keep the package folder available for future reapplication.
 Package assets participate in the normal backup, integrity, rollback and
@@ -221,20 +223,19 @@ to change gear. Wheelspin can therefore raise engine RPM before the car reaches
 its upshift speed. Changing `MinRPMGearChange` alone does not change these
 automatic upshift speeds.
 
-For example, change Mini Rally's `physics.TorqueScale` from `380` to `400`
+For example, change Panoz's `physics.TorqueScale` from `750` to `800`
 for more engine torque, then reapply the pack. Its acceleration menu bar is
 controlled separately by `ratings.ACCELERATION`.
 
 The optional `speedometer` object contains `max_kmh` and `max_mph`, controlling
-the on-screen dial maximum and the interior dashboard needle range separately
-from driving performance. The extra-car defaults range from 220 km/h / 140 mph
-for Mini Rally to 440 km/h / 280 mph for Regera. These saved gauge ranges do not
-predict the tuned car's top speed. The dial labels and needle use the selected maximum
-in the game's current units. Numeric speed below the dial continues above that
-maximum. Raising the range does not add engine power or change the menu's
-`TOPSPEED` rating. Allowed ranges are 100–1200 km/h and 60–750 mph; both values
-are required for an override. Leave both editor fields blank to restore the
-original HUD scale and inherit the donor's interior needle range.
+the added car's interior dashboard needle range separately from driving
+performance. The on-screen speedometer retains the donor's native font, artwork,
+gauge style and scale. Interior defaults range from 360 km/h / 240 mph for
+Panoz to 440 km/h / 280 mph for Regera. These saved ranges do not predict the
+tuned car's top speed or change engine power or the menu's `TOPSPEED` rating.
+Allowed ranges are 100–1200 km/h and 60–750 mph; both values are required for an
+override. Leave both editor fields blank to inherit the donor's interior needle
+range.
 
 The optional top-level `original_speedometers` map sets on-screen dial maxima
 for original sports cars without changing their physics, paint or interior
@@ -247,10 +248,11 @@ to 800 km/h / 500 mph. For example:
 }
 ```
 
-The installer writes the configured ranges to `Data/mm3_speedometers.ini`.
-This file is tracked with the installed assets, rebuilt on reapplication and
+The installer writes only original-car HUD overrides to
+`Data/mm3_speedometers.ini`. Added-car interior ranges stay in the car camera
+settings. The sidecar is tracked with the installed assets, rebuilt on reapplication and
 removed by restoration. The game reads it at startup, so restart MM3 after
-applying changes. A car with no explicit override uses its original HUD.
+applying changes. An original car with no explicit override uses its retail HUD.
 
 The installer preserves a backup of each affected archive and checks unchanged
 resources keep their original bytes and local-header offsets. It never edits
@@ -279,11 +281,22 @@ The verifier reports the actual loaded catalog IDs, names and ratings, and
 checks the expected extra entries. It also reports the current player's
 simulation when a car is active.
 
-Run the editor/installer and native HUD checks without starting the game:
+Run the editor/installer and optional model-tool tests without starting the game.
+Use an interpreter with NumPy, SciPy and Pillow installed for the combined suite,
+as described in the [model guide](../car-models/README.md#conversion-requirements).
+The smaller build venv does not include all of those optional packages:
+
+```powershell
+python -c "import numpy, scipy, PIL; print('Model tools ready')"
+python -m unittest discover -s tests -p "test_car*.py"
+python -m unittest discover -s tests -p "test_mm3*.py"
+python -m unittest discover -s tests -p "test_factory_specs.py"
+```
+
+Then activate the native compiler environment for the HUD checks:
 
 ```powershell
 . .\scripts\enter-env.ps1
-python -m unittest discover -s tests -p "test_car*.py"
 python tests/mm3_speedometer_regression.py
 python tests/mm3_speedometer_dial_regression.py
 ```

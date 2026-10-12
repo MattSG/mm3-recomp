@@ -83,17 +83,21 @@ reference workflow uses a bare XDVDFS XISO rather than a two-part redump image.
   so choosing Next Race displays the A/Start prompt instead of a black screen.
 - **Driving and selection:** arrow-key driving, camera and manual-shift controls,
   focus-aware keyboard input, and selection of all 35 supported-disc car models.
-- **Car workshop:** ten extra tuned variants, optional prepared model
+- **Car workshop:** nine extra tuned variants, optional prepared model
   packages, editable paint and driving stats, sourced specification references
   and a **Restore default driving** action. The presets retain the stock donor
   engine, gearbox and handling, adjusting only weight and power. Each extra
-  car has its own HUD/interior speedometer
-  range, with analog HUD gauges.
+  car uses its donor's HUD font, artwork and gauge style, with its own optional
+  interior speedometer range.
 
 The detailed settings and runtime notes below describe these changes and their
 limits. See the [car-pack guide](tools/car-mods/README.md) for further tuning examples.
 
 ## Upstream comparison (2026-10-12)
+
+This is a historical comparison against the snapshots below. Its missing-fix
+statuses describe that audit baseline, with subsequent implementations marked
+explicitly; they are not a fresh comparison against upstream's current `main`.
 
 Compared the actual local sources and generated Xbox C with
 [MattSG/mm3-recomp at `a24b737`](https://github.com/MattSG/mm3-recomp/commit/a24b737)
@@ -230,7 +234,7 @@ Run these commands from the repository directory, not its parent folder.
 The tag **[v2026.10.12.3](https://github.com/lakshya16157/midtown-madness-3-PC-Native/tree/v2026.10.12.3)**
 pins this fork's gameplay improvements at that snapshot: race/menu loading and heap fixes, building
 detail fades, visibility and rendering work, corrected imported-car shadow
-generation, and the ten researched car presets with their gearing and gauges.
+generation, and researched car presets with their gearing and gauges.
 It also includes the joined pause-menu buttons, Space handbrake, the closest
 chase camera's 0.25 m adjustment, adjustable driving FOV, aligned race-map
 checkpoints and model credits. This snapshot adds map zoom and race guidance,
@@ -239,7 +243,9 @@ repair tools, and restored factory driving defaults. The earlier `v2026.10.12`,
 `v2026.10.12.1` and `v2026.10.12.2` tags remain available as previous snapshots.
 Use this tag to reproduce that source and settings version after `main` moves on.
 The minimal-logging launcher default and detailed future-fix checklist were
-added later on `main`.
+added later on `main`. This historical tag has ten added car slots, including
+Mini Rally. Current `main` has nine after retiring Mini Rally, preserves donor
+HUD styles for added cars, and adds the selection-artwork repair described below.
 
 If you have already extracted or recompiled the game with upstream, the generated
 Xbox C alone does not contain this fork's native hooks, runtime patch or car data.
@@ -255,7 +261,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\play.ps1 -Profile Ba
 
 Setup applies the committed runtime patch to the pinned submodule, generates the
 supported translation, configures all native hooks and builds the game. Installing
-the car preset is a separate step: setup alone does not install the ten extras.
+the car preset is a separate step: setup alone does not install this tag's ten extras.
 The explicit `--config` selects the published settings even if a machine has a
 different `cars.local.json`. `git describe --tags --exact-match` should report
 `v2026.10.12.3`; `git submodule status` should show the pinned toolkit, without a
@@ -273,8 +279,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\play.ps1 -Profile Ba
 ```
 
 The preset points at `out/car-models/packages/<alias>` for each imported car and
-uses the same tuning as `cars.json`. Mini Rally keeps its native Mini body. Game
-files, source-model downloads and prepared packages are not bundled in the tag;
+uses the same tuning as `cars.json`. In this tag, Mini Rally retains its native
+Mini body. Game files, source-model downloads and prepared packages are not bundled in the tag;
 without building those packages, use `cars.json` for the same car slots and tuning
 with donor visuals. Keep the source authors' readmes and applicable usage terms.
 
@@ -466,8 +472,8 @@ unlock keys to your save.
 
 ## Added cars and editing stats
 
-The optional [extra-car pack](tools/car-mods/README.md) adds ten separately
-selectable slots alongside the 35 original cars: Mini Rally,
+The optional [extra-car pack](tools/car-mods/README.md) adds nine separately
+selectable slots alongside the 35 original cars:
 Panoz GTR-1, McLaren F1, Formula 1, Ford GT,
 McLaren Senna, McLaren Senna GTR, Ferrari FXX K, Koenigsegg Regera and Lamborghini
 Aventador. Each has its own name, paint settings, menu ratings and driving setup.
@@ -477,12 +483,17 @@ The remaining slots retain their IDs. Profiles that remember a removed custom
 car use its original donor vehicle, without restoring the removed menu entry.
 
 The supplied defaults use stock donor visuals. Workshop's **Model** tab can
-select prepared imported body, wheel, texture and menu-icon packages; reapplying
+select prepared imported body, wheel, texture and selection-artwork packages; reapplying
 stats preserves that selection. The [model workflow](tools/car-models/README.md)
 documents the verified Panoz, F1 GTR, Ferrari F2007, Ford GT, Senna, Senna GTR,
 FXX K, Regera and Aventador conversions. Downloaded models and generated packages
 are not distributed in this repository. Imported initial liveries remain fixed,
 glass is opaque, and interior, sounds and collision remain based on the donor.
+The [menu-artwork repair](tools/car-models/README.md#repair-selection-menu-artwork-in-already-prepared-packages)
+regenerates selection icons and blue backgrounds from each package's source
+exterior, with backups. The preview and repair tools require NumPy and Pillow;
+building new model packages also requires SciPy. Close MM3, repair the selected
+packages, then reapply the matching Workshop manifest to install the new artwork.
 Roadside trees fall in the impact direction at or above 18 km/h, retaining
 native impact sounds and effects while clearing the struck tree's collision.
 Defaults retain the donor's engine curve, automatic shifting, gearbox and
@@ -559,7 +570,7 @@ paint colors in `#rrggbb` format.
 | `MaxTorqueRPM`, `MaxTurboTorqueRPM` | Peak torque RPM references; automatic shift target in donor mode. |
 | `GearStatusDownGearFactor` | Automatic downshift factor. |
 
-For example, changing Mini Rally's `physics.TorqueScale` from `380` to `400`
+For example, changing Panoz's `physics.TorqueScale` from `750` to `800`
 increases engine torque. Changing `ratings.ACCELERATION` changes only its menu bar.
 The installer validates supported value ranges before applying changes.
 
@@ -587,17 +598,18 @@ rejects conflicting thresholds in custom edits. Select **Automatic** or **Manual
 in the game's car setup; Manual uses **R/F** on the MM3 keyboard layout or Xbox
 **B/X** to shift up/down while driving.
 
-The optional `speedometer.max_kmh` and `speedometer.max_mph` values set the
-HUD dial and interior dashboard needle range. Extra-car ranges provide rounded
-headroom for each preset: **220 km/h / 140 mph** for Mini Rally through
+The optional `speedometer.max_kmh` and `speedometer.max_mph` values set an added
+car's interior dashboard needle range. Its on-screen speedometer keeps the
+donor's native font, artwork, gauge style and scale. Interior ranges provide
+rounded headroom for each preset: **360 km/h / 240 mph** for Panoz through
 **440 km/h / 280 mph** for Regera. Enter both limits, or leave both blank in the
-editor to inherit the donor gauge. These limits change the gauge, not engine
-power, actual top speed or the `TOPSPEED` menu rating. In the workshop, use
+editor to inherit the donor interior gauge. These limits change the interior
+needle range, not engine power, actual top speed or the `TOPSPEED` menu rating. In the workshop, use
 **Original car speedometers…** to change original sport and Koenigsegg HUDs.
 Koenigsegg, Viper and Lotus default to 800 km/h / 500 mph. Their original physics
 and interior gauges stay unchanged. Blank original limits restore the retail HUD.
 The numeric speed readout is hidden in every HUD layout; analog dials and
-their configured ranges remain active.
+their native styles remain active. Original-car HUD overrides remain available.
 
 The installer backs up affected game archives and reuses those originals when
 reapplying, so edits do not accumulate. It does not edit saved profiles. To

@@ -140,6 +140,7 @@ static void parser_contract(void)
     char bad_order[] = "Form1 18000 .33 3 0 .2 19000 1 18000 .8";
     char bad_precision[] = "Form1 18000 .33 4 0 .2 18000 1 18000.00000001 .8 19000 .7";
     char bad_alias[] = "Viper 18000 .33 2 0 1 19000 .8";
+    char retired_alias[] = "MRly 18000 .33 2 0 1 19000 .8";
     char bad_fraction[] = "Form1 18000 .33 2 0 1.01 19000 .8";
     char bad_shift[] = "Form1 20000 .33 2 0 1 19000 .8";
     char bad_first[] = "Form1 18000 .33 2 100 1 19000 .8";
@@ -147,6 +148,7 @@ static void parser_contract(void)
     assert(!parse_profile(bad_count, &profile)); assert(!parse_profile(bad_nan, &profile));
     assert(!parse_profile(bad_order, &profile)); assert(!parse_profile(bad_precision, &profile));
     assert(!parse_profile(bad_alias, &profile)); assert(!parse_profile(bad_fraction, &profile));
+    assert(!parse_profile(retired_alias, &profile));
     assert(!parse_profile(bad_shift, &profile)); assert(!parse_profile(bad_first, &profile));
     load_profiles();
     assert(profile_count == 1 && initialized);
@@ -315,7 +317,7 @@ static void wheel_path_contract(void)
 #ifdef MM3_FACTORY_DEFAULTS
 static void default_driving_contract(void)
 {
-    const char *aliases[] = {"MRly", "Panoz", "McLaren_F1", "Form1", "Ford_GTcar",
+    const char *aliases[] = {"Panoz", "McLaren_F1", "Form1", "Ford_GTcar",
         "Senna_Road", "Senna_GTR1", "FXXK_Racer", "Regera_GT1", "AventadorX"};
     unsigned i;
     assert(initialized && profile_count == 0);

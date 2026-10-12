@@ -75,6 +75,19 @@ static int same_alias(const char *a, const char *b)
     return *a == *b;
 }
 
+static int original_alias(const char *alias)
+{
+    static const char *const names[] = {
+        "AudiTT", "Avalanche", "Avant", "ChevySSR", "Corvette", "Crossfire",
+        "Koenigsegg", "Lotus", "MFastBack", "NewBeetle", "Saab93",
+        "SerpentMk2", "Viper"
+    };
+    unsigned i;
+    for (i = 0; i < sizeof names / sizeof names[0]; ++i)
+        if (same_alias(names[i], alias)) return 1;
+    return 0;
+}
+
 static int valid_alias(const char *alias)
 {
     const unsigned char *p = (const unsigned char *)alias;
@@ -351,8 +364,13 @@ int mm3_speedometer_draw(uint32_t node, uint32_t frame, double speed_kmh)
         MEM32(frame - 344u) == 1u) return 0;
     type = MEM32(frame - 36u);
     if (type != 1u && type != 4u) return 0;
+    /* Added cars retain their donor's complete native gauge: the retail
+     * artwork includes its font, tick marks and units, and the original
+     * needle is calibrated to those labels. Also ignore stale extra-car
+     * overrides left by an older installer. */
+    if (!player_alias(alias) || !original_alias(alias)) return 0;
     load_ranges();
-    if (!range_count || !player_alias(alias)) return 0;
+    if (!range_count) return 0;
     for (i = 0; i < range_count; ++i)
         if (same_alias(ranges[i].alias, alias)) break;
     if (i == range_count) return 0;
