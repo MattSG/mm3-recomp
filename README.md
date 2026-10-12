@@ -3,6 +3,15 @@
 Static recompilation of the Xbox title Midtown Madness 3 to native x86-64 Windows, on the
 [xboxrecomp](tools/xboxrecomp) runtime, rendering through Direct3D 11.
 
+## AI-generated code warning
+
+This repository is essentially vibe coded: nearly all of the project code was written
+with AI assistance. Expect bugs, rough edges, questionable design choices, and bad code.
+Treat it as an experiment, not a guarantee of correctness or code quality.
+
+Pull requests, bug reports, reviews, and cleanups are welcome. If you spot something
+broken or a better way to do it, please help improve it.
+
 ## Building from a fresh clone
 
 You need Windows 10/11 x64, Visual Studio 2022 or newer with **Desktop development with C++**
