@@ -110,7 +110,13 @@ Submit only code and materials you created or have permission to share, and
 preserve applicable third-party notices. Report copyright concerns through an
 issue without reposting the disputed material.
 
-A project-wide licence for original project code has not yet been selected.
+## Licence
+
+Original project code is licensed under the [MIT License](LICENSE). Original
+contributions submitted to this project are provided under the same licence.
 Third-party components retain their own licences; see [THIRD_PARTY.md](THIRD_PARTY.md)
-and the [runtime's licence](tools/xboxrecomp/LICENSE). These notices do not grant
-a licence to the original game or replace the need for appropriate permissions.
+and the [runtime's licence](tools/xboxrecomp/LICENSE).
+
+The MIT licence covers only rights the project's contributors can grant. It
+does not license Midtown Madness 3, Xbox software, game assets, trademarks,
+or other third-party material, or replace the need for appropriate permissions.
