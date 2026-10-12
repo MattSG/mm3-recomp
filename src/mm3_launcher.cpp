@@ -26,6 +26,7 @@ struct Option {
     bool toggle; /* Off/On: drawn as a switch */
     bool fixed;  /* one choice: shown, not changeable */
     bool dev;    /* a developer tool: shown while that mod is on */
+    bool text;   /* typed rather than chosen */
 };
 
 /* A key for a pad input (RECOMP_KEYMAP, defaults from
@@ -63,6 +64,14 @@ Rml::Vector<Option> g_options = {
      {{"1", "Xbox"}, {"2", "2x"}, {"3", "3x"}, {"4", "4x"}}},
     {"", "View distance", "How far the city is drawn.", "RECOMP_VIEW_DISTANCE", "2", "",
      {{"1", "Xbox"}, {"2", "2x"}, {"3", "3x"}, {"4", "4x"}}},
+    {"Network", "Network", "System link and Xbox Live through the PC's connection.", "RECOMP_NET", "", "",
+     {{"", "Off"}, {"nat", "On"}}},
+    {"", "Online service", "Insignia revives Xbox Live; it needs an account on the console's hard disk.",
+     "RECOMP_NET_DNS", "", "", {{"", "Your DNS"}, {"46.101.64.175", "Insignia"}}},
+    {"", "Direct play", "Other players to link with, as address:port, comma separated. "
+     "One side is enough: the other is found when it first hears from you.", "RECOMP_NET_PEERS", "", "", {{"", ""}}},
+    {"", "Your port", "UDP port other players reach you on. Forward it on your router to be found.",
+     "RECOMP_NET_PORT", "3075", "", {{"", ""}}},
     {"Developer", "Developer HUD", "Position, damage, speed, RPM and gear. Needs tools\\debug-features\\prepare.py.",
      "MM3_DEV_HUD", "", "", {{"", "Off"}, {"1", "On"}}},
     {"", "Debug menu", "The retail developer menu (D-pad). Needs prepare.py.",
@@ -112,6 +121,7 @@ int g_fo = -1, g_fb = -1; /* the focused option or bind, -1 none */
 bool g_nav;
 bool g_pad;    /* the last input was a controller: show its button hints */
 bool g_scroll; /* bring the focused row into view after the next update */
+int g_type = -1; /* a text option whose field takes the keyboard next update */
 
 const char kDocument[] = R"RML(
 <rml><head><title>Midtown Madness 3</title><style>
@@ -134,6 +144,10 @@ h2 { margin: 18dp 10dp 4dp 10dp; font-size: 11dp; font-weight: bold; letter-spac
 .opt.focus .seg .btn.on { background-color: #e8a33d; color: #17120a; }
 .opt.focus .key { background-color: #2a2e36; color: #ffffff; }
 .fixed { font-size: 13dp; color: #80848f; }
+input.field { flex: 0 0 200dp; width: 200dp; padding: 5dp 10dp; border-radius: 6dp; background-color: #1d2026; color: #e6e7ea;
+              font-size: 13dp; cursor: text; }
+input.field:focus { background-color: #2a2e36; }
+.opt.focus input.field { background-color: #2a2e36; }
 .text { flex: 1 1 0; min-width: 0; padding-right: 16dp; }
 .hint { margin-top: 1dp; font-size: 12dp; color: #80848f; }
 .seg { flex: 0 1 auto; padding: 2dp; border-radius: 6dp; background-color: #1d2026; text-align: right; }
@@ -200,7 +214,8 @@ scrollbarvertical sliderbar { background-color: #2f333c; border-radius: 2dp; }
       <div class="opt" data-class-focus="fo == i">
         <div class="text"><div>{{ o.label }}</div><div class="hint" data-if="o.hint != ''">{{ o.hint }}</div></div>
         <div class="fixed" data-if="o.fixed">{{ o.choices[0].label }}</div>
-        <div class="seg" data-if="!o.toggle && !o.fixed"><div class="btn" data-for="c : o.choices" data-class-on="c.value == o.value"
+        <input class="field" type="text" data-if="o.text" data-value="o.value"/>
+        <div class="seg" data-if="!o.toggle && !o.fixed && !o.text"><div class="btn" data-for="c : o.choices" data-class-on="c.value == o.value"
              data-event-click="set(i, c.value)">{{ c.label }}</div></div>
         <div class="switch" data-if="o.toggle" data-class-on="o.value != o.choices[0].value" data-event-click="toggle(i)"><div class="knob"/></div>
       </div>
@@ -305,6 +320,8 @@ void reset_all()
 
 bool valid(const Option &o, const Rml::String &v)
 {
+    if (o.text) /* one ini line: printable, bounded */
+        return v.size() < 200 && v.find_first_of("\r\n") == Rml::String::npos;
     for (const Choice &c : o.choices)
         if (c.value == v)
             return true;
@@ -356,7 +373,8 @@ void load_settings()
     for (Option &o : g_options)
     {
         o.toggle = o.choices.size() == 2 && o.choices[0].label == "Off";
-        o.fixed = o.choices.size() == 1;
+        o.text = o.choices.size() == 1 && o.choices[0].label.empty(); /* {{"", ""}}: typed */
+        o.fixed = o.choices.size() == 1 && !o.text;
         o.dev = o.env == "MM3_DEV_HUD" || o.env == "MM3_DEBUG_MENU" || o.env == "MM3_EXTENDED_CAMERAS" ||
                 o.env == "MM3_E3_PRESET" || o.env == "MM3_DEV_HOTKEYS_ON";
     }
@@ -540,6 +558,8 @@ void navigate(Nav act)
         g_row += act == UP ? -1 : 1;
     else if (f.bind && act == ACCEPT)
         start_rebind(f.i);
+    else if (!f.bind && g_options[f.i].text)
+        g_type = act == ACCEPT ? f.i : g_type;   /* the loop focuses its field */
     else if (!f.bind)
         step(g_options[f.i], act == LEFT ? -1 : 1, act == ACCEPT);
     show_focus();
@@ -663,10 +683,22 @@ bool list_ready(Rml::Context *ctx)
     return list && list->GetScrollTop() > 0;
 }
 
-bool on_key(Rml::Context *, Rml::Input::KeyIdentifier key, int mods, float, bool priority)
+bool on_key(Rml::Context *ctx, Rml::Input::KeyIdentifier key, int mods, float, bool priority)
 {
     if (!priority)
         return true;
+    /* A text field being typed in keeps its keys; Enter, Esc and up/down
+     * leave it. */
+    Rml::Element *typing = ctx->GetFocusElement();
+    if (typing && typing->GetTagName() == "input" && !g_splash && g_capture < 0) {
+        if (key != Rml::Input::KI_RETURN && key != Rml::Input::KI_ESCAPE &&
+            key != Rml::Input::KI_UP && key != Rml::Input::KI_DOWN)
+            return true;
+        typing->Blur();
+        if (key == Rml::Input::KI_UP || key == Rml::Input::KI_DOWN)
+            navigate(key == Rml::Input::KI_UP ? UP : DOWN);
+        return false;
+    }
     if (g_splash) {   /* any key skips the splash */
         g_splash = 0;
         g_model.DirtyVariable("splash");
@@ -739,6 +771,7 @@ bool bind_model(Rml::Context *ctx)
         o.RegisterMember("toggle", &Option::toggle);
         o.RegisterMember("fixed", &Option::fixed);
         o.RegisterMember("dev", &Option::dev);
+        o.RegisterMember("text", &Option::text);
     }
     m.RegisterArray<Rml::Vector<Option>>();
     if (auto b = m.RegisterStruct<Bind>()) {
@@ -841,6 +874,14 @@ extern "C" int mm3_launcher(void)
                 if (Rml::Element *list = doc->GetElementById("list"))
                     list->SetScrollTop(0);
                 ctx->Update();
+            }
+            if (g_type >= 0 && doc) { /* A or Space on a text row: type in it */
+                Rml::ElementList fields;
+                if (Rml::Element *row = doc->GetElementById("o" + Rml::ToString(g_type)))
+                    row->GetElementsByTagName(fields, "input");
+                if (!fields.empty())
+                    fields[0]->Focus();
+                g_type = -1;
             }
             if (g_scroll && doc) {
                 g_scroll = false;

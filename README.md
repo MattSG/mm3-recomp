@@ -87,7 +87,7 @@ rules; mods supply them through its hooks (overlay placement, menu pointer, B-sp
 | Menu mouse | `MM3_MOD_MENU_MOUSE` | on | With `RECOMP_MENU_KEYS`, pointing at a menu item selects it. |
 | Developer tools | `MM3_MOD_DEV_TOOLS` | off | The `MM3_DEV_*` options and hotkeys below. |
 | Teleport debugger | `MM3_DEBUG_TELEPORT` | off | See `DEBUG_TELEPORT.md`. |
-| Offline network | `MM3_MOD_OFFLINE` | on | The frontend stops waiting for Xbox Live readiness (`src/mods/offline.c`). Off: about 9 s slower startup. |
+| Offline network | `MM3_MOD_OFFLINE` | on | The frontend stops waiting for network readiness (`src/mods/offline.c`); needed only with the network off. Off, without a network: about 9 s slower startup. |
 | Collision cell guard | — | always | Repairs out-of-range face indices in a Paris collision cell (`src/mods/collision_fix.c`); without it the game can freeze or drop the car through the road. |
 | Translation corrections | `MM3_MOD_TRANSLATION` | on | Hand-written fixes that make the generated code match the original (`src/mm3_*.c`, `recomp_manual.c`). Off: generated bodies run unwrapped where they exist. Not on the launcher: a developer switch. |
 | Disc check bypass | — | always | The media check is patched at setup (`scripts/extract_disc.py`). |
@@ -116,12 +116,36 @@ rules; mods supply them through its hooks (overlay placement, menu pointer, B-sp
 | `RECOMP_VIEW_DISTANCE` | `2` | City view distance and far-plane multiplier (1 = Xbox, up to 4). Past the Xbox 700 m the game only has low-detail blocks; the distance haze fades them into the sky (63% at 700 m, all but gone by 1400 m), so 4 looks like 2. Textured building facades reach twice as far (capped at 2). |
 | `RECOMP_PS_SPEC` | `1` | `0`: skip specialised pixel shaders (slow; for debugging). |
 | `MM3_SAVE_DIR` | built-in | Folder holding the HDD/save partition images. |
+| `RECOMP_NET` | off | `nat`: the network adapter (see Network below). |
+| `RECOMP_NET_DNS` | the PC's | DNS server the console's queries go to; `46.101.64.175` is Insignia's. |
+| `RECOMP_NET_PEERS` | none | Other players for direct play, `address:port,...`. |
+| `RECOMP_NET_PORT` | `3075` | UDP port for direct play. |
+| `RECOMP_NET_MAC` | from the PC | The console's MAC, `00:50:F2:xx:xx:xx`; derived from the PC name and port otherwise. |
+| `RECOMP_NET_TRACE` / `RECOMP_NIC_TRACE` | off | Log the first frames each way / the adapter's register accesses. |
 | `MM3_DEBUG_TELEPORT` | off | The teleport debugger mod: a panel with live X/Y/Z and heading that places the car on the ground at a typed X/Z and heading (degrees), and the pipe `tools\powershell\Send-MM3Teleport.ps1` drives. See `DEBUG_TELEPORT.md`. |
 | `MM3_DEV_HOTKEYS` | off | `HUD:VK,MENU:VK,CAMERAS:VK` (hex): toggle the developer HUD, debug menu and extended cameras with those keys in a race. Same prerequisite as below, plus probes 10-12 (re-run `prepare.py`). The launcher's Controls tab writes it (F1/F2/F3 by default). |
 | `MM3_DEV_HUD` | off | `1`: the retail build's own developer HUD (position, damage, speed/RPM/gear). Needs `tools\debug-features\prepare.py` first. |
 | `MM3_DEBUG_MENU` | off | `1`: the retail developer menu (D-pad to select and change). Same prerequisite. |
 | `MM3_EXTENDED_CAMERAS` | off | `1`: the developer camera modes. Same prerequisite. |
 | `MM3_E3_PRESET` | off | `1`: run the shipped `E3settings.lua`. Same prerequisite. |
+
+### Network
+
+The game's own XNet drives an emulated nForce Ethernet adapter (`tools/xboxrecomp/src/net/nvnet.c`,
+ported from xemu), so the network stack is the original one: DHCP, system link, Xbox Live. Frames go
+through a user-mode NAT on the PC's own sockets, as xemu's default network does: the console sits at
+`10.0.2.x` behind a router at `10.0.2.2` that hands out its address and forwards DNS and UDP.
+
+- **Xbox Live through Insignia.** Choose Insignia under Online service (its DNS, `46.101.64.175`).
+  Signing in needs an Insignia account on the console's hard disk (`Partition0.img` and the
+  account data in the save folder), made with Insignia's own setup; the recomp has no
+  registration tool. Not tested end to end here.
+- **Direct play (system link over the internet).** Each player turns the network on and opens UDP
+  `3075` (Your port) on their router; one of them puts the other's `address:port` under Direct play.
+  System link frames then travel between the two consoles as if they shared a LAN, the way xemu's
+  `udp` network tunnels them. Tested: two copies on one PC get distinct addresses and receive each
+  other's system link broadcasts. Not yet: a full match, because MM3's System Link browser stays
+  empty in the recomp (with or without the network), so no game can be created from it yet.
 
 ### Automation and measurement
 
