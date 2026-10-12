@@ -4,6 +4,7 @@ Run after scripts/enter-env.ps1. The test extracts the real generated code;
 it requires no game process, GPU, XBE data changes or player save.
 """
 from pathlib import Path
+import os
 import re
 import shutil
 import subprocess
@@ -13,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def generated_function(name):
-    for path in (ROOT / "src/recomp/gen").glob("*.c"):
+    for path in (Path(os.environ.get("MM3_TEST_GENERATED_DIR", ROOT / "src/recomp/gen"))).glob("*.c"):
         text = path.read_text()
         match = re.search(r"^void " + name + r"\(void\)\n\{.*?^\}", text, re.M | re.S)
         if match:

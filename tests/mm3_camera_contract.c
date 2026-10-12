@@ -20,12 +20,10 @@ static int edge_value;
 static float display_aspect;
 
 float nv2a_d3d_display_aspect(void) { return display_aspect; }
-void nv2a_d3d_set_edge_hud(int on) { ++edge_calls; edge_value = on; }
-void nv2a_d3d_set_hud_start(float a, float b, float c, float d) {
+void mm3_hud_set_edge(int on) { ++edge_calls; edge_value = on; }
+void mm3_hud_set_start(float a, float b, float c, float d) {
     assert(a == 50 && b == 320 && c == 178 && d == 448); ++hud_calls;
 }
-void nv2a_d3d_set_centered_ui_query(int (*query)(void)) { (void)query; }
-void nv2a_d3d_set_map_texture_query(int (*query)(uint32_t)) { (void)query; }
 void sub_0011C742_original(void) { g_esp += 8; }
 void sub_0011CAAC_original(void) { g_esp += 12; }
 void sub_0007CEC3_original(void) { g_esp += 8; }
@@ -33,6 +31,11 @@ void sub_001EEC53_original(void) {
     ++solver_calls;
     memcpy(captured, (const void *)XBOX_PTR(g_esp + 4), sizeof captured);
     g_esp += 60; /* Native RET 56. */
+}
+#include "mods.h"
+int mm3_mod_on(int mod) {
+    const char *setting = getenv(mod == MM3_MOD_WIDESCREEN ? "MM3_MOD_WIDESCREEN" : "MM3_MOD_FOV");
+    return !setting || strcmp(setting, "0") != 0;
 }
 #include "production_widescreen.c"
 
@@ -114,17 +117,23 @@ static void projection_contract(float override) {
     static const float aspects[] = {4.0f / 3.0f, 1.6f, 16.0f / 9.0f, 21.0f / 9.0f};
     static const uint32_t callers[] = {0x00210E1E, 0x000E51EE, 0x001EC9C2, 0x001ECA3A, 0x12345678};
     unsigned a, pass, k;
+    int widescreen = mm3_mod_on(MM3_MOD_WIDESCREEN);
+    const char *setting = mm3_mod_on(MM3_MOD_FOV) ? getenv("MM3_FOV") : NULL;
+    float percentage = setting ? (float)atof(setting) / 100.0f : 1.0f;
+    if (!isfinite(percentage) || percentage < 1.0f) percentage = 1.0f;
+    if (percentage > 1.5f) percentage = 1.5f;
     for (a = 0; a < sizeof aspects / sizeof aspects[0]; ++a) {
         display_aspect = aspects[a];
         for (pass = 0; pass < 3; ++pass) {
             float input_aspect = pass == 0 ? 4.0f / 3.0f : (pass == 1 ? display_aspect : 1.0f);
             for (k = 0; k < sizeof callers / sizeof callers[0]; ++k) {
                 float input_fovy = vertical(65.0f, input_aspect);
-                float final_aspect = pass == 2 ? 1.0f : display_aspect;
+                float final_aspect = pass == 2 || !widescreen ? input_aspect : display_aspect;
                 float expected_fovy = input_fovy;
                 int race = k == 0;
                 if (race && override) expected_fovy = vertical(override, final_aspect);
-                else if (race && pass == 1) expected_fovy = vertical(65.0f, 4.0f / 3.0f);
+                else if (race && widescreen && pass == 1) expected_fovy = vertical(65.0f, 4.0f / 3.0f);
+                if (race && !override) expected_fovy = 2.0f * atanf(tanf(expected_fovy * 0.5f) * percentage);
                 reset_call(); hud_calls = edge_calls = 0;
                 MEM32(stack) = callers[k];
                 MEMF(stack + 4) = input_fovy; MEMF(stack + 8) = input_aspect;
@@ -141,16 +150,16 @@ static void projection_contract(float override) {
                  * same screen-edge slope, not just the same requested FOV. */
                 close_float(tanf(MEMF(camera + 0x1FA4) * 0.5f) * MEMF(camera + 0x1FA8),
                             1.0f / MEMF(camera + 0x1EE4));
-                assert(hud_calls == (unsigned)race);
-                assert(edge_calls == (unsigned)(race || k == 1));
-                if (edge_calls) assert(edge_value == race);
+                assert(hud_calls == (unsigned)(race && widescreen));
+                assert(edge_calls == (unsigned)((race && widescreen) || k == 1));
+                if (edge_calls) assert(edge_value == (race && widescreen));
             }
         }
         /* A direct non-camera projection must not interpret an arbitrary
          * caller frame, change FOV, or write after native RET 20 consumes args. */
         for (pass = 0; pass < 2; ++pass) {
             float input_aspect = pass ? 4.0f / 3.0f : 1.0f;
-            float final_aspect = pass ? display_aspect : 1.0f;
+            float final_aspect = pass && widescreen ? display_aspect : input_aspect;
             reset_call(); g_ebp = 0xFFFFFFF0; hud_calls = edge_calls = 0;
             MEM32(stack) = 0x11111111; MEM32(stack + 4) = camera;
             MEMF(stack + 8) = 0.7f; MEMF(stack + 12) = input_aspect;

@@ -1,4 +1,24 @@
-# MM3 native playability — 2026-10-01
+# MM3 session status
+
+## Current integration — 2026-10-13
+
+Source integration is complete. The combined MSVC build, public-base runtime
+patch reproduction, scoped native/unit checks and live launcher
+initialization/normal close passed. Final Paris direction/acceleration runs
+independently verified the default 30 Hz world clock at requested 60/90 render
+limits; observed medians were 59.96/71.52 FPS. Achieved 90 FPS, real-race 60 Hz
+simulation and matched handling parity remain extended coverage.
+
+See the [integration record](docs/integration-2026-10-13.md) for precise results,
+source pins, corrected scheduler coverage and remaining scenarios. Earlier
+integration timing traces are retained as
+[superseded diagnostics](docs/integration-timing-diagnostics-2026-10-13.md).
+
+## Historical journal — beginning 2026-10-01
+
+The journal below predates this integration. Its old acceptance status,
+runtime pins, executable hashes and build paths describe those earlier runs,
+not the current integrated source or executable.
 
 ## Acceptance
 

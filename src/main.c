@@ -8,10 +8,11 @@
 
 #include "recomp_types.h"
 #include "recomp_funcs.h"
-#include "mm3_debug_teleport.h"
+#include "mods/teleport.h"
 #include "mm3_asset_cache.h"
 #include "mm3_frame_limit.h"
 #include "mm3_performance_profile.h"
+#include "mods/mods.h"
 #include <xbox_host.h>
 #include <xinput_xbox.h>
 #include <video/fb_present.h>
@@ -28,7 +29,6 @@ static HANDLE g_mm3_main_worker_ready;
 static int g_mm3_inline_threads;
 extern void sub_00083A6C_original(void);
 extern void mm3_configure_diagnostics(void);
-extern void mm3_widescreen_init(void);
 
 static void mm3_close_game(void)
 {
@@ -48,6 +48,7 @@ static BOOL WINAPI mm3_console_control(DWORD event)
     mm3_close_game();
     return TRUE;
 }
+int mm3_launcher(void);
 
 /* Register the first XAPI worker before it can create background workers.
  * The runtime's debug handle changes on every spawn and cannot determine
@@ -180,15 +181,30 @@ int main(void)
     SetUnhandledExceptionFilter(mm3_crash_report);
     xbox_FramebufferSetCloseHandler(mm3_close_game);
     nv2a_d3d_set_flare_depth_test(1);
-    nv2a_d3d_set_bspline_blend(0x304u, 0x305u);
     SetConsoleCtrlHandler(mm3_console_control, TRUE);
     puts("MM3 static recompilation");
-
+    /* Profiles seed settings before the launcher; saved choices, including
+     * Auto resolution and window aspect, take precedence when Play exports them. */
     const char *profile_error = mm3_apply_performance_defaults(getenv("MM3_PERFORMANCE_PROFILE"));
     if (profile_error) {
         fprintf(stderr, "cannot select MM3 performance setting %s\n", profile_error);
         return 1;
     }
+
+    /* The profile pins internal resolution while the window changes size.
+     * Explicit aspect and auto settings take priority over the default. */
+    const char *widescreen = getenv("MM3_MOD_WIDESCREEN");
+    const char *default_aspect = widescreen && strcmp(widescreen, "0") == 0 ? "4:3" : "16:10";
+    if (!getenv("RECOMP_ASPECT") &&
+        _putenv_s("RECOMP_ASPECT", default_aspect) != 0) {
+        fprintf(stderr, "cannot select MM3 display aspect\n");
+        return 1;
+    }
+
+    /* Scripts set RECOMP_PB_EXEC themselves; a plain start gets the launcher. */
+    const char *scripted = getenv("RECOMP_PB_EXEC");
+    if ((!scripted || !*scripted) && !mm3_launcher())
+        return 0;
 
     /* Apply the same bounded rate before either vblank or presentation
      * caches its setting, including launches that bypass play.ps1. */
@@ -215,14 +231,6 @@ int main(void)
     if (!getenv("RECOMP_KEYBOARD_LAYOUT") &&
         _putenv_s("RECOMP_KEYBOARD_LAYOUT", "mm3") != 0) {
         fprintf(stderr, "cannot select MM3 keyboard controls\n");
-        return 1;
-    }
-
-    /* The profile pins internal resolution while the window changes size.
-     * Explicit aspect and auto settings take priority over the default. */
-    if (!getenv("RECOMP_ASPECT") &&
-        _putenv_s("RECOMP_ASPECT", "16:10") != 0) {
-        fprintf(stderr, "cannot select MM3 display aspect\n");
         return 1;
     }
 
@@ -256,9 +264,8 @@ int main(void)
     }
 
     g_xbox_mem_offset = xbox_GetMemoryOffset();
-    mm3_widescreen_init();
+    mm3_mods_init();
     xbox_InputSetKeyboardDrivingProbe(mm3_keyboard_driving);
-    mm3_debug_teleport_init();
     /* XPP submits stack-backed USB requests whose callback signals an inline
      * KEVENT. Its explicit wait treats an invalid handle as completion, so
      * the request can outlive its stack frame. Permit only the verified XPP

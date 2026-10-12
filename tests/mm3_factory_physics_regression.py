@@ -1,5 +1,6 @@
 """Compile the production factory hooks against a bounded guest/ABI fixture."""
 from pathlib import Path
+import os
 import json
 import shutil
 import sys
@@ -12,10 +13,19 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def native_wheel_path():
-    source = (ROOT / "src/recomp/gen/recomp_0017.c").read_text()
+    names = ("sub_001CBB52", "sub_001D2C3A", "sub_001D4794")
+    found = {}
+    generated = Path(os.environ.get("MM3_TEST_GENERATED_DIR", ROOT / "src/recomp/gen"))
+    for path in sorted(generated.glob("recomp_*.c")):
+        source = path.read_text()
+        for name in names:
+            match = re.search(r"^void " + name + r"\(void\)\n\{.*?^\}", source, re.M | re.S)
+            if match:
+                assert name not in found, name
+                found[name] = match.group()
+    assert found.keys() == set(names), set(names) - found.keys()
     def function(name):
-        return re.search(r"^void " + name + r"\(void\)\n\{.*?^\}",
-                         source, re.M | re.S).group()
+        return found[name]
     distribution = function("sub_001CBB52")
     body = function("sub_001D2C3A")
     def wrap(original, name, instructions):

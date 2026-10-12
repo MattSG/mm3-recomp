@@ -50,6 +50,7 @@ bool nv2a_hook_pvideo_snapshot(uint32_t regs[0x1000 / 4])
 }
 void nv2a_hook_pvideo_consume(unsigned bank) { (void)bank; }
 float nv2a_d3d_display_aspect(void) { return 4.0f / 3.0f; }
+void nv2a_d3d_collect_menu_rects(int on) { (void)on; }
 
 static unsigned checks, failures;
 #define CHECK(condition) do { \
@@ -457,12 +458,50 @@ static void check_escape(HWND window, BOOL mm3)
     }
 }
 
+static void check_saved_maps(HWND window)
+{
+    uint8_t out[20];
+    /* The launcher's saved map assigns throttle to W, but title driving
+     * aliases still work beside it and stop immediately upon pausing. */
+    driving_context = TRUE;
+    xbox_InputSetKeyboardDrivingProbe(fixture_driving);
+    key(window, '3', TRUE); expect_triggers(0, 0);
+    key(window, '3', FALSE);
+    key(window, 'W', TRUE); expect_triggers(0, 255);
+    key(window, VK_UP, TRUE); expect_triggers(0, 255);
+    key(window, 'W', FALSE); expect_triggers(0, 255);
+    key(window, VK_UP, FALSE); expect_triggers(0, 0);
+    key(window, VK_DOWN, TRUE); expect_triggers(255, 0);
+    key(window, VK_DOWN, FALSE);
+    key(window, VK_LEFT, TRUE);
+    report(out); CHECK(report_axis(out, 12) == -32767);
+    key(window, VK_LEFT, FALSE);
+    key(window, 'C', TRUE); key(window, VK_SPACE, TRUE);
+    key(window, 'R', TRUE); key(window, 'F', TRUE);
+    report(out);
+    CHECK(out[4] == 255 && out[5] == 255 && out[6] == 255 && out[8] == 255);
+    driving_context = FALSE;
+    report(out);
+    CHECK(out[4] == 0 && out[5] == 0 && out[6] == 0 && out[8] == 0);
+    SendMessageA(window, WM_KILLFOCUS, 0, 0);
+
+    /* A saved custom shoulder swap must survive export/reload instead of
+     * being silently replaced by the new launcher's default layout. */
+    host_connected = TRUE;
+    memset(&host_state, 0, sizeof(host_state));
+    host_state.Gamepad.wButtons = XINPUT_GAMEPAD_LEFT_SHOULDER;
+    report(out); CHECK(out[8] == 255 && out[9] == 0);
+    host_state.Gamepad.wButtons = XINPUT_GAMEPAD_RIGHT_SHOULDER;
+    report(out); CHECK(out[8] == 0 && out[9] == 255);
+    host_connected = FALSE;
+}
+
 int main(int argc, char **argv)
 {
     WNDCLASSA wc = {0};
     HWND window;
     BOOL mm3;
-    if (argc != 2) { fprintf(stderr, "Usage: mm3_input_contract mm3|legacy\n"); return 2; }
+    if (argc < 2 || argc > 3) { fprintf(stderr, "Usage: mm3_input_contract mm3|legacy [saved-maps]\n"); return 2; }
     mm3 = _stricmp(argv[1], "mm3") == 0;
     _putenv_s("RECOMP_KEYBOARD", "1");
     _putenv_s("RECOMP_KEYBOARD_LAYOUT", argv[1]);
@@ -477,13 +516,17 @@ int main(int argc, char **argv)
     window = CreateWindowA(wc.lpszClassName, "Offline input test", WS_OVERLAPPED,
         0, 0, 64, 64, NULL, NULL, wc.hInstance, NULL);
     if (!window) return 2;
-    check_host_report();
-    check_context(window, mm3);
-    check_keyboard(window, mm3);
-    check_gears(window, mm3);
-    check_camera(window, mm3);
-    check_handbrake(window, mm3);
-    check_escape(window, mm3);
+    if (argc == 3 && !strcmp(argv[2], "saved-maps")) {
+        check_saved_maps(window);
+    } else {
+        check_host_report();
+        check_context(window, mm3);
+        check_keyboard(window, mm3);
+        check_gears(window, mm3);
+        check_camera(window, mm3);
+        check_handbrake(window, mm3);
+        check_escape(window, mm3);
+    }
     DestroyWindow(window);
     UnregisterClassA(wc.lpszClassName, wc.hInstance);
     printf("%s input contract: %u checks, %u failures\n", argv[1], checks, failures);

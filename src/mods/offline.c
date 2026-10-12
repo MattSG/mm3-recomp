@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "recomp_types.h"
+#include "mods.h"
 
 /* Temporary offline compatibility: MM3's network object's readiness method
  * masks bit 0x20 from XNetGetTitleXnAddr and returns whether any other bit is
@@ -11,9 +12,14 @@
  * Evidence: post-intro worker stack contains 0x1953A0 and repeatedly calls
  * 0x19531D while no further frontend resources are opened.
  */
+extern void sub_0019531D_original(void);
 void sub_0019531D(void)
 {
     static int reported;
+    if (!mm3_mod_on(MM3_MOD_OFFLINE)) {
+        sub_0019531D_original();
+        return;
+    }
     if (!reported) {
         reported = 1;
         fprintf(stderr, "[MM3_OFFLINE] network readiness forced to 1\n");

@@ -13,7 +13,7 @@ param(
     [ValidateSet('Balanced', 'Quality', 'LowPower')][string]$Profile = 'Balanced',
     [ValidateSet('Stationary', 'Driving')][string]$Scenario = 'Stationary',
     [switch]$HitchTrace,
-    [ValidateRange(1, 60)][int]$FpsLimit,
+    [ValidateRange(1, 90)][int]$FpsLimit,
     [ValidateRange(5, 300)][int]$Secs = 20,
     [ValidateRange(1, 255)][int]$ParticleBudget = 24,
     [string]$ShaderCacheSeed,
@@ -78,7 +78,7 @@ $envs = @{
     RECOMP_APU_DSP_ACK='0x80458810'; MM3_SAVE_DIR=$runSave; MM3_PERFORMANCE_PROFILE=$Profile
     RECOMP_ASPECT='16:10'; RECOMP_WINDOW_SIZE='1280x800'; RECOMP_RENDER_SCALE=$settings.scale
     RECOMP_MSAA=$settings.msaa; RECOMP_DRAW_DISTANCE=$settings.distance; RECOMP_ANISO='16'
-    RECOMP_FPS_LIMIT="$FpsLimit"; RECOMP_D3D_PROFILE='1'; RECOMP_FRAME_CSV=$csv
+    RECOMP_FPS_LIMIT="$FpsLimit"; RECOMP_PAUSE_UNFOCUSED='0'; RECOMP_D3D_PROFILE='1'; RECOMP_FRAME_CSV=$csv
     MM3_DEBUG_TELEPORT='1'; MM3_PARTICLE_MAX_OVERDRAW="$ParticleBudget"; RECOMP_SHADER_CACHE='1'
     RECOMP_SHADER_CACHE_DIR=$shaderCache; RECOMP_PAD_PRESS=$null; RECOMP_PAD_SCRIPT=$null
     RECOMP_HITCH_TRACE=$(if ($HitchTrace) { '1' } else { $null }); RECOMP_PRESENT_CAPTURE=$null; RECOMP_CAPTURE_SURFACE=$null

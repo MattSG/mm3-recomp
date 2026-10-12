@@ -8,6 +8,7 @@
 #include <windows.h>
 
 #include "recomp_types.h"
+#include "mods/mods.h"
 
 typedef void (*recomp_func_t)(void);
 
@@ -203,6 +204,10 @@ static void call_alternate_seh_preserving(recomp_func_t body)
     uint32_t ebp = g_ebp;
     uint32_t seh_ebp = g_seh_ebp;
 
+    if (!mm3_mod_on(MM3_MOD_TRANSLATION)) {     /* the generated body as it is */
+        body();
+        return;
+    }
     body();
 
     g_ebx = ebx;
@@ -1263,17 +1268,42 @@ void sub_00319630(void) {}
 void sub_00358FAC(void) {}
 
 /* XDK write-back-cache flush (D3D's push-buffer kick): set NV_PFB_WBC_FLUSH
- * and spin until the GPU clears it. On hardware that only drains the CPU's
- * write-combined stores and waits for no GPU work; the host equivalent is a
- * store fence. Here the ack thread cleared the bit only between push-buffer
- * segments, so every kick-off waited for the executor to finish the previous
- * one (~25% of a race frame). That spin was also the only thing keeping D3D
- * off its GPU-notify wait, which xbox_Nv2aNotifyEvent (main.c) now answers.
+ * and spin until the ack thread clears it, which it does between push-buffer
+ * segments -- so each kick-off waits for the executor to finish the segment
+ * in progress.
+ *
+ * 7fa6fcc made this a bare store fence so the title could run ahead of the
+ * executor without limit. That broke a result MM3 reads mid-frame: a frame
+ * now and then came out lit as if in a tunnel -- dark, headlights on, night
+ * speedometer (5-22 per 1200-frame drive, cruise and missions alike). Truthful
+ * fences, segment-end write-back of its 40x30 brightness targets and
+ * serialising only BlockOnFence each fixed cruise but not the missions.
+ * Bounding the run-ahead fixes both: the spin runs only once the executor is
+ * more than MM3_KICK_LAG bytes of push buffer behind (or across a wrap).
+ * 0 dark frames over 4 mission drives at 256 KB, 64 KB and 1 MB alike.
+ * Race uncapped: spin every kick 296 fps, 64 KB 327, 256 KB 352, 1 MB 356,
+ * unbounded 373.
+ * ponytail: the racing read is still unidentified; bounded, not removed.
  * Registers are left as the guest routine leaves them. */
+#define MM3_KICK_LAG 0x40000u   /* 256 KB */
 void sub_00344AB0(void)
 {
+    {   /* D3D's kick runs on the game's render thread: the one spike
+         * reports sample (RECOMP_SPIKE_CAPTURE). */
+        extern void recomp_sampler_watch_current_thread(void);
+        static int watched;
+        if (!watched) { watched = 1; recomp_sampler_watch_current_thread(); }
+    }
     g_eax = MEM32(MEM32(0x351F48u) + 0x17C8u);
     g_ecx = MEM32(g_eax + 0x100410u) | 0x10000u;
     _mm_sfence();
+    {   /* the executor's lag behind the push pointer about to be kicked */
+        uint32_t dev = MEM32(0x351F48u), regs = MEM32(dev + 0x17C0u);
+        uint32_t cur = MEM32(dev) & 0x0FFFFFFFu, get = MEM32(regs + 0x44u);
+        if (cur < get || cur - get > MM3_KICK_LAG) {
+            MEM32(g_eax + 0x100410u) = g_ecx;
+            while (MEM32(g_eax + 0x100410u) & 0x10000u) {}
+        }
+    }
     g_esp += 4;
 }

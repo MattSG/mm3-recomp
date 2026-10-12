@@ -5,6 +5,8 @@ import subprocess
 import sys
 
 
+EXPECTED_BASE = "12cb46d4eb7676d6fba2ad3b80175886485d4c50"
+
 def main():
     root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__)
@@ -14,6 +16,14 @@ def main():
     toolkit = args.toolkit_dir.resolve()
     if not (toolkit / 'CMakeLists.txt').is_file():
         parser.error('Initialize tools/xboxrecomp with git submodule update --init --recursive.')
+
+    head = subprocess.run(['git', '-C', str(toolkit), 'rev-parse', 'HEAD'],
+                          text=True, capture_output=True)
+    if head.returncode or head.stdout.strip() != EXPECTED_BASE:
+        print(f'The MM3 runtime patch requires public xboxrecomp {EXPECTED_BASE}. '
+              'Preserve local changes and restore the pinned submodule before retrying.',
+              file=sys.stderr)
+        return 1
 
     def apply(*options):
         return subprocess.run(['git', '-C', str(toolkit), 'apply', *options, str(patch)],

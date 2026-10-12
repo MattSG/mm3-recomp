@@ -65,7 +65,7 @@ bindings work in either target screen**.
   observation seams without hand-editing generated bodies.
 - Run guest actions on the appropriate title thread and preserve register/stack
   state. Do not call the current blocking
-  [teleport request](src/mm3_debug_teleport.c) from a native menu callback:
+  [teleport request](src/mods/teleport.c) from a native menu callback:
   it waits for the player-update hook, which may stop while paused. A pause
   teleport should enqueue without blocking and apply after Resume, or use a
   separately proven safe game-thread point.

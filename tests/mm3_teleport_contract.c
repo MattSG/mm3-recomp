@@ -1,4 +1,4 @@
-#include "../src/mm3_debug_teleport.c"
+#include "../src/mods/teleport.c"
 #include <assert.h>
 
 ptrdiff_t g_xbox_mem_offset;
@@ -53,7 +53,7 @@ static void check_panel(void) {
 }
 
 void sub_002203E5_original(void) { ++updates; assert(g_ecx == expected_update_player); }
-void mm3_debug_features_tick(void) { ++feature_ticks; }
+void mm3_mods_player_update(void) { ++feature_ticks; }
 
 static void check_keyboard_context(void)
 {

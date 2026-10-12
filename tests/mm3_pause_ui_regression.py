@@ -1,10 +1,11 @@
 """Compile the real pause callback against the title's extracted state writes.
 
-The renderer's placement/seam contract is in test_menu_placement.py. This
+The title overlay placement contract is in mm3_overlay_regression.py. This
 contract checks its title-specific input: the real singleton address, native
 open/resume writes, callback registration, and mapping/startup order.
 """
 from pathlib import Path
+import os
 import re
 import shutil
 import subprocess
@@ -29,7 +30,7 @@ def main():
     names = ("sub_001E25C1", "sub_001E2CD5", "sub_001E2BDA")
     native = {}
     # Generated translation-unit boundaries change after regeneration.
-    for path in sorted((ROOT / "src/recomp/gen").glob("recomp_*.c")):
+    for path in sorted((Path(os.environ.get("MM3_TEST_GENERATED_DIR", ROOT / "src/recomp/gen"))).glob("recomp_*.c")):
         source = path.read_text()
         for name in names:
             if re.search(r"^void " + name + r"\(void\)\s*\{", source, re.M):
@@ -45,13 +46,15 @@ def main():
     assert "esi = MEM32(ebp + 8);" in opened
     assert "ebp = MEM32(esp + 8);" in resumed
     startup = (ROOT / "src/main.c").read_text()
-    assert startup.count("    mm3_widescreen_init();") == 1
+    assert startup.count("    mm3_mods_init();") == 1
     assert (startup.index("if (!xbox_MemoryLayoutInit(") <
             startup.index("g_xbox_mem_offset = xbox_GetMemoryOffset();") <
-            startup.index("    mm3_widescreen_init();") <
+            startup.index("    mm3_mods_init();") <
             startup.index("if (!xbox_HostHardwareInit()") <
             startup.index("if (!xbox_HostGraphicsInit("))
-    assert "src/mm3_widescreen.c" in (ROOT / "CMakeLists.txt").read_text()
+    assert "src/mods/widescreen.c" in (ROOT / "CMakeLists.txt").read_text()
+    assert "mm3_pause_ui_active()" in (ROOT / "src/mods/widescreen_hud.c").read_text()
+    assert "nv2a_d3d_set_overlay_hooks(&mm3_hud_hooks);" in (ROOT / "src/mods/mods.c").read_text()
     harness = r'''
 #include <assert.h>
 #include <stdio.h>
@@ -61,22 +64,18 @@ RECOMP_TLS uint32_t g_eax, g_ecx, g_edx, g_esp, g_ebx, g_esi, g_edi;
 RECOMP_TLS uint32_t g_ebp, g_seh_ebp;
 static unsigned char memory[0x440000];
 static int (*registered_query)(void);
-static unsigned registrations;
-void nv2a_d3d_set_centered_ui_query(int (*query)(void)) {
-    assert(g_xbox_mem_offset == (ptrdiff_t)memory);
-    registered_query = query; ++registrations;
-}
 float nv2a_d3d_display_aspect(void) { return 1.6f; }
-void nv2a_d3d_set_edge_hud(int on) { (void)on; }
-void nv2a_d3d_set_hud_start(float a, float b, float c, float d) {
+void mm3_hud_set_edge(int on) { (void)on; }
+void mm3_hud_set_start(float a, float b, float c, float d) {
     (void)a; (void)b; (void)c; (void)d;
 }
 void sub_0025968E_original(void) { g_esp += 24; }
 void sub_001EEC53_original(void) { g_esp += 60; }
-void nv2a_d3d_set_map_texture_query(int (*query)(uint32_t)) { (void)query; }
 void sub_0011C742_original(void) { g_esp += 8; }
 void sub_0011CAAC_original(void) { g_esp += 12; }
 void sub_0007CEC3_original(void) { g_esp += 8; }
+#include "mods.h"
+int mm3_mod_on(int mod) { (void)mod; return 1; }
 #include "production_widescreen.c"
 static uint32_t eax, esi, esp;
 static void native_singleton_return(void) { SINGLETON }
@@ -92,8 +91,7 @@ static void native_pause_resume(uint32_t singleton) {
 }
 int main(void) {
     g_xbox_mem_offset = (ptrdiff_t)memory;
-    mm3_widescreen_init();
-    assert(registrations == 1 && registered_query);
+    registered_query = mm3_pause_ui_active;
     esp = 0x10000;
     native_singleton_return();
     uint32_t singleton = eax;
@@ -123,7 +121,8 @@ int main(void) {
     with tempfile.TemporaryDirectory(prefix="mm3-pause-ui-") as folder:
         folder = Path(folder)
         shutil.copyfile(ROOT / "src/mm3_recomp_types.h", folder / "recomp_types.h")
-        shutil.copyfile(ROOT / "src/mm3_widescreen.c", folder / "production_widescreen.c")
+        shutil.copyfile(ROOT / "src/mods/mods.h", folder / "mods.h")
+        shutil.copyfile(ROOT / "src/mods/widescreen.c", folder / "production_widescreen.c")
         (folder / "contract.c").write_text(harness)
         subprocess.run(["cl", "/nologo", "/W3", "/WX", "/O2", "/std:c11",
                         "/I" + str(ROOT / "tools/xboxrecomp/include"),

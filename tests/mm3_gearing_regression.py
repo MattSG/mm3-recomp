@@ -8,6 +8,7 @@ the shipped cars retain their retail shift boundaries and timing.
 import argparse
 import json
 from pathlib import Path
+import os
 import re
 import shutil
 import subprocess
@@ -21,7 +22,7 @@ ACTIVE_IDS = {9004, 9005, 9006, 9009, 9010, 9011, 9012, 9013, 9014}
 
 
 def generated_function(name):
-    for path in (ROOT / "src/recomp/gen").glob("*.c"):
+    for path in (Path(os.environ.get("MM3_TEST_GENERATED_DIR", ROOT / "src/recomp/gen"))).glob("*.c"):
         text = path.read_text()
         match = re.search(r"^void " + name + r"\(void\)\n\{.*?^\}", text, re.M | re.S)
         if match:

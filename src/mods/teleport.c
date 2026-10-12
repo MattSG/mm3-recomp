@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "recomp_types.h"
-#include "mm3_debug_teleport.h"
+#include "teleport.h"
 
 /* PAL XBE: player update 2203E5; primary player manager 3C5CDC+54+D8.
  * Player+19C is the vehicle interface (vtable 383768), whose +8 is the car.
@@ -15,14 +15,14 @@
  * These calls belong on the game thread, never on the pipe/UI thread. */
 extern void sub_002203E5_original(void);
 extern void sub_0021ADF3(void);
-extern void mm3_debug_features_tick(void);
+extern void mm3_mods_player_update(void);
 
 static int enabled;
 static volatile LONG keyboard_sampled, keyboard_active;
 static SRWLOCK lock = SRWLOCK_INIT;
 static SRWLOCK request_lock = SRWLOCK_INIT;
 static HANDLE finished;
-static float position[3], destination[3];
+static float position[3], destination[3], heading_now;   /* radians, as the pipe takes it */
 static float destination_heading = NAN;   /* radians; NAN keeps the car's */
 static DWORD sampled;
 static unsigned serial, pending, completed;
@@ -175,7 +175,10 @@ void sub_002203E5(void)
             float current[3];
             for (unsigned i = 0; i < 3; ++i) current[i] = MEMF(body + 0xC8 + i * 4);
             available = isfinite(current[0]) && isfinite(current[1]) && isfinite(current[2]);
-            if (available) memcpy(position, current, sizeof(current));
+            if (available) {
+                memcpy(position, current, sizeof(current));
+                heading_now = atan2f(MEMF(body + 0xBC), MEMF(body + 0xC4));
+            }
         }
         sampled = GetTickCount();
         if (pending) {
@@ -192,7 +195,7 @@ void sub_002203E5(void)
         ReleaseSRWLockExclusive(&lock);
     }
     sub_002203E5_original();
-    mm3_debug_features_tick();
+    mm3_mods_player_update();
 }
 
 static int request_teleport(const float xyz[3], float heading, char *reply, size_t size)
@@ -234,6 +237,7 @@ static DWORD WINAPI pipe_thread(void *unused)
         if (pipe == INVALID_HANDLE_VALUE) return 1;
         if (ConnectNamedPipe(pipe, NULL) || GetLastError() == ERROR_PIPE_CONNECTED) {
             char command[128] = {0}, reply[2048], extra;
+            unsigned peek_at = 0, peek_len = 0;
             DWORD bytes;
             float xyz[3];
             if (ReadFile(pipe, command, sizeof(command) - 1, &bytes, NULL)) {
@@ -258,6 +262,14 @@ static DWORD WINAPI pipe_thread(void *unused)
                     }
                     ReleaseSRWLockShared(&lock);
                     snprintf(reply + n, sizeof(reply) - n, "]}");
+                } else if (sscanf(command, "peek %x %x", &peek_at, &peek_len) == 2) {
+                    /* Guest memory as hex, for working out a structure. */
+                    size_t n = 0;
+                    if (peek_len > 512) peek_len = 512;
+                    if (mapped(peek_at, peek_len))
+                        for (unsigned i = 0; i < peek_len && n + 3 < sizeof(reply); i++)
+                            n += (size_t)snprintf(reply + n, sizeof(reply) - n, "%02X", MEM8(peek_at + i));
+                    reply[n] = 0;
                 } else if (strcmp(command, "position") == 0) {
                     AcquireSRWLockShared(&lock);
                     snprintf(reply, sizeof(reply), "{\"available\":%s,\"x\":%.9g,\"y\":%.9g,\"z\":%.9g}",
@@ -274,24 +286,24 @@ static DWORD WINAPI pipe_thread(void *unused)
     }
 }
 
-static HWND edits[2], coordinates, feedback;
+static HWND edits[3], coordinates, feedback;
 
 static LRESULT CALLBACK panel_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
 {
     if (message == WM_CREATE) {
-        const char *axes[] = {"X", "Z"};
+        const char *axes[] = {"X", "Z", "Heading \xB0"};
         coordinates = CreateWindowA("STATIC", "Waiting for active car", WS_CHILD | WS_VISIBLE,
             10, 10, 325, 35, window, NULL, NULL, NULL);
-        for (unsigned i = 0; i < 2; ++i) {
+        for (unsigned i = 0; i < 3; ++i) {
             CreateWindowA("STATIC", axes[i], WS_CHILD | WS_VISIBLE,
-                10 + i * 108, 48, 20, 20, window, NULL, NULL, NULL);
-            edits[i] = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", "0",
+                10 + i * 108, 48, 100, 20, window, NULL, NULL, NULL);
+            edits[i] = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", i < 2 ? "0" : "",
                 WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL,
                 10 + i * 108, 68, 100, 24, window, NULL, NULL, NULL);
         }
         CreateWindowA("BUTTON", "Teleport", WS_CHILD | WS_VISIBLE | WS_TABSTOP,
             10, 100, 100, 26, window, (HMENU)1, NULL, NULL);
-        feedback = CreateWindowA("STATIC", "Native X/Z; Y and car placement use ground reset.",
+        feedback = CreateWindowA("STATIC", "Native X/Z; Y and car placement use ground reset. Blank heading keeps the car's.",
             WS_CHILD | WS_VISIBLE, 10, 135, 325, 35, window, NULL, NULL, NULL);
         SetTimer(window, 1, 200, NULL);
         return 0;
@@ -300,15 +312,16 @@ static LRESULT CALLBACK panel_proc(HWND window, UINT message, WPARAM wparam, LPA
         char text[160];
         AcquireSRWLockShared(&lock);
         if (available && GetTickCount() - sampled < 500)
-            snprintf(text, sizeof(text), "Native position\r\nX %.3f   Y %.3f   Z %.3f",
-                position[0], position[1], position[2]);
+            snprintf(text, sizeof(text), "Native position\r\nX %.3f   Y %.3f   Z %.3f   %.1f\xB0",
+                position[0], position[1], position[2],
+                fmodf(heading_now * 57.29578f + 360.0f, 360.0f));
         else strcpy_s(text, sizeof(text), "Waiting for active car");
         ReleaseSRWLockShared(&lock);
         SetWindowTextA(coordinates, text);
         return 0;
     }
     if (message == WM_COMMAND && LOWORD(wparam) == 1 && HIWORD(wparam) == BN_CLICKED) {
-        float xyz[3] = {0};
+        float xyz[3] = {0}, heading = NAN;
         char text[96], reply[256], extra;
         for (unsigned i = 0; i < 2; ++i) {
             GetWindowTextA(edits[i], text, sizeof(text));
@@ -318,7 +331,15 @@ static LRESULT CALLBACK panel_proc(HWND window, UINT message, WPARAM wparam, LPA
                 return 0;
             }
         }
-        if (request_teleport(xyz, NAN, reply, sizeof(reply)))
+        /* Degrees on the bearing the readout shows (the pipe takes radians). */
+        GetWindowTextA(edits[2], text, sizeof(text));
+        if (text[strspn(text, " ")] &&
+            (sscanf(text, "%f %c", &heading, &extra) != 1 || !isfinite(heading))) {
+            SetWindowTextA(feedback, "Heading is degrees, or blank to keep the car's.");
+            return 0;
+        }
+        if (isfinite(heading)) heading *= 0.017453293f;
+        if (request_teleport(xyz, heading, reply, sizeof(reply)))
             snprintf(reply, sizeof(reply), "Teleported to X %.3f, Y %.3f, Z %.3f.",
                      position[0], position[1], position[2]);
         else if (strstr(reply, "no usable ground"))
@@ -363,7 +384,7 @@ static DWORD WINAPI panel_thread(void *unused)
     GetWindowRect(owner, &rect);
     panel = CreateWindowExA(WS_EX_TOOLWINDOW, wc.lpszClassName, "MM3 debug coordinates",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
-        rect.right - 360, rect.top + 40, 355, 210, owner, NULL, wc.hInstance, NULL);
+        rect.right - 360, rect.top + 40, 355, 230, owner, NULL, wc.hInstance, NULL);
     if (!panel) return 1;
     while (GetMessageA(&msg, NULL, 0, 0) > 0) {
         if (!IsDialogMessageA(panel, &msg)) { TranslateMessage(&msg); DispatchMessageA(&msg); }

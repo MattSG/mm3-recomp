@@ -4,8 +4,8 @@
 #include <ctype.h>
 #include <stdlib.h>
 
-/* The title's simulation and AI are validated at 60 Hz. A launch override
- * may choose a lower limit, but must never disable or exceed this cap. */
+/* Rendering is independent of the console-rate simulation. Keep the tested
+ * default at 60 and accept the upstream launcher's optional 90 FPS setting. */
 static inline int mm3_frame_limit(const char *value)
 {
     char *end;
@@ -17,7 +17,7 @@ static inline int mm3_frame_limit(const char *value)
         return 60;
     while (isspace((unsigned char)*end))
         ++end;
-    if (*end || requested < 1 || requested > 60)
+    if (*end || requested < 1 || requested > 90)
         return 60;
     return (int)requested;
 }

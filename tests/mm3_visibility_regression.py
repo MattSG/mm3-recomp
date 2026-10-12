@@ -5,6 +5,7 @@ No installed assets or running game are accessed.
 """
 import argparse
 from pathlib import Path
+import os
 import shutil
 import subprocess
 import tempfile
@@ -20,7 +21,7 @@ def main():
         raise SystemExit("Run scripts/enter-env.ps1 first so cl.exe is available.")
     signature = "void sub_001C793A(void)\n{"
     owners = []
-    for path in (ROOT / "src/recomp/gen").glob("*.c"):
+    for path in (Path(os.environ.get("MM3_TEST_GENERATED_DIR", ROOT / "src/recomp/gen"))).glob("*.c"):
         contents = path.read_text(encoding="utf-8")
         if signature in contents:
             start = contents.index(signature)
@@ -36,7 +37,7 @@ def main():
         subprocess.run([
             "cl", "/nologo", "/w", "/O2", "/Ob1", "/std:c11",
             "/D_CRT_SECURE_NO_WARNINGS", "/DRECOMP_GENERATED_CODE",
-            "/I" + str(folder), "/I" + str(ROOT / "src/recomp/gen"),
+            "/I" + str(folder), "/I" + str(Path(os.environ.get("MM3_TEST_GENERATED_DIR", ROOT / "src/recomp/gen"))),
             str(ROOT / "tests/mm3_visibility_contract.c"),
             "/Fo:" + str(folder / "contract.obj"), "/Fe:" + str(executable),
         ], check=True, cwd=folder)

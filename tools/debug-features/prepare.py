@@ -21,6 +21,10 @@ PROBES = {
     7: 'gameRunScript("E3settings.lua")',
     8: 'menuDestroy("debugmenu")\ntoggleDebugHud(0)\nrenderFacadeSetMaxFloors(2)\ncameraBindToPlayer()',
     9: 'cameraBindToInput()',
+    # Off halves of 1/2/3 for the in-game hotkeys (MM3_DEV_HOTKEYS).
+    10: 'toggleDebugHud(0)',
+    11: 'menuDestroy("debugmenu")',
+    12: 'cameraBindToPlayer()',
 }
 
 def prepare():

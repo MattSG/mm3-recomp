@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
-project(mm3_recomp C)
+project(mm3_recomp C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 17)
 set(XBOXRECOMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tools/xboxrecomp" CACHE PATH
     "Path to the local xboxrecomp toolkit")
 set(RECOMP_GEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/recomp/gen" CACHE PATH
@@ -16,7 +17,6 @@ option(MM3_TRACY "Profile the host rendering pipeline with Tracy" OFF)
 option(MM3_NATIVE_FENCE_WAIT "Wait on native GPU notifications in the direct guest fence loop" ON)
 option(MM3_DSP_AUTO_INLINE "Allow automatic inlining in the optimized DSP interpreter" ON)
 if(MM3_TRACY)
-    enable_language(CXX)
     set(MM3_TRACY_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tools/bin/tracy-0.14.1" CACHE PATH "Tracy 0.14.1 sources")
     set(TRACY_ENABLE ON CACHE BOOL "Enable Tracy client" FORCE)
     set(TRACY_ON_DEMAND ON CACHE BOOL "Record only while a profiler is connected" FORCE)
@@ -32,6 +32,28 @@ if(MSVC AND MM3_DSP_AUTO_INLINE)
         TARGET_DIRECTORY xbox_apu APPEND PROPERTY
         COMPILE_OPTIONS "$<$<NOT:$<CONFIG:Debug>>:/Ob2>")
 endif()
+
+
+# Settings launcher (src/mm3_launcher.cpp): RmlUi on its Win32/D3D11 backend,
+# FreeType for its fonts. Static, fetched once at configure time.
+include(FetchContent)
+FetchContent_Declare(freetype
+    URL https://github.com/freetype/freetype/archive/refs/tags/VER-2-13-3.tar.gz
+    URL_HASH SHA256=bc5c898e4756d373e0d991bab053036c5eb2aa7c0d5c67e8662ddc6da40c4103
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_Declare(rmlui
+    URL https://github.com/mikke89/RmlUi/archive/refs/tags/6.3.tar.gz
+    URL_HASH SHA256=d977298bb6147610e5984d5db85ddf284020d655a8713913f6982074f1dbdede
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+set(BUILD_SHARED_LIBS OFF)
+set(SKIP_INSTALL_ALL ON)
+foreach(ft_dep ZLIB BZIP2 PNG HARFBUZZ BROTLI)
+    set(FT_DISABLE_${ft_dep} ON)
+endforeach()
+FetchContent_MakeAvailable(freetype)
+add_library(Freetype::Freetype ALIAS freetype)
+FetchContent_MakeAvailable(rmlui)
 if(MM3_TRACY)
     foreach(profile_target xbox_kernel xbox_video)
         target_link_libraries(${profile_target} PRIVATE Tracy::TracyClient)
@@ -52,9 +74,11 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_recomp_types.h"
 # project supplies <name>.
 set(MM3_RENAMED_FUNCTIONS
     sub_00170E5D sub_000145DC sub_001F02AD
-    sub_0025968E)                # widescreen: wraps the projection-matrix builder
+    sub_0025968E                 # widescreen: wraps the projection-matrix builder
+    sub_001DB6E8 sub_001F2A71 sub_001F443D  # skip intro: movie play, frame, skip check
+)
 if(MM3_MOVIE_INPUT_TRACE)
-    list(APPEND MM3_RENAMED_FUNCTIONS sub_001DB6E8 sub_001F2A71 sub_001F443D sub_0035BDC0)
+    list(APPEND MM3_RENAMED_FUNCTIONS sub_0035BDC0)
 endif()
 if(MM3_OFFLINE_XNET)
     list(APPEND MM3_RENAMED_FUNCTIONS sub_0019531D)
@@ -67,8 +91,12 @@ endif()
 # Render distance renames definitions only: renaming every reference with a
 # compile definition would bypass the hooks for callers in the same chunk.
 set(MM3_DISTANCE_FUNCTIONS sub_000D9E2E sub_000E2D5B sub_000F4AC3 sub_000FE71E
-    sub_001661D0 sub_001633B7 sub_002256C7 sub_002203E5 sub_0022F298)
+    sub_001630A7 sub_001661D0 sub_002256C7 sub_002203E5 sub_0022F298 sub_0015A929)
 set(MM3_DEFINITION_ONLY_FUNCTIONS ${MM3_DISTANCE_FUNCTIONS})
+# The main loop and world update can share a generated chunk. Rename only
+# these definitions so direct and same-chunk calls enter the clocked wrappers.
+set(MM3_SIMULATION_FUNCTIONS sub_00025422 sub_0002545A sub_001E7590)
+list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS ${MM3_SIMULATION_FUNCTIONS})
 # Building diagnostics keep same-chunk calls routed through opt-in wrappers.
 set(MM3_BUILDING_FUNCTIONS sub_00168A77 sub_001C7B15 sub_001A67BA sub_00166E01
     sub_001681FB sub_00167DA5 sub_00166B3E sub_00162F75)
@@ -155,6 +183,9 @@ endif()
 set(RECOMP_UNRESOLVED_STUB "${RECOMP_GEN_DIR}/recomp_stubs_unresolved.c")
 set_property(SOURCE "${RECOMP_UNRESOLVED_STUB}" APPEND PROPERTY
     COMPILE_DEFINITIONS "sub_000252AF=sub_000252AF_unresolved")
+# Log each stub that runs (src/mm3_unresolved_stubs.c).
+set_property(SOURCE "${RECOMP_UNRESOLVED_STUB}" APPEND PROPERTY
+    COMPILE_DEFINITIONS "RECOMP_UNRESOLVED_STUB_OBSERVE=mm3_stub_hit")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/mm3_runtime_entry_repairs.json")
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/mm3_runtime_entry_repairs.json" runtime_entries_json)
@@ -244,27 +275,38 @@ endforeach()
 add_executable(${PROJECT_NAME}
     src/main.c
     src/mm3_asset_cache.c
-    src/mm3_debug_features.c
+    src/mm3_launcher.cpp
+    src/mm3.rc
+    ${rmlui_SOURCE_DIR}/Backends/RmlUi_Platform_Win32.cpp
+    ${rmlui_SOURCE_DIR}/Backends/RmlUi_Renderer_DX11.cpp
+    ${rmlui_SOURCE_DIR}/Backends/RmlUi_Backend_Win32_DX11.cpp
+    src/mods/mods.c
+    src/mods/dev_tools.c
+    src/mods/menu_mouse.c
+    src/mods/collision_fix.c
+    src/mods/widescreen_hud.c
+    src/mods/skip_intro.c
+    src/mods/framerate.c
+    src/mm3_unresolved_stubs.c
  src/mm3_memory_compat.c
  src/mm3_memory_tails.c
  src/mm3_runtime_entries.c
  src/mm3_asset_trace.c
  src/mm3_stream_compat.c
  src/recomp_manual.c
- src/mm3_widescreen.c
  src/mm3_map_zoom.c
  src/mm3_race_guidance.c
- src/mm3_render_distance.c
- src/mm3_facade_capacity.c
  src/mm3_building_diagnostics.c
  src/mm3_tree_diagnostics.c
  src/mm3_visibility.c
- src/mm3_debug_teleport.c
  src/mm3_custom_car_names.c
  src/mm3_car_selection_compat.c
  src/mm3_speedometer.c
  src/mm3_factory_physics.c
  src/mm3_cpu_compat.c
+ src/mods/widescreen.c
+ src/mods/draw_distance.c
+ src/mods/teleport.c
  src/recomp_trace_probe.c
  ${RECOMP_GEN_SOURCES})
 
@@ -272,9 +314,10 @@ set_property(SOURCE src/recomp_manual.c APPEND PROPERTY COMPILE_DEFINITIONS
     "recomp_lookup_manual=recomp_lookup_manual_base" "sub_00083A6C=sub_00083A6C_original")
 if(MM3_MOVIE_INPUT_TRACE)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3_movie_input_trace.c)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE MM3_MOVIE_INPUT_TRACE)
 endif()
 if(MM3_OFFLINE_XNET)
-    target_sources(${PROJECT_NAME} PRIVATE src/mm3_offline_compat.c)
+    target_sources(${PROJECT_NAME} PRIVATE src/mods/offline.c)
 endif()
 if(MM3_UNLOCK_ALL_CARS)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3_car_unlocks.c)
@@ -287,9 +330,11 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     src
     src/recomp
     ${RECOMP_GEN_DIR}
-    ${XBOXRECOMP_DIR}/include)
+    ${XBOXRECOMP_DIR}/include
+    ${XBOXRECOMP_DIR}/src/video)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE xboxrecomp)
+target_link_libraries(${PROJECT_NAME} PRIVATE xboxrecomp RmlUi::RmlUi d3d11 dxgi d3dcompiler dwmapi xinput)
+target_include_directories(${PROJECT_NAME} PRIVATE ${rmlui_SOURCE_DIR}/Backends)
 
 # MM3's CRT uses NtAllocateVirtualMemory reserve requests as heap-backed
 # buffers.  Keep the vendor runtime untouched: redirect its public reserve

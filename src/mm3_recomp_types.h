@@ -1049,6 +1049,23 @@ void recomp_abi_violation_log(uint32_t va, uint32_t ebx0, uint32_t esi0,
            recomp_icall_fail_log(_va); g_esp += 4; g_eax = 0; } \
 } while(0)
 
+/* Public MMX state is also saved by hand-written guest callbacks. */
+#ifndef RECOMP_MMX_DEFINED
+#define RECOMP_MMX_DEFINED
+typedef union RecompMmx {
+    int8_t   b[8];
+    uint8_t  ub[8];
+    int16_t  w[4];
+    uint16_t uw[4];
+    int32_t  d[2];
+    uint32_t ud[2];
+    uint64_t q;
+} RecompMmx;
+#endif
+
+extern RECOMP_TLS RecompMmx g_mm0, g_mm1, g_mm2, g_mm3;
+extern RECOMP_TLS RecompMmx g_mm4, g_mm5, g_mm6, g_mm7;
+
 /* ================================================================
  * Register name aliases for generated code
  *
@@ -1085,22 +1102,6 @@ void recomp_abi_violation_log(uint32_t va, uint32_t ebx0, uint32_t esi0,
  * separate x87 model that the FPU work depends on, to reproduce a hazard the
  * hardware exists to let software avoid.
  * ================================================================ */
-
-#ifndef RECOMP_MMX_DEFINED
-#define RECOMP_MMX_DEFINED
-typedef union RecompMmx {
-    int8_t   b[8];
-    uint8_t  ub[8];
-    int16_t  w[4];
-    uint16_t uw[4];
-    int32_t  d[2];
-    uint32_t ud[2];
-    uint64_t q;
-} RecompMmx;
-#endif
-
-extern RECOMP_TLS RecompMmx g_mm0, g_mm1, g_mm2, g_mm3;
-extern RECOMP_TLS RecompMmx g_mm4, g_mm5, g_mm6, g_mm7;
 
 static inline RecompMmx MMX_ZERO(void) { RecompMmx r; r.q = 0; return r; }
 

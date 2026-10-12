@@ -14,7 +14,7 @@ def main():
         folder = Path(temporary)
         executable = folder / "contract.exe"
         subprocess.run([
-            "cl", "/nologo", "/W4", "/WX", "/Od", "/std:c11",
+            "cl", "/nologo", "/W4", "/WX", "/Od", "/std:c11", "/D_CRT_SECURE_NO_WARNINGS",
             "/I" + str(ROOT / "tools/xboxrecomp/src"),
             "/I" + str(ROOT / "tools/xboxrecomp/src/kernel"),
             str(ROOT / "tests/mm3_asset_cache_contract.c"),

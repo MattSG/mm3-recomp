@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../src/mm3_render_distance.c"
+#include "../src/mods/draw_distance.c"
 
 ptrdiff_t g_xbox_mem_offset;
 RECOMP_TLS uint32_t g_eax, g_ecx, g_esp, g_ebp;
@@ -24,6 +24,15 @@ void sub_000FE71E_original(void) {}
 void sub_0022F298_original(void) {}
 void sub_000F4AC3_original(void) {}
 void sub_002256C7_original(void) {}
+void sub_001630A7_original(void) {
+    g_eax = 0x150000u;
+    MEM32(g_eax + 0x1ED0) = 0x3000;
+    MEM32(g_eax + 0x1F2C) = 0x800;
+    MEM32(g_eax + 0x1F88) = 0x200;
+    MEM32(g_eax + 0x48) = 0x600;
+    g_esp += 4;
+}
+int mm3_mod_on(int mod) { (void)mod; return 1; }
 
 void sub_001661D0_original(void)
 {
@@ -82,7 +91,8 @@ int main(int argc, char **argv)
     assert(argc == 2);
     scale = (float)atof(argv[1]);
     assert(scale == 1.0f || scale == 2.0f || scale == 4.0f);
-    _putenv_s("RECOMP_DRAW_DISTANCE", argv[1]);
+    _putenv_s("RECOMP_VIEW_DISTANCE", argv[1]);
+    if (scale > 2.0f) scale = 2.0f;
     memset(memory, 0xA5, sizeof memory);
     g_xbox_mem_offset = (ptrdiff_t)memory;
     call_setter(0x0015FA1Du, 80.0f, 280.0f); /* construction */
@@ -103,6 +113,17 @@ int main(int argc, char **argv)
     assert(MEMF(0x003C04E0u) == 0.0f);
     assert(MEMF(0x003B8134u) == original_bias && MEMF(0x003B8138u) == original_slope);
     assert(setter_calls == 6);
+    /* The new constructor supplies the capacities before native VB creation.
+     * The old allocation wrapper is excluded from the build, so these limits
+     * grow exactly once and the largest remains a valid 16-bit vertex index. */
+    g_esp = stack;
+    sub_001630A7();
+    assert(g_esp == stack + 4 && g_eax == 0x150000u);
+    assert(MEM32(g_eax + 0x1ED0) == 0x3000u * (scale > 1 ? 5u : 1u));
+    assert(MEM32(g_eax + 0x1F2C) == 0x800u * (scale > 1 ? 5u : 1u));
+    assert(MEM32(g_eax + 0x1F88) == 0x200u * (scale > 1 ? 5u : 1u));
+    assert(MEM32(g_eax + 0x48) == 0x600u * (scale > 1 ? 5u : 1u));
+    assert(MEM32(g_eax + 0x1ED0) < 0x10000u);
     printf("facade fade contract passed (scale %.0f)\n", scale);
     return 0;
 }

@@ -19,7 +19,7 @@ def native_source():
     names = ("sub_001EF87E", "sub_001EF738", "sub_000F4AC3", "sub_0025968E",
              "sub_001EF926")
     found = {}
-    for path in sorted((ROOT / "src/recomp/gen").glob("recomp_*.c")):
+    for path in sorted((Path(os.environ.get("MM3_TEST_GENERATED_DIR", ROOT / "src/recomp/gen"))).glob("recomp_*.c")):
         source = path.read_text()
         for name in names:
             match = re.search(r"^void " + name + r"\(void\)\n\{.*?^\}", source, re.M | re.S)
@@ -75,7 +75,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix="mm3-camera-") as folder:
         folder = Path(folder)
         shutil.copyfile(ROOT / "src/mm3_recomp_types.h", folder / "recomp_types.h")
-        production = (ROOT / "src/mm3_widescreen.c").read_text()
+        shutil.copyfile(ROOT / "src/mods/mods.h", folder / "mods.h")
+        production = (ROOT / "src/mods/widescreen.c").read_text()
         (folder / "production_widescreen.c").write_text(production, encoding="utf-8")
         (folder / "native_camera.inc").write_text(native_source(), encoding="utf-8")
         executable = folder / "contract.exe"
@@ -87,6 +88,9 @@ def main():
         for value in (None, "", "60", "80", "95.5", "100", "110", "nan", "inf", "59", "111", "80garbage"):
             environment = os.environ.copy()
             environment.pop("MM3_FOV_DEGREES", None)
+            environment.pop("MM3_FOV", None)
+            environment.pop("MM3_MOD_FOV", None)
+            environment.pop("MM3_MOD_WIDESCREEN", None)
             if value is not None:
                 environment["MM3_FOV_DEGREES"] = value
             expected = value if value in ("60", "80", "95.5", "100", "110") else "0"
@@ -96,6 +100,18 @@ def main():
             if result.returncode:
                 print(result.stderr, end="")
             result.check_returncode()
+        for settings, expected in (
+            ({"MM3_FOV": "125"}, "0"),
+            ({"MM3_FOV": "125", "MM3_FOV_DEGREES": "90"}, "90"),
+            ({"MM3_FOV": "125", "MM3_FOV_DEGREES": "90", "MM3_MOD_FOV": "0"}, "0"),
+            ({"MM3_MOD_WIDESCREEN": "0", "MM3_FOV": "120"}, "0"),
+            ({"MM3_MOD_WIDESCREEN": "0", "MM3_FOV_DEGREES": "95"}, "95"),
+        ):
+            environment = os.environ.copy()
+            for key in ("MM3_FOV", "MM3_FOV_DEGREES", "MM3_MOD_FOV", "MM3_MOD_WIDESCREEN"):
+                environment.pop(key, None)
+            environment.update(settings)
+            subprocess.run([str(executable), expected], env=environment, cwd=folder, check=True)
         if "--check-mutants" in sys.argv:
             mutants = {
                 "missing near-distance adjustment": production.replace(

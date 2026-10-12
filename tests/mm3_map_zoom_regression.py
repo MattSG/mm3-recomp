@@ -5,6 +5,7 @@ submission, player lookup and input are capture boundaries; native quad creation
 rotation, map scale setup and all guest calling conventions remain executable.
 """
 from pathlib import Path
+import os
 import re
 import shutil
 import struct
@@ -22,7 +23,7 @@ MATH = ("sub_0002DC95", "sub_0006ACC3", "sub_000C6ADC",
 def generated():
     found = {}
     names = SEAMS + MATH
-    for path in sorted((ROOT / "src/recomp/gen").glob("recomp_*.c")):
+    for path in sorted((Path(os.environ.get("MM3_TEST_GENERATED_DIR", ROOT / "src/recomp/gen"))).glob("recomp_*.c")):
         source = path.read_text()
         for name in names:
             match = re.search(r"^void " + name + r"\(void\)\n\{.*?^\}", source, re.M | re.S)

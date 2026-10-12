@@ -19,14 +19,14 @@ static unsigned allocations, base_unloads, deletes;
 static volatile LONG query_stop;
 
 float nv2a_d3d_display_aspect(void) { return 1.6f; }
-void nv2a_d3d_set_edge_hud(int on) { (void)on; }
-void nv2a_d3d_set_hud_start(float a, float b, float c, float d) {
+void mm3_hud_set_edge(int on) { (void)on; }
+void mm3_hud_set_start(float a, float b, float c, float d) {
     (void)a; (void)b; (void)c; (void)d;
 }
-void nv2a_d3d_set_centered_ui_query(int (*callback)(void)) { (void)callback; }
-void nv2a_d3d_set_map_texture_query(int (*callback)(uint32_t)) { query = callback; }
 void sub_0025968E_original(void) { g_esp += 24; }
 void sub_001EEC53_original(void) { g_esp += 60; }
+#include "mods.h"
+int mm3_mod_on(int mod) { (void)mod; return 1; }
 #include "production_widescreen.c"
 
 static uint32_t data(unsigned group, unsigned part) {
@@ -131,7 +131,7 @@ int main(void) {
     MEM32(context) = context + 0x100;
     MEM32(context + 0x100 + 0xBC) = 0x104;
     MEM32(context + 0x100 + 0x8C) = 0x108;
-    mm3_widescreen_init();
+    query = mm3_map_texture_role;
     assert(query && !query(0) && !query(0x80000000) && !query(0x80514000));
     load(0x10000, 0); assert(allocations == 10 && LO8(g_eax)); check_group(0, 1);
     /* No guest pointers are read by the render-thread callback. */

@@ -3,7 +3,7 @@
 Run the recompiled Midtown Madness 3 built by scripts\setup.ps1.
 
 .DESCRIPTION
-  pwsh scripts\play.ps1 [-Keyboard] [-Fullscreen] [-Profile Balanced|Quality|LowPower] [-FpsLimit 60] [-Fov 100] [-TraceBuildings | -NoTraceBuildings] [-Exe <path>]
+  pwsh scripts\play.ps1 [-Keyboard] [-Fullscreen] [-Profile Balanced|Quality|LowPower] [-FpsLimit 90] [-Fov 100] [-TraceBuildings | -NoTraceBuildings] [-Exe <path>]
 
 Any RECOMP_*/MM3_* variable already set in your shell overrides these
 defaults (see README "Options"). F11 or Alt+Enter toggles fullscreen.
@@ -15,7 +15,7 @@ param(
     [switch]$Keyboard,
     [switch]$Fullscreen,
     [ValidateSet('Balanced', 'Quality', 'LowPower')][string]$Profile = 'Balanced',
-    [ValidateRange(1, 60)][int]$FpsLimit,
+    [ValidateRange(1, 90)][int]$FpsLimit,
     [ValidateRange(60, 110)][double]$Fov,
     [switch]$TraceBuildings,
     [switch]$NoTraceBuildings,
@@ -235,8 +235,8 @@ try {
         executable = Get-LaunchFile $Exe
         build_configuration = (Split-Path (Split-Path $Exe -Parent) -Leaf)
         build_context_at_launch = @{ cmake_cache = Get-LaunchFile $cachePath; cmake_options = $cmakeOptions
-            source_files = @(@('CMakeLists.txt', 'src\mm3_render_distance.c', 'src\mm3_widescreen.c',
-                'src\mm3_performance_profile.h', 'src\mm3_building_diagnostics.c', 'src\mm3_facade_capacity.c', 'src\main.c',
+            source_files = @(@('CMakeLists.txt', 'src\mods\draw_distance.c', 'src\mods\widescreen.c',
+                'src\mm3_performance_profile.h', 'src\mm3_building_diagnostics.c', 'src\main.c',
                 'src\recomp_manual.c', 'tools\xboxrecomp\src\kernel\kernel_bridge.c',
                 'tools\xboxrecomp\src\video\nv2a_d3d11.c') | ForEach-Object { Get-LaunchFile (Join-Path $repo $_) } | Where-Object { $null -ne $_ }) }
         command = $command; arguments = $commandArguments

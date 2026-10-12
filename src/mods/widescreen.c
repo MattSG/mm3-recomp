@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "recomp_types.h"
+#include "mods.h"
 
 /* Widescreen (Hor+). MM3 has no 16:9 mode: every 3D camera builds its
  * projection through 0x25968E, D3DXMatrixPerspectiveFovLH(out, fovy, aspect,
@@ -15,10 +16,8 @@
  * (0x220B1E), which is why the argument is patched rather than the data. */
 extern void sub_0025968E_original(void);
 extern float nv2a_d3d_display_aspect(void);
-extern void nv2a_d3d_set_edge_hud(int on);
-extern void nv2a_d3d_set_hud_start(float x0, float y0, float x1, float y1);
-extern void nv2a_d3d_set_centered_ui_query(int (*query)(void));
-extern void nv2a_d3d_set_map_texture_query(int (*query)(uint32_t texture_addr));
+extern void mm3_hud_set_edge(int on);
+extern void mm3_hud_set_start(float x0, float y0, float x1, float y1);
 
 /* MmxGameMapNode owns separate map/icon textures, not the text/HUD atlas.
  * Cache only their Data addresses while the title owns the resources. The
@@ -56,7 +55,7 @@ static void map_forget(uint32_t owner)
             map_publish(i, 0, NULL);
 }
 
-static int map_texture_role(uint32_t address)
+int mm3_map_texture_role(uint32_t address)
 {
     unsigned i, j;
     /* NV2A dma_resolve maps physical contiguous Data to its 0x80000000
@@ -133,7 +132,7 @@ static float camera_fov_degrees(void)
     static int loaded;
     static float degrees;
     if (!loaded) {
-        const char *env = getenv("MM3_FOV_DEGREES");
+        const char *env = mm3_mod_on(MM3_MOD_FOV) ? getenv("MM3_FOV_DEGREES") : NULL;
         if (env && *env) {
             char *end;
             float value = strtof(env, &end);
@@ -167,7 +166,7 @@ void sub_001EEC53(void)
     sub_001EEC53_original();
 }
 
-static int pause_ui_active(void)
+int mm3_pause_ui_active(void)
 {
     /* PAL pause singleton (001E25C1): open 001E2CD5 sets +2 and resume
      * 001E2BDA clears it. Its controls use several textures/draws, all in
@@ -176,18 +175,12 @@ static int pause_ui_active(void)
     return *(const volatile uint8_t *)XBOX_PTR(0x00429DB2u) != 0;
 }
 
-void mm3_widescreen_init(void)
-{
-    /* Register after the XBE is mapped, before the renderer thread starts. */
-    nv2a_d3d_set_centered_ui_query(pause_ui_active);
-    nv2a_d3d_set_map_texture_query(map_texture_role);
-}
-
 void sub_0025968E(void)
 {
     float aspect = MEMF(g_esp + 0xC), wide = nv2a_d3d_display_aspect();
     int race = MEM32(g_esp) == 0x000F4AF5u && MEM32(g_ebp + 4) == 0x00210E1Eu;
-    int patch = fabsf(aspect - 4.0f / 3.0f) < 1e-4f && fabsf(wide - aspect) > 1e-4f;
+    int widescreen = mm3_mod_on(MM3_MOD_WIDESCREEN);
+    int patch = widescreen && fabsf(aspect - 4.0f / 3.0f) < 1e-4f && fabsf(wide - aspect) > 1e-4f;
     if (patch)
         MEMF(g_esp + 0xC) = wide;
     /* Called from the camera's projection setup (0xF4AC3, returning to
@@ -206,14 +199,14 @@ void sub_0025968E(void)
      * It is also how the renderer knows a race has started, so its HUD can
      * move out to the screen edges (nv2a_d3d11.c); the race camera builds its
      * projection once per race, car select's (0xE51EE) every frame. */
-    if (race) {
+    if (race && widescreen) {
         /* The race HUD starts with the minimap's base quad; 2D drawn ahead of
          * it is the name tags over cars, positioned through this camera. */
-        nv2a_d3d_set_hud_start(50.0f, 320.0f, 178.0f, 448.0f);
-        nv2a_d3d_set_edge_hud(1);
+        mm3_hud_set_start(50.0f, 320.0f, 178.0f, 448.0f);
+        mm3_hud_set_edge(1);
     }
     else if (MEM32(g_esp) == 0x000F4AF5u && MEM32(g_ebp + 4) == 0x000E51EEu)
-        nv2a_d3d_set_edge_hud(0);              /* car select's turntable */
+        mm3_hud_set_edge(0);              /* car select's turntable */
     if (race) {
         float degrees = camera_fov_degrees();
         if (degrees) {
@@ -225,8 +218,21 @@ void sub_0025968E(void)
                                      MEMF(g_esp + 0xC));
             MEMF(g_esp + 8) = fovy;
             MEMF(g_ebp + 8) = fovy;
-        } else if (fabsf(aspect - wide) < 1e-4f && fabsf(wide - 4.0f / 3.0f) > 1e-4f) {
+        } else if (widescreen && fabsf(aspect - wide) < 1e-4f && fabsf(wide - 4.0f / 3.0f) > 1e-4f) {
             float fovy = 2.0f * atanf(tanf(MEMF(g_esp + 8) * 0.5f) * wide * 0.75f);
+            MEMF(g_esp + 8) = fovy;
+            MEMF(g_ebp + 8) = fovy;
+        }
+    }
+    /* The launcher's percentage FOV widens the stock view. Explicit
+     * horizontal degrees from play.ps1 take priority, so they never stack. */
+    if (race && !camera_fov_degrees() && mm3_mod_on(MM3_MOD_FOV)) {
+        const char *value = getenv("MM3_FOV");
+        float scale = value ? (float)atof(value) / 100.0f : 1.0f;
+        if (!isfinite(scale) || scale < 1.0f) scale = 1.0f;
+        if (scale > 1.5f) scale = 1.5f;
+        if (scale > 1.0f) {
+            float fovy = 2.0f * atanf(tanf(MEMF(g_esp + 8) * 0.5f) * scale);
             MEMF(g_esp + 8) = fovy;
             MEMF(g_ebp + 8) = fovy;
         }

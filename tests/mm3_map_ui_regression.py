@@ -5,6 +5,7 @@ class calls replaced. No game process or game assets are changed. Run after
 scripts/enter-env.ps1 to make cl.exe available.
 """
 from pathlib import Path
+import os
 import re
 import shutil
 import subprocess
@@ -17,7 +18,7 @@ def native_source():
     names = ("sub_0011C742", "sub_0011CAAC", "sub_0007CEC3",
              "sub_001164F7", "sub_00116509")
     found = {}
-    for path in sorted((ROOT / "src/recomp/gen").glob("recomp_*.c")):
+    for path in sorted((Path(os.environ.get("MM3_TEST_GENERATED_DIR", ROOT / "src/recomp/gen"))).glob("recomp_*.c")):
         source = path.read_text()
         for name in names:
             match = re.search(r"^void " + name + r"\(void\)\n\{.*?^\}", source, re.M | re.S)
@@ -43,7 +44,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix="mm3-map-ui-") as folder:
         folder = Path(folder)
         shutil.copyfile(ROOT / "src/mm3_recomp_types.h", folder / "recomp_types.h")
-        shutil.copyfile(ROOT / "src/mm3_widescreen.c", folder / "production_widescreen.c")
+        shutil.copyfile(ROOT / "src/mods/mods.h", folder / "mods.h")
+        shutil.copyfile(ROOT / "src/mods/widescreen.c", folder / "production_widescreen.c")
         (folder / "native_map.inc").write_text(native_source(), encoding="utf-8")
         subprocess.run(["cl", "/nologo", "/W3", "/WX", "/wd4102", "/O2", "/std:c11",
                         "/I" + str(folder), "/I" + str(ROOT / "tools/xboxrecomp/include"),

@@ -1,5 +1,6 @@
 """Exercise shared race guidance against the native marker projection/ABI."""
 from pathlib import Path
+import os
 import re
 import shutil
 import struct
@@ -191,7 +192,7 @@ def main():
     if not shutil.which("cl") or not shutil.which("cmake"):
         raise SystemExit("Run scripts/enter-env.ps1 first.")
     native = {}
-    for path in sorted((ROOT / "src/recomp/gen").glob("recomp_*.c")):
+    for path in sorted((Path(os.environ.get("MM3_TEST_GENERATED_DIR", ROOT / "src/recomp/gen"))).glob("recomp_*.c")):
         source = path.read_text()
         for name in OWNERS + MATH + (WORLD,):
             match = re.search(r"^void " + name + r"\(void\)\n\{.*?^\}", source, re.M | re.S)

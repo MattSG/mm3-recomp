@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../src/mm3_render_distance.c"
+#include "../src/mods/draw_distance.c"
 
 ptrdiff_t g_xbox_mem_offset;
 RECOMP_TLS uint32_t g_eax, g_ecx, g_esp, g_ebp;
@@ -25,6 +25,8 @@ void sub_000FE71E_original(void) {}
 void sub_0022F298_original(void) {}
 void sub_001661D0_original(void) {}
 void sub_000F4AC3_original(void) {}
+void sub_001630A7_original(void) {}
+int mm3_mod_on(int mod) { (void)mod; return 1; }
 void sub_002256C7_original(void)
 {
     assert(g_ecx == manager);
@@ -53,7 +55,7 @@ static void check(unsigned wanted)
 
 int main(int argc, char **argv)
 {
-    unsigned wanted = 24;
+    unsigned wanted = 255;
     assert(argc == 2);
     _putenv_s("RECOMP_DRAW_DISTANCE", "2");
     _putenv_s("MM3_PARTICLE_MAX_OVERDRAW", "");

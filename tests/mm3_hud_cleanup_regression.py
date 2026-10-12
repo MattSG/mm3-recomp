@@ -1,5 +1,6 @@
 """Execute the camera Arrow seam and prove minimap/world owners stay native."""
 from pathlib import Path
+import os
 import re
 import shutil
 import subprocess
@@ -11,7 +12,7 @@ OWNER = "sub_001EC352"
 
 def native_owner(name):
     owners = []
-    for path in (ROOT / "src/recomp/gen").glob("recomp_*.c"):
+    for path in (Path(os.environ.get("MM3_TEST_GENERATED_DIR", ROOT / "src/recomp/gen"))).glob("recomp_*.c"):
         match = re.search(r"^void " + name + r"\(void\)\n\{.*?^\}",
                           path.read_text(), re.M | re.S)
         if match:

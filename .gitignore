@@ -101,3 +101,6 @@ tools/car-mods/cars.local.json
 backups/
 game_files_dlc/
 .claude/
+
+# Launcher settings (src/mm3_launcher.cpp)
+mm3_settings.ini

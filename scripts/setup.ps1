@@ -67,8 +67,9 @@ if ($Force -or -not (Test-Path $python)) {
     & (Join-Path $pythonHome 'python.exe') -m venv tools\venv; Check 'venv'
 }
 . (Join-Path $PSScriptRoot 'enter-env.ps1')
-# The generator's output depends on the disassembler, so the version is pinned.
-& $python -m pip install --quiet --disable-pip-version-check capstone==5.0.9; Check 'pip install'
+# Capstone 5.0.7 is the tested disassembler used for the verified generation.
+# Its version affects generated output, so keep this pin with the generator.
+& $python -m pip install --quiet --disable-pip-version-check capstone==5.0.7; Check 'pip install'
 
 Step 'Game files (game_files\)'
 if ($Force -or -not (Test-Path 'game_files\default.xbe')) {
