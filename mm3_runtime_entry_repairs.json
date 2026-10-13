@@ -161,5 +161,35 @@
     "start": "0x00144ED9",
     "end": "0x00144EDE",
     "note": "Shared epilogue (pop edi; pop esi; ret 4) of 0x144EAE, which jumps back to it from 0x144EE2 after the vtable +0x68 call. The function's boundary ends before it, so the jump became a tail call to an unresolved stub that returned without the two pops (edi/esi corrupted, esp 8 low)."
+  },
+  {
+    "start": "0x0010EF0D",
+    "end": "0x0010F1F1",
+    "note": "Network session-list method (ret 16) behind the 5-byte jump thunk at 0x0010EF08; called through vtable +0xB4 from 0x0010FE9D only when XNet is up. Missing entry skipped it on every System Link frame."
+  },
+  {
+    "start": "0x00043A00",
+    "end": "0x00043A21",
+    "note": "Bit-stream free-space query (leaf, ret) called from the system link lobby at 0x0018EE0D when a session forms; its unresolved stub broke the lobby's packet sizing."
+  },
+  {
+    "start": "0x00189153",
+    "end": "0x0018916E",
+    "note": "Lobby ready/start handler reached from 0x0018E62E when a joined player presses Ready."
+  },
+  {
+    "start": "0x0018B42B",
+    "end": "0x0018B452",
+    "note": "Session flag query (ret 8) called through vtable +0x70 from 0x0018851A when the system link host starts the game; its stub's garbage result sent the host into a null virtual call at 0x001FA3F5."
+  },
+  {
+    "start": "0x001D6327",
+    "end": "0x001D6434",
+    "note": "Network car state snapshot (ret 4), called every frame through vtables from 0x0021902D and 0x0021A8D8 once a System Link race has a remote player."
+  },
+  {
+    "start": "0x001CDAD3",
+    "end": "0x001CDB6C",
+    "note": "Remote vehicle setup step reached from 0x0021CB1C when a System Link race starts with two players."
   }
 ]
