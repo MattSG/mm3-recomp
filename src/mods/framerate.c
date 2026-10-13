@@ -9,8 +9,8 @@
  * whatever the frame rate. MM3 presents with D3DPRESENT_INTERVAL_TWO_OR_
  * IMMEDIATE at 60 Hz (0x1ECB..: +0x34 = 0x80000002), so on the Xbox it ran
  * at 30 fps: the world updated 30 times a second, each update taking four
- * 1/120 s physics steps. MM3_SIM_HZ picks the rate: 30 (the console's) or
- * 60 (the default). At 120 the player car covers ~5% less ground (302 vs
+ * 1/120 s physics steps. MM3_SIM_HZ picks the rate: 30 (the console's), 60
+ * (the default) or 90. At 120 the player car covers ~5% less ground (302 vs
  * 311-336 units in 12 s, Test-MM3AiStart.ps1), likely from one-step ticks
  * rounding.
  *
@@ -41,7 +41,7 @@ static float tick(void)
     if (!t) {
         const char *v = getenv("MM3_SIM_HZ");
         int hz = v && *v ? atoi(v) : 60;
-        t = 1.0f / (float)(hz == 30 ? 30 : 60);
+        t = 1.0f / (float)(hz == 30 || hz == 90 ? hz : 60);
     }
     return t;
 }
@@ -92,8 +92,8 @@ static int ticks_for(float dt)
 /* The race AI's update (0x22DBBF: ecx the AI module, dt and a flag, ret 8).
  * Given each tick, the AI drives differently at 60 ticks than at 30 -- its
  * cars covered ~9% more ground in 25 s (Test-MM3AiStart.ps1 -Course) -- so
- * it keeps the console's rate: every second tick, with two ticks' time. Cars
- * and their physics still step every tick. */
+ * it keeps the console's rate: every second tick (third at 90), with that
+ * many ticks' time. Cars and their physics still step every tick. */
 extern void sub_0022DBBF_original(void);
 void sub_0022DBBF(void)
 {
@@ -112,12 +112,14 @@ void sub_0022DBBF(void)
     sub_0022DBBF_original();
 }
 
-/* Frames between ticks drawn moving (MM3_SMOOTH, the default) or the last
- * image shown again (MM3_SMOOTH=0). */
+/* Frames between ticks drawn moving (MM3_SMOOTH=1, experimental) or the last
+ * image shown again (the default). Smooth blends whatever floats an update
+ * changed; now and then one is really an integer or feeds a lookup, and the
+ * render crashes on it (seen at 0x2413A0 and in 0x114B2A, ~1 in 5 races). */
 static int smooth(void)
 {
     static int m = -1;
-    if (m < 0) m = !getenv("MM3_SMOOTH") || atoi(getenv("MM3_SMOOTH")) != 0;
+    if (m < 0) m = getenv("MM3_SMOOTH") && atoi(getenv("MM3_SMOOTH")) != 0;
     return m;
 }
 static void blend_pre(void);
@@ -151,20 +153,20 @@ void sub_001E7590(void)
     MEMF(game + 0x54) = dt;
 }
 
-/* The render (two arguments, ret 8), between ticks too. Drawn again as it
- * is, a frame comes out wrong: the render uses up state the world update
- * leaves it (a counter at 0x3C568C cut menu text short; tail lights
- * blinked). So the words of the game's globals a ticked render changes are
- * noted, and put back as it found them before each render between ticks.
- * The D3D device's own state (0x34F000-0x353000) moves on. */
+/* The render (two arguments, ret 8). With MM3_SMOOTH it runs between ticks
+ * too, and drawn again as it is a frame comes out wrong: it uses up queue
+ * counters the world update leaves it (0x3C568C cut menu text short; those
+ * at 0x3C5788-0x3C57A4 made tail lights blink). Those a ticked render
+ * changes are put back as it found them before each render between ticks.
+ * Restoring more of the globals (1600 words change per race render) put
+ * list counts out of step with their lists and crashed. */
 extern void sub_001EC8E6_original(void);
-#define KEEP_LO 0x00280000u
-#define KEEP_HI 0x00480000u
+#define KEEP_LO 0x003C5680u   /* the render's queue counters only */
+#define KEEP_HI 0x003C57B0u
 static uint32_t s_keep_pre[(KEEP_HI - KEEP_LO) / 4], *s_keep_post;
 static uint32_t *s_keep_idx;
 static int s_keep_n;
 
-static int keep_skip(uint32_t a) { return a >= 0x0034F000u && a < 0x00353000u; }
 
 /* A guest pointer: not put back. The render allocates and frees, and the
  * heap's lists are pointers in these globals; restoring them corrupted the
@@ -187,7 +189,7 @@ static void render_ticked(void)
     sub_001EC8E6_original();
     s_keep_n = 0;
     for (i = 0; i < n; i++)
-        if (g[i] != s_keep_pre[i] && !keep_skip(KEEP_LO + 4 * i) &&
+        if (g[i] != s_keep_pre[i] &&
             !ptrish(g[i]) && !ptrish(s_keep_pre[i])) {
             s_keep_post[s_keep_n] = g[i];
             s_keep_idx[s_keep_n++] = i;
