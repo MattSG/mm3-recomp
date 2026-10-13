@@ -51,8 +51,10 @@ Rml::Vector<Option> g_options = {
     {"", "Frame limit", "", "RECOMP_FPS_LIMIT", "60", "",
      {{"30", "30"}, {"60", "60"}, {"120", "120"}, {"144", "144"}, {"165", "165"}, {"240", "240"},
       {"0", "Unlimited"}}},
-    {"", "Tick rate", "World updates a second, whatever the frame rate. The Xbox ran 30; the picture "
-     "moves with each update.", "MM3_SIM_HZ", "60", "", {{"30", "30 (Xbox)"}, {"60", "60"}, {"90", "90"}}},
+    {"", "Tick rate", "World updates a second, whatever the frame rate. The Xbox ran 30.",
+     "MM3_SIM_HZ", "60", "", {{"30", "30 (Xbox)"}, {"60", "60"}}},
+    {"", "Between ticks", "Smooth draws frames between world updates part way between them; Repeat "
+     "shows the last one again.", "MM3_SMOOTH", "1", "", {{"1", "Smooth"}, {"0", "Repeat"}}},
     {"", "V-Sync", "", "RECOMP_VSYNC", "0", "",
      {{"0", "Off"}, {"1", "On"}}},
     {"", "In the background", "When another window is in front.", "RECOMP_PAUSE_UNFOCUSED", "1", "",
