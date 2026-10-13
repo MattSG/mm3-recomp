@@ -54,6 +54,8 @@ Rml::Vector<Option> g_options = {
      {{"30", "30"}, {"60", "60"}, {"90", "90"}}},
     {"", "Simulation", "How often the world updates. The Xbox ran it 30 times a second; 60 moves smoother.",
      "MM3_SIM_HZ", "", "", {{"", "Console (30)"}, {"60", "60"}}},
+    {"", "Draw every frame", "Previous rendering behavior, including frames between world updates. May repeat temporary effects.",
+     "MM3_RENDER_EVERY_FRAME", "0", "", {{"0", "Off"}, {"1", "On"}}, 0, true},
     {"", "V-Sync", "", "RECOMP_VSYNC", "0", "",
      {{"0", "Off"}, {"1", "On"}}},
     {"", "In the background", "When another window is in front.", "RECOMP_PAUSE_UNFOCUSED", "1", "",

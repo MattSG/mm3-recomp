@@ -1,34 +1,23 @@
-# Midtown Madness 3 PC Native
+> **AI-generated code warning:** Nearly all project code was written with AI assistance.
+> Expect bugs and rough edges. Reviews, fixes and improvements are welcome.
 
-**Midtown Madness 3 PC Native** brings the Xbox arcade racing game to Windows
-10 and Windows 11 x64 through static recompilation. This native MM3 PC port
-uses the [xboxrecomp](tools/xboxrecomp) runtime and a Direct3D 11 renderer.
+# Midtown Madness 3 recompilation
 
-An improved and modded PC version with keyboard controls, widescreen graphics,
-custom-car tools, gameplay repairs and performance work. Build it from your own
-supported game disc with the instructions below. The
-[integration record](docs/integration-2026-10-13.md) tracks the combined source,
-feature preservation and validation.
+Experimental static recompilation of the Xbox game to native x86-64 Windows,
+using [xboxrecomp](tools/xboxrecomp) and Direct3D 11. Build it from your own
+supported game disc; game assets are not included.
 
-**Credits:** This project builds on the original
-[mm3-recomp by Matt Graham (MattSG)](https://github.com/MattSG/mm3-recomp) and the
-[xboxrecomp toolkit](https://github.com/MattSG/xboxrecomp). Credit for that foundation
-belongs to the original author and upstream contributors.
+This combines [Matt Graham's project](https://github.com/MattSG/mm3-recomp)
+with the car tools, gameplay repairs and runtime improvements contributed from
+[lakshya16157's PC Native fork](https://github.com/lakshya16157/midtown-madness-3-PC-Native).
+The contributions were prepared with OpenAI Codex assistance. The
+[integration record](docs/integration-2026-10-13.md) records preserved features,
+source revisions, validation and remaining gameplay coverage.
 
-This fork is maintained by [lakshya16157](https://github.com/lakshya16157), with
-assistance from OpenAI Codex on performance and runtime improvements, gameplay
-fixes, and the custom-car tools.
-
-Upstream reports that nearly all its project code was written with AI assistance.
-This fork also uses AI assistance; reviews, fixes and focused pull requests are welcome.
 The runtime derives from [MattSG/xboxrecomp](https://github.com/MattSG/xboxrecomp),
 a fork of [sp00nznet/xboxrecomp](https://github.com/sp00nznet/xboxrecomp).
 This is an unofficial community project with no affiliation with Microsoft,
 Xbox or Digital Illusions CE (DICE).
-
-**Source integration is complete.** The combined build, scoped native/unit checks,
-live launcher initialization and default-30-Hz driving smoke passed. See the
-dated integration record for measured results and extended coverage.
 
 ## Features
 
@@ -47,8 +36,25 @@ pacing, audio processing and guest memory/handle/fence repairs. Integration
 checks for these features are tracked separately in the
 [preservation matrix](docs/integration-2026-10-13.md#feature-preservation).
 
-Network support remains experimental. Insignia sign-in and complete system-link
-matches have not been established by this integration.
+Matt's System Link and Insignia DNS changes are retained. Upstream verified
+System Link between copies on one PC; this combined feature bundle still needs
+multiplayer gameplay verification. Xbox Live sign-in remains unverified. To
+import an account created in xemu, use
+`py scripts/import_xemu_accounts.py <xbox_hdd.qcow2> <save dir>` and provide that
+console's keys through `RECOMP_XBOX_HDKEY`, `RECOMP_XBOX_SIGKEY` and
+`RECOMP_XBOX_LANKEY` (32 hexadecimal digits each). Keep accounts and keys local.
+
+For two script-launched instances on one PC, use a separate PowerShell session
+and a different save directory for each player:
+
+```powershell
+$env:MM3_SAVE_DIR = 'C:\MM3\player-one' # use player-two in the other session
+pwsh scripts/play.ps1 -AllowMultipleInstances
+```
+
+The script refuses two launches using the same save directory. Normal launches
+retain the single-instance guard. Launch metadata redacts console keys while
+the game still receives their environment values.
 
 ## Build and play
 
@@ -61,8 +67,8 @@ Initial CMake configuration downloads pinned FreeType 2.13.3 and RmlUi 6.3 for
 the settings launcher, so a fresh configure requires network access.
 
 ```powershell
-git clone --recurse-submodules https://github.com/lakshya16157/midtown-madness-3-PC-Native.git
-cd midtown-madness-3-PC-Native
+git clone --recurse-submodules https://github.com/MattSG/mm3-recomp.git
+cd mm3-recomp
 pwsh scripts\setup.ps1 -Iso "D:\Games\Midtown Madness 3 (USA).iso"
 .\build\RelWithDebInfo\mm3_recomp.exe  # opens Settings, Controls and Mods
 ```
@@ -164,14 +170,16 @@ pwsh scripts/play.ps1 -Keyboard -Profile Balanced
 ```
 
 Console-rate simulation defaults to **30 Hz**, with **60 Hz** available under
-Settings > Simulation. It is separate from the rendering frame limit.
-Balanced and Quality profiles default to **60 FPS**; LowPower defaults to
-**30 FPS**. The launcher offers 30, 60 and 90 FPS, and `play.ps1 -FpsLimit`
-accepts 1–90. Matt's latest world-update hooks and timing fixes are integrated;
-this combined fork keeps its existing render limits pending higher-rate gameplay
-validation. Final driving smoke on the preceding integration observed about 60 FPS at a 60 limit and
-72 FPS at a 90 limit; it does not establish achieved 90 FPS or matched handling
-parity. Lower supersampling or internal resolution if performance is poor.
+Settings > Simulation. Frames are drawn only when the world ticks because the
+game has no interpolation between updates. The frame limit bounds the main
+loop; it does not force additional drawn frames between world updates.
+Settings > **Draw every frame** restores the previous rendering behavior;
+`MM3_RENDER_EVERY_FRAME=1` selects it for direct launches. It can repeat temporary
+effects, including menu text and tail lights. Leave it off for Matt's fix.
+Balanced and Quality profiles keep a **60 FPS** limit; LowPower keeps **30**.
+The launcher offers 30, 60 and 90, and `play.ps1 -FpsLimit` accepts 1-90.
+This bundle keeps those existing limits pending higher-rate gameplay validation.
+Lower supersampling or internal resolution if performance is poor.
 
 Profiles are applied before the settings launcher so saved Auto resolution,
 aspect and FOV selections can take effect. The launcher includes 16:10 aspect
@@ -360,7 +368,13 @@ tools\venv\Scripts\python.exe tools\car-mods\prepare.py --restore
 
 ## Development and validation
 
-The integrated source's car/model/factory/import tests ran **135 cases**:
+The latest submission passed fresh full generation, an independent MSVC build,
+hidden launcher rendering/normal close, both rendering-mode contracts and scoped
+car/map/runtime checks. Detailed current results and skipped coverage appear at
+the beginning of [the integration record](docs/integration-2026-10-13.md).
+Fresh driving and multiplayer acceptance remain unverified.
+
+The preceding integration's car/model/factory/import tests ran **135 cases**:
 **129 passed and six skipped** because optional local fixtures, decoder oracle
 or symbolic-link privileges were unavailable. Corrected simulation tests passed
 18 timing/ABI and 16 actual generated-loop cases, including a frozen-cadence
@@ -368,8 +382,8 @@ negative control. Runtime validation passed 198 CTest cases across
 19 suites and its MSVC build. Eight harmless play-script profile/logging tests,
 nine production launcher settings-helper cases and fresh-generated native
 camera/map/route/HUD/input/car/collision/translation contracts also passed.
-The final combined game build, live launcher rendering/normal close and Paris
-smoke runs passed. Independent guest/world-clock traces verified the default
+That preceding combined game build, launcher smoke and Paris driving checks
+passed before the latest networking and render-tick changes. Independent guest/world-clock traces verified the default
 30 Hz world rate at both requested render limits. Actual driving medians were
 59.96 FPS with 60 requested and 71.52 FPS (about 72) with 90 requested. These
 were direction/acceleration checks; achieved 90 FPS, real-race 60 Hz simulation

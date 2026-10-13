@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 
-EXPECTED_BASE = "e9121ba3fb8249fc04e297ac1e376190d5b46974"
+EXPECTED_BASE = "659963503c39c18a8e30ca4e7ef43004fac2da51"
 
 def main():
     root = Path(__file__).resolve().parents[1]

@@ -1,5 +1,70 @@
 # Upstream integration — October 13, 2026
 
+## Latest submission refresh
+
+The separate all-features contribution retains the fork checkpoint and updates
+against `MattSG/mm3-recomp` at `b58c022` and public runtime
+`659963503c39c18a8e30ca4e7ef43004fac2da51`. The generator remains independently
+pinned at `967ec30f362dee229183b4e112e928cd41830484` with Capstone 5.0.7.
+The patch application script and runtime patch must be used together with that
+new public runtime base.
+
+All nine car identities, Workshop/model/menu-artwork tools, native car hooks,
+map/guidance, controls, HUD and runtime additions are retained. The 44 runtime
+entry repairs are the union of the 38 fork entries and six additional upstream
+entries, with duplicate boundaries removed. Matt's System Link crypto/shared
+reads, Insignia DNS, console-key environment support and account-import script
+are retained. Accounts, keys, game translations, assets and local model packages
+remain outside the contribution.
+
+Definition-only renaming now applies to every wrapper. The world scheduler
+keeps its raw double timer, bounded catch-up and optional trace diagnostics.
+Matt's render hook skips drawing when no world tick elapsed; console simulation
+therefore draws at 30/60 Hz without interpolation. The retained 30/60/90 main-loop
+limit choices do not promise 90 drawn frames per second. The launcher also
+retains the previous rendering behavior through **Draw every frame**
+(`MM3_RENDER_EVERY_FRAME=1`), with Matt's fix selected by default. See
+[the scheduler notes](simulation-update-2026-10-13.md).
+
+Submission-worktree unit tests passed: 135 car/model/factory/import cases,
+124 passed and 11 skipped for optional local assets/decoder or symbolic-link
+coverage. Eight profile tests, nine production launcher settings cases, 1,119
+control checks and mod initialization checks passed. The latest simulation
+contracts passed 35 timing/ABI and 24 actual generated-loop scenarios across
+both rendering modes, plus configured hook-routing and negative-control checks.
+
+Runtime validation passed 199 distinct cases across integration; 80 cases were
+rebuilt and rerun on the final public base. All 102 patched runtime files
+reproduce from a clean clone; apply, repeat, reverse and wrong-base checks passed.
+See [the runtime rebase record](runtime-rebase-2026-10-13.md) for exact scope.
+Fresh full generation and independent MSVC RelWithDebInfo configure/build
+passed. The compiled launcher rendered hidden at 760x720 and closed normally
+with exit zero. All 44 recovered runtime bodies were verified, the particle
+budget's nine cases passed, and configured/preprocessed routing confirmed all
+four simulation hooks with macro-renaming negative controls. The latest run
+does not establish fresh driving, race, installed-model or multiplayer acceptance.
+
+The play script preserves normal single-instance startup and supports explicit
+`-AllowMultipleInstances` launches with distinct `MM3_SAVE_DIR` roots. A file lock
+rejects shared-root launches, including path aliases. Console keys remain in the
+child environment but are redacted in launch metadata. Eleven harmless launcher
+tests passed, including concurrent distinct-root fixtures and key redaction.
+
+Fresh analysis and full generation completed: 51 C sources, all 44 runtime-entry
+inputs and ten materialized flag joins. Generated sources remain local.
+
+Additional final-generated contracts passed for factory physics (601 ticks and
+60 native force cases), native gearing for all nine added cars, map zoom and
+race guidance. The latter exercise real Paris/Washington road graphs, native
+map/HUD geometry, lifecycle, packing and call ABI, with CMake seam/anchor checks.
+These offline checks do not establish visual driving parity.
+
+The initial build and driving measurements below refer to the preceding
+integration at `c1a6adc` / runtime `12cb46d`. They are historical evidence,
+not gameplay verification of the latest network and render-tick changes.
+
+## Initial integration record
+
 Source integration is complete. The combined MSVC build, runtime reproduction,
 scoped native/unit checks, live launcher initialization/normal close and final
 Paris direction/acceleration smoke runs passed. Independent real-game traces

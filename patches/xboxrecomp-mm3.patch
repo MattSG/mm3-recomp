@@ -481,7 +481,7 @@ index b34112b..e6d7182 100644
  int     xbox_IrqlEnterInterrupt(int level);     /* around host-run ISRs and DPCs */
  void    xbox_IrqlLeaveInterrupt(int saved);
 diff --git a/src/kernel/kernel_bridge.c b/src/kernel/kernel_bridge.c
-index 09b8645..db8484a 100644
+index a200174..899f180 100644
 --- a/src/kernel/kernel_bridge.c
 +++ b/src/kernel/kernel_bridge.c
 @@ -38,6 +38,11 @@
@@ -511,7 +511,7 @@ index 09b8645..db8484a 100644
  extern ptrdiff_t g_xbox_mem_offset;
  
  /* Dispatch table lookup (for function pointer args) */
-@@ -365,15 +378,17 @@ static void kernel_data_init(void)
+@@ -376,15 +389,17 @@ static void kernel_data_init(void)
  /* Ordinal for each slot (read from Xbox memory during init) */
  static ULONG g_slot_ordinals[XBOX_KERNEL_THUNK_TABLE_SIZE];
  
@@ -537,7 +537,7 @@ index 09b8645..db8484a 100644
  
  /* How many kernel calls get logged before the log goes quiet.
   *
-@@ -381,24 +396,79 @@ static long long g_kernel_call_count = 0;
+@@ -392,24 +407,79 @@ static long long g_kernel_call_count = 0;
   * console, but a bring-up that gets past early init then has no visibility at
   * exactly the point it stops being obvious. Override with
   * RECOMP_KERNEL_LOG_BUDGET, the same way RECOMP_TRACE_BUDGET works for the
@@ -629,7 +629,7 @@ index 09b8645..db8484a 100644
  
  /* Read Xbox stack arg as uint32_t.
   * After kernel_thunk_dispatch pops the dummy return address (g_esp += 4),
-@@ -1420,6 +1490,9 @@ static void bridge_ExAllocatePoolWithTag(void)
+@@ -1431,6 +1501,9 @@ static void bridge_ExAllocatePoolWithTag(void)
  }
  
  /* ── KfRaiseIrql / KfLowerIrql (ordinals 160, 161) ────── */
@@ -639,7 +639,7 @@ index 09b8645..db8484a 100644
  static void bridge_KfRaiseIrql(void)
  {
      uint32_t new_irql = g_ecx; /* fastcall: KIRQL is passed in CL */
-@@ -1429,6 +1502,14 @@ static void bridge_KfRaiseIrql(void)
+@@ -1440,6 +1513,14 @@ static void bridge_KfRaiseIrql(void)
  static void bridge_KfLowerIrql(void)
  {
      uint32_t new_irql = g_ecx; /* fastcall: KIRQL is passed in CL */
@@ -654,7 +654,7 @@ index 09b8645..db8484a 100644
      xbox_KfLowerIrql((UCHAR)new_irql);
      g_eax = 0;
  }
-@@ -1511,15 +1592,17 @@ static void bridge_NtCreateEvent(void)
+@@ -1522,15 +1603,17 @@ static void bridge_NtCreateEvent(void)
          bridge_write_handle(handle_ptr, local_handle);
      }
  
@@ -675,7 +675,7 @@ index 09b8645..db8484a 100644
  static void ke_shadow_insert(uint32_t guest_va, HANDLE host);
  static HANDLE bridge_resolve_handle(uint32_t token);
  static HANDLE ke_guest_event(uint32_t guest_va, int *type);
-@@ -1545,7 +1628,7 @@ static void bridge_KeSetEvent(void)
+@@ -1556,7 +1639,7 @@ static void bridge_KeSetEvent(void)
              return;
          }
      }
@@ -684,7 +684,7 @@ index 09b8645..db8484a 100644
      if (!h)
          h = bridge_resolve_handle(guest_va);
      if (!h)
-@@ -1556,6 +1639,90 @@ static void bridge_KeSetEvent(void)
+@@ -1567,6 +1650,90 @@ static void bridge_KeSetEvent(void)
          g_eax = 0;
  }
  
@@ -775,7 +775,7 @@ index 09b8645..db8484a 100644
  /* ── KeWaitForSingleObject (ordinal 159) ─────────────────── */
  static void bridge_KeWaitForSingleObject(void)
  {
-@@ -1565,9 +1732,12 @@ static void bridge_KeWaitForSingleObject(void)
+@@ -1576,9 +1743,12 @@ static void bridge_KeWaitForSingleObject(void)
      uint32_t alertable = STACK_ARG(3);
      uint32_t timeout_ptr = STACK_ARG(4);
      HANDLE h;
@@ -788,7 +788,7 @@ index 09b8645..db8484a 100644
          return;
      }
      {   /* An event the title built itself (see ke_guest_event). Its
-@@ -1588,19 +1758,25 @@ static void bridge_KeWaitForSingleObject(void)
+@@ -1599,19 +1769,25 @@ static void bridge_KeWaitForSingleObject(void)
                  (BOOLEAN)alertable, XBOX_TO_NATIVE(timeout_ptr));
              if (g_eax == 0 && type == 1)               /* synchronization: consumed */
                  BRIDGE_MEM32(object + 4) = 0;
@@ -817,7 +817,7 @@ index 09b8645..db8484a 100644
  }
  
  /* ── NtWaitForSingleObject (ordinal 233) ─────────────────── */
-@@ -1612,12 +1788,15 @@ static void bridge_KeWaitForSingleObject(void)
+@@ -1623,12 +1799,15 @@ static void bridge_KeWaitForSingleObject(void)
   */
  static void bridge_NtWaitForSingleObject(void)
  {
@@ -834,7 +834,7 @@ index 09b8645..db8484a 100644
  }
  
  /* ── NtClearEvent (ordinal 186) ──────────────────────────── */
-@@ -1665,10 +1844,12 @@ static HANDLE bridge_resolve_handle(uint32_t token);
+@@ -1676,10 +1855,12 @@ static HANDLE bridge_resolve_handle(uint32_t token);
  
  static void bridge_NtWaitForSingleObjectEx(void)
  {
@@ -848,7 +848,7 @@ index 09b8645..db8484a 100644
  
      static int logged = 0;
      if (logged++ < 20) {
-@@ -1681,6 +1862,7 @@ static void bridge_NtWaitForSingleObjectEx(void)
+@@ -1692,6 +1873,7 @@ static void bridge_NtWaitForSingleObjectEx(void)
      g_eax = (uint32_t)xbox_NtWaitForSingleObjectEx(
          handle, (KPROCESSOR_MODE)wait_mode, (BOOLEAN)alertable,
          XBOX_TO_NATIVE(timeout_ptr));
@@ -856,7 +856,7 @@ index 09b8645..db8484a 100644
  }
  
  /* ── MmQueryAddressProtect (ordinal 179) ─────────────────── */
-@@ -2005,11 +2187,9 @@ static void bridge_HalReadSMCTrayState(void)
+@@ -2016,11 +2198,9 @@ static void bridge_HalReadSMCTrayState(void)
   * interrupt enable and queues here, and the enumeration it should have started
   * lives entirely in the deferred routine.
   *
@@ -871,7 +871,7 @@ index 09b8645..db8484a 100644
   */
  /* Run a DPC's deferred routine on the calling thread.
   *
-@@ -2050,7 +2230,20 @@ static int kernel_run_dpc(uint32_t dpc_va, uint32_t arg1, uint32_t arg2)
+@@ -2061,7 +2241,20 @@ static int kernel_run_dpc(uint32_t dpc_va, uint32_t arg1, uint32_t arg2)
      g_esp -= 4; BRIDGE_MEM32(g_esp) = context;
      g_esp -= 4; BRIDGE_MEM32(g_esp) = dpc_va;
      g_esp -= 4; BRIDGE_MEM32(g_esp) = 0;
@@ -893,7 +893,7 @@ index 09b8645..db8484a 100644
      return 1;
  }
  
-@@ -2065,10 +2258,11 @@ static int kernel_run_dpc(uint32_t dpc_va, uint32_t arg1, uint32_t arg2)
+@@ -2076,10 +2269,11 @@ static int kernel_run_dpc(uint32_t dpc_va, uint32_t arg1, uint32_t arg2)
   * ran -- the same failure as an unqueued DPC, and just as quiet: the driver
   * asks for exclusive access, is told it did not get it, and skips the work.
   *
@@ -909,7 +909,7 @@ index 09b8645..db8484a 100644
   */
  static void bridge_KeSynchronizeExecution(void)
  {
-@@ -2090,17 +2284,17 @@ static void bridge_KeSynchronizeExecution(void)
+@@ -2101,17 +2295,17 @@ static void bridge_KeSynchronizeExecution(void)
       * the dummy return address and the argument, so g_esp needs no fixup. */
      g_esp -= 4; BRIDGE_MEM32(g_esp) = context;
      g_esp -= 4; BRIDGE_MEM32(g_esp) = 0;
@@ -932,7 +932,7 @@ index 09b8645..db8484a 100644
   */
  static void bridge_KeRemoveQueueDpc(void);   /* defined with the queue */
  
-@@ -2114,12 +2308,10 @@ static void bridge_KeRemoveQueueDpc(void);   /* defined with the queue */
+@@ -2125,12 +2319,10 @@ static void bridge_KeRemoveQueueDpc(void);   /* defined with the queue */
   * the stack, and a driver's state machine re-enters itself from inside its own
   * interrupt.
   *
@@ -949,7 +949,7 @@ index 09b8645..db8484a 100644
   */
  #define XBOX_MAX_PENDING_DPC 64
  typedef struct { uint32_t dpc, arg1, arg2; } PendingDpc;
-@@ -2198,8 +2390,19 @@ static void bridge_KeRemoveQueueDpc(void)
+@@ -2209,8 +2401,19 @@ static void bridge_KeRemoveQueueDpc(void)
      dpc_lock();
      if (BRIDGE_MEM8(dpc + 2)) {
          for (i = g_dpc_head; i != g_dpc_tail; i = (i + 1) % XBOX_MAX_PENDING_DPC)
@@ -971,7 +971,7 @@ index 09b8645..db8484a 100644
          BRIDGE_MEM8(dpc + 2) = 0;
          g_eax = 1;
      }
-@@ -2301,15 +2504,20 @@ static void kernel_vblank_tick(void)
+@@ -2312,15 +2515,20 @@ static void kernel_vblank_tick(void)
      }
  }
  
@@ -994,7 +994,7 @@ index 09b8645..db8484a 100644
              break;
          }
          d = g_dpc_queue[g_dpc_head];
-@@ -2321,7 +2529,90 @@ static void kernel_drain_dpcs(void)
+@@ -2332,7 +2540,90 @@ static void kernel_drain_dpcs(void)
          LeaveCriticalSection(&g_dpc_lock);
          if (d.dpc)
              kernel_run_dpc(d.dpc, d.arg1, d.arg2);
@@ -1086,7 +1086,7 @@ index 09b8645..db8484a 100644
  }
  
  /* ── KeInitializeDpc (ordinal 107) ────────────────────────
-@@ -2539,9 +2830,9 @@ static void bridge_KeInitializeTimerEx(void)
+@@ -2550,9 +2841,9 @@ static void bridge_KeInitializeTimerEx(void)
   * during XInitDevices and enumerates from it.
   *
   * A due time is in 100 ns units, negative for relative and positive for an
@@ -1099,7 +1099,7 @@ index 09b8645..db8484a 100644
   *
   * ponytail: one thread, a fixed table, and a 10 ms tick, so a due time is late
   * by up to a tick and a periodic timer drifts. Nothing here is scheduling
-@@ -2559,6 +2850,42 @@ static XboxTimer g_timers[XBOX_MAX_TIMERS];
+@@ -2570,6 +2861,42 @@ static XboxTimer g_timers[XBOX_MAX_TIMERS];
  static CRITICAL_SECTION g_timer_lock;
  static int g_timer_started;
  
@@ -1142,7 +1142,7 @@ index 09b8645..db8484a 100644
  static DWORD WINAPI kernel_timer_thread(LPVOID unused)
  {
      int slot = xbox_worker_stack_alloc();
-@@ -2595,36 +2922,8 @@ static DWORD WINAPI kernel_timer_thread(LPVOID unused)
+@@ -2606,36 +2933,8 @@ static DWORD WINAPI kernel_timer_thread(LPVOID unused)
          kernel_drain_dpcs();   /* deferred work, before due timers */
          now = (long long)GetTickCount64();
  
@@ -1181,7 +1181,7 @@ index 09b8645..db8484a 100644
      }
  }
  
-@@ -2632,10 +2931,23 @@ static DWORD WINAPI kernel_timer_thread(LPVOID unused)
+@@ -2643,10 +2942,23 @@ static DWORD WINAPI kernel_timer_thread(LPVOID unused)
  static void kernel_set_timer(uint32_t timer_va, long long due_100ns,
                               long period_ms, uint32_t dpc_va)
  {
@@ -1206,7 +1206,7 @@ index 09b8645..db8484a 100644
      if (!g_timer_started) {
          InitializeCriticalSection(&g_timer_lock);
          g_timer_started = 1;
-@@ -2647,6 +2959,14 @@ static void kernel_set_timer(uint32_t timer_va, long long due_100ns,
+@@ -2658,6 +2970,14 @@ static void kernel_set_timer(uint32_t timer_va, long long due_100ns,
          if (g_timers[i].timer_va == timer_va) { free_slot = i; was_set = 1; break; }
          if (!g_timers[i].timer_va && free_slot < 0) free_slot = i;
      }
@@ -1221,7 +1221,7 @@ index 09b8645..db8484a 100644
      if (free_slot >= 0) {
          g_timers[free_slot].timer_va  = timer_va;
          g_timers[free_slot].dpc_va    = dpc_va;
-@@ -2655,12 +2975,6 @@ static void kernel_set_timer(uint32_t timer_va, long long due_100ns,
+@@ -2666,12 +2986,6 @@ static void kernel_set_timer(uint32_t timer_va, long long due_100ns,
      }
      LeaveCriticalSection(&g_timer_lock);
  
@@ -1234,7 +1234,7 @@ index 09b8645..db8484a 100644
      g_eax = was_set;
  }
  
-@@ -2727,6 +3041,7 @@ static void bridge_RtlNtStatusToDosError(void)
+@@ -2738,6 +3052,7 @@ static void bridge_RtlNtStatusToDosError(void)
      case 0xC000003A: g_eax = 3; break;          /* STATUS_OBJECT_PATH_NOT_FOUND → ERROR_PATH_NOT_FOUND */
      case 0xC0000022: g_eax = 5; break;          /* STATUS_ACCESS_DENIED → ERROR_ACCESS_DENIED */
      case 0xC0000008: g_eax = 6; break;          /* STATUS_INVALID_HANDLE → ERROR_INVALID_HANDLE */
@@ -1242,7 +1242,7 @@ index 09b8645..db8484a 100644
      case 0xC0000017: g_eax = 8; break;          /* STATUS_NO_MEMORY → ERROR_NOT_ENOUGH_MEMORY */
      case 0xC000000D: g_eax = 87; break;         /* STATUS_INVALID_PARAMETER → ERROR_INVALID_PARAMETER */
      /* The informational and warning codes, which are not failures and must
-@@ -2851,20 +3166,61 @@ static void bridge_write_iostatus(uint32_t ios_va, NTSTATUS status, uint32_t inf
+@@ -2862,20 +3177,61 @@ static void bridge_write_iostatus(uint32_t ios_va, NTSTATUS status, uint32_t inf
  #define BRIDGE_HANDLE_MASK 0x00FFFFFFu
  #define BRIDGE_HANDLE_MAX  16384
  static HANDLE s_handle_table[BRIDGE_HANDLE_MAX];
@@ -1310,7 +1310,7 @@ index 09b8645..db8484a 100644
  }
  
  /* Store a native HANDLE into a 32-bit Xbox memory slot (as a token). */
-@@ -2880,7 +3236,7 @@ static HANDLE bridge_read_handle(uint32_t va)
+@@ -2891,7 +3247,7 @@ static HANDLE bridge_read_handle(uint32_t va)
      uint32_t token = BRIDGE_MEM32(va);
      if ((token & 0xFF000000u) == BRIDGE_HANDLE_TAG) {
          uint32_t i = token & BRIDGE_HANDLE_MASK;
@@ -1319,7 +1319,7 @@ index 09b8645..db8484a 100644
      }
      /* Untagged value: synthetic/dummy handle -- pass through unchanged. */
      return (HANDLE)(uintptr_t)token;
-@@ -2903,7 +3259,7 @@ static HANDLE bridge_resolve_handle(uint32_t token)
+@@ -2914,7 +3270,7 @@ static HANDLE bridge_resolve_handle(uint32_t token)
  {
      if ((token & 0xFF000000u) == BRIDGE_HANDLE_TAG) {
          uint32_t i = token & BRIDGE_HANDLE_MASK;
@@ -1328,7 +1328,7 @@ index 09b8645..db8484a 100644
      }
      /* Pseudo-handles (NtCurrentProcess() = -1, NtCurrentThread() = -2) are
       * negative. Zero-extending them on a 64-bit host yields 0x00000000FFFFFFFE,
-@@ -2920,8 +3276,11 @@ static HANDLE bridge_take_handle(uint32_t token)
+@@ -2931,8 +3287,11 @@ static HANDLE bridge_take_handle(uint32_t token)
      if ((token & 0xFF000000u) == BRIDGE_HANDLE_TAG) {
          uint32_t i = token & BRIDGE_HANDLE_MASK;
          if (i > 0 && i < BRIDGE_HANDLE_MAX) {
@@ -1342,7 +1342,7 @@ index 09b8645..db8484a 100644
              return h;
          }
      }
-@@ -2973,16 +3332,20 @@ static int bridge_is_cdrom_device(const char *path)
+@@ -2984,16 +3343,20 @@ static int bridge_is_cdrom_device(const char *path)
  }
  
  /* Open a file by delegating to the ported xbox_NtCreateFile kernel HLE. */
@@ -1364,7 +1364,7 @@ index 09b8645..db8484a 100644
  
      bridge_build_oa(obj_attrs_va, &oa, &name);
      if (!name.Buffer) {
-@@ -2991,8 +3354,9 @@ static NTSTATUS bridge_create_file_impl(
+@@ -3002,8 +3365,9 @@ static NTSTATUS bridge_create_file_impl(
      }
  
      if (bridge_is_cdrom_device(name.Buffer)) {
@@ -1376,7 +1376,7 @@ index 09b8645..db8484a 100644
          if (handle_va)
              BRIDGE_MEM32(handle_va) = BRIDGE_CDROM_HANDLE;
          bridge_write_iostatus(iostatus_va, 0, 1 /* FILE_OPENED */);
-@@ -3003,6 +3367,7 @@ static NTSTATUS bridge_create_file_impl(
+@@ -3014,6 +3378,7 @@ static NTSTATUS bridge_create_file_impl(
  
      st = xbox_NtCreateFile(&h, access, &oa, &ios, NULL,
                             file_attrs, share, disposition, options);
@@ -1384,7 +1384,7 @@ index 09b8645..db8484a 100644
  
      if (NT_SUCCESS(st)) {
          bridge_write_handle(handle_va, h);
-@@ -3100,6 +3465,7 @@ static void bridge_NtCreateFile(void)
+@@ -3111,6 +3476,7 @@ static void bridge_NtCreateFile(void)
      uint32_t share       = STACK_ARG(6);  /* ShareAccess */
      uint32_t disposition = STACK_ARG(7);  /* CreateDisposition */
      uint32_t options     = STACK_ARG(8);  /* CreateOptions */
@@ -1392,7 +1392,7 @@ index 09b8645..db8484a 100644
  
      /* The out-parameter addresses matter as much as the result: this bridge
       * hands them to a real Win32 call, so a bogus one has Windows itself write
-@@ -3107,7 +3473,7 @@ static void bridge_NtCreateFile(void)
+@@ -3118,7 +3484,7 @@ static void bridge_NtCreateFile(void)
       * ntdll and no recompiled frame to blame. */
      g_eax = (uint32_t)bridge_create_file_impl(
          handle_va, access, obj_attrs, iostatus,
@@ -1401,7 +1401,7 @@ index 09b8645..db8484a 100644
  
      /* FILE_SYNCHRONOUS_IO_ALERT | FILE_SYNCHRONOUS_IO_NONALERT. Neither set
       * means the caller wants asynchronous completion on this handle. */
-@@ -3148,24 +3514,24 @@ static void bridge_NtCreateFile(void)
+@@ -3159,24 +3525,24 @@ static void bridge_NtCreateFile(void)
              xbox_VideoPlayFile(host);
      }
  
@@ -1436,7 +1436,7 @@ index 09b8645..db8484a 100644
  }
  
  /* ── NtOpenFile (ordinal 202, 6 args = 24 bytes) ──────── */
-@@ -3181,7 +3547,7 @@ static void bridge_NtOpenFile(void)
+@@ -3192,7 +3558,7 @@ static void bridge_NtOpenFile(void)
      /* NtOpenFile = NtCreateFile with FILE_OPEN disposition */
      g_eax = (uint32_t)bridge_create_file_impl(
          handle_va, access, obj_attrs, iostatus,
@@ -1445,7 +1445,7 @@ index 09b8645..db8484a 100644
  }
  
  /*
-@@ -3470,13 +3836,16 @@ static void bridge_NtReadFile(void)
+@@ -3481,13 +3847,16 @@ static void bridge_NtReadFile(void)
                  XBOX_TO_NATIVE(buffer_va), length, poff);
  
      if ((NTSTATUS)g_eax != STATUS_SUCCESS)
@@ -1465,7 +1465,7 @@ index 09b8645..db8484a 100644
          const uint8_t *p = (const uint8_t *)XBOX_TO_NATIVE(buffer_va);
          uint32_t got = (uint32_t)ios.Information;
          /* The offset matters as much as the length. A title streaming a pack
-@@ -3761,7 +4130,7 @@ static void bridge_IoCreateFile(void)
+@@ -3772,7 +4141,7 @@ static void bridge_IoCreateFile(void)
  
      g_eax = (uint32_t)bridge_create_file_impl(
          handle_va, access, obj_attrs, iostatus,
@@ -1474,7 +1474,7 @@ index 09b8645..db8484a 100644
  }
  
  /* -- NtDeviceIoControlFile (ordinal 196, 10 args = 40 bytes) ----
-@@ -3824,8 +4193,9 @@ static void bridge_NtDeviceIoControlFile(void)
+@@ -3835,8 +4204,9 @@ static void bridge_NtDeviceIoControlFile(void)
              uint32_t data_len = BRIDGE_MEM32(in_va + 12);
              uint32_t page     = BRIDGE_MEM8(in_va + 30) & 0x3F;
  
@@ -1486,7 +1486,7 @@ index 09b8645..db8484a 100644
  
              if (data_va && data_len) {
                  uint32_t i;
-@@ -3859,9 +4229,9 @@ static void bridge_NtDeviceIoControlFile(void)
+@@ -3870,9 +4240,9 @@ static void bridge_NtDeviceIoControlFile(void)
              return;
          }
  
@@ -1499,7 +1499,7 @@ index 09b8645..db8484a 100644
          if (out_va && out_len) {
              uint32_t i;
              for (i = 0; i < out_len; i++)
-@@ -6006,60 +6376,9 @@ static void bridge_RtlUshortByteSwap(void)
+@@ -6017,60 +6387,9 @@ static void bridge_RtlUshortByteSwap(void)
  /* ── Rtl Critical sections (ordinals 278, 295, 306) ─────────
   * 277/294 (plain Enter/Leave) are routed via the xbox_Rtl* wrappers already.
   *
@@ -1563,7 +1563,7 @@ index 09b8645..db8484a 100644
  
  /* 278: VOID RtlEnterCriticalSectionAndRegion(PRTL_CRITICAL_SECTION) */
  static void bridge_RtlEnterCriticalSectionAndRegion(void)
-@@ -6078,9 +6397,8 @@ static void bridge_RtlLeaveCriticalSectionAndRegion(void)
+@@ -6089,9 +6408,8 @@ static void bridge_RtlLeaveCriticalSectionAndRegion(void)
  /* 306: BOOLEAN RtlTryEnterCriticalSection(PRTL_CRITICAL_SECTION) */
  static void bridge_RtlTryEnterCriticalSection(void)
  {
@@ -1575,7 +1575,7 @@ index 09b8645..db8484a 100644
  }
  
  /* ── Rtl Misc stubs (ordinals 288, 297, 319, 321) ─────────── */
-@@ -6163,19 +6481,26 @@ static void bridge_RtlCaptureStackBackTrace(void)
+@@ -6174,19 +6492,26 @@ static void bridge_RtlCaptureStackBackTrace(void)
  
  /* --- Ke Object Shadow Table --- */
  #define KE_SHADOW_SIZE 4096
@@ -1610,7 +1610,7 @@ index 09b8645..db8484a 100644
  }
  
  /* Insert a mapping guest_va -> host HANDLE. Replaces any prior mapping for
-@@ -6197,6 +6522,8 @@ static void ke_shadow_insert(uint32_t guest_va, HANDLE host)
+@@ -6208,6 +6533,8 @@ static void ke_shadow_insert(uint32_t guest_va, HANDLE host)
              if (g_ke_shadow[i].host_handle && g_ke_shadow[i].host_handle != host)
                  CloseHandle(g_ke_shadow[i].host_handle);
              g_ke_shadow[i].host_handle = host;
@@ -1619,7 +1619,7 @@ index 09b8645..db8484a 100644
              LeaveCriticalSection(&g_ke_shadow_cs);
              return;
          }
-@@ -6222,7 +6549,7 @@ static void ke_shadow_insert(uint32_t guest_va, HANDLE host)
+@@ -6233,7 +6560,7 @@ static void ke_shadow_insert(uint32_t guest_va, HANDLE host)
  }
  
  /* Look up the host HANDLE for a guest object VA. Returns NULL if not found. */
@@ -1628,7 +1628,7 @@ index 09b8645..db8484a 100644
  {
      uint32_t i;
      HANDLE h = NULL;
-@@ -6234,7 +6561,8 @@ static HANDLE ke_shadow_lookup(uint32_t guest_va)
+@@ -6245,7 +6572,8 @@ static HANDLE ke_shadow_lookup(uint32_t guest_va)
  
      EnterCriticalSection(&g_ke_shadow_cs);
      for (i = 0; i < KE_SHADOW_SIZE; i++) {
@@ -1638,7 +1638,7 @@ index 09b8645..db8484a 100644
              h = g_ke_shadow[i].host_handle;
              break;
          }
-@@ -6243,6 +6571,18 @@ static HANDLE ke_shadow_lookup(uint32_t guest_va)
+@@ -6254,6 +6582,18 @@ static HANDLE ke_shadow_lookup(uint32_t guest_va)
      return h;
  }
  
@@ -1657,7 +1657,7 @@ index 09b8645..db8484a 100644
  /* Remove (and close) the mapping for a guest object VA. */
  static void ke_shadow_remove(uint32_t guest_va)
  {
-@@ -6286,52 +6626,122 @@ static void ke_shadow_remove(uint32_t guest_va)
+@@ -6297,52 +6637,122 @@ static void ke_shadow_remove(uint32_t guest_va)
   * Opt-in because it changes what every such wait does: a wait that failed at
   * once now blocks until the event is set, and on a title whose setter the
   * runtime does not model yet (a GPU interrupt, say) that turns a spin into a
@@ -1802,7 +1802,7 @@ index 09b8645..db8484a 100644
              fprintf(stderr, "  [KERNEL] event 0x%08X built by the title: host event created "
                              "(%s)\n", guest_va, *type ? "synchronization" : "notification");
      }
-@@ -7340,7 +7750,7 @@ static void bridge_KeInsertQueueApc(void)
+@@ -7351,7 +7761,7 @@ static void bridge_KeInsertQueueApc(void)
  /* --- KeIsExecutingDpc (ordinal 121, 0 args = 0 bytes) --- */
  static void bridge_KeIsExecutingDpc(void)
  {
@@ -1811,7 +1811,7 @@ index 09b8645..db8484a 100644
  }
  
  /* --- KeLeaveCriticalRegion (ordinal 122, 0 args = 0 bytes) --- */
-@@ -9506,9 +9916,7 @@ static void kernel_thunk_dispatch_body(void)
+@@ -9517,9 +9927,7 @@ static void kernel_thunk_dispatch_body(void)
      ordinal = g_slot_ordinals[slot];
      bridge = g_slot_bridges[slot];
  
@@ -1822,7 +1822,7 @@ index 09b8645..db8484a 100644
  
      if (KERNEL_LOG_ON()) {
          /* The guest return address sits at the top of the guest stack: the
-@@ -9517,48 +9925,11 @@ static void kernel_thunk_dispatch_body(void)
+@@ -9528,48 +9936,11 @@ static void kernel_thunk_dispatch_body(void)
           * difference between guessing and knowing when a title recurses. */
          fprintf(stderr,
                  "  [KERNEL] #%lld: ordinal %u (slot %d) esp=0x%08X ret=0x%08X\n",
@@ -1872,7 +1872,7 @@ index 09b8645..db8484a 100644
      /* Pop the dummy return address that PUSH32(esp, 0) pushed before RECOMP_ICALL.
       * On real x86, "call [thunk]" pushes a real return address and "ret" pops it.
       * In our model, the bridge is called directly (not via the simulated stack),
-@@ -9590,10 +9961,8 @@ static void kernel_thunk_dispatch_body(void)
+@@ -9601,10 +9972,8 @@ static void kernel_thunk_dispatch_body(void)
              static uint32_t seen = 0xDEADBEEFu;
              if (_watch_before != seen) {
                  seen = _watch_before;
@@ -1885,7 +1885,7 @@ index 09b8645..db8484a 100644
                  fflush(stderr);
              }
          }
-@@ -9603,7 +9972,7 @@ static void kernel_thunk_dispatch_body(void)
+@@ -9614,7 +9983,7 @@ static void kernel_thunk_dispatch_body(void)
          bridge();
      } else {
          /* No specific bridge - return 0. Warn once per ordinal rather than
@@ -1894,7 +1894,7 @@ index 09b8645..db8484a 100644
           * usually the reason a game misbehaves, so it must not be swallowed
           * by the general call-trace throttle. Bounded to one line per slot. */
          static uint8_t warned[XBOX_KERNEL_THUNK_TABLE_SIZE];
-@@ -9744,6 +10113,7 @@ void xbox_kernel_bridge_init(void)
+@@ -9755,6 +10124,7 @@ void xbox_kernel_bridge_init(void)
      int unbridged = 0;
      DWORD old_protect;
  
@@ -15510,10 +15510,10 @@ index 0000000..bef5a46
 +through `RECOMP_HITCH_TRACE`.
 diff --git a/tests/nv2a_ps_prewarm/test_main.c b/tests/nv2a_ps_prewarm/test_main.c
 new file mode 100644
-index 0000000..872c99b
+index 0000000..7754cb9
 --- /dev/null
 +++ b/tests/nv2a_ps_prewarm/test_main.c
-@@ -0,0 +1,558 @@
+@@ -0,0 +1,561 @@
 +/* Exercise production manifest, scheduler, workers and GPU-specialised pixels. */
 +#define COBJMACROS
 +#define WIN32_LEAN_AND_MEAN
@@ -15577,7 +15577,10 @@ index 0000000..872c99b
 +{
 +    wchar_t temp[MAX_PATH];
 +    CHECK(GetTempPathW(MAX_PATH, temp));
-+    CHECK(swprintf_s(dir, NV_SHADER_CACHE_PATH, L"%srecomp-ps-test-%lu", temp, GetCurrentProcessId()) > 0);
++    /* PIDs are reused, and a prior run may leave its cache directory behind.
++     * Reserve a fresh path rather than reusing that run's cache or failing. */
++    CHECK(GetTempFileNameW(temp, L"psp", 0, dir));
++    CHECK(DeleteFileW(dir));
 +    CHECK(CreateDirectoryW(dir, NULL));
 +    CHECK(SetEnvironmentVariableW(L"RECOMP_SHADER_CACHE_DIR", dir));
 +    _putenv_s("RECOMP_SHADER_CACHE", "1");

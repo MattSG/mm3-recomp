@@ -95,7 +95,7 @@ set(MM3_DISTANCE_FUNCTIONS sub_000D9E2E sub_000E2D5B sub_000F4AC3 sub_000FE71E
 set(MM3_DEFINITION_ONLY_FUNCTIONS ${MM3_DISTANCE_FUNCTIONS})
 # The main loop and world update can share a generated chunk. Rename only
 # these definitions so direct and same-chunk calls enter the clocked wrappers.
-set(MM3_SIMULATION_FUNCTIONS sub_00025422 sub_0002545A sub_001E7590)
+set(MM3_SIMULATION_FUNCTIONS sub_00025422 sub_0002545A sub_001E7590 sub_001EC8E6)
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS ${MM3_SIMULATION_FUNCTIONS})
 # Building diagnostics keep same-chunk calls routed through opt-in wrappers.
 set(MM3_BUILDING_FUNCTIONS sub_00168A77 sub_001C7B15 sub_001A67BA sub_00166E01

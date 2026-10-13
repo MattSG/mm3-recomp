@@ -1,6 +1,22 @@
 # MM3 session status
 
-## Current integration — 2026-10-13
+## Current submission integration - 2026-10-13
+
+The all-features submission preserves the original fork and incorporates game
+upstream `b58c022` with public runtime `6599635` plus the reproducible fork patch.
+Car tools, native gameplay features and runtime fixes remain present; Matt's
+latest System Link, Insignia DNS, console keys, account import and render-tick
+changes are retained. Fresh full generation, independent MSVC RelWithDebInfo
+build, compiled hidden-launcher rendering/normal close and scoped native/unit
+checks passed. The latest validation scope is recorded at the beginning
+of [the integration record](docs/integration-2026-10-13.md).
+
+The earlier driving results below predate the new render-tick policy. With
+console-rate simulation enabled, drawing now follows 30/60 Hz world ticks;
+main-loop limit choices do not imply 90 drawn FPS. The optional launcher
+**Draw every frame** setting restores the preceding rendering behavior.
+
+## Previous integration — 2026-10-13
 
 Source integration is complete. The combined MSVC build, public-base runtime
 patch reproduction, scoped native/unit checks and live launcher

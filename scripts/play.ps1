@@ -3,13 +3,16 @@
 Run the recompiled Midtown Madness 3 built by scripts\setup.ps1.
 
 .DESCRIPTION
-  pwsh scripts\play.ps1 [-Keyboard] [-Fullscreen] [-Profile Balanced|Quality|LowPower] [-FpsLimit 90] [-Fov 100] [-TraceBuildings | -NoTraceBuildings] [-Exe <path>]
+  pwsh scripts\play.ps1 [-Keyboard] [-Fullscreen] [-Profile Balanced|Quality|LowPower] [-FpsLimit 90] [-Fov 100] [-TraceBuildings | -NoTraceBuildings] [-AllowMultipleInstances] [-Exe <path>]
 
 Any RECOMP_*/MM3_* variable already set in your shell overrides these
 defaults (see README "Options"). F11 or Alt+Enter toggles fullscreen.
 Every launch saves combined, timestamped output and launch metadata under logs\.
 Normal launches leave focused building/texture/stream-wait diagnostics off.
 Use -TraceBuildings to enable them for a pop-in investigation.
+For same-PC System Link, -AllowMultipleInstances requires an explicit
+MM3_SAVE_DIR for each instance. Instances must use distinct save/cache roots.
+Console keys are inherited by the game but redacted from launch metadata.
 #>
 param(
     [switch]$Keyboard,
@@ -19,6 +22,7 @@ param(
     [ValidateRange(60, 110)][double]$Fov,
     [switch]$TraceBuildings,
     [switch]$NoTraceBuildings,
+    [switch]$AllowMultipleInstances,
     [string]$Exe
 )
 $ErrorActionPreference = 'Stop'
@@ -31,6 +35,10 @@ if (-not $Exe -or -not (Test-Path $Exe)) { throw 'No build found: run scripts\se
 $Exe = (Resolve-Path -LiteralPath $Exe).Path
 if (-not (Test-Path (Join-Path $repo 'game_files\default.xbe'))) { throw 'game_files\ missing: run scripts\setup.ps1 -Iso <disc>.' }
 if ($NoTraceBuildings) { $TraceBuildings = $false }
+if ($AllowMultipleInstances -and
+    [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('MM3_SAVE_DIR', 'Process'))) {
+    throw '-AllowMultipleInstances requires an explicit MM3_SAVE_DIR; use a different save directory for each game instance.'
+}
 
 $defaults = @{
     RECOMP_PB_EXEC = '1'; RECOMP_FB_WINDOW = '1'; RECOMP_USB = '1'
@@ -157,24 +165,49 @@ $previous = @{}
 $loggedProcess = $null
 $launchGuard = $null
 $ownsLaunchGuard = $false
+$cacheGuard = $null
 $metadata = $null
 $launchExitCode = 1
 Push-Location $repo
 try {
     if ([IO.Path]::GetFileName($Exe) -ieq 'mm3_recomp.exe') {
-        # The title opens the shared Data_hd.zip cache exclusively. A second
-        # game reports its sharing violation as a dirty/damaged disc. Hold a
-        # launcher mutex as well, so simultaneous clicks cannot both pass.
-        $launchGuard = [Threading.Mutex]::new($false, 'Local\MM3RecompSharedCacheLauncher')
-        try { $ownsLaunchGuard = $launchGuard.WaitOne(0) }
-        catch [Threading.AbandonedMutexException] { $ownsLaunchGuard = $true }
-        $runningGames = @(Get-Process -Name mm3_recomp -ErrorAction SilentlyContinue)
-        if ($runningGames.Count -gt 0) {
-            $runningIds = ($runningGames | ForEach-Object { $_.Id } | Sort-Object) -join ', '
-            throw "Midtown Madness 3 is already running (PID $runningIds). Close all existing game windows before launching again; they share an exclusive game cache."
+        if (-not $AllowMultipleInstances) {
+            # Preserve normal single-instance startup, including directly
+            # started games that do not hold a launcher lock.
+            $launchGuard = [Threading.Mutex]::new($false, 'Local\MM3RecompSharedCacheLauncher')
+            try { $ownsLaunchGuard = $launchGuard.WaitOne(0) }
+            catch [Threading.AbandonedMutexException] { $ownsLaunchGuard = $true }
+            $runningGames = @(Get-Process -Name mm3_recomp -ErrorAction SilentlyContinue)
+            if ($runningGames.Count -gt 0) {
+                $runningIds = ($runningGames | ForEach-Object { $_.Id } | Sort-Object) -join ', '
+                throw "Midtown Madness 3 is already running (PID $runningIds). Close all existing game windows before launching again, or use -AllowMultipleInstances with a distinct MM3_SAVE_DIR to isolate its cache."
+            }
+            if (-not $ownsLaunchGuard) {
+                throw 'Another Midtown Madness 3 launcher is active. Close it before launching again, or use -AllowMultipleInstances with a distinct MM3_SAVE_DIR.'
+            }
         }
-        if (-not $ownsLaunchGuard) {
-            throw 'Another Midtown Madness 3 launcher is active. Close the existing game/launcher before starting another copy; they share an exclusive game cache.'
+        # Disc reads may be shared for System Link; writable cache and save
+        # files still need separate roots. A host file lock also recognizes
+        # aliases that resolve to the same directory, unlike a path hash.
+        $saveSetting = [Environment]::GetEnvironmentVariable('MM3_SAVE_DIR', 'Process')
+        if (-not [string]::IsNullOrEmpty($saveSetting)) {
+            $saveRoot = [IO.Path]::GetFullPath(
+                $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($saveSetting))
+            $previous['MM3_SAVE_DIR'] = $saveSetting
+            [Environment]::SetEnvironmentVariable('MM3_SAVE_DIR', $saveRoot, 'Process')
+        } else {
+            $saveBase = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+            $saveRoot = if ($saveBase) { Join-Path $saveBase 'xboxrecomp' } else { Join-Path $repo 'SaveData' }
+        }
+        [IO.Directory]::CreateDirectory($saveRoot) | Out-Null
+        try {
+            $cacheGuard = [IO.FileStream]::new((Join-Path $saveRoot '.mm3-launch.lock'),
+                [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+        } catch {
+            $failure = $_.Exception
+            while ($failure.InnerException) { $failure = $failure.InnerException }
+            if (($failure.HResult -band 0xffff) -notin @(32, 33)) { throw }
+            throw "Another Midtown Madness 3 launcher is using save directory '$saveRoot'. Use a distinct MM3_SAVE_DIR so writable cache files are not shared."
         }
     }
     foreach ($k in $defaults.Keys) {
@@ -191,9 +224,13 @@ try {
     $metadataPath = Join-Path $logDirectory ($runName + '.json')
     $settings = [ordered]@{}
     Get-ChildItem Env: | Where-Object { $_.Name -match '^(MM3_|RECOMP_)' } |
-        Sort-Object Name | ForEach-Object { $settings[$_.Name] = $_.Value }
+        Sort-Object Name | ForEach-Object {
+            $settings[$_.Name] = if ($_.Name -match '^RECOMP_XBOX_(HDKEY|SIGKEY|LANKEY)$') {
+                '[REDACTED]'
+            } else { $_.Value }
+        }
     # These are the runtime profile's defaults for unset settings; the complete
-    # environment above records overrides, including invalid values verbatim.
+    # environment above records overrides, with console-key values redacted.
     $profileDefaults = switch ($settings.MM3_PERFORMANCE_PROFILE) {
         'Quality' { @{ render_scale = '3.0'; msaa = '8'; draw_distance = '2'; aniso = '16'; fps_limit = '60' } }
         'LowPower' { @{ render_scale = '1.5'; msaa = '1'; draw_distance = '1'; aniso = '16'; fps_limit = '30' } }
@@ -241,7 +278,8 @@ try {
                 'tools\xboxrecomp\src\video\nv2a_d3d11.c') | ForEach-Object { Get-LaunchFile (Join-Path $repo $_) } | Where-Object { $null -ne $_ }) }
         command = $command; arguments = $commandArguments
         launch_options = @{ profile = $Profile; keyboard = [bool]$Keyboard; fullscreen = [bool]$Fullscreen
-            trace_buildings = [bool]$TraceBuildings; fps_limit = if ($PSBoundParameters.ContainsKey('FpsLimit')) { $FpsLimit } else { $null }
+            trace_buildings = [bool]$TraceBuildings; allow_multiple_instances = [bool]$AllowMultipleInstances
+            fps_limit = if ($PSBoundParameters.ContainsKey('FpsLimit')) { $FpsLimit } else { $null }
             fov = if ($PSBoundParameters.ContainsKey('Fov')) { $Fov } else { $null } }
         environment = $settings; profile_defaults_for_unset_settings = $profileDefaults
         configuration_files = $files; installed_car_configuration = $installedConfig
@@ -277,6 +315,7 @@ try {
     throw
 } finally {
     if ($null -ne $loggedProcess) { $loggedProcess.Dispose() }
+    if ($null -ne $cacheGuard) { $cacheGuard.Dispose() }
     if ($null -ne $launchGuard) {
         if ($ownsLaunchGuard) { $launchGuard.ReleaseMutex() }
         $launchGuard.Dispose()

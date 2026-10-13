@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <windows.h>
 #include "recomp_types.h"
 #include "../src/mods/mods.h"
 
@@ -25,9 +26,11 @@ static unsigned char memory[0x2000];
 static const uint32_t game = 0x100u, stack = 0x1000u;
 static unsigned calls[STAGES], active_stage;
 static uint32_t active_return, active_argument;
-static int simulation_on, expected_hz;
+static int simulation_on, expected_hz, render_every_frame;
 static double world_time, frame_raw;
 static float frame_clamped, frame_average;
+static unsigned render_calls, render_waits;
+static uint32_t render_return;
 
 int mm3_mod_on(int mod)
 {
@@ -119,7 +122,57 @@ void sub_001E7590_original(void)
     translated_return(WORLD);
 }
 
+void sub_001EC8E6_original(void)
+{
+    assert(g_esp == stack && MEM32(stack) == render_return);
+    assert(MEM32(stack + 4u) == 0x11223344u);
+    assert(MEM32(stack + 8u) == 0x55667788u);
+    assert_preserved_registers();
+    ++render_calls;
+    g_eax = 0x99887766u;
+    g_ecx = 0x88776655u;
+    g_edx = 0x77665544u;
+    g_esp += 12u; /* RET 8: return address and two arguments. */
+}
+
+static void fixture_sleep(DWORD milliseconds)
+{
+    assert(milliseconds == 1 && simulation_on && !render_every_frame);
+    assert(g_esp == stack + 12u);
+    ++render_waits;
+}
+
+#define Sleep fixture_sleep
 #include "../src/mods/framerate.c"
+#undef Sleep
+
+static unsigned invoke_render(uint32_t return_address)
+{
+    unsigned before = render_calls, waits = render_waits;
+    render_return = return_address;
+    seed_registers();
+    g_esp = stack;
+    MEM32(stack - 4u) = 0xBADC0FFEu;
+    MEM32(stack) = return_address;
+    MEM32(stack + 4u) = 0x11223344u;
+    MEM32(stack + 8u) = 0x55667788u;
+    MEM32(stack + 12u) = 0xCAFED00Du;
+    sub_001EC8E6();
+    assert(g_esp == stack + 12u);
+    assert_preserved_registers();
+    assert(MEM32(stack - 4u) == 0xBADC0FFEu);
+    assert(MEM32(stack + 12u) == 0xCAFED00Du);
+    if (render_calls == before) {
+        assert(render_waits == waits + 1u);
+        assert(g_eax == 0x10203040u && g_ecx == 0x20304050u && g_edx == 0x30405060u);
+        assert(MEM32(stack) == return_address);
+        assert(MEM32(stack + 4u) == 0x11223344u && MEM32(stack + 8u) == 0x55667788u);
+    } else {
+        assert(render_waits == waits);
+        assert(g_eax == 0x99887766u && g_ecx == 0x88776655u && g_edx == 0x77665544u);
+    }
+    return render_calls - before;
+}
 
 static unsigned invoke(unsigned stage, uint32_t return_address)
 {
@@ -183,6 +236,7 @@ static unsigned frame(double raw)
     assert(memcmp((void *)XBOX_PTR(game + 0x30u), &frame_raw, sizeof frame_raw) == 0);
     assert(memcmp((void *)XBOX_PTR(game + 0x4Cu), &frame_clamped, sizeof frame_clamped) == 0);
     assert(memcmp((void *)XBOX_PTR(game + 0x54u), &frame_average, sizeof frame_average) == 0);
+    assert(invoke_render(0x001E78AAu) == (unsigned)(!simulation_on || render_every_frame || worlds != 0u));
     return worlds;
 }
 
@@ -230,6 +284,11 @@ static void check_other_callers(void)
     world_time = 0.0;
     /* Out-of-loop calls must not consume the main-loop scheduler's time. */
     assert(frame(0.25 / expected_hz) == 0u);
+    /* An alternate render caller and disabling the mod bypass a cached zero. */
+    assert(invoke_render(0x00123456u) == 1u);
+    simulation_on = 0;
+    assert(invoke_render(0x001E78AAu) == 1u);
+    simulation_on = 1;
     puts("PASS alternate callers: state changes, state machine and other world calls preserve original semantics without consuming frame time");
 }
 
@@ -262,14 +321,18 @@ static void check_disabled(void)
 int main(int argc, char **argv)
 {
     const char *enabled = getenv("MM3_MOD_FRAMERATE");
+    const char *drawing = getenv("MM3_RENDER_EVERY_FRAME");
     assert(argc == 4);
     expected_hz = atoi(argv[2]);
     assert(expected_hz == 30 || expected_hz == 60);
     simulation_on = !enabled || strcmp(enabled, "0") != 0;
+    render_every_frame = drawing && strcmp(drawing, "1") == 0;
     memset(memory, 0xA5, sizeof memory);
     g_xbox_mem_offset = (ptrdiff_t)memory;
     render_times(10.0 / expected_hz);
     assert(invoke(PROCESSES, 0x001E781Du) == 1u); /* Exactly one initial entry. */
+    /* A render before the first world update must keep its original semantics. */
+    assert(invoke_render(0x001E78AAu) == 1u);
     if (!strcmp(argv[1], "timing")) check_timing(atoi(argv[3]), 0);
     else if (!strcmp(argv[1], "irregular")) check_timing(atoi(argv[3]), 1);
     else if (!strcmp(argv[1], "abi")) check_zero_and_catchup();

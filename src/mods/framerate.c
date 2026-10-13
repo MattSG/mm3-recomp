@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <windows.h>
 #include "recomp_types.h"
 #include "mods.h"
 
@@ -23,9 +24,9 @@
  * Here a clock decides, once a frame, how many whole ticks have
  * passed, using the current timer value immediately before the world update.
  * The world runs that many times
- * with every frame-time field set to exactly one tick, while input, menus and rendering
- * still run every frame, with the real dt back for rendering. A frame with
- * less than a tick gone renders the last state; a slow frame catches up (at
+ * with every frame-time field set to exactly one tick. Input and menus
+ * still run every frame, with the real dt back when rendering. A frame with
+ * less than a tick gone skips drawing; a slow frame catches up (at
  * most 4 ticks, past that the time is dropped, as a hitch). Every frame rate
  * then plays the simulation the console does. */
 extern void sub_00025422_original(void);
@@ -118,6 +119,9 @@ void sub_0002545A(void)
     sub_0002545A_original();
 }
 
+/* Ticks the last world update ran; -1 before the first. */
+static int s_ticks = -1;
+
 /* The world update (edi the game, one argument, ret 4), with the console's
  * step in all three frame-time fields and their real values back afterwards
  * for rendering. */
@@ -149,6 +153,7 @@ void sub_001E7590(void)
         ticks = (int)(clock / TICK);
         clock -= (double)ticks * TICK;
     }
+    s_ticks = ticks;
     MEMD(game + 0x30) = TICK;
     MEMF(game + 0x4C) = TICK;
     MEMF(game + 0x54) = TICK;
@@ -157,4 +162,23 @@ void sub_001E7590(void)
     MEMF(game + 0x4C) = clamped;
     MEMF(game + 0x54) = dt;
     trace_ticks(game, elapsed, dropped, ticks);
+}
+
+/* The render (two arguments, ret 8). A frame the world did not tick is the
+ * last one again, except what the world update leaves for exactly one
+ * render: drawn twice, menu text comes out cut short and tail lights blink.
+ * By default that frame is not drawn, as on the console; the wait stands in
+ * for the present's. MM3_RENDER_EVERY_FRAME=1 keeps the fork's earlier drawing
+ * cadence as an optional setting, without changing the simulation clock. */
+extern void sub_001EC8E6_original(void);
+void sub_001EC8E6(void)
+{
+    const char *every_frame = getenv("MM3_RENDER_EVERY_FRAME");
+    int draw_every_frame = every_frame && every_frame[0] == '1' && !every_frame[1];
+    if (s_ticks == 0 && MEM32(g_esp) == 0x001E78AAu && mm3_mod_on(MM3_MOD_FRAMERATE) && !draw_every_frame) {
+        g_esp += 12;
+        Sleep(1);
+        return;
+    }
+    sub_001EC8E6_original();
 }

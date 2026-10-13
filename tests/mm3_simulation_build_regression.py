@@ -11,7 +11,7 @@ import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-HOOKS = ("sub_00025422", "sub_0002545A", "sub_001E7590")
+HOOKS = ("sub_00025422", "sub_0002545A", "sub_001E7590", "sub_001EC8E6")
 
 
 def body(source, name):
@@ -92,13 +92,14 @@ def main():
     expanded = preprocess(source, defines, generated_dir)
     check_calls(body(expanded, "sub_001E77F3"))
     assert re.search(r"\bvoid\s+sub_001E7590_original\s*\(void\)\s*{", expanded)
-    mutant = preprocess(source, defines + ["sub_001E7590=sub_001E7590_original"], generated_dir)
-    try:
-        check_calls(body(mutant, "sub_001E77F3"))
-    except AssertionError:
-        pass
-    else:
-        raise AssertionError("Whole-chunk world-hook rename escaped the negative control")
+    for hook in ("sub_001E7590", "sub_001EC8E6"):
+        mutant = preprocess(source, defines + [hook + "=" + hook + "_original"], generated_dir)
+        try:
+            check_calls(body(mutant, "sub_001E77F3"))
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError("Whole-chunk hook rename escaped the negative control: " + hook)
     print("PASS: configured/preprocessed main loop calls all simulation wrappers; original definitions stay separate; whole-chunk rename rejected")
 
 

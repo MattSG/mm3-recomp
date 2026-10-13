@@ -7,6 +7,8 @@
 #include <setjmp.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <windows.h>
 #include "recomp_types.h"
 #include "../src/mods/mods.h"
 
@@ -26,7 +28,8 @@ static unsigned char memory[0x10000];
 static jmp_buf finished;
 static unsigned frames, sampled_frames, target_frames, state_entries, state_updates;
 static unsigned world_calls;
-static int simulation_on, simulation_hz, render_hz, irregular;
+static unsigned frame_world_calls, drawn_frames, skipped_frames;
+static int simulation_on, simulation_hz, render_hz, irregular, render_every_frame;
 static double elapsed, world_time, frame_raw;
 static float frame_clamped, frame_average;
 
@@ -64,9 +67,19 @@ void sub_001E6C87(void)
     elapsed += frame_raw;
     MEMD(GAME + 0x38) = elapsed;
     ++sampled_frames;
+    frame_world_calls = 0;
     return_guest(4);
 }
-void sub_001EC8E6(void) { return_guest(12); }
+void sub_001EC8E6_original(void)
+{
+    assert(MEM32(g_esp) == 0x001E78AAu);
+    assert(MEM32(g_esp + 4u) == 0u && MEMF(g_esp + 8u) == frame_average);
+    assert(!simulation_on || render_every_frame || frame_world_calls > 0u);
+    assert(MEMD(GAME + 0x30) == frame_raw);
+    assert(MEMF(GAME + 0x4C) == frame_clamped && MEMF(GAME + 0x54) == frame_average);
+    ++drawn_frames;
+    return_guest(12);
+}
 void sub_001F373E(void) { return_guest(8); }
 void sub_001F3065(void) { return_guest(16); }
 void sub_001F34F7(void) { g_eax = 0; return_guest(8); }
@@ -91,10 +104,20 @@ void sub_001E7590_original(void)
     }
     world_time += MEMD(GAME + 0x30);
     ++world_calls;
+    ++frame_world_calls;
     return_guest(8);
 }
 
+static void fixture_sleep(DWORD milliseconds)
+{
+    assert(milliseconds == 1 && simulation_on && !render_every_frame && frame_world_calls == 0u);
+    assert(g_esp == STACK - 24u);
+    ++skipped_frames;
+}
+
+#define Sleep fixture_sleep
 #include "../src/mods/framerate.c"
+#undef Sleep
 
 static void virtual_call(uint32_t address, uint32_t saved_esp, uint32_t site)
 {
@@ -116,6 +139,7 @@ static void virtual_call(uint32_t address, uint32_t saved_esp, uint32_t site)
         assert(g_esp == STACK - 28u); /* All repeated callees pop exactly once. */
         assert(state_entries == 1u && state_updates == frames + 1u);
         assert(sampled_frames == frames + 1u);
+        assert(drawn_frames + skipped_frames == frames + 1u);
         assert(MEMD(GAME + 0x30) == frame_raw);
         assert(MEMF(GAME + 0x4C) == frame_clamped);
         assert(MEMF(GAME + 0x54) == frame_average);
@@ -143,6 +167,7 @@ static void virtual_call(uint32_t address, uint32_t saved_esp, uint32_t site)
 int main(int argc, char **argv)
 {
     static char stderr_buffer[64 * 1024];
+    const char *drawing = getenv("MM3_RENDER_EVERY_FRAME");
 #ifdef _MSC_VER
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 #endif
@@ -152,6 +177,7 @@ int main(int argc, char **argv)
     render_hz = atoi(argv[2]);
     irregular = atoi(argv[3]);
     simulation_on = atoi(argv[4]);
+    render_every_frame = drawing && strcmp(drawing, "1") == 0;
     assert(simulation_hz == 30 || simulation_hz == 60);
     target_frames = (unsigned)(6 * render_hz);
     g_xbox_mem_offset = (ptrdiff_t)memory;
@@ -172,8 +198,12 @@ int main(int argc, char **argv)
     assert(fabs(world_time - elapsed) <= 1.0 / simulation_hz + 0.00001);
     if (simulation_on && render_hz > simulation_hz) assert(world_calls < frames);
     if (!simulation_on) assert(world_calls == frames);
-    printf("PASS actual generated loop: sim=%d render=%d irregular=%d enabled=%d frames=%u entries=%u world=%.6f elapsed=%.6f\n",
-           simulation_hz, render_hz, irregular, simulation_on, frames, state_entries, world_time, elapsed);
+    assert(drawn_frames + skipped_frames == frames);
+    if (!simulation_on || render_every_frame) assert(drawn_frames == frames && skipped_frames == 0u);
+    if (simulation_on && !render_every_frame && render_hz > simulation_hz) assert(skipped_frames > 0u);
+    printf("PASS actual generated loop: sim=%d render=%d irregular=%d enabled=%d every_frame=%d frames=%u entries=%u drawn=%u skipped=%u world=%.6f elapsed=%.6f\n",
+           simulation_hz, render_hz, irregular, simulation_on, render_every_frame, frames, state_entries,
+           drawn_frames, skipped_frames, world_time, elapsed);
     if (getenv("MM3_SIM_TRACE_HARD_EXIT")) {
         /* Model the smoke harness killing a process with buffered stderr:
          * diagnostics must already have flushed, before C runtime shutdown. */

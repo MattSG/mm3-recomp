@@ -1,4 +1,4 @@
-"""Exercise the real launcher with a harmless temporary script in place of MM3."""
+"""Exercise the real launcher with harmless temporary scripts and native fixtures."""
 import json
 import hashlib
 import os
@@ -15,7 +15,8 @@ KEYS = ("MM3_PERFORMANCE_PROFILE", "RECOMP_RENDER_SCALE", "RECOMP_MSAA",
         "RECOMP_DRAW_DISTANCE", "RECOMP_ANISO", "RECOMP_FPS_LIMIT",
         "RECOMP_PB_EXEC", "RECOMP_FB_WINDOW", "RECOMP_USB", "RECOMP_APU_DSP_ACK",
         "MM3_FOV_DEGREES", "MM3_BUILDING_TRACE", "RECOMP_TEXTURE_STREAM_TRACE",
-        "RECOMP_ASYNC_WAIT_TRACE")
+        "RECOMP_ASYNC_WAIT_TRACE", "MM3_SAVE_DIR", "RECOMP_XBOX_HDKEY",
+        "RECOMP_XBOX_SIGKEY", "RECOMP_XBOX_LANKEY")
 
 
 def quoted(path):
@@ -147,6 +148,118 @@ class LauncherProfileTest(unittest.TestCase):
             log = Path(saved["log_path"]).read_text(encoding="utf-8")
             self.assertRegex(log, r"^\d{4}-\d\d-\d\dT.*\[stdout\] ")
             self.assertIn('"MM3_PERFORMANCE_PROFILE"', log)
+
+    def test_console_keys_are_redacted_from_metadata_and_preserved_for_child(self):
+        # Synthetic values only. The child stores them privately for comparison;
+        # it never emits them into its stdout/stderr capture.
+        overrides = {"RECOMP_XBOX_HDKEY": "11" * 16,
+                     "RECOMP_XBOX_SIGKEY": "22" * 16,
+                     "RECOMP_XBOX_LANKEY": "33" * 16}
+        self.collector.write_text(self.snapshot +
+            "Add-Content -LiteralPath " + quoted(self.collected) +
+            " -Value ($settings | ConvertTo-Json -Compress); "
+            "[Console]::Out.WriteLine('fixture keys checked privately')", encoding="utf-8")
+        result = self.run_launcher([""], overrides)
+        for key, value in overrides.items():
+            self.assertEqual(result["during"][0][key], value)
+            self.assertEqual(result["after"][key], value)
+        manifest = next((self.folder / "logs").glob("play-*.json"))
+        metadata_text = manifest.read_text(encoding="utf-8")
+        metadata = json.loads(metadata_text)
+        log = Path(metadata["log_path"]).read_text(encoding="utf-8")
+        for key, value in overrides.items():
+            self.assertEqual(metadata["environment"][key], "[REDACTED]")
+            self.assertNotIn(value, metadata_text)
+            self.assertNotIn(value, log)
+
+    def test_multiple_instances_requires_explicit_save_root_before_launch(self):
+        result = self.run_launcher(["-AllowMultipleInstances"], expect_failure=True)
+        self.assertEqual(result["during"], [])
+        self.assertFalse((self.folder / "logs").exists())
+        self.assertTrue(result["location_restored"])
+        self.assertTrue(all(value is None for value in result["after"].values()))
+
+    @unittest.skipUnless(os.name == "nt" and shutil.which("cl"),
+                         "requires an MSVC environment for harmless native game fixtures")
+    def test_multiple_instances_allow_distinct_roots_block_aliases_and_keep_default_guard(self):
+        source = self.folder / "fixture.c"
+        fixture = self.folder / "mm3_recomp.exe"
+        source.write_text(r'''
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+int main(void) {
+    WCHAR ready[MAX_PATH], release[MAX_PATH];
+    if (!GetEnvironmentVariableW(L"MM3_FIXTURE_READY", ready, MAX_PATH) ||
+        !GetEnvironmentVariableW(L"MM3_FIXTURE_RELEASE", release, MAX_PATH)) return 2;
+    HANDLE marker = CreateFileW(ready, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                               NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (marker == INVALID_HANDLE_VALUE) return 3;
+    CloseHandle(marker);
+    while (GetFileAttributesW(release) == INVALID_FILE_ATTRIBUTES) Sleep(20);
+    return 0;
+}
+''', encoding="utf-8")
+        built = subprocess.run([shutil.which("cl"), "/nologo", "/W3", str(source),
+                                "/Fe:" + str(fixture)], text=True, capture_output=True, cwd=self.folder)
+        self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
+        active = []
+
+        def launch(save_root, tag, allow=True):
+            ready, release = self.folder / (tag + " ready"), self.folder / (tag + " release")
+            environment = dict(self.environment, MM3_SAVE_DIR=str(save_root),
+                               MM3_FIXTURE_READY=str(ready), MM3_FIXTURE_RELEASE=str(release))
+            command = [SHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                       str(self.launcher), "-Exe", str(fixture)]
+            if allow:
+                command.append("-AllowMultipleInstances")
+            process = subprocess.Popen(command, text=True, stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE, env=environment, cwd=self.folder,
+                                       creationflags=subprocess.CREATE_NO_WINDOW)
+            active.append((process, release))
+            return process, ready
+
+        def wait_ready(process, ready):
+            deadline = time.monotonic() + 30
+            while time.monotonic() < deadline and not ready.exists():
+                if process.poll() is not None:
+                    self.fail("fixture launch failed: " + process.communicate()[1])
+                time.sleep(.05)
+            self.assertTrue(ready.exists(), "fixture did not start")
+            self.assertIsNone(process.poll())
+
+        root_one, root_two = self.folder / "save one", self.folder / "save two"
+        try:
+            first, ready = launch(root_one, "first")
+            wait_ready(first, ready)
+            second, ready = launch(root_two, "second")
+            wait_ready(second, ready)
+            self.assertIsNone(first.poll(), "starting a distinct-root instance disturbed the first")
+            # A lexical alias and relative path must resolve to the same cache.
+            alias, alias_ready = launch("save one/./unused/..", "alias")
+            output, error = alias.communicate(timeout=30)
+            self.assertNotEqual(alias.returncode, 0, output)
+            self.assertIn("using save directory", error)
+            self.assertFalse(alias_ready.exists())
+            normal, normal_ready = launch(self.folder / "save three", "normal", allow=False)
+            output, error = normal.communicate(timeout=30)
+            self.assertNotEqual(normal.returncode, 0, output)
+            self.assertIn("already running", error)
+            self.assertFalse(normal_ready.exists())
+            manifests = list((self.folder / "logs").glob("play-*.json"))
+            self.assertEqual(len(manifests), 2, "refused launches created log metadata")
+            for manifest in manifests:
+                metadata = json.loads(manifest.read_text(encoding="utf-8"))
+                self.assertTrue(metadata["launch_options"]["allow_multiple_instances"])
+                self.assertIn(metadata["environment"]["MM3_SAVE_DIR"], {str(root_one), str(root_two)})
+            self.assertIsNone(first.poll())
+            self.assertIsNone(second.poll())
+        finally:
+            for process, release in active:
+                release.touch()
+            for process, release in active:
+                output, error = process.communicate(timeout=30)
+                if release.name.startswith(("first ", "second ")):
+                    self.assertEqual(process.returncode, 0, error)
 
     @unittest.skipUnless(os.name == "nt", "requires a harmless Windows native process fixture")
     def test_second_game_is_refused_before_launch_or_log_creation(self):
