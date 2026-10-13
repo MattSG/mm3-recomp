@@ -15,7 +15,7 @@ Verdict FAIL when any AI car covers more than 10 units backwards or an AI car
 ends up behind where it started. Exit code 0 = PASS, 1 = FAIL, 2 = no race.
 #>
 param([Parameter(Mandatory)][string]$Exe, [Parameter(Mandatory)][string]$Save,
-      [string]$Tag = 'ai-start', [int]$FpsLimit = 60, [int]$Secs = 20, [switch]$Course)
+      [string]$Tag = 'ai-start', [int]$FpsLimit = 60, [int]$Secs = 20, [switch]$Course, [switch]$Crash, [string]$CrashAt)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $dir = Join-Path $repo "conformance_tmp\ai_start\$Tag"
@@ -71,18 +71,33 @@ try {
     $end = [Diagnostics.Stopwatch]::StartNew()
     # One unbroken hold: repeated presses leave 200 ms releases between them.
     # -Course instead: throttle 6 s, brake 3 s, throttle 4 s, throttle + full
-    # left 1 s, throttle to the end.
+    # left 1 s, throttle to the end. -Crash: throttle 4 s, throttle + full
+    # right 0.6 s (into the buildings), throttle to the end.
+    $steps = @()
     if ($Course) {
         [IO.File]::AppendAllText($pad, "rt:6000`n")
-        $script:courseAt = @(6000, 9000, 13000, 14000)
+        $steps = @(@(6000, 'lt:3000'), @(9000, 'rt:4000'), @(13000, 'rt+lleft:1000'), @(14000, "rt:$($Secs * 1000)"))
+    } elseif ($CrashAt) {
+        # The same wall every run: teleported to x,z facing heading (radians),
+        # then throttle into it.
+        $x, $z, $h = $CrashAt.Split(',') | ForEach-Object { [double]$_ }
+        $pipe = [IO.Pipes.NamedPipeClientStream]::new('.', "MM3Teleport-$($p.Id)", [IO.Pipes.PipeDirection]::InOut)
+        $pipe.Connect(3000)
+        $cmd = [Text.Encoding]::ASCII.GetBytes([string]::Format([cultureinfo]::InvariantCulture, 'teleport {0} {1} {2}', $x, $z, $h))
+        $pipe.Write($cmd, 0, $cmd.Length); $buf = [byte[]]::new(512); [void]$pipe.Read($buf, 0, 512); $pipe.Dispose()
+        Start-Sleep 2
+        $end.Restart()
+        [IO.File]::AppendAllText($pad, "rt:$($Secs * 1000)`n")
+    } elseif ($Crash) {
+        [IO.File]::AppendAllText($pad, "rt:4000`n")
+        $steps = @(@(4000, 'rt+lright:600'), @(4600, "rt:$($Secs * 1000)"))
     } else {
         [IO.File]::AppendAllText($pad, "rt:$($Secs * 1000 + 1000)`n")
     }
     $ci = 0
     while ($end.Elapsed.TotalSeconds -lt $Secs) {
-        if ($Course -and $ci -lt 4 -and $end.Elapsed.TotalMilliseconds -ge $courseAt[$ci] - 150) {
-            $step = @("lt:3000", "rt:4000", "rt+lleft:1000", "rt:$($Secs * 1000)")[$ci]
-            [IO.File]::AppendAllText($pad, "$step`n"); $ci++
+        if ($ci -lt $steps.Count -and $end.Elapsed.TotalMilliseconds -ge $steps[$ci][0] - 150) {
+            [IO.File]::AppendAllText($pad, "$($steps[$ci][1])`n"); $ci++
         }
         foreach ($c in cars) {
             if (-not $samples.ContainsKey($c.id)) { $samples[$c.id] = [Collections.ArrayList]::new() }
@@ -96,6 +111,9 @@ try {
 }
 
 $fail = $false
+foreach ($id in $samples.Keys) {   # every car's track, for a closer look
+    $samples[$id] | Select-Object t, x, z, fx, fz, player | Export-Csv (Join-Path $dir "car-$id.csv") -NoTypeInformation
+}
 $rows = foreach ($id in $samples.Keys) {
     $s = $samples[$id]; $fwd = 0.0; $back = 0.0
     for ($i = 1; $i -lt $s.Count; $i++) {
@@ -173,6 +191,31 @@ if ($Course -and $ps.Count -gt 1) {
         }
     }
     Write-Host ("ai path over {0} s: {1}" -f $Secs, (($ai | Sort-Object | ForEach-Object { "{0:N0}" -f $_ }) -join ' '))
+}
+if (($Crash -or $CrashAt) -and $ps.Count -gt 2) {
+    # The first impact after 4 s: a sample interval in which speed falls by
+    # more than half from over 10 units/s. Speed before, after, and 2 s on.
+    $v = @(0.0) + @(for ($i = 1; $i -lt $ps.Count; $i++) {
+        [math]::Sqrt([math]::Pow($ps[$i].x - $ps[$i-1].x, 2) + [math]::Pow($ps[$i].z - $ps[$i-1].z, 2)) / ($ps[$i].t - $ps[$i-1].t) })
+    $hit = $null
+    for ($i = 2; $i -lt $ps.Count -and -not $hit; $i++) {
+        if ($ps[$i].t - $ps[0].t -gt $(if ($CrashAt) { 0.5 } else { 4 }) -and $v[$i-1] -gt 10 -and $v[$i] -lt $v[$i-1] / 2) { $hit = $i }
+    }
+    if ($hit) {
+        $j = $hit; while ($j -lt $ps.Count - 1 -and $ps[$j].t - $ps[$hit].t -lt 2) { $j++ }
+        $k = $hit; while ($k -gt 0 -and $ps[$hit].t - $ps[$k].t -lt 1.5) { $k-- }
+        Write-Host ("crash: at {0:N1} s, {1:N1} -> {2:N1} units/s, {3:N1} units/s 2 s later" -f ($ps[$hit].t - $ps[0].t), $v[$hit-1], $v[$hit], $v[$j])
+        Write-Host ("crash: 1.5 s before at x={0:R} z={1:R} heading={2:R}" -f $ps[$k].x, $ps[$k].z, [math]::Atan2($ps[$k].fx, $ps[$k].fz))
+    } else { Write-Host 'crash: no impact' }
+    if ($CrashAt) {
+        # Into a wall: peak speed, when it stops, where it rests (a bounce
+        # shows as resting short of the furthest point).
+        $pk = 0; for ($i = 1; $i -lt $v.Count; $i++) { if ($v[$i] -gt $v[$pk]) { $pk = $i } }
+        $st = $pk; while ($st -lt $v.Count - 1 -and $v[$st] -ge 1) { $st++ }
+        $far = ($ps | ForEach-Object { $_.z } | Measure-Object -Minimum).Minimum
+        Write-Host ("wall: peak {0:N1} units/s at {1:N2} s, stopped at {2:N2} s, rests z={3:N2} (furthest {4:N2})" -f $v[$pk],
+            ($ps[$pk].t - $ps[0].t), ($ps[$st].t - $ps[0].t), $ps[-1].z, $far)
+    }
 }
 if (-not $playerRow -or $playerRow.forward -le $playerRow.backward) {
     Write-Host 'WARNING: player car did not come out forwards under throttle; forward vector sign is suspect'
