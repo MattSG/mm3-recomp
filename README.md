@@ -75,8 +75,11 @@ Optional developer tools and a teleport debugger are also available. The
 
 This is a work in progress. Rendering, audio, input, and gameplay can have
 regressions; a successful build does not establish that every feature works.
-Network support is experimental: Insignia sign-in and full system-link matches
-are not verified, and the system-link browser has remained empty in testing.
+System Link works between copies on one PC or a LAN; for copies on other
+networks, set `RECOMP_NET_PEERS=<ip>:<port>` and open that UDP port. Xbox Live
+names resolve to [Insignia](https://insignia.live)'s servers with no DNS setting,
+but signing in needs an Insignia account on the virtual console and is not yet
+verified.
 
 **Back up your saves before testing new builds.** This experimental software is
 provided as is, without warranty. Use it at your own risk, including the risk
