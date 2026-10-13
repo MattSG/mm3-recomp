@@ -1,4 +1,6 @@
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include <windows.h>
 #include "recomp_types.h"
 #include "nv2a_d3d11.h"
@@ -69,6 +71,9 @@ static void repeat(void (*fn)(void), int n, int nargs, uint32_t ret_pop)
 }
 
 /* Whole ticks in this frame's dt, the remainder carried to the next. */
+/* How far the clock is into the next tick, 0..1. */
+static float s_alpha;
+
 static int ticks_for(float dt)
 {
     static float clock;
@@ -81,6 +86,7 @@ static int ticks_for(float dt)
         clock = (float)MAX_TICKS * TICK;
     }
     clock -= (float)n * TICK;
+    s_alpha = clock / TICK;
     return n;
 }
 
@@ -139,12 +145,68 @@ void sub_001E7590(void)
  * render). So it is not drawn: the last frame is shown again, paced by the
  * frame limit like any frame, and every frame rate stays one. */
 extern void sub_001EC8E6_original(void);
+
+/* WIP (MM3_REDRAW=1): draw frames between ticks for real. The render uses up
+ * state the world update leaves it (a counter at 0x3C568C cut menu text
+ * short; tail lights blink), so the words of the game's globals a ticked
+ * render changes are noted, and put back as it found them before each
+ * redraw. The D3D device's own state (0x34F000-0x353000) moves on. */
+#define KEEP_LO 0x00280000u
+#define KEEP_HI 0x00480000u
+static uint32_t s_keep_pre[(KEEP_HI - KEEP_LO) / 4], *s_keep_post;
+static uint32_t *s_keep_idx;
+static int s_keep_n;
+
+static int keep_skip(uint32_t a) { return a >= 0x0034F000u && a < 0x00353000u; }
+
+
+
+static void render_ticked(void)
+{
+    uint32_t n = (KEEP_HI - KEEP_LO) / 4, i;
+    volatile uint32_t *g = (volatile uint32_t *)XBOX_PTR(KEEP_LO);
+    if (!s_keep_idx) {
+        s_keep_idx = (uint32_t *)malloc(n * sizeof *s_keep_idx);
+        s_keep_post = (uint32_t *)malloc(n * sizeof *s_keep_post);
+    }
+    for (i = 0; i < n; i++)
+        s_keep_pre[i] = g[i];
+    sub_001EC8E6_original();
+    s_keep_n = 0;
+    for (i = 0; i < n; i++)
+        if (g[i] != s_keep_pre[i] && !keep_skip(KEEP_LO + 4 * i)) {
+            s_keep_post[s_keep_n] = g[i];
+            s_keep_idx[s_keep_n++] = i;
+        }
+}
+
+static void render_again(void)
+{
+    volatile uint32_t *g = (volatile uint32_t *)XBOX_PTR(KEEP_LO);
+    /* Only words nothing else has changed since: the state machine and
+     * input run between renders and keep theirs. */
+    for (int k = 0; k < s_keep_n; k++)
+        if (g[s_keep_idx[k]] == s_keep_post[k])
+            g[s_keep_idx[k]] = s_keep_pre[s_keep_idx[k]];
+    sub_001EC8E6_original();
+    for (int k = 0; k < s_keep_n; k++)   /* what this render left, for the next */
+        s_keep_post[k] = g[s_keep_idx[k]];
+}
+
 void sub_001EC8E6(void)
 {
-    if (s_ticks == 0 && MEM32(g_esp) == 0x001E78AAu && mm3_mod_on(MM3_MOD_FRAMERATE)) {
-        g_esp += 12;
-        nv2a_d3d_repeat_frame();
-        return;
+    static int redraw = -1;
+    if (redraw < 0) redraw = getenv("MM3_REDRAW") ? atoi(getenv("MM3_REDRAW")) : 0;
+    if (MEM32(g_esp) == 0x001E78AAu && mm3_mod_on(MM3_MOD_FRAMERATE)) {
+        if (redraw) {
+            if (s_ticks == 0 && s_keep_idx) render_again(); else render_ticked();
+            return;
+        }
+        if (s_ticks == 0) {
+            g_esp += 12;
+            nv2a_d3d_repeat_frame();
+            return;
+        }
     }
     sub_001EC8E6_original();
 }
