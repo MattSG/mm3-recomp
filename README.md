@@ -79,7 +79,10 @@ System Link works between copies on one PC or a LAN; for copies on other
 networks, set `RECOMP_NET_PEERS=<ip>:<port>` and open that UDP port. Xbox Live
 names resolve to [Insignia](https://insignia.live)'s servers with no DNS setting,
 but signing in needs an Insignia account on the virtual console and is not yet
-verified.
+verified. Make the account in xemu, copy it over with
+`py scripts/import_xemu_accounts.py <xbox_hdd.qcow2> <save dir>`, and give the
+game that console's keys in `RECOMP_XBOX_HDKEY`, `RECOMP_XBOX_SIGKEY` and
+`RECOMP_XBOX_LANKEY` (32 hex digits each).
 
 **Back up your saves before testing new builds.** This experimental software is
 provided as is, without warranty. Use it at your own risk, including the risk
