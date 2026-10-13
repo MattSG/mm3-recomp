@@ -167,8 +167,9 @@ Console-rate simulation defaults to **30 Hz**, with **60 Hz** available under
 Settings > Simulation. It is separate from the rendering frame limit.
 Balanced and Quality profiles default to **60 FPS**; LowPower defaults to
 **30 FPS**. The launcher offers 30, 60 and 90 FPS, and `play.ps1 -FpsLimit`
-accepts 1–90. Upstream reported race AI reversing at starts above about 110 FPS,
-so those rates are excluded. Final driving smoke observed about 60 FPS at a 60 limit and
+accepts 1–90. Matt's latest world-update hooks and timing fixes are integrated;
+this combined fork keeps its existing render limits pending higher-rate gameplay
+validation. Final driving smoke on the preceding integration observed about 60 FPS at a 60 limit and
 72 FPS at a 90 limit; it does not establish achieved 90 FPS or matched handling
 parity. Lower supersampling or internal resolution if performance is poor.
 

@@ -164,10 +164,6 @@ foreach(hooked IN LISTS MM3_RENAMED_FUNCTIONS MM3_DEFINITION_ONLY_FUNCTIONS MM3_
         message(FATAL_ERROR "No generated definition of ${hooked} in ${RECOMP_GEN_DIR}")
     endif()
 endforeach()
-foreach(hooked IN LISTS MM3_RENAMED_FUNCTIONS)
-    set_property(SOURCE "${owner_${hooked}}" APPEND PROPERTY
-        COMPILE_DEFINITIONS "${hooked}=${hooked}_original")
-endforeach()
 if(MM3_FRONTEND_WATCH)
     if(MSVC)
         set(watch_include "/FI${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_frontend_watch_hook.h")
@@ -198,13 +194,13 @@ foreach(runtime_entry_index RANGE 0 ${runtime_entry_last})
         COMPILE_DEFINITIONS "sub_${runtime_entry_suffix}=sub_${runtime_entry_suffix}_unresolved")
 endforeach()
 
-# Definition and loop hooks share one transformed copy per owning chunk,
-# carrying over its other compile properties even after functions move chunks.
+# All wrappers rename only their generated definitions. A compile definition
+# also renames same-chunk calls, bypassing the wrapper (including the world
+# scheduler). Preserve the fork's loop seams and other source properties in
+# one transformed copy per owning chunk.
+set(chunk_hooks ${MM3_RENAMED_FUNCTIONS} ${MM3_DEFINITION_ONLY_FUNCTIONS})
 set(distance_owners "")
-foreach(hooked IN LISTS MM3_DEFINITION_ONLY_FUNCTIONS)
-    list(APPEND distance_owners "${owner_${hooked}}")
-endforeach()
-foreach(hooked IN LISTS MM3_SEAM_FUNCTIONS)
+foreach(hooked IN LISTS chunk_hooks MM3_SEAM_FUNCTIONS)
     list(APPEND distance_owners "${owner_${hooked}}")
 endforeach()
 list(REMOVE_DUPLICATES distance_owners)
@@ -213,9 +209,9 @@ list(REMOVE_DUPLICATES distance_owners)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${distance_owners})
 foreach(distance_input IN LISTS distance_owners)
     get_filename_component(distance_name "${distance_input}" NAME)
-    set(distance_output "${CMAKE_CURRENT_BINARY_DIR}/render_distance/${distance_name}")
+    set(distance_output "${CMAKE_CURRENT_BINARY_DIR}/hooked_chunks/${distance_name}")
     file(READ "${distance_input}" distance_content)
-    foreach(hooked IN LISTS MM3_DEFINITION_ONLY_FUNCTIONS)
+    foreach(hooked IN LISTS chunk_hooks)
         if(owner_${hooked} STREQUAL distance_input)
             string(REPLACE "void ${hooked}(void)" "void ${hooked}_original(void)"
                 distance_content "${distance_content}")

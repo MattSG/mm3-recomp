@@ -6,6 +6,7 @@ functions against fixture callees, without game assets or a GPU.
 Each case runs separately because the production clock/rate cache is static.
 """
 from pathlib import Path
+import argparse
 import os
 import re
 import shutil
@@ -16,8 +17,8 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def generated_function(name):
-    for path in (ROOT / "src/recomp/gen").glob("*.c"):
+def generated_function(name, generated_dir):
+    for path in generated_dir.glob("*.c"):
         match = re.search(r"void " + name + r"\(void\)\n\{.*?\n\}",
                           path.read_text(encoding="utf-8"), re.S)
         if match:
@@ -26,6 +27,10 @@ def generated_function(name):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--generated-dir", type=Path, default=ROOT / "src/recomp/gen",
+                        help="Read generated functions from an existing checkout without modifying it")
+    args = parser.parse_args()
     if not shutil.which("cl"):
         raise SystemExit("Run scripts/enter-env.ps1 first so cl.exe is available.")
     with tempfile.TemporaryDirectory(prefix="mm3-simulation-") as temporary:
@@ -44,7 +49,7 @@ def main():
         # Rename only definitions of the two production-wrapped state functions.
         lifecycle = []
         for name in ("sub_00025422", "sub_0002545A", "sub_001E77F3"):
-            source = generated_function(name)
+            source = generated_function(name, args.generated_dir)
             if name != "sub_001E77F3":
                 source = source.replace("void " + name + "(void)",
                                         "void " + name + "_original(void)", 1)

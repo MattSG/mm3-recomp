@@ -40,8 +40,8 @@ def records(folder, config):
         yield Path(filename), re.findall(r"-D(sub_[0-9A-F]+=[^\s]+)", defines.group(1) if defines else "")
 
 
-def preprocess(source, defines):
-    command = ["cl", "/nologo", "/EP", "/TC", "/I" + str(ROOT / "src/recomp/gen"),
+def preprocess(source, defines, generated_dir):
+    command = ["cl", "/nologo", "/EP", "/TC", "/I" + str(generated_dir),
                "/I" + str(ROOT / "tools/xboxrecomp/include")]
     command += ["/D" + value for value in defines]
     result = subprocess.run(command + [str(source)], capture_output=True, text=True, check=True)
@@ -58,14 +58,24 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build-dir", type=Path, default=ROOT / "build")
     parser.add_argument("--config", default="RelWithDebInfo")
+    parser.add_argument("--generated-dir", type=Path,
+                        help="Override generated headers; defaults to the configured RECOMP_GEN_DIR")
     args = parser.parse_args()
+    args.build_dir = args.build_dir.resolve()
     if not shutil.which("cl"):
         raise SystemExit("Run scripts/enter-env.ps1 first so cl.exe is available.")
     entries = list(records(args.build_dir, args.config))
+    generated_dir = args.generated_dir.resolve() if args.generated_dir is not None else None
+    if generated_dir is None:
+        cache = (args.build_dir / "CMakeCache.txt").read_text(encoding="utf-8")
+        match = re.search(r"^RECOMP_GEN_DIR:PATH=(.+)$", cache, re.M)
+        assert match, "Missing configured generated directory"
+        generated_dir = Path(match.group(1)).resolve()
     definitions = {}
     loop = None
     for source, defines in entries:
-        if source.parent.name != "gen" and source.parent.name != "render_distance":
+        if source.parent not in (generated_dir, args.build_dir / "render_distance",
+                                 args.build_dir / "hooked_chunks"):
             continue
         text = source.read_text(encoding="utf-8")
         for hook in HOOKS:
@@ -79,10 +89,10 @@ def main():
     assert set(definitions) == set(HOOKS), "Configured build must rename all simulation definitions only"
     assert loop is not None
     source, defines = loop
-    expanded = preprocess(source, defines)
+    expanded = preprocess(source, defines, generated_dir)
     check_calls(body(expanded, "sub_001E77F3"))
     assert re.search(r"\bvoid\s+sub_001E7590_original\s*\(void\)\s*{", expanded)
-    mutant = preprocess(source, defines + ["sub_001E7590=sub_001E7590_original"])
+    mutant = preprocess(source, defines + ["sub_001E7590=sub_001E7590_original"], generated_dir)
     try:
         check_calls(body(mutant, "sub_001E77F3"))
     except AssertionError:

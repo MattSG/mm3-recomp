@@ -481,7 +481,7 @@ index b34112b..e6d7182 100644
  int     xbox_IrqlEnterInterrupt(int level);     /* around host-run ISRs and DPCs */
  void    xbox_IrqlLeaveInterrupt(int saved);
 diff --git a/src/kernel/kernel_bridge.c b/src/kernel/kernel_bridge.c
-index 1761dc9..d983075 100644
+index 09b8645..db8484a 100644
 --- a/src/kernel/kernel_bridge.c
 +++ b/src/kernel/kernel_bridge.c
 @@ -38,6 +38,11 @@
@@ -1242,7 +1242,7 @@ index 1761dc9..d983075 100644
      case 0xC0000017: g_eax = 8; break;          /* STATUS_NO_MEMORY → ERROR_NOT_ENOUGH_MEMORY */
      case 0xC000000D: g_eax = 87; break;         /* STATUS_INVALID_PARAMETER → ERROR_INVALID_PARAMETER */
      /* The informational and warning codes, which are not failures and must
-@@ -2829,20 +3144,61 @@ static void bridge_write_iostatus(uint32_t ios_va, NTSTATUS status, uint32_t inf
+@@ -2851,20 +3166,61 @@ static void bridge_write_iostatus(uint32_t ios_va, NTSTATUS status, uint32_t inf
  #define BRIDGE_HANDLE_MASK 0x00FFFFFFu
  #define BRIDGE_HANDLE_MAX  16384
  static HANDLE s_handle_table[BRIDGE_HANDLE_MAX];
@@ -1310,7 +1310,7 @@ index 1761dc9..d983075 100644
  }
  
  /* Store a native HANDLE into a 32-bit Xbox memory slot (as a token). */
-@@ -2858,7 +3214,7 @@ static HANDLE bridge_read_handle(uint32_t va)
+@@ -2880,7 +3236,7 @@ static HANDLE bridge_read_handle(uint32_t va)
      uint32_t token = BRIDGE_MEM32(va);
      if ((token & 0xFF000000u) == BRIDGE_HANDLE_TAG) {
          uint32_t i = token & BRIDGE_HANDLE_MASK;
@@ -1319,7 +1319,7 @@ index 1761dc9..d983075 100644
      }
      /* Untagged value: synthetic/dummy handle -- pass through unchanged. */
      return (HANDLE)(uintptr_t)token;
-@@ -2881,7 +3237,7 @@ static HANDLE bridge_resolve_handle(uint32_t token)
+@@ -2903,7 +3259,7 @@ static HANDLE bridge_resolve_handle(uint32_t token)
  {
      if ((token & 0xFF000000u) == BRIDGE_HANDLE_TAG) {
          uint32_t i = token & BRIDGE_HANDLE_MASK;
@@ -1328,7 +1328,7 @@ index 1761dc9..d983075 100644
      }
      /* Pseudo-handles (NtCurrentProcess() = -1, NtCurrentThread() = -2) are
       * negative. Zero-extending them on a 64-bit host yields 0x00000000FFFFFFFE,
-@@ -2898,8 +3254,11 @@ static HANDLE bridge_take_handle(uint32_t token)
+@@ -2920,8 +3276,11 @@ static HANDLE bridge_take_handle(uint32_t token)
      if ((token & 0xFF000000u) == BRIDGE_HANDLE_TAG) {
          uint32_t i = token & BRIDGE_HANDLE_MASK;
          if (i > 0 && i < BRIDGE_HANDLE_MAX) {
@@ -1342,7 +1342,7 @@ index 1761dc9..d983075 100644
              return h;
          }
      }
-@@ -2951,16 +3310,20 @@ static int bridge_is_cdrom_device(const char *path)
+@@ -2973,16 +3332,20 @@ static int bridge_is_cdrom_device(const char *path)
  }
  
  /* Open a file by delegating to the ported xbox_NtCreateFile kernel HLE. */
@@ -1364,7 +1364,7 @@ index 1761dc9..d983075 100644
  
      bridge_build_oa(obj_attrs_va, &oa, &name);
      if (!name.Buffer) {
-@@ -2969,8 +3332,9 @@ static NTSTATUS bridge_create_file_impl(
+@@ -2991,8 +3354,9 @@ static NTSTATUS bridge_create_file_impl(
      }
  
      if (bridge_is_cdrom_device(name.Buffer)) {
@@ -1376,7 +1376,7 @@ index 1761dc9..d983075 100644
          if (handle_va)
              BRIDGE_MEM32(handle_va) = BRIDGE_CDROM_HANDLE;
          bridge_write_iostatus(iostatus_va, 0, 1 /* FILE_OPENED */);
-@@ -2981,6 +3345,7 @@ static NTSTATUS bridge_create_file_impl(
+@@ -3003,6 +3367,7 @@ static NTSTATUS bridge_create_file_impl(
  
      st = xbox_NtCreateFile(&h, access, &oa, &ios, NULL,
                             file_attrs, share, disposition, options);
@@ -1384,7 +1384,7 @@ index 1761dc9..d983075 100644
  
      if (NT_SUCCESS(st)) {
          bridge_write_handle(handle_va, h);
-@@ -3078,6 +3443,7 @@ static void bridge_NtCreateFile(void)
+@@ -3100,6 +3465,7 @@ static void bridge_NtCreateFile(void)
      uint32_t share       = STACK_ARG(6);  /* ShareAccess */
      uint32_t disposition = STACK_ARG(7);  /* CreateDisposition */
      uint32_t options     = STACK_ARG(8);  /* CreateOptions */
@@ -1392,7 +1392,7 @@ index 1761dc9..d983075 100644
  
      /* The out-parameter addresses matter as much as the result: this bridge
       * hands them to a real Win32 call, so a bogus one has Windows itself write
-@@ -3085,7 +3451,7 @@ static void bridge_NtCreateFile(void)
+@@ -3107,7 +3473,7 @@ static void bridge_NtCreateFile(void)
       * ntdll and no recompiled frame to blame. */
      g_eax = (uint32_t)bridge_create_file_impl(
          handle_va, access, obj_attrs, iostatus,
@@ -1401,7 +1401,7 @@ index 1761dc9..d983075 100644
  
      /* FILE_SYNCHRONOUS_IO_ALERT | FILE_SYNCHRONOUS_IO_NONALERT. Neither set
       * means the caller wants asynchronous completion on this handle. */
-@@ -3126,24 +3492,24 @@ static void bridge_NtCreateFile(void)
+@@ -3148,24 +3514,24 @@ static void bridge_NtCreateFile(void)
              xbox_VideoPlayFile(host);
      }
  
@@ -1436,7 +1436,7 @@ index 1761dc9..d983075 100644
  }
  
  /* ── NtOpenFile (ordinal 202, 6 args = 24 bytes) ──────── */
-@@ -3159,7 +3525,7 @@ static void bridge_NtOpenFile(void)
+@@ -3181,7 +3547,7 @@ static void bridge_NtOpenFile(void)
      /* NtOpenFile = NtCreateFile with FILE_OPEN disposition */
      g_eax = (uint32_t)bridge_create_file_impl(
          handle_va, access, obj_attrs, iostatus,
@@ -1445,7 +1445,7 @@ index 1761dc9..d983075 100644
  }
  
  /*
-@@ -3448,13 +3814,16 @@ static void bridge_NtReadFile(void)
+@@ -3470,13 +3836,16 @@ static void bridge_NtReadFile(void)
                  XBOX_TO_NATIVE(buffer_va), length, poff);
  
      if ((NTSTATUS)g_eax != STATUS_SUCCESS)
@@ -1465,7 +1465,7 @@ index 1761dc9..d983075 100644
          const uint8_t *p = (const uint8_t *)XBOX_TO_NATIVE(buffer_va);
          uint32_t got = (uint32_t)ios.Information;
          /* The offset matters as much as the length. A title streaming a pack
-@@ -3739,7 +4108,7 @@ static void bridge_IoCreateFile(void)
+@@ -3761,7 +4130,7 @@ static void bridge_IoCreateFile(void)
  
      g_eax = (uint32_t)bridge_create_file_impl(
          handle_va, access, obj_attrs, iostatus,
@@ -1474,7 +1474,7 @@ index 1761dc9..d983075 100644
  }
  
  /* -- NtDeviceIoControlFile (ordinal 196, 10 args = 40 bytes) ----
-@@ -3802,8 +4171,9 @@ static void bridge_NtDeviceIoControlFile(void)
+@@ -3824,8 +4193,9 @@ static void bridge_NtDeviceIoControlFile(void)
              uint32_t data_len = BRIDGE_MEM32(in_va + 12);
              uint32_t page     = BRIDGE_MEM8(in_va + 30) & 0x3F;
  
@@ -1486,7 +1486,7 @@ index 1761dc9..d983075 100644
  
              if (data_va && data_len) {
                  uint32_t i;
-@@ -3837,9 +4207,9 @@ static void bridge_NtDeviceIoControlFile(void)
+@@ -3859,9 +4229,9 @@ static void bridge_NtDeviceIoControlFile(void)
              return;
          }
  
@@ -1499,7 +1499,7 @@ index 1761dc9..d983075 100644
          if (out_va && out_len) {
              uint32_t i;
              for (i = 0; i < out_len; i++)
-@@ -5984,60 +6354,9 @@ static void bridge_RtlUshortByteSwap(void)
+@@ -6006,60 +6376,9 @@ static void bridge_RtlUshortByteSwap(void)
  /* ── Rtl Critical sections (ordinals 278, 295, 306) ─────────
   * 277/294 (plain Enter/Leave) are routed via the xbox_Rtl* wrappers already.
   *
@@ -1563,7 +1563,7 @@ index 1761dc9..d983075 100644
  
  /* 278: VOID RtlEnterCriticalSectionAndRegion(PRTL_CRITICAL_SECTION) */
  static void bridge_RtlEnterCriticalSectionAndRegion(void)
-@@ -6056,9 +6375,8 @@ static void bridge_RtlLeaveCriticalSectionAndRegion(void)
+@@ -6078,9 +6397,8 @@ static void bridge_RtlLeaveCriticalSectionAndRegion(void)
  /* 306: BOOLEAN RtlTryEnterCriticalSection(PRTL_CRITICAL_SECTION) */
  static void bridge_RtlTryEnterCriticalSection(void)
  {
@@ -1575,7 +1575,7 @@ index 1761dc9..d983075 100644
  }
  
  /* ── Rtl Misc stubs (ordinals 288, 297, 319, 321) ─────────── */
-@@ -6141,19 +6459,26 @@ static void bridge_RtlCaptureStackBackTrace(void)
+@@ -6163,19 +6481,26 @@ static void bridge_RtlCaptureStackBackTrace(void)
  
  /* --- Ke Object Shadow Table --- */
  #define KE_SHADOW_SIZE 4096
@@ -1610,7 +1610,7 @@ index 1761dc9..d983075 100644
  }
  
  /* Insert a mapping guest_va -> host HANDLE. Replaces any prior mapping for
-@@ -6175,6 +6500,8 @@ static void ke_shadow_insert(uint32_t guest_va, HANDLE host)
+@@ -6197,6 +6522,8 @@ static void ke_shadow_insert(uint32_t guest_va, HANDLE host)
              if (g_ke_shadow[i].host_handle && g_ke_shadow[i].host_handle != host)
                  CloseHandle(g_ke_shadow[i].host_handle);
              g_ke_shadow[i].host_handle = host;
@@ -1619,7 +1619,7 @@ index 1761dc9..d983075 100644
              LeaveCriticalSection(&g_ke_shadow_cs);
              return;
          }
-@@ -6200,7 +6527,7 @@ static void ke_shadow_insert(uint32_t guest_va, HANDLE host)
+@@ -6222,7 +6549,7 @@ static void ke_shadow_insert(uint32_t guest_va, HANDLE host)
  }
  
  /* Look up the host HANDLE for a guest object VA. Returns NULL if not found. */
@@ -1628,7 +1628,7 @@ index 1761dc9..d983075 100644
  {
      uint32_t i;
      HANDLE h = NULL;
-@@ -6212,7 +6539,8 @@ static HANDLE ke_shadow_lookup(uint32_t guest_va)
+@@ -6234,7 +6561,8 @@ static HANDLE ke_shadow_lookup(uint32_t guest_va)
  
      EnterCriticalSection(&g_ke_shadow_cs);
      for (i = 0; i < KE_SHADOW_SIZE; i++) {
@@ -1638,7 +1638,7 @@ index 1761dc9..d983075 100644
              h = g_ke_shadow[i].host_handle;
              break;
          }
-@@ -6221,6 +6549,18 @@ static HANDLE ke_shadow_lookup(uint32_t guest_va)
+@@ -6243,6 +6571,18 @@ static HANDLE ke_shadow_lookup(uint32_t guest_va)
      return h;
  }
  
@@ -1657,7 +1657,7 @@ index 1761dc9..d983075 100644
  /* Remove (and close) the mapping for a guest object VA. */
  static void ke_shadow_remove(uint32_t guest_va)
  {
-@@ -6264,52 +6604,122 @@ static void ke_shadow_remove(uint32_t guest_va)
+@@ -6286,52 +6626,122 @@ static void ke_shadow_remove(uint32_t guest_va)
   * Opt-in because it changes what every such wait does: a wait that failed at
   * once now blocks until the event is set, and on a title whose setter the
   * runtime does not model yet (a GPU interrupt, say) that turns a spin into a
@@ -1802,7 +1802,7 @@ index 1761dc9..d983075 100644
              fprintf(stderr, "  [KERNEL] event 0x%08X built by the title: host event created "
                              "(%s)\n", guest_va, *type ? "synchronization" : "notification");
      }
-@@ -7318,7 +7728,7 @@ static void bridge_KeInsertQueueApc(void)
+@@ -7340,7 +7750,7 @@ static void bridge_KeInsertQueueApc(void)
  /* --- KeIsExecutingDpc (ordinal 121, 0 args = 0 bytes) --- */
  static void bridge_KeIsExecutingDpc(void)
  {
@@ -1811,7 +1811,7 @@ index 1761dc9..d983075 100644
  }
  
  /* --- KeLeaveCriticalRegion (ordinal 122, 0 args = 0 bytes) --- */
-@@ -9484,9 +9894,7 @@ static void kernel_thunk_dispatch_body(void)
+@@ -9506,9 +9916,7 @@ static void kernel_thunk_dispatch_body(void)
      ordinal = g_slot_ordinals[slot];
      bridge = g_slot_bridges[slot];
  
@@ -1822,7 +1822,7 @@ index 1761dc9..d983075 100644
  
      if (KERNEL_LOG_ON()) {
          /* The guest return address sits at the top of the guest stack: the
-@@ -9495,48 +9903,11 @@ static void kernel_thunk_dispatch_body(void)
+@@ -9517,48 +9925,11 @@ static void kernel_thunk_dispatch_body(void)
           * difference between guessing and knowing when a title recurses. */
          fprintf(stderr,
                  "  [KERNEL] #%lld: ordinal %u (slot %d) esp=0x%08X ret=0x%08X\n",
@@ -1872,7 +1872,7 @@ index 1761dc9..d983075 100644
      /* Pop the dummy return address that PUSH32(esp, 0) pushed before RECOMP_ICALL.
       * On real x86, "call [thunk]" pushes a real return address and "ret" pops it.
       * In our model, the bridge is called directly (not via the simulated stack),
-@@ -9568,10 +9939,8 @@ static void kernel_thunk_dispatch_body(void)
+@@ -9590,10 +9961,8 @@ static void kernel_thunk_dispatch_body(void)
              static uint32_t seen = 0xDEADBEEFu;
              if (_watch_before != seen) {
                  seen = _watch_before;
@@ -1885,7 +1885,7 @@ index 1761dc9..d983075 100644
                  fflush(stderr);
              }
          }
-@@ -9581,7 +9950,7 @@ static void kernel_thunk_dispatch_body(void)
+@@ -9603,7 +9972,7 @@ static void kernel_thunk_dispatch_body(void)
          bridge();
      } else {
          /* No specific bridge - return 0. Warn once per ordinal rather than
@@ -1894,7 +1894,7 @@ index 1761dc9..d983075 100644
           * usually the reason a game misbehaves, so it must not be swallowed
           * by the general call-trace throttle. Bounded to one line per slot. */
          static uint8_t warned[XBOX_KERNEL_THUNK_TABLE_SIZE];
-@@ -9722,6 +10091,7 @@ void xbox_kernel_bridge_init(void)
+@@ -9744,6 +10113,7 @@ void xbox_kernel_bridge_init(void)
      int unbridged = 0;
      DWORD old_protect;
  
@@ -1903,7 +1903,7 @@ index 1761dc9..d983075 100644
      fprintf(stderr, "  Kernel thunk bridge: resolving %d entries at 0x%08X\n",
              g_thunk_table_count, g_thunk_table_base);
 diff --git a/src/kernel/kernel_file.c b/src/kernel/kernel_file.c
-index 5474f6c..718625e 100644
+index a899f07..228c6bb 100644
 --- a/src/kernel/kernel_file.c
 +++ b/src/kernel/kernel_file.c
 @@ -18,6 +18,8 @@
@@ -1935,9 +1935,9 @@ index 5474f6c..718625e 100644
 +static int s_file_hitch_enabled;
 +static LARGE_INTEGER s_file_hitch_frequency;
 +
-+/* Opt-in evidence for a failed cache overwrite. Keep the guest's access and
-+ * sharing contract unchanged: this records opens, never retries or closes an
-+ * owner's handle. The ledger is diagnostic only, not handle ownership. */
++/* Opt-in evidence for a failed cache overwrite. The ledger does not change
++ * the effective access or sharing policy: it records opens, never retries or
++ * closes an owner's handle. It is diagnostic only, not handle ownership. */
 +typedef struct XboxFileDiagOpen {
 +    struct XboxFileDiagOpen *next;
 +    HANDLE handle;
@@ -2208,7 +2208,7 @@ index 5474f6c..718625e 100644
  
      if (!FileHandle || !ObjectAttributes)
          return STATUS_INVALID_PARAMETER;
-@@ -196,9 +468,14 @@ NTSTATUS __stdcall xbox_NtCreateFile(
+@@ -205,9 +477,14 @@ NTSTATUS __stdcall xbox_NtCreateFile(
  
      if (h == INVALID_HANDLE_VALUE) {
          DWORD err = GetLastError();
@@ -2226,7 +2226,7 @@ index 5474f6c..718625e 100644
          /* Kept for the caller's trace. An NTSTATUS says "it did not open";
           * only the Win32 error distinguishes a title probing for a file that
           * is genuinely absent from one it cannot open because this runtime
-@@ -209,20 +486,27 @@ NTSTATUS __stdcall xbox_NtCreateFile(
+@@ -218,20 +495,27 @@ NTSTATUS __stdcall xbox_NtCreateFile(
           * silently decides a volume or asset is missing, and in a Release
           * build that decision was invisible. */
          xbox_log(XBOX_LOG_WARN, XBOX_LOG_FILE,
@@ -2239,7 +2239,7 @@ index 5474f6c..718625e 100644
 +            case ERROR_ALREADY_EXISTS: status = STATUS_OBJECT_NAME_COLLISION; break;
 +            /* A short-lived host file lock is not a missing asset or a
 +             * generic I/O failure. Preserve it through the guest's error
-+             * conversion without weakening the requested share access. */
++             * conversion without retrying or altering existing handles. */
 +            case ERROR_SHARING_VIOLATION: status = STATUS_SHARING_VIOLATION; break;
 +            default:                   status = STATUS_UNSUCCESSFUL; break;
 +        }
@@ -2263,7 +2263,7 @@ index 5474f6c..718625e 100644
      *FileHandle = h;
      if (IoStatusBlock) {
          IoStatusBlock->Status = STATUS_SUCCESS;
-@@ -240,11 +524,15 @@ NTSTATUS __stdcall xbox_NtReadFile(
+@@ -249,11 +533,15 @@ NTSTATUS __stdcall xbox_NtReadFile(
      DWORD bytes_read = 0;
      BOOL result;
      OVERLAPPED ov;
@@ -2279,7 +2279,7 @@ index 5474f6c..718625e 100644
      if (ByteOffset && ByteOffset->QuadPart >= 0) {
          memset(&ov, 0, sizeof(ov));
          ov.Offset = ByteOffset->LowPart;
-@@ -253,8 +541,11 @@ NTSTATUS __stdcall xbox_NtReadFile(
+@@ -262,8 +550,11 @@ NTSTATUS __stdcall xbox_NtReadFile(
      } else {
          result = ReadFile(FileHandle, Buffer, Length, &bytes_read, NULL);
      }
@@ -2292,7 +2292,7 @@ index 5474f6c..718625e 100644
          IoStatusBlock->Information = bytes_read;
          if (bytes_read == 0 && Length > 0) {
              IoStatusBlock->Status = STATUS_END_OF_FILE;
-@@ -266,7 +557,6 @@ NTSTATUS __stdcall xbox_NtReadFile(
+@@ -275,7 +566,6 @@ NTSTATUS __stdcall xbox_NtReadFile(
      }
  
      {
@@ -2300,7 +2300,7 @@ index 5474f6c..718625e 100644
          fprintf(stderr, "[NtReadFile] FAILED handle=%p len=%u err=%lu\n",
                  FileHandle, Length, (unsigned long)error);
          XBOX_TRACE(XBOX_LOG_FILE, "NtReadFile(handle=%p, len=%u) failed err=%u",
-@@ -319,7 +609,7 @@ NTSTATUS __stdcall xbox_NtClose(HANDLE Handle)
+@@ -328,7 +618,7 @@ NTSTATUS __stdcall xbox_NtClose(HANDLE Handle)
      XBOX_TRACE(XBOX_LOG_FILE, "NtClose(handle=%p)", Handle);
      if (Handle && Handle != INVALID_HANDLE_VALUE) {
          xbox_dir_context_drop(Handle);
@@ -2309,7 +2309,7 @@ index 5474f6c..718625e 100644
          return STATUS_SUCCESS;
      }
      return STATUS_INVALID_HANDLE;
-@@ -843,12 +1133,13 @@ NTSTATUS __stdcall xbox_NtCreateFile(
+@@ -852,12 +1142,13 @@ NTSTATUS __stdcall xbox_NtCreateFile(
  
      if (fd < 0) {
          int e = errno;
@@ -8582,10 +8582,10 @@ index a8e9688..ee7433f 100644
 +    set_tests_properties(kernel-inline-event-callers-${case} PROPERTIES TIMEOUT 10)
 +endforeach()
 diff --git a/tests/kernel_dispatch/README.md b/tests/kernel_dispatch/README.md
-index dd7efb0..fe38480 100644
+index dd7efb0..6c4eb49 100644
 --- a/tests/kernel_dispatch/README.md
 +++ b/tests/kernel_dispatch/README.md
-@@ -1,14 +1,189 @@
+@@ -1,14 +1,190 @@
 -# Kernel dispatch thread regression
 +# Kernel dispatch regressions
  
@@ -8613,8 +8613,9 @@ index dd7efb0..fe38480 100644
 +The sharing test opens an exclusive host file, verifies that the runtime
 +returns `STATUS_SHARING_VIOLATION` consistently in the return value and I/O
 +status block, and checks both native and guest-bridge DOS error conversion.
-+The same open succeeds after the exclusive host handle closes, with its
-+original sharing flags intact.
++The same open succeeds after the exclusive host handle closes. Two guest
++read-only opens with zero share access also succeed together for system link,
++while writers remain exclusive and real host sharing denials still propagate.
 +It also interleaves a missing-file open on a streaming worker with the sharing
 +conflict and a later successful open, verifying each thread's diagnostic error
 +stays tied to its own call. A malformed guest name rejected before host I/O
@@ -10021,10 +10022,10 @@ index 0000000..3324b1e
 +}
 diff --git a/tests/kernel_dispatch/kernel_file_sharing_test.c b/tests/kernel_dispatch/kernel_file_sharing_test.c
 new file mode 100644
-index 0000000..b63e3bd
+index 0000000..acfb81a
 --- /dev/null
 +++ b/tests/kernel_dispatch/kernel_file_sharing_test.c
-@@ -0,0 +1,228 @@
+@@ -0,0 +1,265 @@
 +/* A real host sharing conflict must survive the Xbox error conversion. */
 +#include "kernel.h"
 +#include "xbox_memory_layout.h"
@@ -10107,6 +10108,41 @@ index 0000000..b63e3bd
 +         *(uint32_t *)(memory + 0x40500) == 0xA5A5A5A5 &&
 +         strstr(output, "win32 err=0") && !strstr(output, "ERROR_SHARING_VIOLATION");
 +    if (!ok) fprintf(stderr, "FAIL: malformed guest name inherited an unrelated host open error:\n%s", output);
++    return ok;
++}
++
++/* System-link instances may share guest read-only opens, including a guest
++ * ShareAccess of zero. That exception must never give writers shared access. */
++static int shared_read_contract(XBOX_OBJECT_ATTRIBUTES *oa)
++{
++    HANDLE first = NULL, second = NULL, writer = NULL;
++    XBOX_IO_STATUS_BLOCK ios = {0};
++    NTSTATUS status;
++    int ok = 0;
++    status = xbox_NtCreateFile(&first, XBOX_GENERIC_READ, oa, &ios,
++        NULL, 0x80, 0, XBOX_FILE_OPEN, XBOX_FILE_NON_DIRECTORY_FILE);
++    if (status != STATUS_SUCCESS || !first) goto done;
++    status = xbox_NtCreateFile(&second, XBOX_GENERIC_READ, oa, &ios,
++        NULL, 0x80, 0, XBOX_FILE_OPEN, XBOX_FILE_NON_DIRECTORY_FILE);
++    if (status != STATUS_SUCCESS || !second) goto done;
++    status = xbox_NtCreateFile(&writer, XBOX_GENERIC_WRITE, oa, &ios,
++        NULL, 0x80, 1, XBOX_FILE_OPEN, XBOX_FILE_NON_DIRECTORY_FILE);
++    if (status != STATUS_SHARING_VIOLATION || ios.Status != status || writer ||
++        xbox_LastFileError() != ERROR_SHARING_VIOLATION) goto done;
++    xbox_NtClose(second); second = NULL;
++    xbox_NtClose(first); first = NULL;
++    status = xbox_NtCreateFile(&writer, XBOX_GENERIC_WRITE, oa, &ios,
++        NULL, 0x80, 0, XBOX_FILE_OPEN, XBOX_FILE_NON_DIRECTORY_FILE);
++    if (status != STATUS_SUCCESS || !writer) goto done;
++    status = xbox_NtCreateFile(&first, XBOX_GENERIC_READ, oa, &ios,
++        NULL, 0x80, 0, XBOX_FILE_OPEN, XBOX_FILE_NON_DIRECTORY_FILE);
++    ok = status == STATUS_SHARING_VIOLATION && ios.Status == status && !first &&
++         xbox_LastFileError() == ERROR_SHARING_VIOLATION;
++done:
++    if (first) xbox_NtClose(first);
++    if (second) xbox_NtClose(second);
++    if (writer) xbox_NtClose(writer);
++    if (!ok) fprintf(stderr, "FAIL: system-link shared reads or exclusive writes changed\n");
 +    return ok;
 +}
 +
@@ -10234,7 +10270,9 @@ index 0000000..b63e3bd
 +            goto done;
 +        }
 +    }
-+    puts("PASS: concurrent open errors stay on their owning thread; sharing denial, real absence and EOF retain native statuses");
++    xbox_NtClose(opened); opened = NULL;
++    if (!shared_read_contract(&oa)) goto done;
++    puts("PASS: system-link reads share; writes and host locks stay exclusive; concurrent errors, absence and EOF retain native statuses");
 +    result = 0;
 +
 +done:

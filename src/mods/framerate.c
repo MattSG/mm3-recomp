@@ -23,7 +23,7 @@
  * Here a clock decides, once a frame, how many whole ticks have
  * passed, using the current timer value immediately before the world update.
  * The world runs that many times
- * with game+0x54 set to exactly one tick -- while input, menus and rendering
+ * with every frame-time field set to exactly one tick, while input, menus and rendering
  * still run every frame, with the real dt back for rendering. A frame with
  * less than a tick gone renders the last state; a slow frame catches up (at
  * most 4 ticks, past that the time is dropped, as a hitch). Every frame rate
@@ -119,7 +119,8 @@ void sub_0002545A(void)
 }
 
 /* The world update (edi the game, one argument, ret 4), with the console's
- * step in game+0x54 and the real dt back afterwards for rendering. */
+ * step in all three frame-time fields and their real values back afterwards
+ * for rendering. */
 void sub_001E7590(void)
 {
     static double clock;
