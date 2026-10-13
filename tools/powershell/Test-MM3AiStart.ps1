@@ -29,6 +29,7 @@ $envs = @{ RECOMP_PB_EXEC='1'; RECOMP_FB_WINDOW='1'; RECOMP_USB='1'; RECOMP_PAD_
            RECOMP_APU_DSP_ACK='0x80458810'; MM3_SAVE_DIR=(Join-Path $dir 'save')
            RECOMP_FPS_LIMIT="$FpsLimit"; MM3_DEBUG_TELEPORT='1'
            RECOMP_FRAME_CSV=(Join-Path $dir 'frames.csv') }
+if ($env:MM3_CRASH_CAPTURE) { $envs.RECOMP_PRESENT_CAPTURE = $env:MM3_CRASH_CAPTURE }
 foreach ($k in $envs.Keys) { Set-Item "Env:$k" $envs[$k] }
 $p = Start-Process -FilePath $Exe -WorkingDirectory $repo -PassThru `
      -RedirectStandardOutput (Join-Path $dir 'stdout.log') -RedirectStandardError $log
@@ -96,6 +97,10 @@ try {
     }
     $ci = 0
     while ($end.Elapsed.TotalSeconds -lt $Secs) {
+        if ($CrashAt -and $env:MM3_CRASH_CAPTURE -and -not $capped -and $end.Elapsed.TotalSeconds -ge 1.2) {
+            # Frames of the approach, to see what touches the car.
+            [IO.File]::WriteAllText("$env:MM3_CRASH_CAPTURE.flag", '200'); $capped = $true
+        }
         if ($ci -lt $steps.Count -and $end.Elapsed.TotalMilliseconds -ge $steps[$ci][0] - 150) {
             [IO.File]::AppendAllText($pad, "$($steps[$ci][1])`n"); $ci++
         }
