@@ -383,7 +383,7 @@ negative control. Runtime validation passed 198 CTest cases across
 nine production launcher settings-helper cases and fresh-generated native
 camera/map/route/HUD/input/car/collision/translation contracts also passed.
 That preceding combined game build, launcher smoke and Paris driving checks
-passed before the latest networking and render-tick changes. Independent guest/world-clock traces verified the default
+passed before the latest networking and render-tihttps://github.com/MattSG/mm3-recomp/pull/6/conflict?name=README.md&ancestor_oid=81825769dcd5e746dcb316227774df4cbd2aa9c5&base_oid=81c670d2c87eb7eeca9070e3750a1e8b24c0e430&head_oid=41f380b22a0a492008a1f95d014cdf1f6a6a3948ck changes. Independent guest/world-clock traces verified the default
 30 Hz world rate at both requested render limits. Actual driving medians were
 59.96 FPS with 60 requested and 71.52 FPS (about 72) with 90 requested. These
 were direction/acceleration checks; achieved 90 FPS, real-race 60 Hz simulation
@@ -404,6 +404,48 @@ contributions are welcome; review their code and provenance. Runtime changes
 belong in the runtime repository, with corresponding game-side integration when
 needed. A source merge or test pass does not replace menu, driving, race and
 save/reload acceptance on the combined executable.
+The world updates at a fixed tick rate whatever the frame rate: 30 (the Xbox's),
+60 or 90 a second under Settings > Tick rate. Handling, speed and the race AI
+are the same at any frame rate. The picture moves with each update; frames in
+between show the last one again. Lower supersampling or internal
+resolution in Settings if performance is poor.
+
+## Features and limits
+
+The launcher exposes widescreen, extended draw distance, skyline filtering,
+field of view, menu mouse support, intro skipping, console-rate simulation, and
+offline-network bypass.
+Optional developer tools and a teleport debugger are also available. The
+[mod registry](src/mods/mods.c) lists their switches and defaults.
+
+This is a work in progress. Rendering, audio, input, and gameplay can have
+regressions; a successful build does not establish that every feature works.
+System Link works between copies on one PC or a LAN; for copies on other
+networks, set `RECOMP_NET_PEERS=<ip>:<port>` and open that UDP port. Xbox Live
+names resolve to [Insignia](https://insignia.live)'s servers with no DNS setting,
+but signing in needs an Insignia account on the virtual console and is not yet
+verified. Make the account in xemu, copy it over with
+`py scripts/import_xemu_accounts.py <xbox_hdd.qcow2> <save dir>`, and give the
+game that console's keys in `RECOMP_XBOX_HDKEY`, `RECOMP_XBOX_SIGKEY` and
+`RECOMP_XBOX_LANKEY` (32 hex digits each).
+
+**Back up your saves before testing new builds.** This experimental software is
+provided as is, without warranty. Use it at your own risk, including the risk
+of crashes, corrupted saves, or lost progress.
+
+## Development
+
+- [Setup script](scripts/setup.ps1): toolchain checks, extraction, generation, and build.
+- [Generator](scripts/generate_mm3.py): the pinned translation recipe; use it for regeneration.
+- [Launcher source](src/mm3_launcher.cpp): settings and environment-variable mappings.
+- [Runtime](tools/xboxrecomp): graphics, audio, input, networking, and runtime diagnostics.
+- [Developer tools](tools/debug-features/README.md) and [teleport debugger](DEBUG_TELEPORT.md).
+- [Third-party licences](THIRD_PARTY.md).
+
+PRs and cleanups are welcome, including fixes to AI-written code and incorrect
+documentation. See [Contributing](CONTRIBUTING.md) for how to submit PRs, report
+bugs, and describe local testing. AI-assisted contributions are welcome; review
+and understand your changes before submitting them.
 
 ## Copyright and contributions
 

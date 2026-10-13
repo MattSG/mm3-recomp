@@ -2,14 +2,17 @@
 #include <stdio.h>
 #include <windows.h>
 #include "recomp_types.h"
+#include "nv2a_d3d11.h"
 #include "mods.h"
 
 /* The console-rate mod: the game's simulation runs at the console's rate,
  * whatever the frame rate. MM3 presents with D3DPRESENT_INTERVAL_TWO_OR_
  * IMMEDIATE at 60 Hz (0x1ECB..: +0x34 = 0x80000002), so on the Xbox it ran
  * at 30 fps: the world updated 30 times a second, each update taking four
- * 1/120 s physics steps. MM3_SIM_HZ picks the rate: 30 (the console's, the
- * default) or 60.
+ * 1/120 s physics steps. MM3_SIM_HZ picks the rate: 30 (the console's),
+ * 60 (the default) or 90, each at least one physics step per update. At
+ * 120 the race AI reverses off the line again (Test-MM3AiStart.ps1),
+ * likely from updates rounding left without a physics step.
  *
  * The main loop (0x1E77F3, ebx the game object) enters its initial state
  * through 0x25422 once. Its persistent loop starts at 0x1E7849: it runs
@@ -31,17 +34,25 @@
  * then plays the simulation the console does. */
 extern void sub_00025422_original(void);
 extern void sub_0002545A_original(void);
+ * Here a clock fed by the game's own frame time decides, once a frame, how
+ * many whole ticks have passed, and the world update runs that many times
+ * with every copy of the frame time it reads set to exactly one tick; the
+ * state machine and input still run every frame. A frame with less than a
+ * tick gone shows the last image again (sub_001EC8E6); a slow frame
+ * catches up (at most 4 ticks, past that the time is dropped, as a hitch).
+ * Every frame rate then plays the same simulation. */
 extern void sub_001E7590_original(void);
 
 #define MAX_TICKS 4
 
-/* One tick: 1/30 s (the console) or 1/60 s (MM3_SIM_HZ=60). */
+/* One tick: 1/MM3_SIM_HZ s. */
 static float tick(void)
 {
     static float t;
     if (!t) {
         const char *v = getenv("MM3_SIM_HZ");
-        t = v && atoi(v) == 60 ? 1.0f / 60.0f : 1.0f / 30.0f;
+        int hz = v && *v ? atoi(v) : 60;
+        t = 1.0f / (float)(hz == 30 || hz == 90 ? hz : 60);
     }
     return t;
 }
@@ -170,6 +181,11 @@ void sub_001E7590(void)
  * By default that frame is not drawn, as on the console; the wait stands in
  * for the present's. MM3_RENDER_EVERY_FRAME=1 keeps the fork's earlier drawing
  * cadence as an optional setting, without changing the simulation clock. */
+/* The render (two arguments, ret 8). A frame the world did not tick has
+ * nothing new to draw, and drawn again it comes out wrong (menu text cut
+ * short, tail lights blinking: state the world update leaves for one
+ * render). So it is not drawn: the last frame is shown again, paced by the
+ * frame limit like any frame, and every frame rate stays one. */
 extern void sub_001EC8E6_original(void);
 void sub_001EC8E6(void)
 {
@@ -177,7 +193,7 @@ void sub_001EC8E6(void)
     int draw_every_frame = every_frame && every_frame[0] == '1' && !every_frame[1];
     if (s_ticks == 0 && MEM32(g_esp) == 0x001E78AAu && mm3_mod_on(MM3_MOD_FRAMERATE) && !draw_every_frame) {
         g_esp += 12;
-        Sleep(1);
+        nv2a_d3d_repeat_frame();
         return;
     }
     sub_001EC8E6_original();
