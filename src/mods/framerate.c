@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <windows.h>
 #include "recomp_types.h"
 #include "mods.h"
 
@@ -80,6 +81,9 @@ static int ticks_for(float dt)
     return n;
 }
 
+/* Ticks the last world update ran; -1 before the first. */
+static int s_ticks = -1;
+
 /* The world update (edi the game, one argument, ret 4), with the console's
  * step in every frame-time field and the real ones back afterwards for
  * rendering. */
@@ -93,7 +97,7 @@ void sub_001E7590(void)
     double raw = MEMD(game + 0x30);       /* the timer's double */
     float clamped = MEMF(game + 0x4C);    /* its clamped float */
     float dt = MEMF(game + 0x54);         /* the averaged step */
-    int n = ticks_for((float)raw);
+    int n = s_ticks = ticks_for((float)raw);
     MEMD(game + 0x30) = TICK;
     MEMF(game + 0x4C) = TICK;
     MEMF(game + 0x54) = TICK;
@@ -101,4 +105,20 @@ void sub_001E7590(void)
     MEMD(game + 0x30) = raw;
     MEMF(game + 0x4C) = clamped;
     MEMF(game + 0x54) = dt;
+}
+
+/* The render (two arguments, ret 8). A frame the world did not tick is the
+ * last one again, except what the world update leaves for exactly one
+ * render: drawn twice, menu text comes out cut short and tail lights blink.
+ * So that frame is not drawn, as on the console; the wait stands in for the
+ * present's. */
+extern void sub_001EC8E6_original(void);
+void sub_001EC8E6(void)
+{
+    if (s_ticks == 0 && MEM32(g_esp) == 0x001E78AAu && mm3_mod_on(MM3_MOD_FRAMERATE)) {
+        g_esp += 12;
+        Sleep(1);
+        return;
+    }
+    sub_001EC8E6_original();
 }
