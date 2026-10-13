@@ -60,10 +60,10 @@ For a direct launch that skips the settings window:
 pwsh scripts/play.ps1 -Keyboard    # optional: -Fullscreen -FpsLimit 120
 ```
 
-The world updates at a fixed rate whatever the frame rate: the frame limit's,
-up to 60 a second, or the Xbox's 30 under Settings > Simulation. Handling,
-speed and the race AI are the same either way. New frames come only with
-updates, so at most 60 are drawn a second; the game has no in-between frames. Lower supersampling or internal
+The world updates at a fixed tick rate whatever the frame rate: 30 (the Xbox's),
+60 or 90 a second under Settings > Tick rate. Handling, speed and the race AI
+are the same at any frame rate. The picture moves with each update; frames in
+between show the last one again. Lower supersampling or internal
 resolution in Settings if performance is poor.
 
 ## Features and limits

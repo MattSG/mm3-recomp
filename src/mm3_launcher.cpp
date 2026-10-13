@@ -48,13 +48,11 @@ Rml::Vector<Option> g_options = {
      {{"", "Auto"}, {"1280x720", "720p"}, {"1600x900", "900p"}, {"1920x1080", "1080p"}, {"2560x1440", "1440p"}}},
     {"", "Aspect ratio", "Widescreen HUD follows it.", "RECOMP_ASPECT", "", "",
      {{"", "Window"}, {"16:9", "16:9"}, {"4:3", "4:3"}}},
-    {"", "Frame limit", "New frames come with world updates, so at most 60 a second.",
-     "RECOMP_FPS_LIMIT", "60", "",
+    {"", "Frame limit", "", "RECOMP_FPS_LIMIT", "60", "",
      {{"30", "30"}, {"60", "60"}, {"120", "120"}, {"144", "144"}, {"165", "165"}, {"240", "240"},
       {"0", "Unlimited"}}},
-    {"", "Simulation", "How often the world updates. The Xbox ran it 30 times a second; faster than 60 "
-     "changes how the race AI drives.",
-     "MM3_SIM_HZ", "", "", {{"", "Frame limit (up to 60)"}, {"30", "Console (30)"}}},
+    {"", "Tick rate", "World updates a second, whatever the frame rate. The Xbox ran 30; the picture "
+     "moves with each update.", "MM3_SIM_HZ", "60", "", {{"30", "30 (Xbox)"}, {"60", "60"}, {"90", "90"}}},
     {"", "V-Sync", "", "RECOMP_VSYNC", "0", "",
      {{"0", "Off"}, {"1", "On"}}},
     {"", "In the background", "When another window is in front.", "RECOMP_PAUSE_UNFOCUSED", "1", "",
