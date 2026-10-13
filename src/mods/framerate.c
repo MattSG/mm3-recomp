@@ -7,8 +7,8 @@
  * whatever the frame rate. MM3 presents with D3DPRESENT_INTERVAL_TWO_OR_
  * IMMEDIATE at 60 Hz (0x1ECB..: +0x34 = 0x80000002), so on the Xbox it ran
  * at 30 fps: the world updated 30 times a second, each update taking four
- * 1/120 s physics steps. MM3_SIM_HZ picks the rate: 30 (the console's, the
- * default) or 60.
+ * 1/120 s physics steps. The rate is the frame limit's up to 60, or MM3_SIM_HZ=30
+ * (the console's).
  *
  * The main loop (0x1E77F3, ebx the game object) sets up once, then each
  * frame (0x1E7849..0x1E792F) runs the state machine (0x2545A), times the
@@ -37,7 +37,13 @@ static float tick(void)
     static float t;
     if (!t) {
         const char *v = getenv("MM3_SIM_HZ");
-        t = v && atoi(v) == 60 ? 1.0f / 60.0f : 1.0f / 30.0f;
+        /* Unset: the frame limit's rate, up to 60. Above that a tick is
+         * shorter than two 1/120 s physics steps and the race AI reverses
+         * off the line (Test-MM3AiStart.ps1 fails at 120). */
+        const char *fps = getenv("RECOMP_FPS_LIMIT");
+        int limit = fps ? atoi(fps) : 0;
+        int hz = v && *v ? atoi(v) : (limit > 0 && limit < 60 ? 30 : 60);
+        t = hz == 60 ? 1.0f / 60.0f : 1.0f / 30.0f;
     }
     return t;
 }
