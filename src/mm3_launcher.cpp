@@ -4,6 +4,7 @@
  * as KEY=VALUE next to game_files\ and Play exports them to the runtime. */
 #include <RmlUi/Core.h>
 #include <RmlUi_Backend.h>
+#include <RmlUi_Renderer_DX11.h>
 #include <windows.h>
 #include <dwmapi.h>
 #include <Xinput.h>
@@ -818,12 +819,15 @@ void load_fonts()
  * of the runtime's diagnostics instead of OutputDebugString. */
 struct System : Rml::SystemInterface {
     Rml::SystemInterface *base;
+    unsigned errors = 0;
     double GetElapsedTime() override { return base->GetElapsedTime(); }
     void SetMouseCursor(const Rml::String &name) override { base->SetMouseCursor(name); }
     void SetClipboardText(const Rml::String &text) override { base->SetClipboardText(text); }
     void GetClipboardText(Rml::String &text) override { base->GetClipboardText(text); }
-    bool LogMessage(Rml::Log::Type, const Rml::String &message) override
+    bool LogMessage(Rml::Log::Type type, const Rml::String &message) override
     {
+        if (type == Rml::Log::LT_ERROR || type == Rml::Log::LT_ASSERT)
+            ++errors;
         fprintf(stderr, "[launcher] %s\n", message.c_str());
         fflush(stderr);
         return true;
@@ -937,6 +941,7 @@ extern "C" int mm3_launcher(void)
             doc->Show();
         g_result = -1;
         int shown_tab = g_tab;
+        bool rendered = false;
         /* Waits for messages only in the background: in front, the controller
          * is polled every frame (the backend presents with v-sync). */
         while (g_result < 0 && Backend::ProcessEvents(ctx, on_key, !GetActiveWindow())) {
@@ -977,9 +982,20 @@ extern "C" int mm3_launcher(void)
                     list->SetScrollTop(list->GetScrollHeight());
                 scrolled = list_ready(ctx);
             }
+            /* The first WM_SIZE can precede creation of the backend renderer.
+             * A hidden startup need not send another one: seed its viewport
+             * from the context's actual pixel size before drawing. */
+            const Rml::Vector2i dimensions = ctx->GetDimensions();
+            static_cast<RenderInterface_DX11 *>(Backend::GetRenderInterface())->SetViewport(
+                dimensions.x, dimensions.y);
             Backend::BeginFrame();
             ctx->Render();
             Backend::PresentFrame();
+            if (!rendered && !g_system.errors) {
+                fprintf(stderr, "[launcher] first frame rendered: %dx%d\n", dimensions.x, dimensions.y);
+                fflush(stderr);
+                rendered = true;
+            }
         }
     }
     Rml::Shutdown();
