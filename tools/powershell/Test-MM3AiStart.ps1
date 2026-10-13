@@ -15,7 +15,7 @@ Verdict FAIL when any AI car covers more than 10 units backwards or an AI car
 ends up behind where it started. Exit code 0 = PASS, 1 = FAIL, 2 = no race.
 #>
 param([Parameter(Mandatory)][string]$Exe, [Parameter(Mandatory)][string]$Save,
-      [string]$Tag = 'ai-start', [int]$FpsLimit = 60, [int]$Secs = 20)
+      [string]$Tag = 'ai-start', [int]$FpsLimit = 60, [int]$Secs = 20, [switch]$Course)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $dir = Join-Path $repo "conformance_tmp\ai_start\$Tag"
@@ -70,8 +70,20 @@ try {
     $samples = @{}
     $end = [Diagnostics.Stopwatch]::StartNew()
     # One unbroken hold: repeated presses leave 200 ms releases between them.
-    [IO.File]::AppendAllText($pad, "rt:$($Secs * 1000 + 1000)`n")
+    # -Course instead: throttle 6 s, brake 3 s, throttle 4 s, throttle + full
+    # left 1 s, throttle to the end.
+    if ($Course) {
+        [IO.File]::AppendAllText($pad, "rt:6000`n")
+        $script:courseAt = @(6000, 9000, 13000, 14000)
+    } else {
+        [IO.File]::AppendAllText($pad, "rt:$($Secs * 1000 + 1000)`n")
+    }
+    $ci = 0
     while ($end.Elapsed.TotalSeconds -lt $Secs) {
+        if ($Course -and $ci -lt 4 -and $end.Elapsed.TotalMilliseconds -ge $courseAt[$ci] - 150) {
+            $step = @("lt:3000", "rt:4000", "rt+lleft:1000", "rt:$($Secs * 1000)")[$ci]
+            [IO.File]::AppendAllText($pad, "$step`n"); $ci++
+        }
         foreach ($c in cars) {
             if (-not $samples.ContainsKey($c.id)) { $samples[$c.id] = [Collections.ArrayList]::new() }
             [void]$samples[$c.id].Add(($c | Add-Member -PassThru t $end.Elapsed.TotalSeconds))
@@ -120,6 +132,47 @@ if ($ps.Count -gt 1) {
         while ($mi -lt $marks.Count -and $ps[$i].t - $ps[0].t -ge $marks[$mi]) { $out += ("{0}s={1:N0}" -f $marks[$mi], $d); $mi++ }
     }
     Write-Host ("player distance: " + ($out -join ' '))
+}
+if ($Course -and $ps.Count -gt 1) {
+    # Braking: from 6 s, distance rolled until the first sample under 1
+    # unit/s (held on, the brake reverses). Steering: heading turned and path
+    # covered from 13 s to 14 s.
+    function at([double]$s) { $ps | Where-Object { $_.t - $ps[0].t -ge $s } | Select-Object -First 1 }
+    function path([double]$a, [double]$b) {
+        $d = 0.0
+        for ($i = 1; $i -lt $ps.Count; $i++) {
+            $t = $ps[$i].t - $ps[0].t
+            if ($t -gt $a -and $t -le $b) {
+                $d += [math]::Sqrt([math]::Pow($ps[$i].x - $ps[$i-1].x, 2) + [math]::Pow($ps[$i].z - $ps[$i-1].z, 2))
+            }
+        }
+        $d
+    }
+    $v6 = (path 5.5 6) / 0.5; $roll = 0.0; $stop = $null
+    for ($i = 1; $i -lt $ps.Count -and -not $stop; $i++) {
+        $t = $ps[$i].t - $ps[0].t
+        if ($t -le 6) { continue }
+        $step = [math]::Sqrt([math]::Pow($ps[$i].x - $ps[$i-1].x, 2) + [math]::Pow($ps[$i].z - $ps[$i-1].z, 2))
+        $roll += $step
+        if ($step / ($ps[$i].t - $ps[$i-1].t) -lt 1) { $stop = $t }
+    }
+    Write-Host ("braking: from {0:N1} units/s, rolled {1:N1} units, stopped {2}" -f $v6, $roll,
+        $(if ($stop) { "after {0:N2} s" -f ($stop - 6) } else { 'never' }))
+    $h0 = at 13; $h1 = at 14.25
+    if ($h0 -and $h1) {
+        $turn = ([math]::Atan2($h1.fx, $h1.fz) - [math]::Atan2($h0.fx, $h0.fz)) * 180 / [math]::PI
+        while ($turn -gt 180) { $turn -= 360 }; while ($turn -lt -180) { $turn += 360 }
+        Write-Host ("steering: from {0:N1} units/s turned {1:N0} deg over {2:N1} units" -f ((path 12.5 13) / 0.5), $turn, (path 13 14.25))
+    }
+    $ai = foreach ($id in $samples.Keys) {
+        $s = $samples[$id]
+        if (-not $s[0].player) {
+            $d = 0.0
+            for ($i = 1; $i -lt $s.Count; $i++) { $d += [math]::Sqrt([math]::Pow($s[$i].x - $s[$i-1].x, 2) + [math]::Pow($s[$i].z - $s[$i-1].z, 2)) }
+            $d
+        }
+    }
+    Write-Host ("ai path over {0} s: {1}" -f $Secs, (($ai | Sort-Object | ForEach-Object { "{0:N0}" -f $_ }) -join ' '))
 }
 if (-not $playerRow -or $playerRow.forward -le $playerRow.backward) {
     Write-Host 'WARNING: player car did not come out forwards under throttle; forward vector sign is suspect'

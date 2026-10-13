@@ -61,7 +61,8 @@ set(MM3_RENAMED_FUNCTIONS
     sub_00170E5D sub_000145DC sub_001F02AD
     sub_0025968E                 # widescreen: wraps the projection-matrix builder
     sub_001DB6E8 sub_001F2A71 sub_001F443D  # skip intro: movie play, frame, skip check
-    sub_001E7590 sub_001EC8E6    # console rate: the world update, the render
+    sub_001E7590 sub_001EC8E6    # console rate: the world update, the render,
+    sub_0022DBBF                 # and the race AI's update
 )
 if(MM3_MOVIE_INPUT_TRACE)
     list(APPEND MM3_RENAMED_FUNCTIONS sub_0035BDC0)

@@ -84,6 +84,29 @@ static int ticks_for(float dt)
     return n;
 }
 
+/* The race AI's update (0x22DBBF: ecx the AI module, dt and a flag, ret 8).
+ * Given each tick, the AI drives differently at 60 or 90 ticks than at 30
+ * -- its cars covered ~9% more ground in 25 s (Test-MM3AiStart.ps1
+ * -Course) -- so it keeps the console's rate: every second or third tick,
+ * with that many ticks' time. Cars and their physics still step every tick. */
+extern void sub_0022DBBF_original(void);
+void sub_0022DBBF(void)
+{
+    static int skipped;
+    int every = (int)(1.0f / 30.0f / TICK + 0.5f);
+    if (every <= 1 || !mm3_mod_on(MM3_MOD_FRAMERATE)) {
+        sub_0022DBBF_original();
+        return;
+    }
+    if (++skipped < every) {
+        g_esp += 12;
+        return;
+    }
+    skipped = 0;
+    MEMF(g_esp + 4) *= (float)every;
+    sub_0022DBBF_original();
+}
+
 /* Ticks the last world update ran; -1 before the first. */
 static int s_ticks = -1;
 
