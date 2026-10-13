@@ -10,8 +10,8 @@
  * at 30 fps: the world updated 30 times a second, each update taking four
  * 1/120 s physics steps. MM3_SIM_HZ picks the rate: 30 (the console's),
  * 60 (the default) or 90, each at least one physics step per update. At
- * 120 the race AI reverses off the line again (Test-MM3AiStart.ps1),
- * likely from updates rounding left without a physics step.
+ * 120 the player car covers ~5% less ground (302 vs 311-336 units in 12 s,
+ * Test-MM3AiStart.ps1), likely from one-step ticks rounding.
  *
  * The main loop (0x1E77F3, ebx the game object) sets up once, then each
  * frame (0x1E7849..0x1E792F) runs the state machine (0x2545A), times the
