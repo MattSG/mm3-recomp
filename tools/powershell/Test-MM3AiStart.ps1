@@ -111,6 +111,16 @@ for ($i = 0; $i -lt $ps.Count; $i++) {
     }
 }
 Write-Host ("player top speed: {0:N1} units/s" -f $top)
+# Acceleration: path length covered by 2/4/6/8/12 s of throttle. Same physics
+# at every frame rate means the same curve.
+if ($ps.Count -gt 1) {
+    $d = 0.0; $marks = @(2, 4, 6, 8, 12); $mi = 0; $out = @()
+    for ($i = 1; $i -lt $ps.Count -and $mi -lt $marks.Count; $i++) {
+        $d += [math]::Sqrt([math]::Pow($ps[$i].x - $ps[$i-1].x, 2) + [math]::Pow($ps[$i].z - $ps[$i-1].z, 2))
+        while ($mi -lt $marks.Count -and $ps[$i].t - $ps[0].t -ge $marks[$mi]) { $out += ("{0}s={1:N0}" -f $marks[$mi], $d); $mi++ }
+    }
+    Write-Host ("player distance: " + ($out -join ' '))
+}
 if (-not $playerRow -or $playerRow.forward -le $playerRow.backward) {
     Write-Host 'WARNING: player car did not come out forwards under throttle; forward vector sign is suspect'
 }

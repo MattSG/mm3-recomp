@@ -47,11 +47,9 @@ Rml::Vector<Option> g_options = {
      {{"", "Auto"}, {"1280x720", "720p"}, {"1600x900", "900p"}, {"1920x1080", "1080p"}, {"2560x1440", "1440p"}}},
     {"", "Aspect ratio", "Widescreen HUD follows it.", "RECOMP_ASPECT", "", "",
      {{"", "Window"}, {"16:9", "16:9"}, {"4:3", "4:3"}}},
-    /* Not higher: from about 110 fps the race AI reverses off the start line
-     * (Test-MM3AiStart.ps1), even with the console-rate simulation -- the
-     * cause is outside the simulation and not found yet. */
     {"", "Frame limit", "", "RECOMP_FPS_LIMIT", "60", "",
-     {{"30", "30"}, {"60", "60"}, {"90", "90"}}},
+     {{"30", "30"}, {"60", "60"}, {"120", "120"}, {"144", "144"}, {"165", "165"}, {"240", "240"},
+      {"0", "Unlimited"}}},
     {"", "Simulation", "How often the world updates. The Xbox ran it 30 times a second; 60 moves smoother.",
      "MM3_SIM_HZ", "", "", {{"", "Console (30)"}, {"60", "60"}}},
     {"", "V-Sync", "", "RECOMP_VSYNC", "0", "",

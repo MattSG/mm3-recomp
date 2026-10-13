@@ -61,10 +61,9 @@ pwsh scripts/play.ps1 -Keyboard    # optional: -Fullscreen -FpsLimit 120
 ```
 
 The world simulation runs at the console's rate whatever the frame rate (30 Hz,
-as the Xbox did, or 60 under Settings > Simulation), so handling and speed are
-the same at any frame rate. From about 110 FPS the race AI still misbehaves at
-the start, so the launcher's frame limit stops at 90. Lower supersampling or
-internal resolution in Settings if performance is poor.
+as the Xbox did, or 60 under Settings > Simulation), so handling, speed and the
+race AI are the same at any frame rate. Lower supersampling or internal
+resolution in Settings if performance is poor.
 
 ## Features and limits
 
