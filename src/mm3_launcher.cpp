@@ -72,12 +72,13 @@ Rml::Vector<Option> g_options = {
      {{"1", "Xbox"}, {"2", "2x"}, {"3", "3x"}, {"4", "4x"}}},
     {"", "Field of view", "How wide the race camera sees.", "MM3_FOV", "", "",
      {{"", "Xbox"}, {"110", "+10%"}, {"120", "+20%"}, {"130", "+30%"}}},
-    {"Network", "Network", "System link and Xbox Live through the PC's connection.", "RECOMP_NET", "", "",
-     {{"", "Off"}, {"nat", "On"}}},
-    {"", "Online service", "Insignia revives Xbox Live; it needs an account on the console's hard disk.",
-     "RECOMP_NET_DNS", "", "", {{"", "Your DNS"}, {"46.101.64.175", "Insignia"}}},
-    {"", "Direct play", "Other players to link with, as address:port, comma separated. "
-     "One side is enough: the other is found when it first hears from you.", "RECOMP_NET_PEERS", "", "", {{"", ""}}},
+    {"Network", "Network", "Work in progress. System link works between copies on one PC or a LAN; "
+     "Xbox Live is untested.", "RECOMP_NET", "", "", {{"", "Off"}, {"nat", "On"}}},
+    {"", "Xbox Live", "Work in progress: reaches Insignia's servers, but signing in needs an account "
+     "made on xemu (scripts/import_xemu_accounts.py) and is unverified.", "", "", "", {{"", "Insignia (WIP)"}}},
+    {"", "Direct play", "Work in progress, untested between separate PCs. Other players to link with, "
+     "as address:port, comma separated. One side is enough: the other is found when it first hears "
+     "from you.", "RECOMP_NET_PEERS", "", "", {{"", ""}}},
     {"", "Your port", "UDP port other players reach you on. Forward it on your router to be found.",
      "RECOMP_NET_PORT", "3075", "", {{"", ""}}},
     {"Developer", "Developer HUD", "Position, damage, speed, RPM and gear. Needs tools\\debug-features\\prepare.py.",
@@ -453,6 +454,8 @@ void save_and_export()
 {
     FILE *f = fopen(kSettingsFile, "w");
     for (const Option &o : g_options) {
+        if (o.env.empty())   /* a note, not a setting */
+            continue;
         if (f)
             fprintf(f, "%s=%s\n", o.env.c_str(), o.value.c_str());
         _putenv_s(o.env.c_str(), o.value.c_str()); /* "" removes the variable */
