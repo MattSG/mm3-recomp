@@ -22,6 +22,7 @@ conformance_tmp/
 build*/
 out/
 logs/
+mm3-build-log.txt
 captures/
 *.pdb
 *.map
@@ -96,6 +97,7 @@ xemu.log
 node_modules/
 
 # Local game-data copies and per-machine tool settings
+tools/car-mods/cars.local.json
 backups/
 game_files_dlc/
 .claude/

@@ -5,7 +5,7 @@ Build a playable Midtown Madness 3 from a fresh clone and your own disc image.
 .DESCRIPTION
   pwsh scripts\setup.ps1 -Iso "D:\Midtown Madness 3 (USA).iso"
 
-1. checks for Visual Studio (C++ workload) and Python 3.11+
+1. checks for Visual Studio or local MSVC tools, and Python 3.11.4+
 2. makes tools\venv with the pinned generator dependency (capstone)
 3. verifies the disc's code and extracts it to game_files\
 4. generates the translated C into src\recomp\gen\ (about 6 minutes)
@@ -22,6 +22,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $repo
+. (Join-Path $PSScriptRoot 'enter-env.ps1')
 function Step([string]$text) { Write-Host "`n== $text" -ForegroundColor Cyan }
 function Check([string]$what) { if ($LASTEXITCODE -ne 0) { throw "$what failed (exit $LASTEXITCODE)" } }
 
@@ -30,26 +31,45 @@ $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.e
 $vs = if (Test-Path $vswhere) {
     & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 }
-if (-not $vs) { throw 'Visual Studio 2022 or newer with "Desktop development with C++" is required.' }
-$cmake = Join-Path $vs 'Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe'
-if (-not (Test-Path $cmake)) { $cmake = (Get-Command cmake -ErrorAction SilentlyContinue).Source }
-if (-not $cmake) { throw 'CMake not found: install the "C++ CMake tools for Windows" VS component.' }
+$portableMsvc = Test-Path -LiteralPath (Join-Path $repo 'tools\bin\msvc\setup_x64.bat')
+if (-not $vs -and -not $portableMsvc) {
+    throw 'Visual Studio 2022+ with C++ tools, or local tools\bin\msvc\setup_x64.bat, is required.'
+}
+$cmake = if ($vs -and -not $portableMsvc) {
+    Join-Path $vs 'Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe'
+}
+if (-not $cmake -or -not (Test-Path -LiteralPath $cmake)) {
+    $cmake = (Get-Command cmake -ErrorAction SilentlyContinue).Source
+}
+if (-not $cmake) { throw 'CMake not found: install CMake locally or the VS CMake component.' }
+if ($portableMsvc -and -not (Get-Command ninja -ErrorAction SilentlyContinue)) {
+    throw 'Ninja not found: install it in tools\venv with python -m pip install ninja.'
+}
 $py = Get-Command py -ErrorAction SilentlyContinue
-if (-not $py) { throw 'Python 3.11+ is required (the py launcher from python.org).' }
-& py -3 -c 'import sys; sys.exit(sys.version_info < (3, 11))'
-if ($LASTEXITCODE -ne 0) { throw 'Python 3.11 or newer is required.' }
+$basePython = if ($py) { $py.Source } else { (Get-Command python -ErrorAction SilentlyContinue).Source }
+if (-not $basePython) { throw 'Python 3.11.4+ is required (py or python on PATH; 3.12+ recommended).' }
+[string[]]$pythonArgs = if ($py) { @('-3') } else { @() }
+& $basePython @pythonArgs -c 'import sys; sys.exit(sys.version_info < (3, 11, 4))'
+if ($LASTEXITCODE -ne 0) { throw 'Python 3.11.4 or newer is required (3.12+ recommended).' }
 if (-not (Test-Path 'tools\xboxrecomp\CMakeLists.txt')) {
     git submodule update --init --recursive; Check 'git submodule update'
 }
-Write-Host "Visual Studio: $vs"
+& $basePython @pythonArgs scripts\apply_runtime_patch.py; Check 'MM3 runtime fixes'
+if ($portableMsvc) { Write-Host "Local MSVC: $(Join-Path $repo 'tools\bin\msvc')" }
+else { Write-Host "Visual Studio: $vs" }
 
 Step 'Python environment (tools\venv)'
 $python = Join-Path $repo 'tools\venv\Scripts\python.exe'
 if ($Force -or -not (Test-Path $python)) {
-    & py -3 -m venv tools\venv; Check 'venv'
+    # Resolve outside an active venv so -Force does not overwrite a running Python.
+    $pythonHome = & $basePython @pythonArgs -c 'import sys; print(sys.base_prefix)'
+    Check 'Python location'
+    & (Join-Path $pythonHome 'python.exe') -m venv tools\venv; Check 'venv'
 }
-# The generator's output depends on the disassembler, so the version is pinned.
-& $python -m pip install --quiet --disable-pip-version-check capstone==5.0.9; Check 'pip install'
+. (Join-Path $PSScriptRoot 'enter-env.ps1')
+# Capstone 5.0.7 is the tested disassembler used for the verified generation.
+# Its version affects generated output, so keep this pin with the generator.
+& $python -m pip install --quiet --disable-pip-version-check capstone==5.0.7; Check 'pip install'
 
 Step 'Game files (game_files\)'
 if ($Force -or -not (Test-Path 'game_files\default.xbe')) {
@@ -69,7 +89,11 @@ if ($Force -or -not (Test-Path 'src\recomp\gen\recomp_dispatch.c')) {
 }
 
 Step "Build ($Config)"
-& $cmake -S . -B build -A x64; Check 'cmake configure'
+if ($portableMsvc) {
+    & $cmake -S . -B build -G 'Ninja Multi-Config'; Check 'cmake configure'
+} else {
+    & $cmake -S . -B build -A x64; Check 'cmake configure'
+}
 & $cmake --build build --config $Config --target mm3_recomp --parallel; Check 'build'
 
 $exe = Join-Path $repo "build\$Config\mm3_recomp.exe"

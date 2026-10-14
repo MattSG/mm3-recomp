@@ -48,3 +48,13 @@ also include AI-written code; review and test them with the same care. It retain
 its own licence and [contribution guide](tools/xboxrecomp/CONTRIBUTING.md).
 Submit runtime changes to our fork and link the corresponding commit or PR in
 your project PR. Report issues specific to our modifications here or in our fork.
+
+Runtime changes go to the [MattSG/xboxrecomp](https://github.com/MattSG/xboxrecomp)
+fork and are picked up here by moving the `tools/xboxrecomp` gitlink. Keep it
+pointing at a published commit.
+
+Car Workshop defaults are tracked in `tools/car-mods/cars.json`; personal model
+selections and tuning belong in the ignored `cars.local.json`. Game assets,
+prepared model packages and extracted import sources remain local. Tests using
+optional fixtures or an independent decoder must report missing coverage as
+skipped, not as verified game or imported-model behavior.

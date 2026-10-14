@@ -1,4 +1,40 @@
-# MM3 native playability — 2026-10-01
+# MM3 session status
+
+## Current submission integration - 2026-10-13
+
+The all-features submission preserves the original fork and incorporates game
+upstream `b58c022` with public runtime `6599635` plus the reproducible fork patch.
+Car tools, native gameplay features and runtime fixes remain present; Matt's
+latest System Link, Insignia DNS, console keys, account import and render-tick
+changes are retained. Fresh full generation, independent MSVC RelWithDebInfo
+build, compiled hidden-launcher rendering/normal close and scoped native/unit
+checks passed. The latest validation scope is recorded at the beginning
+of [the integration record](docs/integration-2026-10-13.md).
+
+The earlier driving results below predate the new render-tick policy. With
+console-rate simulation enabled, drawing now follows 30/60 Hz world ticks;
+main-loop limit choices do not imply 90 drawn FPS. The optional launcher
+**Draw every frame** setting restores the preceding rendering behavior.
+
+## Previous integration — 2026-10-13
+
+Source integration is complete. The combined MSVC build, public-base runtime
+patch reproduction, scoped native/unit checks and live launcher
+initialization/normal close passed. Final Paris direction/acceleration runs
+independently verified the default 30 Hz world clock at requested 60/90 render
+limits; observed medians were 59.96/71.52 FPS. Achieved 90 FPS, real-race 60 Hz
+simulation and matched handling parity remain extended coverage.
+
+See the [integration record](docs/integration-2026-10-13.md) for precise results,
+source pins, corrected scheduler coverage and remaining scenarios. Earlier
+integration timing traces are retained as
+[superseded diagnostics](docs/integration-timing-diagnostics-2026-10-13.md).
+
+## Historical journal — beginning 2026-10-01
+
+The journal below predates this integration. Its old acceptance status,
+runtime pins, executable hashes and build paths describe those earlier runs,
+not the current integrated source or executable.
 
 ## Acceptance
 

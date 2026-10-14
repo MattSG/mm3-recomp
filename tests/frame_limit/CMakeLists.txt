@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.20)
+project(mm3_frame_limit_contract C)
+set(CMAKE_C_STANDARD 11)
+add_executable(mm3_frame_limit_contract ../mm3_frame_limit_contract.c)
+target_include_directories(mm3_frame_limit_contract PRIVATE ../../src)
+enable_testing()
+add_test(NAME mm3_frame_limit_contract COMMAND mm3_frame_limit_contract)

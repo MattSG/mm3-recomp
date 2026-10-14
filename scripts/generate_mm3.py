@@ -8,7 +8,7 @@ Runs the whole recipe the build depends on, in order:
      with the native tail constructors and the proven GUI boundary coalescing
   3. overlays the project wraps: memmove tails, alternate-SEH and ABI bodies
   4. runtime-proven entries (mm3_runtime_entry_repairs.json)
-Needs a Python with capstone (scripts/setup.ps1 makes one).
+Tested with Capstone 5.0.7; scripts/setup.ps1 installs that disassembler version.
 """
 import argparse
 import json

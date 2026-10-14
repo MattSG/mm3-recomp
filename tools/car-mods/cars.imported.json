@@ -1,0 +1,262 @@
+{
+  "version": 1,
+  "original_speedometers": {
+    "Koenigsegg": {
+      "max_kmh": 800,
+      "max_mph": 500
+    },
+    "Viper": {
+      "max_kmh": 800,
+      "max_mph": 500
+    },
+    "Lotus": {
+      "max_kmh": 800,
+      "max_mph": 500
+    }
+  },
+  "cars": [
+    {
+      "id": 9004,
+      "alias": "Panoz",
+      "donor": "Viper",
+      "display_name": "Panoz GTR-1",
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 8,
+        "MASS": 4,
+        "HANDLING": 8,
+        "DURABILITY": 3
+      },
+      "physics": {
+        "Mass": 980,
+        "TorqueScale": 750
+      },
+      "colors": [
+        "#c7a52b",
+        "#efefeb",
+        "#961e28"
+      ],
+      "speedometer": {
+        "max_kmh": 360,
+        "max_mph": 240
+      },
+      "model_package": "../../out/car-models/packages/Panoz"
+    },
+    {
+      "id": 9005,
+      "alias": "McLaren_F1",
+      "donor": "Koenigsegg",
+      "display_name": "McLaren F1",
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 8,
+        "MASS": 4,
+        "HANDLING": 8,
+        "DURABILITY": 3
+      },
+      "physics": {
+        "Mass": 1050,
+        "TorqueScale": 800
+      },
+      "colors": [
+        "#b9c2cc",
+        "#ef8a21",
+        "#243a64"
+      ],
+      "speedometer": {
+        "max_kmh": 360,
+        "max_mph": 240
+      },
+      "model_package": "../../out/car-models/packages/McLaren_F1"
+    },
+    {
+      "id": 9006,
+      "alias": "Form1",
+      "donor": "Lotus",
+      "display_name": "Formula 1",
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 9,
+        "MASS": 2,
+        "HANDLING": 9,
+        "DURABILITY": 1
+      },
+      "physics": {
+        "Mass": 600,
+        "TorqueScale": 420
+      },
+      "colors": [
+        "#dc202a",
+        "#28b8af",
+        "#18325e"
+      ],
+      "speedometer": {
+        "max_kmh": 380,
+        "max_mph": 240
+      },
+      "model_package": "../../out/car-models/packages/Form1"
+    },
+    {
+      "id": 9009,
+      "alias": "Ford_GTcar",
+      "donor": "Koenigsegg",
+      "display_name": "Ford GT",
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 8,
+        "MASS": 6,
+        "HANDLING": 7,
+        "DURABILITY": 4
+      },
+      "physics": {
+        "Mass": 1520,
+        "TorqueScale": 1000
+      },
+      "colors": [
+        "#68b7d1",
+        "#f0ece4",
+        "#ad1828"
+      ],
+      "speedometer": {
+        "max_kmh": 380,
+        "max_mph": 240
+      },
+      "model_package": "../../out/car-models/packages/Ford_GTcar"
+    },
+    {
+      "id": 9010,
+      "alias": "Senna_Road",
+      "donor": "Koenigsegg",
+      "display_name": "McLaren Senna",
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 9,
+        "MASS": 5,
+        "HANDLING": 8,
+        "DURABILITY": 3
+      },
+      "physics": {
+        "Mass": 1309,
+        "TorqueScale": 1000
+      },
+      "colors": [
+        "#ff8526",
+        "#2b4057",
+        "#d9e2e9"
+      ],
+      "speedometer": {
+        "max_kmh": 360,
+        "max_mph": 240
+      },
+      "model_package": "../../out/car-models/packages/Senna_Road"
+    },
+    {
+      "id": 9011,
+      "alias": "Senna_GTR1",
+      "donor": "Koenigsegg",
+      "display_name": "McLaren Senna GTR",
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 9,
+        "MASS": 5,
+        "HANDLING": 9,
+        "DURABILITY": 2
+      },
+      "physics": {
+        "Mass": 1270,
+        "TorqueScale": 1025
+      },
+      "colors": [
+        "#efeff2",
+        "#2e6896",
+        "#b32431"
+      ],
+      "speedometer": {
+        "max_kmh": 360,
+        "max_mph": 240
+      },
+      "model_package": "../../out/car-models/packages/Senna_GTR1"
+    },
+    {
+      "id": 9012,
+      "alias": "FXXK_Racer",
+      "donor": "Koenigsegg",
+      "display_name": "Ferrari FXX K",
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 9,
+        "MASS": 6,
+        "HANDLING": 9,
+        "DURABILITY": 2
+      },
+      "physics": {
+        "Mass": 1590,
+        "TorqueScale": 1150
+      },
+      "colors": [
+        "#d2202c",
+        "#252c34",
+        "#e7e8ea"
+      ],
+      "speedometer": {
+        "max_kmh": 400,
+        "max_mph": 260
+      },
+      "model_package": "../../out/car-models/packages/FXXK_Racer"
+    },
+    {
+      "id": 9013,
+      "alias": "Regera_GT1",
+      "donor": "Koenigsegg",
+      "display_name": "Koenigsegg Regera",
+      "ratings": {
+        "TOPSPEED": 9,
+        "ACCELERATION": 9,
+        "MASS": 6,
+        "HANDLING": 7,
+        "DURABILITY": 4
+      },
+      "physics": {
+        "Mass": 1590,
+        "TorqueScale": 1250
+      },
+      "colors": [
+        "#62abde",
+        "#161f29",
+        "#e8e8e4"
+      ],
+      "speedometer": {
+        "max_kmh": 440,
+        "max_mph": 280
+      },
+      "model_package": "../../out/car-models/packages/Regera_GT1"
+    },
+    {
+      "id": 9014,
+      "alias": "AventadorX",
+      "donor": "Koenigsegg",
+      "display_name": "Lamborghini Aventador",
+      "ratings": {
+        "TOPSPEED": 8,
+        "ACCELERATION": 9,
+        "MASS": 7,
+        "HANDLING": 7,
+        "DURABILITY": 4
+      },
+      "physics": {
+        "Mass": 1675,
+        "TorqueScale": 1100
+      },
+      "colors": [
+        "#e29d16",
+        "#eff0eb",
+        "#31567a"
+      ],
+      "speedometer": {
+        "max_kmh": 380,
+        "max_mph": 240
+      },
+      "model_package": "../../out/car-models/packages/AventadorX"
+    }
+  ]
+}

@@ -8,8 +8,15 @@
 
 #include "recomp_types.h"
 #include "recomp_funcs.h"
+#include "mods/teleport.h"
+#include "mm3_asset_cache.h"
+#include "mm3_frame_limit.h"
+#include "mm3_performance_profile.h"
 #include "mods/mods.h"
 #include <xbox_host.h>
+#include <xinput_xbox.h>
+#include <video/fb_present.h>
+#include <video/nv2a_d3d11.h>
 
 #define MM3_XBE_PATH "game_files/default.xbe"
 #define MM3_GAME_DIR "game_files"
@@ -21,6 +28,26 @@ static HANDLE g_mm3_main_worker;
 static HANDLE g_mm3_main_worker_ready;
 static int g_mm3_inline_threads;
 extern void sub_00083A6C_original(void);
+extern void mm3_configure_diagnostics(void);
+
+static void mm3_close_game(void)
+{
+    /* Xbox guest workers do not observe a host WM_CLOSE. Freeing their shared
+     * memory while they run is unsafe; end the process as the title's existing
+     * firmware-exit bridge does. Windows releases its file/device handles. */
+    fprintf(stderr, "[MM3_EXIT] close requested\n");
+    fflush(stderr);
+    ExitProcess(0);
+}
+
+static BOOL WINAPI mm3_console_control(DWORD event)
+{
+    if (event != CTRL_C_EVENT && event != CTRL_BREAK_EVENT &&
+        event != CTRL_CLOSE_EVENT)
+        return FALSE;
+    mm3_close_game();
+    return TRUE;
+}
 int mm3_launcher(void);
 
 /* Register the first XAPI worker before it can create background workers.
@@ -140,21 +167,77 @@ int main(void)
     void *xbe_data = NULL;
     size_t xbe_size = 0;
 
+    mm3_configure_diagnostics();
     setvbuf(stdout, NULL, _IONBF, 0);
     /* Unbuffered redirected stderr made diagnostic formatting issue many
      * tiny Windows writes and stalled the renderer on the shared FILE lock.
      * Movie markers and crash reports explicitly flush when needed. */
     static char stderr_buffer[64 * 1024];
-    if (getenv("MM3_LOG_UNBUFFERED"))
+    const char *unbuffered = getenv("MM3_LOG_UNBUFFERED");
+    if (unbuffered && *unbuffered && strcmp(unbuffered, "0") != 0)
         setvbuf(stderr, NULL, _IONBF, 0);
     else
         setvbuf(stderr, stderr_buffer, _IOFBF, sizeof stderr_buffer);
     SetUnhandledExceptionFilter(mm3_crash_report);
+    xbox_FramebufferSetCloseHandler(mm3_close_game);
+    nv2a_d3d_set_flare_depth_test(1);
+    SetConsoleCtrlHandler(mm3_console_control, TRUE);
     puts("MM3 static recompilation");
+    /* Profiles seed settings before the launcher; saved choices, including
+     * Auto resolution and window aspect, take precedence when Play exports them. */
+    const char *profile_error = mm3_apply_performance_defaults(getenv("MM3_PERFORMANCE_PROFILE"));
+    if (profile_error) {
+        fprintf(stderr, "cannot select MM3 performance setting %s\n", profile_error);
+        return 1;
+    }
+
+    /* The profile pins internal resolution while the window changes size.
+     * Explicit aspect and auto settings take priority over the default. */
+    const char *widescreen = getenv("MM3_MOD_WIDESCREEN");
+    const char *default_aspect = widescreen && strcmp(widescreen, "0") == 0 ? "4:3" : "16:10";
+    if (!getenv("RECOMP_ASPECT") &&
+        _putenv_s("RECOMP_ASPECT", default_aspect) != 0) {
+        fprintf(stderr, "cannot select MM3 display aspect\n");
+        return 1;
+    }
+
     /* Scripts set RECOMP_PB_EXEC themselves; a plain start gets the launcher. */
     const char *scripted = getenv("RECOMP_PB_EXEC");
     if ((!scripted || !*scripted) && !mm3_launcher())
         return 0;
+
+    /* Apply the same bounded rate before either vblank or presentation
+     * caches its setting, including launches that bypass play.ps1. */
+    char frame_limit[16];
+    snprintf(frame_limit, sizeof frame_limit, "%d",
+             mm3_frame_limit(getenv("RECOMP_FPS_LIMIT")));
+    if (_putenv_s("RECOMP_FPS_LIMIT", frame_limit) != 0) {
+        fprintf(stderr, "cannot set MM3 frame-rate limit\n");
+        return 1;
+    }
+
+    /* MM3 releases large model buffers through NtFreeVirtualMemory when a
+     * scene is destroyed. The shared runtime leaves NT heap reclamation
+     * opt-in; without it each race/menu round trip retains those buffers
+     * until the guest heap is exhausted. Enable before its first allocation,
+     * including direct executable launches. */
+    if (_putenv_s("RECOMP_HEAP_RECLAIM", "1") != 0) {
+        fprintf(stderr, "cannot enable MM3 guest memory reclamation\n");
+        return 1;
+    }
+
+    /* MM3 reads the triggers and left stick for driving. Keep the runtime's
+     * legacy keys available, with arrows also driving this title. */
+    if (!getenv("RECOMP_KEYBOARD_LAYOUT") &&
+        _putenv_s("RECOMP_KEYBOARD_LAYOUT", "mm3") != 0) {
+        fprintf(stderr, "cannot select MM3 keyboard controls\n");
+        return 1;
+    }
+
+    fprintf(stderr, "[MM3_PERFORMANCE] profile=%s scale=%s msaa=%s distance=%s aniso=%s fps=%s\n",
+            mm3_performance_profile(getenv("MM3_PERFORMANCE_PROFILE"))->name,
+            getenv("RECOMP_RENDER_SCALE"), getenv("RECOMP_MSAA"),
+            getenv("RECOMP_DRAW_DISTANCE"), getenv("RECOMP_ANISO"), getenv("RECOMP_FPS_LIMIT"));
 
     if (!load_file(MM3_XBE_PATH, &xbe_data, &xbe_size)) {
         fprintf(stderr, "cannot load %s\n", MM3_XBE_PATH);
@@ -182,13 +265,37 @@ int main(void)
 
     g_xbox_mem_offset = xbox_GetMemoryOffset();
     mm3_mods_init();
+    xbox_InputSetKeyboardDrivingProbe(mm3_keyboard_driving);
+    /* XPP submits stack-backed USB requests whose callback signals an inline
+     * KEVENT. Its explicit wait treats an invalid handle as completion, so
+     * the request can outlive its stack frame. Permit only the verified XPP
+     * setter, explicit wait/cancel wait and synchronous-submit wait sites. */
+    {
+        static const uint32_t usb_event_callers[] = {
+            0x0035C348u, 0x0035D553u, 0x0035D56Cu, 0x0035C7F1u
+        };
+        if (xbox_kernel_set_inline_event_callers(usb_event_callers,
+                sizeof(usb_event_callers) / sizeof(usb_event_callers[0])) != 0) {
+            fprintf(stderr, "cannot register MM3 USB event bridges\n");
+            xbox_MemoryLayoutShutdown();
+            free(xbe_data);
+            return 1;
+        }
+    }
     xbox_kernel_set_thunk_address(MM3_KERNEL_THUNK_ADDRESS,
                                    MM3_KERNEL_THUNK_COUNT);
     xbox_kernel_init();
     xbox_path_init(MM3_GAME_DIR, getenv("MM3_SAVE_DIR"));
+    mm3_asset_cache_refresh();
     xbox_kernel_bridge_init();
-    if (xbox_Nv2aMirrorFence(0x00351F48u, 0x2Cu, 0x30u) != 0)
-        fprintf(stderr, "NV2A fence mirror registration failed\n");
+    if (xbox_Nv2aMirrorFence(0x00351F48u, 0x2Cu, 0x30u) != 0 ||
+        xbox_Nv2aCommandFence(0x00351F48u, 0xCu, 0u) != 0) {
+        fprintf(stderr, "NV2A command fence registration failed\n");
+        xbox_kernel_shutdown();
+        xbox_MemoryLayoutShutdown();
+        free(xbe_data);
+        return 1;
+    }
     /* D3D's GPU-notify KEVENT (device+0x196C, waited on in 0x344640),
      * raised by the NOP(5) it patches into the push buffer */
     xbox_Nv2aNotifyEvent(0x00351F48u, 0x196Cu, 5u);
@@ -198,7 +305,7 @@ int main(void)
         free(xbe_data);
         return 1;
     }
-    if (!xbox_HostGraphicsInit("MM3 Recomp")) {
+    if (!xbox_HostGraphicsInit("Midtown Madness 3 on PC improved and modded !!")) {
         xbox_HostHardwareShutdown();
         xbox_kernel_shutdown();
         xbox_MemoryLayoutShutdown();

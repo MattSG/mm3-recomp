@@ -8,8 +8,9 @@ RECOMP_TLS double g_fp_stack[8];
 RECOMP_TLS int g_fp_top, g_fp_cmp, g_df;
 RECOMP_TLS uint16_t g_fp_cc, g_fp_control_word;
 RECOMP_TLS RecompXmm g_xmm0, g_xmm1, g_xmm2, g_xmm3, g_xmm4, g_xmm5, g_xmm6, g_xmm7;
-static unsigned updates, resets, moves;
+static unsigned updates, resets, moves, feature_ticks;
 static const uint32_t player = 0x110000, vehicle = 0x120000, car = 0x130000, body = 0x150000;
+static uint32_t expected_update_player = 0x110000;
 static volatile LONG stop_update;
 static int ground_missing;
 
@@ -51,8 +52,58 @@ static void check_panel(void) {
     UnregisterClassA(wc.lpszClassName, wc.hInstance);
 }
 
-void sub_002203E5_original(void) { ++updates; assert(g_ecx == player); }
-void mm3_mods_player_update(void) {}
+void sub_002203E5_original(void) { ++updates; assert(g_ecx == expected_update_player); }
+void mm3_mods_player_update(void) { ++feature_ticks; }
+
+static void check_keyboard_context(void)
+{
+    /* Exercise the actual player-update hook with debug teleport disabled.
+     * The input backend separately tests mapping when this probe changes. */
+    assert(!enabled && mm3_keyboard_driving());
+    MEM8(0x429DB2) = 1;
+    assert(!mm3_keyboard_driving());
+    MEM8(0x429DB2) = 0;
+    assert(mm3_keyboard_driving());
+    MEM32(0x431610) = 1;
+    assert(!mm3_keyboard_driving());
+    MEM32(0x431610) = 0;
+    assert(mm3_keyboard_driving());
+
+    /* A scene without primary-player updates cannot retain driving mode.
+     * Unsigned subtraction also handles GetTickCount's wraparound. */
+    DWORD stale = GetTickCount() - 500u;
+    InterlockedExchange(&keyboard_sampled, (LONG)stale);
+    assert(!mm3_keyboard_driving());
+    expected_update_player = player + 0x1000;
+    g_ecx = expected_update_player;
+    sub_002203E5();
+    assert((DWORD)InterlockedCompareExchange(&keyboard_sampled, 0, 0) == stale);
+    assert(!mm3_keyboard_driving());
+    expected_update_player = player;
+    g_ecx = player;
+    sub_002203E5();
+    assert(mm3_keyboard_driving());
+
+    /* Invalid car data disables the driving aliases on the next update. */
+    float old_x = MEMF(body + 0xC8);
+    MEMF(body + 0xC8) = NAN;
+    sub_002203E5();
+    assert(!mm3_keyboard_driving());
+    MEMF(body + 0xC8) = old_x;
+    sub_002203E5();
+    assert(mm3_keyboard_driving());
+    MEM32(vehicle) = 0;
+    sub_002203E5();
+    assert(!mm3_keyboard_driving());
+    MEM32(vehicle) = 0x383768;
+    sub_002203E5();
+    assert(mm3_keyboard_driving());
+    assert(feature_ticks == updates);
+    assert(g_eax == 99 && g_ecx == player && g_esp == 0x700000);
+    assert(g_edx == 17 && g_ebx == 42 && g_ebp == 0x701000);
+    assert(g_fp_stack[0] == 3.25 && g_fp_top == 2);
+    assert(g_xmm0.u[0] == 0x12345678);
+}
 #ifndef MM3_TELEPORT_NATIVE_TEST
 void sub_001CDDA3(void) {
     assert(g_eax == car); ++resets;
@@ -152,8 +203,10 @@ int main(int argc, char **argv) {
     g_xmm0.u[0] = 0x12345678; g_fp_stack[0] = 3.25; g_fp_top = 2;
     g_ebp = 0x701000;
     finished = CreateEventA(NULL, TRUE, FALSE, NULL);
+    assert(!mm3_keyboard_driving()); /* Menus before the first player update. */
     /* Disabled hook leaves guest state and car untouched. */
     sub_002203E5(); assert(updates == 1 && resets == 0 && moves == 0);
+    check_keyboard_context();
     enabled = 1;
     sub_002203E5(); assert(available && position[0] == 9 && position[1] == 10 && position[2] == 11);
     if (argc == 2 && strcmp(argv[1], "--serve") == 0) {
@@ -213,9 +266,9 @@ int main(int argc, char **argv) {
     request_teleport(destination, NAN, reply, sizeof(reply)); assert(strstr(reply, "no active car"));
     CloseHandle(finished); VirtualFree(ram, 0, MEM_RELEASE);
 #ifdef MM3_TELEPORT_NATIVE_TEST
-    puts("PASS: original PAL ground reset; automatic Y/clearance, heading, quaternion, motion/cache/registers, ground miss, X/Z panel");
+    puts("PASS: keyboard heartbeat/pause/scene; original PAL ground reset, automatic Y/clearance, heading, quaternion, motion/cache/registers, ground miss, X/Z panel");
 #else
-    puts("PASS: queue, cancellation, inactive path, XYZ/orientation, cache and register contracts (native calls stubbed)");
+    puts("PASS: keyboard heartbeat/pause/scene; queue, cancellation, inactive path, XYZ/orientation, cache and register contracts (native calls stubbed)");
 #endif
     return 0;
 }

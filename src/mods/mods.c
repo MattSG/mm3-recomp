@@ -47,12 +47,12 @@ int mm3_mod_on(int mod)
     return state[mod] == 2;
 }
 
-/* Player updates only run in gameplay, so a gap means a menu: the frontend,
- * car select or a pause. RECOMP_MENU_KEYS follows it. Not a mod: input. */
-static volatile DWORD last_update;
+/* Input follows the primary car's live state. The pause/movie singletons
+ * switch immediately; AI updates cannot make a menu look like driving. */
+extern int mm3_keyboard_driving(void);
 static int in_menu(void)
 {
-    return GetTickCount() - last_update > 300;
+    return !mm3_keyboard_driving();
 }
 
 extern void xbox_InputSetMenuProbe(int (*in_menu)(void));
@@ -69,13 +69,12 @@ void mm3_mods_init(void)
     int i;
     xbox_InputSetMenuProbe(in_menu);
     /* Without the widescreen hooks the title draws 4:3; show it that way. */
-    if (!mm3_mod_on(MM3_MOD_WIDESCREEN) && !getenv("RECOMP_ASPECT"))
+    if (!mm3_mod_on(MM3_MOD_WIDESCREEN))
         _putenv_s("RECOMP_ASPECT", "4:3");
     /* The horizon panorama: a 256x256 strip around the whole horizon drawn
      * without depth test through destination alpha, where the haze pass
      * left sky, magnified ten times and more. */
-    if (mm3_mod_on(MM3_MOD_WIDESCREEN))
-        nv2a_d3d_set_overlay_hooks(&mm3_hud_hooks);
+    nv2a_d3d_set_overlay_hooks(&mm3_hud_hooks);
     if (mm3_mod_on(MM3_MOD_SKY))
         nv2a_d3d_set_bspline_blend(0x304, 0x305);      /* DST_ALPHA, ONE_MINUS_DST_ALPHA */
     if (mm3_mod_on(MM3_MOD_MENU_MOUSE))
@@ -88,7 +87,6 @@ void mm3_mods_init(void)
 
 void mm3_mods_player_update(void)
 {
-    last_update = GetTickCount();
     if (mm3_mod_on(MM3_MOD_DEV_TOOLS))
         mm3_dev_tools_tick();
 }

@@ -31,6 +31,13 @@
  * ticks, past that the time is dropped, as a hitch). Every frame rate then
  * plays the same simulation. */
 extern void sub_001E7590_original(void);
+extern void sub_00025422_original(void);
+extern void sub_0002545A_original(void);
+
+/* The state machine's entry and step, routed here by definition-only renames
+ * (CMakeLists MM3_SIMULATION_FUNCTIONS): they keep their every-frame cadence. */
+void sub_00025422(void) { sub_00025422_original(); }
+void sub_0002545A(void) { sub_0002545A_original(); }
 
 #define MAX_TICKS 4
 
@@ -357,7 +364,11 @@ void sub_001EC8E6(void)
             blend_undo();
             return;
         }
-        if (s_ticks == 0) {             /* not drawn: the last image again */
+        /* MM3_RENDER_EVERY_FRAME=1 (launcher: Draw every frame) renders
+         * between ticks anyway, glitches and all. */
+        static int every = -1;
+        if (every < 0) every = getenv("MM3_RENDER_EVERY_FRAME") && atoi(getenv("MM3_RENDER_EVERY_FRAME")) == 1;
+        if (s_ticks == 0 && !every) {   /* not drawn: the last image again */
             g_esp += 12;
             nv2a_d3d_repeat_frame();
             return;

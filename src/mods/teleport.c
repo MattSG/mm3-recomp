@@ -18,6 +18,7 @@ extern void sub_0021ADF3(void);
 extern void mm3_mods_player_update(void);
 
 static int enabled;
+static volatile LONG keyboard_sampled, keyboard_active;
 static SRWLOCK lock = SRWLOCK_INIT;
 static SRWLOCK request_lock = SRWLOCK_INIT;
 static HANDLE finished;
@@ -29,6 +30,18 @@ static int available;
 static char result[128] = "not ready";
 /* Every car the player update touches (AI included), for the AI-start check. */
 static struct { uint32_t player, vtable; float x, z, fx, fz; DWORD tick; } cars[16];
+
+int mm3_keyboard_driving(void)
+{
+    DWORD tick = (DWORD)InterlockedCompareExchange(&keyboard_sampled, 0, 0);
+    if (!InterlockedCompareExchange(&keyboard_active, 0, 0) ||
+        GetTickCount() - tick >= 500u) return 0;
+    /* Pause singleton 1E25C1 returns 429DB0. Open 1E2CD5 sets +2;
+     * Resume 1E2BDA clears it. Engine mode 431610 is zero while driving.
+     * Check both on each input poll so menu arrows work immediately when
+     * a paused car still has a recent update. */
+    return MEM8(0x00429DB2u) == 0 && MEM32(0x00431610u) == 0;
+}
 
 /* Called several times a frame per player; nearly every query lands in the
  * same committed region, so the last good one is remembered (the hook runs on
@@ -143,8 +156,17 @@ static void sample_car(uint32_t player)
 
 void sub_002203E5(void)
 {
+    uint32_t primary = primary_player();
+    if (primary && g_ecx == primary) {
+        uint32_t car, vehicle;
+        uint32_t body = body_for(primary, &car, &vehicle);
+        int active = body && isfinite(MEMF(body + 0xC8)) &&
+            isfinite(MEMF(body + 0xCC)) && isfinite(MEMF(body + 0xD0));
+        InterlockedExchange(&keyboard_sampled, (LONG)GetTickCount());
+        InterlockedExchange(&keyboard_active, active);
+    }
     if (enabled) sample_car(g_ecx);
-    if (enabled && g_ecx == primary_player()) {
+    if (enabled && g_ecx == primary) {
         uint32_t car, vehicle, player = g_ecx;
         uint32_t body = body_for(player, &car, &vehicle);
         AcquireSRWLockExclusive(&lock);

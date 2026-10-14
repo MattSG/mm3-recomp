@@ -47,18 +47,20 @@ Rml::Vector<Option> g_options = {
     {"", "Window size", "Starting size of the game window.", "RECOMP_WINDOW_SIZE", "", "",
      {{"", "Auto"}, {"1280x720", "720p"}, {"1600x900", "900p"}, {"1920x1080", "1080p"}, {"2560x1440", "1440p"}}},
     {"", "Aspect ratio", "Widescreen HUD follows it.", "RECOMP_ASPECT", "", "",
-     {{"", "Window"}, {"16:9", "16:9"}, {"4:3", "4:3"}}},
+     {{"", "Window"}, {"16:10", "16:10"}, {"16:9", "16:9"}, {"4:3", "4:3"}}},
     {"", "Frame limit", "", "RECOMP_FPS_LIMIT", "60", "",
      {{"30", "30"}, {"60", "60"}, {"120", "120"}, {"144", "144"}, {"165", "165"}, {"240", "240"},
       {"0", "Unlimited"}}},
     {"", "Tick rate", "World updates a second, whatever the frame rate. The Xbox ran 30.",
      "MM3_SIM_HZ", "60", "", {{"30", "30 (Xbox)"}, {"60", "60"}, {"90", "90"}}},
+    {"", "Draw every frame", "Also draw frames between world updates. Can repeat one-frame effects (menu text, tail lights).",
+     "MM3_RENDER_EVERY_FRAME", "0", "", {{"0", "Off"}, {"1", "On"}}, 0, true},
     {"", "V-Sync", "", "RECOMP_VSYNC", "0", "",
      {{"0", "Off"}, {"1", "On"}}},
     {"", "In the background", "When another window is in front.", "RECOMP_PAUSE_UNFOCUSED", "1", "",
      {{"1", "Pause"}, {"0", "Keep running"}}},
     {"Graphics", "Internal resolution", "Fixed multiple of 480 lines; overrides supersampling.",
-     "RECOMP_RENDER_SCALE", "", "", {{"", "Auto"}, {"1", "480p"}, {"2", "960p"}, {"3", "1440p"}, {"4", "1920p"}}},
+     "RECOMP_RENDER_SCALE", "", "", {{"", "Auto"}, {"1", "480p"}, {"1.5", "720p"}, {"2", "960p"}, {"3", "1440p"}, {"4", "1920p"}}},
     {"", "Supersampling", "Pixels rendered per window pixel.", "RECOMP_SUPERSAMPLE", "2", "",
      {{"1", "1x"}, {"2", "2x"}, {"3", "3x"}, {"4", "4x"}}},
     {"", "Anti-aliasing", "MSAA samples.", "RECOMP_MSAA", "4", "",
@@ -111,7 +113,7 @@ Rml::Vector<Bind> g_binds = {
     /* Controller buttons (RECOMP_PADMAP): vk is the source button + 1. */
     {"Controller", "A", "A", 1, 0, "", "RECOMP_PADMAP"}, {"", "B", "B", 2, 0, "", "RECOMP_PADMAP"},
     {"", "X", "X", 3, 0, "", "RECOMP_PADMAP"}, {"", "Y", "Y", 4, 0, "", "RECOMP_PADMAP"},
-    {"", "Black", "BLACK", 5, 0, "", "RECOMP_PADMAP"}, {"", "White", "WHITE", 6, 0, "", "RECOMP_PADMAP"},
+    {"", "Black", "BLACK", 6, 0, "", "RECOMP_PADMAP"}, {"", "White", "WHITE", 5, 0, "", "RECOMP_PADMAP"},
     {"", "Start", "START", 7, 0, "", "RECOMP_PADMAP"}, {"", "Back", "BACK", 8, 0, "", "RECOMP_PADMAP"},
     {"", "Left stick click", "LS", 9, 0, "", "RECOMP_PADMAP"}, {"", "Right stick click", "RS", 10, 0, "", "RECOMP_PADMAP"},
     {"", "D-pad up", "UP", 11, 0, "", "RECOMP_PADMAP"}, {"", "D-pad down", "DOWN", 12, 0, "", "RECOMP_PADMAP"},
@@ -416,6 +418,34 @@ void add_mod_options()
     }
 }
 
+/* Profiles and explicit environment settings seed the UI. Saved choices are
+ * loaded afterward, including empty Auto values that remove a seeded setting. */
+void load_environment_settings()
+{
+    for (Option &o : g_options) {
+        const char *value = getenv(o.env.c_str());
+        if (!value || o.fixed)
+            continue;
+        if (valid(o, value)) {
+            o.value = value;
+        } else if (o.env == "RECOMP_RENDER_SCALE") {
+            /* Profiles use 2.0/3.0 while the matching UI choices use 2/3. */
+            char *end;
+            double scale = strtod(value, &end);
+            if (end == value || *end)
+                continue;
+            for (const Choice &c : o.choices)
+                if (!c.value.empty() && strtod(c.value.c_str(), nullptr) == scale) {
+                    o.value = c.value;
+                    break;
+                }
+        }
+    }
+    for (const char *env : {"RECOMP_KEYMAP", "RECOMP_PADMAP", "MM3_DEV_HOTKEYS"})
+        if (const char *value = getenv(env))
+            parse_keymap(env, value);
+}
+
 void load_settings()
 {
     add_mod_options();
@@ -430,6 +460,7 @@ void load_settings()
     }
     for (Bind &b : g_binds)
         b.dev = b.env == "MM3_DEV_HOTKEYS";
+    load_environment_settings();
     FILE *f = fopen(kSettingsFile, "r");
     if (!f)
         return;

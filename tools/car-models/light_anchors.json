@@ -1,0 +1,24 @@
+{
+  "f2007": {
+    "headlight": [],
+    "notes": "Ferrari F2007 is an open-wheel Formula 1 car with a dedicated central rear rain lamp and no authored front lamps. Disable the Lotus donor's phantom headlights and road illuminator while retaining the native handles."
+  },
+  "mcl_f1gtr": {
+    "backlight": [[-0.490534, 0.724091, 2.068900], [0.495435, 0.722955, 2.069028]],
+    "brakelight": [[-0.490534, 0.724091, 2.068900], [0.495435, 0.722955, 2.069028]],
+    "reverselight": [],
+    "notes": "BODY_H material mcl_f1gtr_ext: centers of the inner red circular rear lenses, measured from source geometry/UVs and verified against rear source views. Outer amber lenses and lower bumper reflectors are excluded. No dedicated reverse lamp is present."
+  },
+  "mcl_senna": {
+    "backlight": [[-0.519190, 0.625000, 1.993390], [0.519190, 0.625000, 1.993390]],
+    "brakelight": [[-0.519190, 0.625000, 1.993390], [0.519190, 0.625000, 1.993390]],
+    "reverselight": [[0.000000, 0.259540, 2.045390]],
+    "notes": "BODY_H material mcl_senna_lights: centers of the two narrow upper rear strips, each a 36-position surface component. Red bumper reflectors at Y 0.405 are excluded. The separate low central white lamp component supplies the reverse anchor."
+  },
+  "mcl_sennagtr": {
+    "backlight": [[-0.515230, 0.596590, 1.959720], [0.515230, 0.596590, 1.959720]],
+    "brakelight": [[-0.515230, 0.596590, 1.959720], [0.515230, 0.596590, 1.959720]],
+    "reverselight": [[-0.328130, 0.512540, 1.953660], [0.328130, 0.512540, 1.953660]],
+    "notes": "BODY_H material mcl_sennagtr_lights: centers of the two narrow upper rear strips, each a 36-position surface component. Two separate lower four-position lamp components supply the reverse anchors."
+  }
+}

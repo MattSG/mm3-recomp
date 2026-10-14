@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include "nv2a_d3d11.h"
+#include "mods.h"
+
+extern int mm3_map_texture_role(uint32_t address);
+extern int mm3_pause_ui_active(void);
 
 /* The widescreen mod's 2D placement (mods.c installs it as the renderer's
  * overlay hooks; widescreen.c says when a race HUD is up and where it
@@ -22,13 +26,15 @@ static int s_frame_tag_window;      /* still in the frame's leading name tags */
  * the pause and post-race menus hide it. A frame after one without it is a
  * menu: its 2D keeps 4:3 proportions, centred, instead of being split to
  * the screen edges -- edge placement pulled each button's end caps away
- * from its middle. ponytail: the zoomed map also hides the minimap and so
- * gets centred too; key on the title's pause state if that matters. */
+ * from its middle. The title's explicit pause state handles the first paused
+ * frame; map resource identities still establish anchors for zoomed maps. */
 static int s_hud_seen, s_hud_prev;
+static int s_frame_map_anchor;
+static volatile LONG s_frame_map_valid;
 
 /* Name tags over cars (world-anchored 2D) are the first 2D a race frame
  * draws, ahead of the HUD; the title names the HUD's first element by its
- * 4:3 rectangle (nv2a_d3d_set_hud_start). Textures drawn from there on are
+ * 4:3 rectangle (mm3_hud_set_start). Textures drawn from there on are
  * learned as HUD textures. In each race frame the leading draws keep their
  * projected position (hud_split's follow mode) until the HUD start or a
  * known HUD texture -- so frames without the minimap (zoomed map, pause)
@@ -75,10 +81,13 @@ static int world_tag_draw(float lo, float hi, float ylo, float yhi, uint32_t tex
 
 void mm3_hud_set_edge(int on)
 {
-    if (!on)
+    if (!on) {
         InterlockedExchange(&s_edge_hud, 0);
-    else if (!InterlockedExchange(&s_edge_hud, 1))
-        s_hud_tex_n = 0;                 /* a new level may load other textures */
+        InterlockedExchange(&s_frame_map_valid, 0);
+    } else if (!InterlockedExchange(&s_edge_hud, 1)) {
+        InterlockedExchange(&s_frame_map_valid, 0);
+        s_hud_tex_n = 0;
+    }                 /* a new level may load other textures */
 }
 
 static int hud_active(void)
@@ -94,8 +103,34 @@ static int hud_active(void)
  * (index - sub); fills dx with each vertex's x shift in guest pixels and
  * returns 0 when nothing moves, leaving only the shader's 4:3 squeeze. */
 #define HUD_GAP 24.0f
+/* Route metadata travels through the title's native packed vertex arrays.
+ * Only this title module knows the tag; the runtime offers read-only input
+ * arrays and a private upload cleanup callback. */
+static int map_route_vertex(const NvD3DAttrib *uv, uint32_t vertex)
+{
+    int16_t tag[2];
+    if (!uv || !uv->enabled || !uv->data || uv->type != 1 ||
+        uv->size != 4 || uv->stride != 16)
+        return 0;
+    memcpy(tag, uv->data + (size_t)vertex * uv->stride, sizeof tag);
+    return tag[0] == 23117 && tag[1] == -17493;
+}
+
+static void sanitize_vertex_upload(uint8_t *copy, const NvD3DAttrib *uv,
+                                   unsigned attribute, uint32_t lo, uint32_t count)
+{
+    uint32_t i;
+    if (attribute != 2 || !uv || !uv->enabled || !uv->data || uv->type != 1 ||
+        uv->size != 4 || uv->stride != 16)
+        return;
+    for (i = 0; i < count; ++i)
+        if (map_route_vertex(uv, lo + i))
+            memset(copy + (size_t)i * uv->stride, 0, 4);
+}
+
 static int hud_split(const float (*pos)[4], uint32_t nv, const uint32_t *idx, uint32_t sub,
-                     uint32_t ni, uint32_t per, float gw, float narrow, int follow, float *dx)
+                     uint32_t ni, uint32_t per, float gw, float narrow, int follow, float *dx,
+                     const NvD3DAttrib *route_uv)
 {
     static uint32_t *root, *piece, cap;
     static float (*box)[4];             /* per piece: x0 x1 y0 y1 */
@@ -115,13 +150,15 @@ static int hud_split(const float (*pos)[4], uint32_t nv, const uint32_t *idx, ui
 #define FIND(x) do { while (root[x] != x) x = root[x] = root[root[x]]; } while (0)
     /* pieces: vertices joined by primitives */
     for (i = 0; i < nv; i++) root[i] = i;
-    for (i = 0; i + per <= ni; i += per)
+    for (i = 0; i + per <= ni; i += per) {
+        if (map_route_vertex(route_uv, idx[i])) continue;
         for (k = 1; k < per; k++) {
             uint32_t a = idx[i] - sub, b = idx[i + k] - sub;
             if (a >= nv || b >= nv) return 0;
             FIND(a); FIND(b);
             if (a != b) root[b] = a;
         }
+    }
     for (i = 0; i < nv; i++) {
         uint32_t r = i;
         FIND(r);
@@ -137,6 +174,7 @@ static int hud_split(const float (*pos)[4], uint32_t nv, const uint32_t *idx, ui
         FIND(r);
         n = piece[r];
         piece[i] = n;
+        if (map_route_vertex(route_uv, sub + i)) continue;
         if (pos[i][0] < box[n][0]) box[n][0] = pos[i][0];
         if (pos[i][0] > box[n][1]) box[n][1] = pos[i][0];
         if (pos[i][1] < box[n][2]) box[n][2] = pos[i][1];
@@ -167,6 +205,7 @@ static int hud_split(const float (*pos)[4], uint32_t nv, const uint32_t *idx, ui
         uint32_t c = piece[i];
         FIND(c);
         dx[i] = 0.0f;
+        if (map_route_vertex(route_uv, sub + i)) continue;
         if (follow) {
             /* keep the cluster's centre where the title projected it on
              * the full width; the shader squeezes it to 4:3 about there */
@@ -191,34 +230,83 @@ static void frame(void)
     s_frame_tag_window = 1;
     s_hud_prev = s_hud_seen;
     s_hud_seen = 0;
+    InterlockedExchange(&s_frame_map_valid, 0);
 }
 
 static int place(const NvOverlayDraw *d, float *dx, float *squeeze, float *shift)
 {
-    float xlo = d->x0, xhi = d->x1, ylo = d->y0, yhi = d->y1, narrow = d->narrow, gw = d->gw;
-    int wide_x = xlo <= 0.5f && xhi >= gw - 0.5f;
-    int tall = ylo <= 0.5f && yhi >= d->gh - 0.5f;
-    int use_dx = 0;
-    /* Remember the background only to exclude menus/loading screens
-     * reached during a race from HUD placement. Do not zoom its art. */
-    if (tall && wide_x && d->textured && !d->reads_wide && !s_frame_bg_tex && !hud_texture(d->tex))
+    float xlo = d->x0, xhi = d->x1, ylo = d->y0, yhi = d->y1;
+    float narrow = d->narrow, gw = d->gw;
+    uint32_t k, route_n = 0;
+    int wide_x, tall, map_part, centered = 0, use_dx = 0;
+    const NvD3DAttrib *route_uv;
+    if (!mm3_mod_on(MM3_MOD_WIDESCREEN)) return 0;
+    route_uv = hud_active() && !d->reads_wide && d->attrib ? &d->attrib[2] : NULL;
+    /* Tagged route quads can share a draw with the dimmer or other HUD
+     * pieces. Exclude only their bounds from normal HUD classification. */
+    if (route_uv) {
+        xlo = ylo = 1e30f; xhi = yhi = -1e30f;
+        for (k = 0; k < d->ni; ++k) {
+            uint32_t vertex = d->idx[k];
+            const float *v;
+            if (vertex < d->lo || vertex - d->lo >= d->count) return 0;
+            if (map_route_vertex(route_uv, vertex)) { ++route_n; continue; }
+            v = d->pos[vertex - d->lo];
+            if (v[0] < xlo) xlo = v[0];
+            if (v[0] > xhi) xhi = v[0];
+            if (v[1] < ylo) ylo = v[1];
+            if (v[1] > yhi) yhi = v[1];
+        }
+    }
+    wide_x = xlo <= 0.5f && xhi >= gw - 0.5f;
+    tall = ylo <= 0.5f && yhi >= d->gh - 0.5f;
+    map_part = hud_active() && d->textured && !d->reads_wide ? mm3_map_texture_role(d->tex) : 0;
+    if (map_part != 1 && map_part != 2) map_part = 0;
+    if (route_n == d->ni) map_part = 2;
+    /* A HUD-atlas full-screen fade stays in gameplay; a separate background
+     * image marks a menu/loading screen reached from the race. */
+    if (!map_part && !route_n && tall && wide_x && d->textured && !d->reads_wide &&
+        !s_frame_bg_tex && !hud_texture(d->tex))
         s_frame_bg_tex = d->tex;
     if (s_hud_start[2] && fabsf(xlo - s_hud_start[0]) < 2.0f && fabsf(ylo - s_hud_start[1]) < 2.0f &&
         fabsf(xhi - s_hud_start[2]) < 2.0f && fabsf(yhi - s_hud_start[3]) < 2.0f)
         s_hud_seen = 1;
-    if (hud_active() && !(wide_x && (!d->textured || d->reads_wide))) {
+    if (hud_active() && (map_part || !(wide_x && (!d->textured || d->reads_wide || route_n)))) {
         *squeeze = narrow;
-        if (!s_hud_prev && !s_hud_seen) {
-            /* a menu over the race: centred 4:3, kept whole */
-        } else if (world_tag_draw(xlo, xhi, ylo, yhi, d->tex)) {
-            /* a name tag over a car: the title projected it
-             * through the widened camera, keep that position */
-            use_dx = dx && hud_split(d->pos, d->count, d->idx, d->lo, d->ni, d->per, gw, narrow, 1, dx);
-        } else if (hud_active()) {
-            if (xhi <= gw * 0.5f) *shift = narrow - 1.0f;
-            else if (xlo >= gw * 0.5f) *shift = 1.0f - narrow;
-            else use_dx = dx && hud_split(d->pos, d->count, d->idx, d->lo, d->ni, d->per, gw, narrow, 0, dx);
+        centered = mm3_pause_ui_active();
+        if (!centered) {
+            if (map_part) {
+                if (map_part == 1) {
+                    s_frame_map_anchor = xhi <= gw * 0.5f ? -1 : xlo >= gw * 0.5f ? 1 : 0;
+                    InterlockedExchange(&s_frame_map_valid, 1);
+                    s_hud_seen = 1;
+                }
+                s_frame_tag_window = 0;
+                if (InterlockedCompareExchange(&s_frame_map_valid, 0, 0))
+                    *shift = (float)s_frame_map_anchor * (1.0f - narrow);
+            } else if (!s_hud_prev && !s_hud_seen) {
+                /* Post-race controls hidden behind no minimap share one
+                 * centred transform, including their separate cap draws. */
+            } else if (world_tag_draw(xlo, xhi, ylo, yhi, d->tex)) {
+                use_dx = dx && hud_split(d->pos, d->count, d->idx, d->lo, d->ni,
+                    d->per, gw, narrow, 1, dx, route_uv);
+            } else {
+                if (xhi <= gw * 0.5f) *shift = narrow - 1.0f;
+                else if (xlo >= gw * 0.5f) *shift = 1.0f - narrow;
+                else use_dx = dx && hud_split(d->pos, d->count, d->idx, d->lo, d->ni,
+                    d->per, gw, narrow, 0, dx, route_uv);
+            }
         }
+    }
+    if (route_n && dx && !mm3_pause_ui_active()) {
+        float map_shift = InterlockedCompareExchange(&s_frame_map_valid, 0, 0) ?
+            (float)s_frame_map_anchor * (1.0f - narrow) : 0.0f;
+        if (!use_dx) memset(dx, 0, (size_t)d->count * sizeof *dx);
+        for (k = 0; k < d->count; ++k)
+            if (map_route_vertex(route_uv, d->lo + k))
+                dx[k] = (d->pos[k][0] - gw * 0.5f) * (narrow / *squeeze - 1.0f) +
+                    (map_shift - *shift) * gw / (2.0f * *squeeze);
+        use_dx = 1;
     }
     return use_dx;
 }
@@ -230,4 +318,4 @@ static int hold_aspect(void)
     return InterlockedCompareExchange(&s_edge_hud, 0, 0) != 0;
 }
 
-const NvOverlayHooks mm3_hud_hooks = { frame, place, hold_aspect };
+const NvOverlayHooks mm3_hud_hooks = { frame, place, hold_aspect, sanitize_vertex_upload };

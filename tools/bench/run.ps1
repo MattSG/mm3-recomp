@@ -1,86 +1,214 @@
 <#
-Repeatable menu + race benchmark (uncapped unless -FpsLimit).
-
-  pwsh tools\bench\run.ps1 -Exe <mm3_recomp.exe> -Save <save template dir> [-Tag name] [-FpsLimit 0] [-Secs 20]
-
-The save template is a copy of an MM3 save folder (HDD partition images with a
-profile); each run gets a fresh copy under conformance_tmp\bench\<tag>, so the
-real saves are never touched. Settings are pinned: 16:9, 1880 internal lines
-(RECOMP_RENDER_SCALE 3.9167), default MSAA/AF/draw distance. Menu: 10 s on the
-main menu. Race: the menu inputs below lead to a race; the car is teleported to
-a fixed spot (MM3_DEBUG_TELEPORT) so every run renders the same scene.
-
-Output per window: frame-time percentiles, 1%/0.1% lows, jitter and hitches
-(from RECOMP_FRAME_CSV via frames.py), executor ms/frame (RECOMP_D3D_PROFILE)
-and average GPU utilisation (nvidia-smi; GPU busy per frame ~= util x frame
-time). Menu input is time-based: if the race is not reached, "a" is pressed
-again until a car is live.
+Repeatable menu and race benchmark with an isolated save copy.
+  pwsh tools\bench\run.ps1 -Save <save template> [-Profile Balanced] [-Tag name]
+Retains settings, executable identity, frame CSV and results under
+conformance_tmp\bench\<tag>. Unreached scenes and game exits fail the run.
 #>
-param([Parameter(Mandatory)][string]$Exe, [Parameter(Mandatory)][string]$Save,
-      [string]$Tag = 'bench', [int]$FpsLimit = 0, [int]$Secs = 20,
-      [double]$X = 698.76, [double]$Z = 1346.97)   # Paris (the template's city); Washington: 97.66 -1028.3
+[CmdletBinding()]
+param(
+    [string]$Exe,
+    [Parameter(Mandatory)][string]$Save,
+    [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$')]
+    [string]$Tag = ('bench-' + [guid]::NewGuid().ToString('N')),
+    [ValidateSet('Balanced', 'Quality', 'LowPower')][string]$Profile = 'Balanced',
+    [ValidateSet('Stationary', 'Driving')][string]$Scenario = 'Stationary',
+    [switch]$HitchTrace,
+    [ValidateRange(1, 90)][int]$FpsLimit,
+    [ValidateRange(5, 300)][int]$Secs = 20,
+    [ValidateRange(1, 255)][int]$ParticleBudget = 24,
+    [string]$ShaderCacheSeed,
+    [double]$X, [double]$Z,
+    [double]$Heading = 0
+)
 $ErrorActionPreference = 'Stop'
-$repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$dir = Join-Path $repo "conformance_tmp\bench\$Tag"
-Get-Process mm3_recomp -ErrorAction SilentlyContinue | Stop-Process -Force
-if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }
-New-Item -ItemType Directory -Force $dir | Out-Null
-Copy-Item -Recurse $Save (Join-Path $dir 'save')
-$pad = Join-Path $dir 'pad.txt'; [IO.File]::WriteAllText($pad, '')
-$csv = Join-Path $dir 'frames.csv'; $log = Join-Path $dir 'stderr.log'
-$envs = @{ RECOMP_PB_EXEC='1'; RECOMP_FB_WINDOW='1'; RECOMP_USB='1'; RECOMP_PAD_LIVE=$pad
-           RECOMP_APU_DSP_ACK='0x80458810'; MM3_SAVE_DIR=(Join-Path $dir 'save')
-           RECOMP_ASPECT='16:9'; RECOMP_RENDER_SCALE='3.9167'; RECOMP_FPS_LIMIT="$FpsLimit"
-           RECOMP_D3D_PROFILE='1'; MM3_DEBUG_TELEPORT='1'; RECOMP_FRAME_CSV=$csv
-           RECOMP_PRESENT_CAPTURE=(Join-Path $dir 'cap'); RECOMP_CAPTURE_SURFACE='1' }
-foreach ($k in $envs.Keys) { Set-Item "Env:$k" $envs[$k] }
-$p = Start-Process -FilePath $Exe -WorkingDirectory $repo -PassThru `
-     -RedirectStandardOutput (Join-Path $dir 'stdout.log') -RedirectStandardError $log
-foreach ($k in $envs.Keys) { Remove-Item "Env:$k" -ErrorAction SilentlyContinue }
-
-function press([string]$b, [double]$after) {
-    [IO.File]::AppendAllText($pad, "$($b):150`n"); Start-Sleep -Milliseconds 100; Start-Sleep $after }
-function qms { [Diagnostics.Stopwatch]::GetTimestamp() * 1000.0 / [Diagnostics.Stopwatch]::Frequency }
+$repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
+if (-not $Exe) { $Exe = Join-Path $repo 'build\RelWithDebInfo\mm3_recomp.exe' }
+$Exe = (Resolve-Path -LiteralPath $Exe).Path
+$Save = (Resolve-Path -LiteralPath $Save).Path
+if (-not (Test-Path -LiteralPath $Exe -PathType Leaf)) { throw 'Exe must be a file.' }
+if (-not (Test-Path -LiteralPath $Save -PathType Container)) { throw 'Save must be a directory.' }
+if ([double]::IsNaN($X) -or [double]::IsInfinity($X) -or [double]::IsNaN($Z) -or [double]::IsInfinity($Z)) {
+    throw 'Coordinates must be finite.'
+}
+if ([double]::IsNaN($Heading) -or [double]::IsInfinity($Heading)) {
+    throw 'Heading must be finite.'
+}
+if ($PSBoundParameters.ContainsKey('X') -ne $PSBoundParameters.ContainsKey('Z')) {
+    throw 'Supply both X and Z, or omit both to measure the saved scene spawn.'
+}
+$explicitPosition = $PSBoundParameters.ContainsKey('X')
+$benchRoot = [IO.Path]::GetFullPath((Join-Path $repo 'conformance_tmp\bench'))
+$dir = [IO.Path]::GetFullPath((Join-Path $benchRoot $Tag))
+if (-not $dir.StartsWith($benchRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Run directory must be inside conformance_tmp\bench.'
+}
+if ($dir.StartsWith($Save.TrimEnd('\') + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'The benchmark directory cannot be inside its save template.'
+}
+if ($ShaderCacheSeed) {
+    $ShaderCacheSeed = (Resolve-Path -LiteralPath $ShaderCacheSeed).Path
+    if (-not (Test-Path -LiteralPath $ShaderCacheSeed -PathType Container)) { throw 'ShaderCacheSeed must be a directory.' }
+}
+if (Test-Path -LiteralPath $dir) { throw "Run directory already exists: $dir" }
+New-Item -ItemType Directory -Path $dir -Force | Out-Null
+$runSave = Join-Path $dir 'save'
+Copy-Item -LiteralPath $Save -Destination $runSave -Recurse
+$cachedArchive = Join-Path $Save 'Cache\Data\Data_hd.zip'
+if (Test-Path -LiteralPath $cachedArchive -PathType Leaf) {
+    (Get-Item -LiteralPath (Join-Path $runSave 'Cache\Data\Data_hd.zip')).CreationTimeUtc =
+        (Get-Item -LiteralPath $cachedArchive).CreationTimeUtc
+}
+$shaderCache = Join-Path $dir 'shader-cache'
+New-Item -ItemType Directory -Path $shaderCache | Out-Null
+if ($ShaderCacheSeed) {
+    Get-ChildItem -LiteralPath $ShaderCacheSeed -Force | Copy-Item -Destination $shaderCache -Recurse
+}
+$pad = Join-Path $dir 'pad.txt'
+[IO.File]::WriteAllText($pad, '')
+$csv = Join-Path $dir 'frames.csv'
+$log = Join-Path $dir 'stderr.log'
+$settings = switch ($Profile) {
+    'Quality' { @{ scale='3.0'; msaa='8'; distance='2'; fps=60 } }
+    'LowPower' { @{ scale='1.5'; msaa='1'; distance='1'; fps=30 } }
+    default { @{ scale='2.0'; msaa='4'; distance='2'; fps=60 } }
+}
+if (-not $PSBoundParameters.ContainsKey('FpsLimit')) { $FpsLimit = $settings.fps }
+$envs = @{
+    RECOMP_PB_EXEC='1'; RECOMP_FB_WINDOW='1'; RECOMP_USB='1'; RECOMP_PAD_LIVE=$pad
+    RECOMP_APU_DSP_ACK='0x80458810'; MM3_SAVE_DIR=$runSave; MM3_PERFORMANCE_PROFILE=$Profile
+    RECOMP_ASPECT='16:10'; RECOMP_WINDOW_SIZE='1280x800'; RECOMP_RENDER_SCALE=$settings.scale
+    RECOMP_MSAA=$settings.msaa; RECOMP_DRAW_DISTANCE=$settings.distance; RECOMP_ANISO='16'
+    RECOMP_FPS_LIMIT="$FpsLimit"; RECOMP_PAUSE_UNFOCUSED='0'; RECOMP_D3D_PROFILE='1'; RECOMP_FRAME_CSV=$csv
+    MM3_DEBUG_TELEPORT='1'; MM3_PARTICLE_MAX_OVERDRAW="$ParticleBudget"; RECOMP_SHADER_CACHE='1'
+    RECOMP_SHADER_CACHE_DIR=$shaderCache; RECOMP_PAD_PRESS=$null; RECOMP_PAD_SCRIPT=$null
+    RECOMP_HITCH_TRACE=$(if ($HitchTrace) { '1' } else { $null }); RECOMP_PRESENT_CAPTURE=$null; RECOMP_CAPTURE_SURFACE=$null
+}
+$previous = @{}
+$p = $null
+$gpuProcess = $null
 $windows = @()
-function window([string]$name, [int]$s) {
-    $n0 = @(Select-String $log -Pattern 'D3D11_PROF').Count
-    $smi = Join-Path $dir "smi_$name.txt"
-    $sp = Start-Process nvidia-smi -ArgumentList @('--query-gpu=utilization.gpu', '--format=csv,noheader,nounits', '-lms', '250') `
-          -RedirectStandardOutput $smi -WindowStyle Hidden -PassThru
-    $a = qms; Start-Sleep $s; $b = qms
-    Stop-Process -Id $sp.Id -ErrorAction SilentlyContinue
-    $ex = @(Select-String $log -Pattern 'D3D11_PROF' | Select-Object -Skip $n0 |
-            ForEach-Object { [double]($_.Line -replace '.*exec\(all\) ([0-9.]+) ms.*', '$1') })
-    $u = @(Get-Content $smi -ErrorAction SilentlyContinue | Where-Object { $_ -match '^\s*\d+' } | ForEach-Object { [double]$_ })
-    $script:windows += , @($name, $a, $b, ('executor {0:N2} ms | GPU util {1:N0}%' -f ($ex | Measure-Object -Average).Average, ($u | Measure-Object -Average).Average))
+$teleport = Join-Path $repo 'tools\powershell\Send-MM3Teleport.ps1'
+function Assert-GameRunning {
+    if ($p.HasExited) { throw "Game exited with code $($p.ExitCode); see $log" }
 }
-
-# Intro movies: skip until the menu presents frames.
-$sw = [Diagnostics.Stopwatch]::StartNew()
-while ($sw.Elapsed.TotalSeconds -lt 120) {
-    Start-Sleep -Milliseconds 700
-    $t = Get-Content $log -Raw -ErrorAction SilentlyContinue
-    if ($t -match 'MOVIE_END\] name=intro') { break }
-    if ($t -match 'MOVIE_FRAME') { press 'start' 0 }
+function Wait-Game([double]$seconds) {
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    while ($timer.Elapsed.TotalSeconds -lt $seconds) { Assert-GameRunning; Start-Sleep -Milliseconds 250 }
+    Assert-GameRunning
 }
-Start-Sleep 5
-press 'start' 4; press 'a' 6                       # title -> profile -> main menu
-window 'menu' 10
-foreach ($s in @(@('down', 1), @('a', 4), @('a', 4), @('a', 5), @('a', 8), @('a', 10), @('a', 9), @('start', 6))) { press $s[0] $s[1] }
-$tp = Join-Path $repo 'tools\powershell\Send-MM3Teleport.ps1'
-for ($t = 0; $t -lt 5; $t++) {
-    $r = $null; try { $r = & $tp -ProcessId $p.Id } catch {}
-    if ($r -and $r.available) { break }
-    press 'a' 9
+function Press-Pad([string]$button, [double]$after) {
+    Assert-GameRunning
+    [IO.File]::AppendAllText($pad, "$($button):150`n")
+    Wait-Game (0.2 + $after)
 }
-try { & $tp -ProcessId $p.Id -X $X -Z $Z -Heading 0 | Out-Null }
-catch { Write-Warning "teleport failed ($_): race measured at the spawn point $(& $tp -ProcessId $p.Id | ConvertTo-Json -Compress), not comparable across runs" }
-Start-Sleep 4
-window 'race' $Secs
-Start-Sleep 2
-Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
-$p.WaitForExit(15000) | Out-Null
-Remove-Item -Recurse -Force (Join-Path $dir 'save') -ErrorAction SilentlyContinue   # 5 GB per run
-foreach ($w in $windows) {
-    "{0,-5}: {1} | {2}" -f $w[0], (python (Join-Path $repo 'tools/xboxrecomp/tools/bench/frames.py') $csv $w[1] $w[2]), $w[3]
+function Qpc-Milliseconds { [Diagnostics.Stopwatch]::GetTimestamp() * 1000.0 / [Diagnostics.Stopwatch]::Frequency }
+function Measure-Window([string]$name, [int]$seconds) {
+    $p.Refresh()
+    $cpuStart = $p.TotalProcessorTime.TotalMilliseconds
+    $begin = Qpc-Milliseconds
+    Wait-Game $seconds
+    $end = Qpc-Milliseconds
+    $p.Refresh()
+    $script:windows += @{ name=$name; start=$begin; end=$end
+        cpu_ms=$p.TotalProcessorTime.TotalMilliseconds - $cpuStart
+        logical_processors=[Environment]::ProcessorCount }
 }
+try {
+    foreach ($key in $envs.Keys) {
+        $previous[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
+        [Environment]::SetEnvironmentVariable($key, $envs[$key], 'Process')
+    }
+    $p = Start-Process -FilePath $Exe -WorkingDirectory $repo -WindowStyle Hidden -PassThru `
+        -RedirectStandardOutput (Join-Path $dir 'stdout.log') -RedirectStandardError $log
+    foreach ($key in $previous.Keys) { [Environment]::SetEnvironmentVariable($key, $previous[$key], 'Process') }
+    @{ executable=$Exe; sha256=(Get-FileHash -LiteralPath $Exe -Algorithm SHA256).Hash
+       process_id=$p.Id; profile=$Profile; scenario=$Scenario; settings=$envs; explicit_position=$explicitPosition; coordinates=@($X, $Z); heading=$Heading
+       save_template=$Save; shader_cache_seed=$ShaderCacheSeed; logical_processors=[Environment]::ProcessorCount
+    } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $dir 'run.json')
+    Write-Output "Game PID $($p.Id), evidence $dir"
+    $intro = [Diagnostics.Stopwatch]::StartNew()
+    $frontendReady = $false
+    while ($intro.Elapsed.TotalSeconds -lt 120) {
+        Wait-Game 0.7
+        # Movie-only presentations do not emit guest-flip CSV rows. Detect
+        # frontend rendering without requiring the optional movie-trace build.
+        if ((Test-Path -LiteralPath $csv) -and (Get-Item -LiteralPath $csv).Length -gt 128) {
+            $frontendReady = $true; break
+        }
+        Press-Pad 'start' 0
+    }
+    if (-not $frontendReady) { throw 'No frontend guest flips before the startup timeout.' }
+    Wait-Game 5
+    Press-Pad 'start' 4
+    Press-Pad 'a' 6
+    Measure-Window 'frontend' 10
+    foreach ($step in @(@('down', 1), @('a', 4), @('a', 4), @('a', 5), @('a', 8), @('a', 10), @('a', 9), @('start', 6))) {
+        Press-Pad $step[0] $step[1]
+    }
+    $position = $null
+    for ($attempt = 0; $attempt -lt 5; $attempt++) {
+        Assert-GameRunning
+        try { $position = & $teleport -ProcessId $p.Id } catch { $position = $null }
+        if ($position -and $position.available) { break }
+        Press-Pad 'a' 9
+    }
+    if (-not $position -or -not $position.available) { throw 'No live player car; race benchmark is invalid.' }
+    $position | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $dir 'position-start.json')
+    if ($explicitPosition) {
+        $position = & $teleport -ProcessId $p.Id -X $X -Z $Z -Heading $Heading
+    }
+    $position | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $dir 'position.json')
+    Wait-Game 4
+    if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) {
+        $gpuProcess = Start-Process -FilePath nvidia-smi -WindowStyle Hidden -PassThru `
+            -ArgumentList @('--query-gpu=utilization.gpu,power.draw', '--format=csv,noheader,nounits', '-lms', '500') `
+            -RedirectStandardOutput (Join-Path $dir 'gpu.csv') -RedirectStandardError (Join-Path $dir 'gpu-errors.txt')
+    }
+    # A fixed throttle input exercises streaming, traffic and effects. It is
+    # a repeatable input, not a deterministic route: collisions can differ.
+    $measurePosition = & $teleport -ProcessId $p.Id
+    $measurePosition | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $dir 'position-measure-start.json')
+    if ($Scenario -eq 'Driving') {
+        [IO.File]::AppendAllText($pad, "rt:$($Secs * 1000 + 500)`n")
+        Wait-Game 0.25
+    }
+    Measure-Window 'race' $Secs
+    $endPosition = & $teleport -ProcessId $p.Id
+    $endPosition | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $dir 'position-end.json')
+    if ($Scenario -eq 'Driving' -and (-not $measurePosition.available -or -not $endPosition.available -or
+        [Math]::Pow($endPosition.x - $measurePosition.x, 2) +
+        [Math]::Pow($endPosition.z - $measurePosition.z, 2) -lt 1)) {
+        throw 'Driving benchmark did not move the player car by at least one metre.'
+    }
+    # The CSV flushes every 120 flips. Wait for persisted evidence covering
+    # the complete window, including the 30 FPS profile, before stopping.
+    $flushTimer = [Diagnostics.Stopwatch]::StartNew()
+    $persisted = $false
+    while ($flushTimer.Elapsed.TotalSeconds -lt 15) {
+        Wait-Game 0.25
+        $lastRow = Get-Content -LiteralPath $csv -Tail 1
+        $lastTimestamp = 0.0
+        if ($lastRow -and [double]::TryParse(($lastRow -split ',')[0],
+            [Globalization.NumberStyles]::Float, [cultureinfo]::InvariantCulture, [ref]$lastTimestamp) -and
+            $lastTimestamp -ge $windows[-1].end) { $persisted = $true; break }
+    }
+    if (-not $persisted) { throw 'Frame CSV did not persist the complete measurement window.' }
+    $windows | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $dir 'windows.json')
+} finally {
+    foreach ($key in $previous.Keys) { [Environment]::SetEnvironmentVariable($key, $previous[$key], 'Process') }
+    if ($gpuProcess -and -not $gpuProcess.HasExited) { Stop-Process -Id $gpuProcess.Id -Force }
+    if ($p) {
+        if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+        $p.WaitForExit(10000) | Out-Null
+    }
+    $resolvedSave = [IO.Path]::GetFullPath($runSave)
+    if ($resolvedSave -ne [IO.Path]::GetFullPath((Join-Path $dir 'save')) -or
+        -not $resolvedSave.StartsWith($benchRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Refusing to remove a save outside this benchmark run.'
+    }
+    Remove-Item -LiteralPath $resolvedSave -Recurse -Force -ErrorAction SilentlyContinue
+}
+$python = Join-Path $repo 'tools\venv\Scripts\python.exe'
+if (-not (Test-Path -LiteralPath $python)) { $python = 'python' }
+& $python (Join-Path $PSScriptRoot 'summarize.py') $dir
+if ($LASTEXITCODE -ne 0) { throw 'Benchmark summary failed; see retained evidence.' }

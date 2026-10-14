@@ -30,7 +30,7 @@ extern void nv2a_d3d_set_depth_view_remap(float scale, float knee);
 static float env_scale(const char *name, float fallback)
 {
     const char *env = getenv(name);
-    char *end;
+    char *end = NULL;
     float value = env ? strtof(env, &end) : fallback;
     if (env && (end == env || *end || !isfinite(value) || value < 1.0f || value > 4.0f)) {
         fprintf(stderr, "[MM3_DISTANCE] invalid %s; expected 1..4, using %g\n", name, fallback);
@@ -164,6 +164,20 @@ void sub_001661D0(void)
         MEMF(g_esp + 8) *= facade_scale();
     }
     sub_001661D0_original();
+    {
+        float scale = facade_scale();
+        float near_distance = MEMF(0x003C04E0u);
+        /* Scale the original 10 m / 1 m detail fade offsets as well as the
+         * facade zones. Rebuild from the validated effective zone after
+         * every setter, including temporary pass save/restore. */
+        if (scale > 1.0f && isfinite(near_distance) && near_distance > 10.0f * scale) {
+            double fade_start = (double)near_distance - 10.0 * scale;
+            double fade_end = (double)near_distance - scale;
+            double slope = 1.0 / (fade_start * fade_start - fade_end * fade_end);
+            MEMF(0x003B8134u) = (float)(-fade_end * fade_end * slope);
+            MEMF(0x003B8138u) = (float)slope;
+        }
+    }
 }
 
 extern void sub_0022F298_original(void);
@@ -191,6 +205,22 @@ void sub_000F4AC3(void)
 }
 
 extern void sub_002256C7_original(void);
+static unsigned particle_budget(void)
+{
+    static unsigned budget;
+    if (!budget) {
+        const char *env = getenv("MM3_PARTICLE_MAX_OVERDRAW");
+        char *end = NULL;
+        long value = env && *env ? strtol(env, &end, 10) : 255;
+        if (env && *env && (end == env || *end || value < 1 || value > 255)) {
+            fprintf(stderr, "[MM3_DISTANCE] invalid MM3_PARTICLE_MAX_OVERDRAW; expected 1..255, using 255\n");
+            value = 255;
+        }
+        budget = (unsigned)value;
+    }
+    return budget;
+}
+
 void sub_002256C7(void)
 {
     uint32_t self = g_ecx, ps;
@@ -200,7 +230,7 @@ void sub_002256C7(void)
      * particleSetMaxOverdraw setter accepts up to 255. */
     ps = MEM32(self + 4);
     if (ps && MEM32(ps + 0x524) == 12u && distance_scale() > 1.0f) {
-        MEM32(ps + 0x524) = 255u;
-        fprintf(stderr, "[MM3_DISTANCE] particle max overdraw 12 -> 255\n");
+        MEM32(ps + 0x524) = particle_budget();
+        fprintf(stderr, "[MM3_DISTANCE] particle max overdraw 12 -> %u\n", MEM32(ps + 0x524));
     }
 }

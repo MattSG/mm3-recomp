@@ -1,8 +1,79 @@
 [
   {
-    "start": "0x0013679A",
-    "end": "0x001369A8",
-    "note": "Attribute-list virtual method tail target. The unresolved stub returns the object's vtable, causing Cruise resource lookup to dereference code bytes as strings."
+    "start": "0x00012B37",
+    "end": "0x00012B3E",
+    "note": "Runtime array-destructor callback observed at 0x00012BAB while changing game modes. Convert this from ECX to EAX and tail-call the existing 0x0024D2E9 destructor."
+  },
+  {
+    "start": "0x000139C1",
+    "end": "0x000139C8",
+    "note": "Runtime array-destructor callback observed at 0x00012BAB while changing game modes. Convert this from ECX to EAX and tail-call the existing 0x0024D275 destructor."
+  },
+  {
+    "start": "0x00043A00",
+    "end": "0x00043A21",
+    "note": "Bit-stream free-space query (leaf, ret) called from the system link lobby at 0x0018EE0D when a session forms; its unresolved stub broke the lobby's packet sizing."
+  },
+  {
+    "start": "0x0004C78C",
+    "end": "0x0004C793",
+    "note": "Runtime array-destructor callback observed at 0x00012BAB while changing game modes. Convert this from ECX to EAX and tail-call the existing 0x0024D249 destructor."
+  },
+  {
+    "start": "0x0009B4E2",
+    "end": "0x0009B4E7",
+    "note": "Shared x87 exponential-underflow tail: replace the input with zero while preserving the floating-point stack depth. The unresolved stub leaves the negative exponent as the tire-force result."
+  },
+  {
+    "start": "0x0009BB04",
+    "end": "0x0009BC04",
+    "note": "Related x87 power dispatch entry sharing the caller's frame and the 9BB22 result path.",
+    "x87_helper_unwinds_caller": true,
+    "x87_extended_loads": [
+      "0x003937F8"
+    ]
+  },
+  {
+    "start": "0x0009BB11",
+    "end": "0x0009BC04",
+    "note": "Backward shared x87 logarithm continuation referenced by the power dispatch path; preserve x87 stack and inherited frame.",
+    "x87_helper_unwinds_caller": true,
+    "x87_extended_loads": [
+      "0x003937F8"
+    ]
+  },
+  {
+    "start": "0x0009BB15",
+    "end": "0x0009BC04",
+    "note": "Runtime x87 math dispatch entry repeatedly reached through 0x0009B8E1 during Cruise loading. Inherits the caller's math frame; outgoing helpers 9BC52 and 9BC95 already have detected bodies.",
+    "x87_helper_unwinds_caller": true,
+    "x87_extended_loads": [
+      "0x003937F8"
+    ]
+  },
+  {
+    "start": "0x0009BC04",
+    "end": "0x0009BC35",
+    "note": "Original x87 overflow continuation pops the helper return address and returns from its caller. Recover the complete extended infinity operand.",
+    "x87_extended_loads": [
+      "0x003937F8"
+    ]
+  },
+  {
+    "start": "0x0009BC35",
+    "end": "0x0009BC45",
+    "note": "Original x87 overflow-result helper: replace the input with extended infinity and report overflow without changing floating-point stack depth.",
+    "x87_extended_loads": [
+      "0x003937F8"
+    ]
+  },
+  {
+    "start": "0x0009BC52",
+    "end": "0x0009BC95",
+    "note": "Original x87 exponential range-reduction helper. Its 80-bit 32767.5 range limit must not be read as a 32-bit zero.",
+    "x87_extended_loads": [
+      "0x00393816"
+    ]
   },
   {
     "start": "0x000D66A3",
@@ -10,14 +81,24 @@
     "note": "Car-preview render-data virtual method called from 0x0007075C; returns data and fills format/stride output arguments."
   },
   {
+    "start": "0x000E5318",
+    "end": "0x000E53E6",
+    "note": "Virtual method in vtables 0x378A80/0x378AA0 slot +0x1C, called from 0x000E59C9 while driving. Reached only through the vtable, so analysis missed it; the failed indirect call recursed until a native stack overflow 10-20 s into a race. Ends at ret 10h (0x000E53E3)."
+  },
+  {
     "start": "0x00104DD3",
     "end": "0x00104F7B",
     "note": "Car-selection drawing callback observed at 0x00104D2B. Original function returns with ret 20."
   },
   {
-    "start": "0x00132E3F",
-    "end": "0x00132FD5",
-    "note": "Second Cruise attribute-list provider, reached through virtual thunk 0x00132FD5. Its unresolved stub returns the vtable and repeats the invalid resource-string dereference."
+    "start": "0x00109367",
+    "end": "0x0010937F",
+    "note": "Runtime attribute-object constructor: initialize original vtable and fields instead of returning an empty unresolved stub."
+  },
+  {
+    "start": "0x0010EF0D",
+    "end": "0x0010F1F1",
+    "note": "Network session-list method (ret 16) behind the 5-byte jump thunk at 0x0010EF08; called through vtable +0xB4 from 0x0010FE9D only when XNet is up. Missing entry skipped it on every System Link frame."
   },
   {
     "start": "0x00110A14",
@@ -50,6 +131,11 @@
     "note": "Unresolved class metadata/default-object provider in the Cruise loading family. Original static initialization and return epilogue verified; bounds end at the following detected function."
   },
   {
+    "start": "0x00132E3F",
+    "end": "0x00132FD5",
+    "note": "Second Cruise attribute-list provider, reached through virtual thunk 0x00132FD5. Its unresolved stub returns the vtable and repeats the invalid resource-string dereference."
+  },
+  {
     "start": "0x00134EA6",
     "end": "0x00134F0F",
     "note": "Unresolved class metadata/default-object provider in the Cruise loading family. Original static initialization and return epilogue verified; bounds end at the following detected function."
@@ -70,6 +156,16 @@
     "note": "Unresolved class metadata/default-object provider in the Cruise loading family. Original static initialization and return epilogue verified; bounds end at the following detected function."
   },
   {
+    "start": "0x0013679A",
+    "end": "0x001369A8",
+    "note": "Attribute-list virtual method tail target. The unresolved stub returns the object's vtable, causing Cruise resource lookup to dereference code bytes as strings."
+  },
+  {
+    "start": "0x00138CF1",
+    "end": "0x00138CFC",
+    "note": "Runtime array-destructor callback observed at 0x00012BAB while changing game modes. Restore the derived vtable before tail-calling the existing 0x001550AE base cleanup."
+  },
+  {
     "start": "0x0013B58A",
     "end": "0x0013B5F0",
     "note": "Unresolved class metadata/default-object provider in the Cruise loading family. Original static initialization and return epilogue verified; bounds end at the following detected function."
@@ -85,92 +181,14 @@
     "note": "Unresolved class metadata/default-object provider in the Cruise loading family. Original static initialization and return epilogue verified; bounds end at the following detected function."
   },
   {
-    "start": "0x001FFDA1",
-    "end": "0x001FFE78",
-    "note": "Runtime state callback invoked through 0x000888BA during Cruise loading. Missing dispatch silently discards the original state/event updates. Original epilogue and next-function boundary verified."
-  },
-  {
-    "start": "0x0009BB15",
-    "end": "0x0009BC04",
-    "note": "Runtime x87 math dispatch entry repeatedly reached through 0x0009B8E1 during Cruise loading. Inherits the caller's math frame; outgoing helpers 9BC52 and 9BC95 already have detected bodies.",
-    "x87_helper_unwinds_caller": true
-  },
-  {
-    "start": "0x0009BB04",
-    "end": "0x0009BC04",
-    "note": "Related x87 power dispatch entry sharing the caller's frame and the 9BB22 result path.",
-    "x87_helper_unwinds_caller": true
-  },
-  {
-    "start": "0x0009BB11",
-    "end": "0x0009BC04",
-    "note": "Backward shared x87 logarithm continuation referenced by the power dispatch path; preserve x87 stack and inherited frame.",
-    "x87_helper_unwinds_caller": true
-  },
-  {
-    "start": "0x0009BC04",
-    "end": "0x0009BC35",
-    "note": "Original x87 overflow continuation pops the helper return address and returns from its caller. Recover the complete extended infinity operand."
-  },
-  {
-    "start": "0x0009BC52",
-    "end": "0x0009BC95",
-    "note": "Original x87 exponential range-reduction helper. Its 80-bit 32767.5 range limit must not be read as a 32-bit zero."
-  },
-  {
-    "start": "0x00109367",
-    "end": "0x0010937F",
-    "note": "Runtime attribute-object constructor: initialize original vtable and fields instead of returning an empty unresolved stub."
-  },
-  {
-    "start": "0x0023F023",
-    "end": "0x0023F05A",
-    "note": "Runtime attribute-object constructor reached while loading Cruise. Restore original vtable, field defaults, and float defaults."
-  },
-  {
-    "start": "0x0023DC1B",
-    "end": "0x0023DC38",
-    "note": "Runtime attribute-object constructor reached while loading Cruise. Restore original vtable and fields."
-  },
-  {
-    "start": "0x001CAF8D",
-    "end": "0x001CAFA8",
-    "note": "Cruise vehicle-state initialization callback invoked by 0x00220702. Reset original state and floating-point fields; boundary is the next original leaf entry."
-  },
-  {
-    "start": "0x002533EB",
-    "end": "0x002533FE",
-    "note": "Runtime virtual callback reached from 0x000FA707 when entering gameplay. Forward the original float argument to 0x002513B6 with the original this-pointer adjustment and ret 4 cleanup."
-  },
-  {
-    "start": "0x000E5318",
-    "end": "0x000E53E6",
-    "note": "Virtual method in vtables 0x378A80/0x378AA0 slot +0x1C, called from 0x000E59C9 while driving. Reached only through the vtable, so analysis missed it; the failed indirect call recursed until a native stack overflow 10-20 s into a race. Ends at ret 10h (0x000E53E3)."
-  },
-  {
     "start": "0x0013E48F",
     "end": "0x0013E715",
     "note": "Virtual method in vtable 0x37F128 slot +0x20 (this adjusted by -0x264), called from 0x0014CC8E with two output pointers. Reached only through the vtable, so analysis missed it: every call failed to resolve (thousands of [ICALL] errors a minute in gameplay) and the caller went on with its outputs unwritten. Ends at ret 8 (0x0013E712)."
   },
   {
-    "start": "0x002534FF",
-    "end": "0x00253512",
-    "note": "Camera field-of-view setter (fld [esp+4]; ... call 0x2513B6; ret 4), reached only as the tail jump of the this-adjusting thunk 0x6EC40 (vtable 0x378D44 slot +0x38, called from 0x000FA704). As an unresolved stub it skipped the FOV update and left esp 4 bytes low: 0xFA6DC's pop esi took the float argument, its caller 0xFF714 returned with ebx/esi garbage, and the race path code went on with a code address as its object (null virtual calls at 0x13FF8C and the crash in 0x2D7C9)."
-  },
-  {
     "start": "0x00144ED9",
     "end": "0x00144EDE",
-    "note": "Shared epilogue (pop edi; pop esi; ret 4) of 0x144EAE, which jumps back to it from 0x144EE2 after the vtable +0x68 call. The function's boundary ends before it, so the jump became a tail call to an unresolved stub that returned without the two pops (edi/esi corrupted, esp 8 low)."
-  },
-  {
-    "start": "0x0010EF0D",
-    "end": "0x0010F1F1",
-    "note": "Network session-list method (ret 16) behind the 5-byte jump thunk at 0x0010EF08; called through vtable +0xB4 from 0x0010FE9D only when XNet is up. Missing entry skipped it on every System Link frame."
-  },
-  {
-    "start": "0x00043A00",
-    "end": "0x00043A21",
-    "note": "Bit-stream free-space query (leaf, ret) called from the system link lobby at 0x0018EE0D when a session forms; its unresolved stub broke the lobby's packet sizing."
+    "note": "Shared successful graph-edge lookup epilogue, reached by 0x00144EDE from vtable method 0x00144EAE. Original POP EDI; POP ESI; RET 4 restores both saved registers and eight bytes missing from the unresolved stub. Without these pops the outer 0x001F6349 frame restores its registers from the wrong stack words."
   },
   {
     "start": "0x00189153",
@@ -183,13 +201,43 @@
     "note": "Session flag query (ret 8) called through vtable +0x70 from 0x0018851A when the system link host starts the game; its stub's garbage result sent the host into a null virtual call at 0x001FA3F5."
   },
   {
-    "start": "0x001D6327",
-    "end": "0x001D6434",
-    "note": "Network car state snapshot (ret 4), called every frame through vtables from 0x0021902D and 0x0021A8D8 once a System Link race has a remote player."
+    "start": "0x001CAF8D",
+    "end": "0x001CAFA8",
+    "note": "Cruise vehicle-state initialization callback invoked by 0x00220702. Reset original state and floating-point fields; boundary is the next original leaf entry."
   },
   {
     "start": "0x001CDAD3",
     "end": "0x001CDB6C",
     "note": "Remote vehicle setup step reached from 0x0021CB1C when a System Link race starts with two players."
+  },
+  {
+    "start": "0x001D6327",
+    "end": "0x001D6434",
+    "note": "Network car state snapshot (ret 4), called every frame through vtables from 0x0021902D and 0x0021A8D8 once a System Link race has a remote player."
+  },
+  {
+    "start": "0x001FFDA1",
+    "end": "0x001FFE78",
+    "note": "Runtime state callback invoked through 0x000888BA during Cruise loading. Missing dispatch silently discards the original state/event updates. Original epilogue and next-function boundary verified."
+  },
+  {
+    "start": "0x0023DC1B",
+    "end": "0x0023DC38",
+    "note": "Runtime attribute-object constructor reached while loading Cruise. Restore original vtable and fields."
+  },
+  {
+    "start": "0x0023F023",
+    "end": "0x0023F05A",
+    "note": "Runtime attribute-object constructor reached while loading Cruise. Restore original vtable, field defaults, and float defaults."
+  },
+  {
+    "start": "0x002533EB",
+    "end": "0x002533FE",
+    "note": "Runtime virtual callback reached from 0x000FA707 when entering gameplay. Forward the original float argument to 0x002513B6 with the original this-pointer adjustment and ret 4 cleanup."
+  },
+  {
+    "start": "0x002534FF",
+    "end": "0x00253512",
+    "note": "Camera field-of-view setter (fld [esp+4]; ... call 0x2513B6; ret 4), reached only as the tail jump of the this-adjusting thunk 0x6EC40 (vtable 0x378D44 slot +0x38, called from 0x000FA704). As an unresolved stub it skipped the FOV update and left esp 4 bytes low: 0xFA6DC's pop esi took the float argument, its caller 0xFF714 returned with ebx/esi garbage, and the race path code went on with a code address as its object (null virtual calls at 0x13FF8C and the crash in 0x2D7C9)."
   }
 ]

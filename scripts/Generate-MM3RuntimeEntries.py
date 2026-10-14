@@ -28,6 +28,16 @@ for entry in entries:
     body = translator.translate_single(int(entry['start'], 16))
     if not body:
         raise RuntimeError(f'Generation failed: {entry["start"]}')
+    for operand in entry.get('x87_extended_loads', []):
+        # The pinned lifter reads FLD tbyte constants through MEMF. Keep the
+        # complete original operand: the exp range limit otherwise becomes
+        # zero, sending every nonzero tire-physics argument through overflow.
+        address = f'0x{int(operand, 16):X}'
+        old = f'fp_push(MEMF({address})); /* fld */'
+        new = f'fp_push(MEMFP80({address})); /* fld tbyte */'
+        if old not in body and new not in body:
+            raise RuntimeError(f'Missing extended load {operand}: {entry["start"]}')
+        body = body.replace(old, new)
     if entry.get('x87_helper_unwinds_caller'):
         # 9BC04 discards 9BC52's return address and returns from this dispatch
         # entry directly. A C call otherwise resumes here and pops once again.
