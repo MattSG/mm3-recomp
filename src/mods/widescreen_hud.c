@@ -260,6 +260,13 @@ static int place(const NvOverlayDraw *d, float *dx, float *squeeze, float *shift
     }
     wide_x = xlo <= 0.5f && xhi >= gw - 0.5f;
     tall = ylo <= 0.5f && yhi >= d->gh - 0.5f;
+    /* Paused in a race: the title redraws the frozen scene as a full-screen
+     * image (it spans, like the scene did) and its menu over it is one 4:3
+     * layout, centred -- that image is no menu background to span it by. */
+    if (InterlockedCompareExchange(&s_edge_hud, 0, 0) && mm3_pause_ui_active()) {
+        if (!(wide_x && tall)) *squeeze = narrow;
+        return 0;
+    }
     map_part = hud_active() && d->textured && !d->reads_wide ? mm3_map_texture_role(d->tex) : 0;
     if (map_part != 1 && map_part != 2) map_part = 0;
     if (route_n == d->ni) map_part = 2;
