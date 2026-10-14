@@ -1,0 +1,21 @@
+{
+  "name": "saved-profile-paris-cruise-driving",
+  "steps": [
+    {"action": "wait_log", "text": "[MOD] skip_intro: intro", "timeout": 60},
+    {"action": "wait", "seconds": 1},
+    {"action": "press", "buttons": "start", "after": 2},
+    {"action": "press", "buttons": "a", "after": 2},
+    {"action": "press", "buttons": "down", "after": 2},
+    {"action": "press", "buttons": "a", "after": 2},
+    {"action": "press", "buttons": "a", "after": 2},
+    {"action": "press", "buttons": "a", "after": 2},
+    {"action": "press", "buttons": "a", "after": 2},
+    {"action": "press", "buttons": "a", "after": 2},
+    {"action": "press", "buttons": "a"},
+    {"action": "wait_player", "timeout": 30, "advance": "start"},
+    {"action": "press", "buttons": "rt", "hold_ms": 20000, "wait_release": false},
+    {"action": "wait_motion", "timeout": 10},
+    {"action": "sample", "seconds": 5, "interval": 0.1, "min_distance": 1},
+    {"action": "capture", "timeout": 10}
+  ]
+}

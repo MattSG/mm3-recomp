@@ -1,5 +1,19 @@
 # AGENTS.md
 
+## Fast Python game checks
+
+Use `tools/game_test/run.py` for bounded runtime scenarios and
+`tools/game_test/README.md` for the session API, scenario format and evidence.
+Supply the executable and extracted assets explicitly; use a copied save
+template for menu/driving checks. The harness owns its child process, private
+save/cache directory and input pipe. Never kill unrelated game instances.
+
+Run harness regressions with
+`python -m unittest discover -s tests -p test_game_harness.py -v`.
+`boot.json` is startup-only; require movement telemetry and inspect gameplay
+captures before claiming driving acceptance. Internal frame CSVs are diagnostics,
+not a replacement for external performance traces.
+
 ## Running the game in xemu
 
 xemu is a per-machine tool, not committed to the repo: `tools/xemu/xemu.exe`
