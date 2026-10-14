@@ -112,8 +112,9 @@ void sub_0022DBBF(void)
     sub_0022DBBF_original();
 }
 
-/* Frames between ticks drawn moving (MM3_SMOOTH=1, experimental) or the last
- * image shown again (the default). Smooth blends whatever floats an update
+/* Frames between ticks drawn moving (MM3_SMOOTH=1, experimental, not in the
+ * launcher) or the last image shown again (the default). The GPU-replay
+ * approach that would replace it is on branch wip/gpu-interp. Smooth blends whatever floats an update
  * changed; now and then one is really an integer or feeds a lookup, and the
  * render crashes on it (seen at 0x2413A0 and in 0x114B2A, ~1 in 5 races). */
 static int smooth(void)
