@@ -75,7 +75,8 @@ set(MM3_RENAMED_FUNCTIONS
     sub_00170E5D sub_000145DC sub_001F02AD
     sub_0025968E                 # widescreen: wraps the projection-matrix builder
     sub_001DB6E8 sub_001F2A71 sub_001F443D  # skip intro: movie play, frame, skip check
-    sub_00025422 sub_0002545A sub_001E7590  # console rate: processes, states, world update
+    sub_001E7590 sub_001EC8E6    # console rate: the world update, the render,
+    sub_0022DBBF                 # and the race AI's update
 )
 if(MM3_MOVIE_INPUT_TRACE)
     list(APPEND MM3_RENAMED_FUNCTIONS sub_0035BDC0)
@@ -114,10 +115,6 @@ foreach(hooked IN LISTS MM3_RENAMED_FUNCTIONS MM3_DISTANCE_FUNCTIONS)
         message(FATAL_ERROR "No generated definition of ${hooked} in ${RECOMP_GEN_DIR}")
     endif()
 endforeach()
-foreach(hooked IN LISTS MM3_RENAMED_FUNCTIONS)
-    set_property(SOURCE "${owner_${hooked}}" APPEND PROPERTY
-        COMPILE_DEFINITIONS "${hooked}=${hooked}_original")
-endforeach()
 
 if(MM3_FRONTEND_WATCH)
     if(MSVC)
@@ -149,18 +146,21 @@ foreach(runtime_entry_index RANGE 0 ${runtime_entry_last})
         COMPILE_DEFINITIONS "sub_${runtime_entry_suffix}=sub_${runtime_entry_suffix}_unresolved")
 endforeach()
 
-# Distance hooks: compile a copy of each owning chunk with the definition
-# renamed, carrying over the chunk's other compile properties.
+# Hooks: compile a copy of each owning chunk with only the definition
+# renamed, carrying over the chunk's other compile properties. Callers in the
+# same chunk then reach the project's wrapper too (a -D rename sent them to
+# the original: the main loop never ran the console-rate world update).
+set(chunk_hooks ${MM3_RENAMED_FUNCTIONS} ${MM3_DISTANCE_FUNCTIONS})
 set(distance_owners "")
-foreach(hooked IN LISTS MM3_DISTANCE_FUNCTIONS)
+foreach(hooked IN LISTS chunk_hooks)
     list(APPEND distance_owners "${owner_${hooked}}")
 endforeach()
 list(REMOVE_DUPLICATES distance_owners)
 foreach(distance_input IN LISTS distance_owners)
     get_filename_component(distance_name "${distance_input}" NAME)
-    set(distance_output "${CMAKE_CURRENT_BINARY_DIR}/render_distance/${distance_name}")
+    set(distance_output "${CMAKE_CURRENT_BINARY_DIR}/hooked_chunks/${distance_name}")
     file(READ "${distance_input}" distance_content)
-    foreach(hooked IN LISTS MM3_DISTANCE_FUNCTIONS)
+    foreach(hooked IN LISTS chunk_hooks)
         if(owner_${hooked} STREQUAL distance_input)
             string(REPLACE "void ${hooked}(void)" "void ${hooked}_original(void)"
                 distance_content "${distance_content}")

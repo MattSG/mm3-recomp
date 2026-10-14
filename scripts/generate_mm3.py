@@ -12,6 +12,7 @@ Needs a Python with capstone (scripts/setup.ps1 makes one).
 """
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -105,6 +106,70 @@ def write_runtime_entry_functions(path):
     path.write_text(json.dumps(functions, indent=1))
 
 
+def fix_flag_joins(out):
+    """Materialize ZF where a je/jne block is reached from blocks with different flag forms.
+
+    The pinned lifter keeps flags lazily: a cmp leaves its operands in _fa/_fb, an
+    arithmetic op leaves its result in _fa, a test leaves both operands. When one
+    je/jne block has predecessors of different kinds it falls back to the never-set
+    `_flags`, so the branch is never taken. Lua's code generator hit this at 0x89689
+    (`x ~= y` compiled as `x ~= nil`), which kept System Link hosts from spawning a car.
+    Each predecessor now stores ZF in a per-function _zf and the branch tests that.
+    """
+    jcc = re.compile(r'^(\s*)if \(_flags /\* (je|jne): [^*]*\*/\) (goto loc_[0-9A-F]+;)$')
+    fixed = 0
+    for path in sorted(out.glob('recomp_*.c')):
+        lines = path.read_text().splitlines()
+        targets = {}
+        for i, line in enumerate(lines):
+            for m in re.finditer(r'goto (loc_[0-9A-F]+);', line):
+                targets.setdefault(m.group(1), []).append(i)
+
+        def last(i):
+            while i >= 0 and not lines[i].strip():
+                i -= 1
+            return i
+
+        def zf(i):
+            text = lines[i]
+            if '/* cmp ' in text:
+                return '_zf = (_fa == _fb);'
+            if '/* test ' in text:
+                return '_zf = ((_fa & _fb) == 0);'
+            if re.search(r'/\* (\w+ )?(sub|dec|inc|add|and|or|xor|neg) result', text):
+                return '_zf = (_fa == 0);'
+            return None
+
+        edits = []
+        for i, line in enumerate(lines):
+            m = jcc.match(line)
+            if not m:
+                continue
+            lab = last(i - 1)
+            label = re.match(r'(loc_[0-9A-F]+): ;$', lines[lab]) if lab >= 0 else None
+            if not label:
+                continue
+            preds = [last(g - 1) for g in targets.get(label.group(1), []) if g != i]
+            fall = last(lab - 1)
+            if fall >= 0 and not re.match(r'\s*(goto |return|esp \+= \d+; return)', lines[fall]):
+                preds.append(fall)
+            sets = [(p, zf(p)) for p in preds]
+            if not sets or any(s is None for _, s in sets):
+                continue
+            indent, cond, tail = m.groups()
+            edits.append((i, f'{indent}if ({"" if cond == "je" else "!"}_zf) {tail}'))
+            decl = next(k for k in range(i, -1, -1) if 'int _flags = 0; /* fallback flag var */' in lines[k])
+            if '_zf' not in lines[decl]:
+                edits.append((decl, lines[decl] + ' int _zf = 0;'))
+            edits += [(p, lines[p] + f'\n{indent}{s}') for p, s in sets]
+        for i, text in edits:
+            lines[i] = text
+        if edits:
+            path.write_text('\n'.join(lines) + '\n')
+            fixed += sum(1 for _, t in edits if t.lstrip().startswith('if ('))
+    print(f'flag joins materialized: {fixed}')
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--out', type=Path, default=REPO / 'src/recomp/gen')
@@ -164,6 +229,7 @@ def main():
 
     write_runtime_entry_functions(out / 'runtime_entry_functions.json')
     py(REPO / 'scripts/Generate-MM3RuntimeEntries.py', out)
+    fix_flag_joins(out)
 
     # Runtime semantics stay project-owned.
     shutil.copy(REPO / 'src/mm3_recomp_types.h', out / 'recomp_types.h')

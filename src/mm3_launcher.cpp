@@ -4,6 +4,7 @@
  * as KEY=VALUE next to game_files\ and Play exports them to the runtime. */
 #include <RmlUi/Core.h>
 #include <RmlUi_Backend.h>
+#include <RmlUi_Renderer_DX11.h>
 #include <windows.h>
 #include <dwmapi.h>
 #include <Xinput.h>
@@ -47,13 +48,11 @@ Rml::Vector<Option> g_options = {
      {{"", "Auto"}, {"1280x720", "720p"}, {"1600x900", "900p"}, {"1920x1080", "1080p"}, {"2560x1440", "1440p"}}},
     {"", "Aspect ratio", "Widescreen HUD follows it.", "RECOMP_ASPECT", "", "",
      {{"", "Window"}, {"16:9", "16:9"}, {"4:3", "4:3"}}},
-    /* Not higher: from about 110 fps the race AI reverses off the start line
-     * (Test-MM3AiStart.ps1), even with the console-rate simulation -- the
-     * cause is outside the simulation and not found yet. */
     {"", "Frame limit", "", "RECOMP_FPS_LIMIT", "60", "",
-     {{"30", "30"}, {"60", "60"}, {"90", "90"}}},
-    {"", "Simulation", "How often the world updates. The Xbox ran it 30 times a second; 60 moves smoother.",
-     "MM3_SIM_HZ", "", "", {{"", "Console (30)"}, {"60", "60"}}},
+     {{"30", "30"}, {"60", "60"}, {"120", "120"}, {"144", "144"}, {"165", "165"}, {"240", "240"},
+      {"0", "Unlimited"}}},
+    {"", "Tick rate", "World updates a second, whatever the frame rate. The Xbox ran 30.",
+     "MM3_SIM_HZ", "60", "", {{"30", "30 (Xbox)"}, {"60", "60"}, {"90", "90"}}},
     {"", "V-Sync", "", "RECOMP_VSYNC", "0", "",
      {{"0", "Off"}, {"1", "On"}}},
     {"", "In the background", "When another window is in front.", "RECOMP_PAUSE_UNFOCUSED", "1", "",
@@ -72,12 +71,13 @@ Rml::Vector<Option> g_options = {
      {{"1", "Xbox"}, {"2", "2x"}, {"3", "3x"}, {"4", "4x"}}},
     {"", "Field of view", "How wide the race camera sees.", "MM3_FOV", "", "",
      {{"", "Xbox"}, {"110", "+10%"}, {"120", "+20%"}, {"130", "+30%"}}},
-    {"Network", "Network", "System link and Xbox Live through the PC's connection.", "RECOMP_NET", "", "",
-     {{"", "Off"}, {"nat", "On"}}},
-    {"", "Online service", "Insignia revives Xbox Live; it needs an account on the console's hard disk.",
-     "RECOMP_NET_DNS", "", "", {{"", "Your DNS"}, {"46.101.64.175", "Insignia"}}},
-    {"", "Direct play", "Other players to link with, as address:port, comma separated. "
-     "One side is enough: the other is found when it first hears from you.", "RECOMP_NET_PEERS", "", "", {{"", ""}}},
+    {"Network", "Network", "Work in progress. System link works between copies on one PC or a LAN; "
+     "Xbox Live is untested.", "RECOMP_NET", "", "", {{"", "Off"}, {"nat", "On"}}},
+    {"", "Xbox Live", "Work in progress: reaches Insignia's servers, but signing in needs an account "
+     "made on xemu (scripts/import_xemu_accounts.py) and is unverified.", "", "", "", {{"", "Insignia (WIP)"}}},
+    {"", "Direct play", "Work in progress, untested between separate PCs. Other players to link with, "
+     "as address:port, comma separated. One side is enough: the other is found when it first hears "
+     "from you.", "RECOMP_NET_PEERS", "", "", {{"", ""}}},
     {"", "Your port", "UDP port other players reach you on. Forward it on your router to be found.",
      "RECOMP_NET_PORT", "3075", "", {{"", ""}}},
     {"Developer", "Developer HUD", "Position, damage, speed, RPM and gear. Needs tools\\debug-features\\prepare.py.",
@@ -459,6 +459,8 @@ void save_and_export()
 {
     FILE *f = fopen(kSettingsFile, "w");
     for (const Option &o : g_options) {
+        if (o.env.empty())   /* a note, not a setting */
+            continue;
         if (f)
             fprintf(f, "%s=%s\n", o.env.c_str(), o.value.c_str());
         _putenv_s(o.env.c_str(), o.value.c_str()); /* "" removes the variable */
@@ -824,12 +826,15 @@ void load_fonts()
  * of the runtime's diagnostics instead of OutputDebugString. */
 struct System : Rml::SystemInterface {
     Rml::SystemInterface *base;
+    unsigned errors = 0;
     double GetElapsedTime() override { return base->GetElapsedTime(); }
     void SetMouseCursor(const Rml::String &name) override { base->SetMouseCursor(name); }
     void SetClipboardText(const Rml::String &text) override { base->SetClipboardText(text); }
     void GetClipboardText(Rml::String &text) override { base->GetClipboardText(text); }
-    bool LogMessage(Rml::Log::Type, const Rml::String &message) override
+    bool LogMessage(Rml::Log::Type type, const Rml::String &message) override
     {
+        if (type == Rml::Log::LT_ERROR || type == Rml::Log::LT_ASSERT)
+            ++errors;
         fprintf(stderr, "[launcher] %s\n", message.c_str());
         fflush(stderr);
         return true;
@@ -943,6 +948,7 @@ extern "C" int mm3_launcher(void)
             doc->Show();
         g_result = -1;
         int shown_tab = g_tab;
+        bool rendered = false;
         /* Waits for messages only in the background: in front, the controller
          * is polled every frame (the backend presents with v-sync). */
         while (g_result < 0 && Backend::ProcessEvents(ctx, on_key, !GetActiveWindow())) {
@@ -983,9 +989,20 @@ extern "C" int mm3_launcher(void)
                     list->SetScrollTop(list->GetScrollHeight());
                 scrolled = list_ready(ctx);
             }
+            /* The first WM_SIZE can precede creation of the backend renderer.
+             * A hidden startup need not send another one: seed its viewport
+             * from the context's actual pixel size before drawing. */
+            const Rml::Vector2i dimensions = ctx->GetDimensions();
+            static_cast<RenderInterface_DX11 *>(Backend::GetRenderInterface())->SetViewport(
+                dimensions.x, dimensions.y);
             Backend::BeginFrame();
             ctx->Render();
             Backend::PresentFrame();
+            if (!rendered && !g_system.errors) {
+                fprintf(stderr, "[launcher] first frame rendered: %dx%d\n", dimensions.x, dimensions.y);
+                fflush(stderr);
+                rendered = true;
+            }
         }
     }
     Rml::Shutdown();

@@ -60,11 +60,10 @@ For a direct launch that skips the settings window:
 pwsh scripts/play.ps1 -Keyboard    # optional: -Fullscreen -FpsLimit 120
 ```
 
-The world simulation runs at the console's rate whatever the frame rate (30 Hz,
-as the Xbox did, or 60 under Settings > Simulation), so handling and speed are
-the same at any frame rate. From about 110 FPS the race AI still misbehaves at
-the start, so the launcher's frame limit stops at 90. Lower supersampling or
-internal resolution in Settings if performance is poor.
+The world updates at a fixed tick rate whatever the frame rate: 30 (the Xbox's),
+60 or 90 a second under Settings > Tick rate. Handling, speed and the race AI are
+the same at any frame rate. Frames between updates show the last one again. Lower supersampling or internal
+resolution in Settings if performance is poor.
 
 ## Features and limits
 
@@ -76,8 +75,14 @@ Optional developer tools and a teleport debugger are also available. The
 
 This is a work in progress. Rendering, audio, input, and gameplay can have
 regressions; a successful build does not establish that every feature works.
-Network support is experimental: Insignia sign-in and full system-link matches
-are not verified, and the system-link browser has remained empty in testing.
+System Link works between copies on one PC or a LAN; for copies on other
+networks, set `RECOMP_NET_PEERS=<ip>:<port>` and open that UDP port. Xbox Live
+names resolve to [Insignia](https://insignia.live)'s servers with no DNS setting,
+but signing in needs an Insignia account on the virtual console and is not yet
+verified. Make the account in xemu, copy it over with
+`py scripts/import_xemu_accounts.py <xbox_hdd.qcow2> <save dir>`, and give the
+game that console's keys in `RECOMP_XBOX_HDKEY`, `RECOMP_XBOX_SIGKEY` and
+`RECOMP_XBOX_LANKEY` (32 hex digits each).
 
 **Back up your saves before testing new builds.** This experimental software is
 provided as is, without warranty. Use it at your own risk, including the risk
