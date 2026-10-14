@@ -118,7 +118,8 @@ static void sub_000127A9(void)
 static void check(void (*branch)(void), int modified, unsigned type,
                   int split, int is_metric, double velocity)
 {
-    int readout = !modified && split;
+    int readout = split;   /* split-screen keeps its native numeric readout */
+    (void)modified;
     memset(memory, 0, sizeof memory);
     g_xbox_mem_offset = (ptrdiff_t)memory;
     g_esp = stack; g_ebp = frame; g_ebx = node; g_esi = renderer;
@@ -188,7 +189,7 @@ int main(void)
             assert(g_ebx == speed_data && g_esi == renderer);
         }
     }
-    puts("PASS: numeric speed hidden for all gauge types and both HUD layouts; "
+    puts("PASS: split-screen numeric speed kept for all gauge types; "
          "analog continuation, units, custom-dial override, stack and text ownership");
     return 0;
 }

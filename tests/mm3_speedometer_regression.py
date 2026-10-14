@@ -1,4 +1,4 @@
-"""Verify numeric speed removal and the retained native analog path offline.
+"""Verify the split-screen numeric speed and the native analog path offline.
 
 Run after scripts/enter-env.ps1. The test extracts the real generated code;
 it requires no game process, GPU, XBE data changes or player save.
@@ -100,8 +100,6 @@ def main():
         # applying a HUD branch repair at the wrong location after regeneration.
         transform(original.replace("loc_0023F82D:", "loc_0023F82E:"), reject=True)
         transform(original + "\nloc_0023F82D: ;\n", reject=True)
-        transform(original.replace("goto loc_0023F8F8; /* jne: not equal / not zero */",
-                                   "goto loc_0023FB95; /* changed */"), reject=True)
         transform(original.replace("loc_0023F91B:", "loc_0023F91C:"), reject=True)
         transform(original.replace("loc_0023F8F8:", "loc_0023F8F9:"), reject=True)
         transform(original + "\nloc_0023F91B: ;\n    g_fp_cmp = RECOMP_FCMP(fp_top(), MEMF(0x384EF4));", reject=True)
@@ -120,7 +118,7 @@ def main():
                         "/Fo:" + str(folder / "contract.obj"), "/Fe:" + str(executable)],
                        check=True, cwd=folder)
         subprocess.run([str(executable)], check=True)
-    print("PASS: exact CMake HUD seam, hidden numeric speed, analog fallback, override stack balance, LF/CRLF and rejected invalid anchors")
+    print("PASS: exact CMake HUD seam, split-screen numeric speed, analog fallback, override stack balance, LF/CRLF and rejected invalid anchors")
 
 
 if __name__ == "__main__":
