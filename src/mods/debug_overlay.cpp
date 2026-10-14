@@ -213,7 +213,7 @@ void render(void *h, void *device, void *context, void *target)
 extern "C" void mm3_debug_overlay_init()
 {
     const char *enabled = getenv("MM3_DEBUG_OVERLAY");
-    if (!enabled || strcmp(enabled, "1")) return;
+    if (!enabled || !*enabled || !strcmp(enabled, "0")) return;  /* as mm3_mod_on */
     toggle_key = setting("MM3_OVERLAY_KEY", VK_F4, 255);
     toggle_mouse = setting("MM3_OVERLAY_MOUSE", 0, 6);
     if (toggle_mouse != VK_MBUTTON && toggle_mouse != VK_XBUTTON1 && toggle_mouse != VK_XBUTTON2) toggle_mouse = 0;

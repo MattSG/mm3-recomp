@@ -447,14 +447,15 @@ void mm3_debug_teleport_init(void)
     const char *opt = getenv("MM3_DEBUG_TELEPORT");
     const char *overlay = getenv("MM3_DEBUG_OVERLAY");
     HANDLE thread;
-    if ((!opt || strcmp(opt, "1") != 0) && (!overlay || strcmp(overlay, "1") != 0)) return;
+    int with_overlay = overlay && *overlay && strcmp(overlay, "0") != 0;   /* as mm3_mod_on */
+    if ((!opt || strcmp(opt, "1") != 0) && !with_overlay) return;
     finished = CreateEventA(NULL, TRUE, FALSE, NULL);
     if (!finished) return;
     enabled = 1;
     thread = CreateThread(NULL, 0, pipe_thread, NULL, 0, NULL);
     if (!thread) { enabled = 0; CloseHandle(finished); return; }
     CloseHandle(thread);
-    if (overlay && strcmp(overlay, "1") == 0) return;
+    if (with_overlay) return;
     thread = CreateThread(NULL, 0, panel_thread, NULL, 0, NULL);
     if (thread) CloseHandle(thread);
 }
