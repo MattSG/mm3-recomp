@@ -1,14 +1,16 @@
 param(
     [string]$SaveTemplate,
     [switch]$DevHud, [switch]$DebugMenu, [switch]$ExtendedCameras, [switch]$E3Preset,
+    [switch]$DebugOverlay,
+    [ValidateSet('Release','RelWithDebInfo')][string]$Config = 'Release',
     [switch]$CaptureDisplay,
     [ValidateSet('Retail','Default','Max')][string]$GraphicsPreset = 'Default',
     [hashtable]$Graphics = @{}
 )
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$exe = Join-Path $repo 'build/Release/mm3_recomp.exe'
-if (!(Test-Path -LiteralPath $exe)) { throw 'Build the Release target first.' }
+$exe = Join-Path $repo "build/$Config/mm3_recomp.exe"
+if (!(Test-Path -LiteralPath $exe)) { throw "Build the $Config target first." }
 if (Get-CimInstance Win32_Process -Filter "Name = 'mm3_recomp.exe'" |
     Where-Object { $_.ExecutablePath -eq $exe }) { throw 'This experiment is already running.' }
 $save = Join-Path $repo 'out/debug-features/save'
@@ -21,6 +23,7 @@ $run = Join-Path $repo ('out/debug-features/run-' + (Get-Date -Format 'yyyyMMdd-
 New-Item -ItemType Directory -Path $run | Out-Null
 $settings = @{
     RECOMP_PB_EXEC='1'; RECOMP_FB_WINDOW='1'; RECOMP_USB='1'
+    RECOMP_KEYBOARD='1'; RECOMP_MENU_KEYS='1'
     RECOMP_APU_DSP_ACK='0x80458810'; RECOMP_FPS_LIMIT='60'
     RECOMP_ASPECT='16:9'; RECOMP_RENDER_SCALE='2'; MM3_LOG_UNBUFFERED='1'
     RECOMP_PAD_LIVE=(Join-Path $run 'pad.txt'); RECOMP_PAD_SCRIPT=$null
@@ -29,6 +32,7 @@ $settings = @{
     RECOMP_PRESENT_CAPTURE=(Join-Path $run 'capture'); RECOMP_CAPTURE_SURFACE='1'
     MM3_DEV_HUD=[int]$DevHud.IsPresent; MM3_DEBUG_MENU=[int]$DebugMenu.IsPresent
     MM3_EXTENDED_CAMERAS=[int]$ExtendedCameras.IsPresent; MM3_E3_PRESET=[int]$E3Preset.IsPresent
+    MM3_DEBUG_OVERLAY=[int]$DebugOverlay.IsPresent; MM3_MOD_DEV_TOOLS='1'
     MM3_DEBUG_TELEPORT='1'; RECOMP_VSYNC='0'; RECOMP_MSAA='4'; RECOMP_ANISO='16'
     RECOMP_DRAW_DISTANCE='2'; MM3_FOG_REMAP='1'; RECOMP_PS_SPEC='1'
     RECOMP_WINDOW_SIZE='1280x720'; RECOMP_D3D_DEBUG=$null

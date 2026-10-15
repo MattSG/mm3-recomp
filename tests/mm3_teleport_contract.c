@@ -209,13 +209,32 @@ int main(int argc, char **argv) {
     check_keyboard_context();
     enabled = 1;
     sub_002203E5(); assert(available && position[0] == 9 && position[1] == 10 && position[2] == 11);
+    assert(!mm3_debug_repair_player()); // Live transform is insufficient during initialization.
+    MEM32(car + 0x38) = 0x280000;
+    MEM32(0x140000 + 0x3C) = 0x281000; MEM32(0x140000 + 0x4C) = 0x282000;
+    assert(mm3_debug_repair_player() == player);
+    uint32_t wheel = MEM32(0x190000); MEM32(0x190000) = 0;
+    assert(!mm3_debug_repair_player()); MEM32(0x190000) = wheel;
+    Mm3TeleportState snapshot;
+    mm3_teleport_state(&snapshot);
+    assert(snapshot.available && !snapshot.pending && snapshot.position[0] == 9);
+    assert(!mm3_teleport_queue(NAN, 0, NAN));
+    assert(!mm3_teleport_queue(0, 0, INFINITY));
+    assert(mm3_teleport_queue(9, 11, NAN));
+    assert(!mm3_teleport_queue(1, 2, NAN));
+    pending_until = GetTickCount() - 1;
+    sub_002203E5();
+    assert(!pending && strcmp(result, "game update timeout") == 0 && resets == 0);
+    /* Expired requests never apply after gameplay resumes. */
+    assert(position[0] == 9);
+    serial = completed = 0;
     if (argc == 2 && strcmp(argv[1], "--serve") == 0) {
         HANDLE server = CreateThread(NULL, 0, pipe_thread, NULL, 0, NULL);
         assert(server); CloseHandle(server);
         for (unsigned i = 0; i < 500; ++i) { sub_002203E5(); Sleep(20); }
         return 0;
     }
-    destination[0] = -512.25f; destination[1] = 10000.0f; /* Full-world ray ignores supplied Y. */ destination[2] = 1001.125f; pending = ++serial;
+    destination[0] = -512.25f; destination[1] = 10000.0f; /* Full-world ray ignores supplied Y. */ destination[2] = 1001.125f; pending = ++serial; pending_until = GetTickCount() + 2000; requested_player = player; requested_car = car; requested_world = MEM32(player + 0x1AC);
     sub_002203E5();
     assert(completed == 1 && pending == 0);
 #ifndef MM3_TELEPORT_NATIVE_TEST
@@ -249,7 +268,7 @@ int main(int argc, char **argv) {
     float before[12];
     memcpy(before, (const void *)XBOX_PTR(body + 0xA4), sizeof(before));
     ground_missing = 1;
-    pending = ++serial;
+    pending = ++serial; pending_until = GetTickCount() + 2000; requested_player = player; requested_car = car; requested_world = MEM32(player + 0x1AC);
     destination[0] += 100;
     sub_002203E5();
     assert(strcmp(result, "no usable ground at destination") == 0);

@@ -25,6 +25,7 @@ int mm3_menu_pointer(float x, float y, int *offset)
 }
 void mm3_debug_teleport_init(void) { ++teleport_calls; }
 void mm3_dev_tools_tick(void) { ++dev_calls; }
+void mm3_debug_overlay_init(void) {}
 
 int main(int argc, char **argv)
 {

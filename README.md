@@ -432,6 +432,7 @@ of crashes, corrupted saves, or lost progress.
 - [Launcher source](src/mm3_launcher.cpp): settings and environment-variable mappings.
 - [Runtime](tools/xboxrecomp): graphics, audio, input, networking, and runtime diagnostics.
 - [Developer tools](tools/debug-features/README.md) and [teleport debugger](DEBUG_TELEPORT.md).
+- [ImGui debug tools](IMGUI_DEBUG_TOOLS.md): optional in-game controls and current verification status.
 - [Third-party licences](THIRD_PARTY.md).
 
 PRs and cleanups are welcome, including fixes to AI-written code and incorrect

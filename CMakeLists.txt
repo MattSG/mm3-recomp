@@ -54,6 +54,20 @@ endforeach()
 FetchContent_MakeAvailable(freetype)
 add_library(Freetype::Freetype ALIAS freetype)
 FetchContent_MakeAvailable(rmlui)
+FetchContent_Declare(imgui
+    URL https://github.com/ocornut/imgui/archive/refs/tags/v1.91.9b.tar.gz
+    URL_HASH SHA256=8e1bbc76c71d74fef2fb85db7e7ca8eba13d6a86623c54992b60162db554ffdb
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_MakeAvailable(imgui)
+add_library(mm3_imgui STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_dx11.cpp)
+target_include_directories(mm3_imgui PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+target_link_libraries(mm3_imgui PUBLIC d3d11 d3dcompiler dwmapi)
 if(MM3_TRACY)
     foreach(profile_target xbox_kernel xbox_video)
         target_link_libraries(${profile_target} PRIVATE Tracy::TracyClient)
@@ -278,6 +292,7 @@ add_executable(${PROJECT_NAME}
     ${rmlui_SOURCE_DIR}/Backends/RmlUi_Renderer_DX11.cpp
     ${rmlui_SOURCE_DIR}/Backends/RmlUi_Backend_Win32_DX11.cpp
     src/mods/mods.c
+    src/mods/debug_overlay.cpp
     src/mods/dev_tools.c
     src/mods/menu_mouse.c
     src/mods/collision_fix.c
@@ -330,8 +345,25 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${XBOXRECOMP_DIR}/include
     ${XBOXRECOMP_DIR}/src/video)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE xboxrecomp RmlUi::RmlUi d3d11 dxgi d3dcompiler dwmapi xinput)
+target_link_libraries(${PROJECT_NAME} PRIVATE xboxrecomp mm3_imgui RmlUi::RmlUi d3d11 dxgi d3dcompiler dwmapi xinput)
 target_include_directories(${PROJECT_NAME} PRIVATE ${rmlui_SOURCE_DIR}/Backends)
+
+# Focused offline checks; explicitly built, never part of the game build.
+foreach(check teleport dev_tools overlay input_capture)
+    if(check STREQUAL "overlay")
+        set(check_ext cpp)
+    else()
+        set(check_ext c)
+    endif()
+    add_executable(mm3_${check}_contract EXCLUDE_FROM_ALL tests/mm3_${check}_contract.${check_ext})
+    target_include_directories(mm3_${check}_contract PRIVATE src src/recomp ${RECOMP_GEN_DIR}
+        ${XBOXRECOMP_DIR}/include ${XBOXRECOMP_DIR}/src/video)
+    target_link_libraries(mm3_${check}_contract PRIVATE user32)
+    if(MSVC)
+        target_compile_options(mm3_${check}_contract PRIVATE /UNDEBUG)
+    endif()
+endforeach()
+target_link_libraries(mm3_overlay_contract PRIVATE mm3_imgui xinput)
 
 # MM3's CRT uses NtAllocateVirtualMemory reserve requests as heap-backed
 # buffers.  Keep the vendor runtime untouched: redirect its public reserve
@@ -349,4 +381,19 @@ endif()
 
 if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /bigobj)
+endif()
+
+target_link_libraries(mm3_input_capture_contract PRIVATE xinput)
+target_include_directories(mm3_input_capture_contract PRIVATE ${XBOXRECOMP_DIR}/src)
+
+add_executable(mm3_launcher_settings_contract EXCLUDE_FROM_ALL
+    tests/mm3_launcher_settings_contract.cpp src/mods/mods.c
+    ${rmlui_SOURCE_DIR}/Backends/RmlUi_Platform_Win32.cpp
+    ${rmlui_SOURCE_DIR}/Backends/RmlUi_Renderer_DX11.cpp
+    ${rmlui_SOURCE_DIR}/Backends/RmlUi_Backend_Win32_DX11.cpp)
+target_include_directories(mm3_launcher_settings_contract PRIVATE src
+    ${rmlui_SOURCE_DIR}/Backends ${XBOXRECOMP_DIR}/src/video)
+target_link_libraries(mm3_launcher_settings_contract PRIVATE RmlUi::RmlUi d3d11 dxgi d3dcompiler dwmapi xinput user32)
+if(MSVC)
+    target_compile_options(mm3_launcher_settings_contract PRIVATE /UNDEBUG)
 endif()
