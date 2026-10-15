@@ -410,6 +410,12 @@ offline-network bypass.
 Optional developer tools and a teleport debugger are also available. The
 [mod registry](src/mods/mods.c) lists their switches and defaults.
 
+Audio runs the Xbox's sound DSP in an interpreter, as on the console: reverb,
+3D sound and the game's own mix. It needs a fast CPU core. If sound stutters
+(`[XA2] underrun` in the log), set the launcher's Audio > Sound processor to
+Off (`RECOMP_APU_DSP=0`): the voices are mixed directly at a fraction of the
+CPU, without those effects, as in xemu's default.
+
 This is a work in progress. Rendering, audio, input, and gameplay can have
 regressions; a successful build does not establish that every feature works.
 System Link works between copies on one PC or a LAN; for copies on other

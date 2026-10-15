@@ -73,6 +73,9 @@ Rml::Vector<Option> g_options = {
      {{"1", "Xbox"}, {"2", "2x"}, {"3", "3x"}, {"4", "4x"}}},
     {"", "Field of view", "How wide the race camera sees.", "MM3_FOV", "", "",
      {{"", "Xbox"}, {"110", "+10%"}, {"120", "+20%"}, {"130", "+30%"}}},
+    {"Audio", "Sound processor", "The Xbox's audio DSP, run as on the console: reverb, 3D sound and the game's "
+     "own mix. Heavy on the CPU: if sound stutters, turn it off to hear the voices mixed directly, without those effects.",
+     "RECOMP_APU_DSP", "1", "", {{"1", "On (accurate, CPU heavy)"}, {"0", "Off (faster, no effects)"}}},
     {"Network", "Network", "Work in progress. System link works between copies on one PC or a LAN; "
      "Xbox Live is untested.", "RECOMP_NET", "", "", {{"", "Off"}, {"nat", "On"}}},
     {"", "Xbox Live", "Work in progress: reaches Insignia's servers, but signing in needs an account "
