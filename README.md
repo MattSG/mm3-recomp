@@ -174,9 +174,9 @@ pwsh scripts/play.ps1 -Keyboard -Profile Balanced
 The world updates at a fixed tick rate whatever the frame rate: 30 (the Xbox's),
 60 (the default) or 90 a second under Settings > Tick rate. Handling, speed and
 the race AI are the same at any frame rate. Frames between updates show the last
-one again; Settings > **Draw every frame** (`MM3_RENDER_EVERY_FRAME=1`) draws
-them anyway, which can repeat one-frame effects such as menu text and tail
-lights. Lower supersampling or internal resolution if performance is poor.
+one again; Settings > **Draw every frame** (`MM3_RENDER_EVERY_FRAME=1`) renders
+them anyway, with the one-frame effects (menu text, tail lights) restored. Lower
+supersampling or internal resolution if performance is poor.
 
 Profiles are applied before the settings launcher so saved Auto resolution,
 aspect and FOV selections can take effect. The launcher includes 16:10 aspect

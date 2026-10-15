@@ -365,10 +365,15 @@ void sub_001EC8E6(void)
             return;
         }
         /* MM3_RENDER_EVERY_FRAME=1 (launcher: Draw every frame) renders
-         * between ticks anyway, glitches and all. */
+         * between ticks too, with the queue counters a ticked render used
+         * put back first, as smooth mode does. */
         static int every = -1;
         if (every < 0) every = getenv("MM3_RENDER_EVERY_FRAME") && atoi(getenv("MM3_RENDER_EVERY_FRAME")) == 1;
-        if (s_ticks == 0 && !every) {   /* not drawn: the last image again */
+        if (every) {
+            if (s_ticks == 0 && s_keep_idx) render_again(); else render_ticked();
+            return;
+        }
+        if (s_ticks == 0) {             /* not drawn: the last image again */
             g_esp += 12;
             nv2a_d3d_repeat_frame();
             return;
