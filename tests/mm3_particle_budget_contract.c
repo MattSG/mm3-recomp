@@ -14,11 +14,7 @@ static unsigned original_calls;
 static unsigned constructor_budget = 12;
 static const uint32_t manager = 0x1000, particles = 0x3000;
 
-void nv2a_d3d_set_depth_view_remap(float scale, float knee)
-{
-    assert(scale >= 1.0f && scale <= 4.0f);
-    assert(knee == 0.78f);
-}
+void sub_000F8DCE_original(void) {}
 void sub_000E2D5B_original(void) {}
 void sub_000D9E2E_original(void) {}
 void sub_000FE71E_original(void) {}

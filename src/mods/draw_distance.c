@@ -4,17 +4,8 @@
 #include <string.h>
 #include "recomp_types.h"
 #include "mods.h"
+#include "nv2a_host_commands.h"
 
-extern void nv2a_d3d_set_depth_view_remap(float scale, float knee);
-
-/* The sky fog ramps (Skies/<sky>_fog.cdds) are indexed by w-buffer depth as a
- * fraction of the far plane, authored for the 700 m city cap: Paris morning
- * haze starts near 0.47 and the sky mask at 0.78 (546 m). Scaling the far
- * plane would push that band past where the city's geometry ends (~900 m at
- * 2x), leaving crisp blocks against the sky. Keep the haze where the Xbox
- * had it and stretch the band from 0.78 out to the new far plane.
- * ponytail: one knee for every sky; read it per ramp if a sky's band differs. */
-#define FOG_KNEE 0.78f
 /* PAL MM3: increase the title's own visibility/LOD distances before its
  * native D3D11 translation sees geometry. Keep the original fade fractions,
  * frustum construction, streaming and temporary render-pass save/restore.
@@ -23,10 +14,7 @@ extern void nv2a_d3d_set_depth_view_remap(float scale, float knee);
  *     shadows and the particle overdraw cap. Everything stays inside the
  *     Xbox city view distance, so nothing low-detail is exposed.
  *   RECOMP_VIEW_DISTANCE (default 2): city view distance and far plane.
- *     Past the 700 m it was built for the title only has flat untextured
- *     blocks (Paris X 643.2 Z 52.6 down the Seine); the depth-haze remap
- *     fades them into the sky (63% at 700 m, 99.6% at 1400 m), so 4 looks
- *     the same as 2 and only costs more. */
+ *     A smooth per-pixel depth haze replaces the distance-fog texture pass. */
 static float env_scale(const char *name, float fallback)
 {
     const char *env = getenv(name);
@@ -54,9 +42,6 @@ static float view_scale(void)
     static float scale;
     if (!scale) {
         scale = mm3_mod_on(MM3_MOD_DRAW_DISTANCE) ? env_scale("RECOMP_VIEW_DISTANCE", 2.0f) : 1.0f;
-        /* MM3_FOG_REMAP=0 keeps the scaled band, for A/B comparisons. */
-        if (scale > 1.0f && (!getenv("MM3_FOG_REMAP") || strcmp(getenv("MM3_FOG_REMAP"), "0")))
-            nv2a_d3d_set_depth_view_remap(scale, FOG_KNEE);
         fprintf(stderr, "[MM3_DISTANCE] view distance multiplier %.3g\n", scale);
     }
     return scale;
@@ -233,4 +218,27 @@ void sub_002256C7(void)
         MEM32(ps + 0x524) = particle_budget();
         fprintf(stderr, "[MM3_DISTANCE] particle max overdraw 12 -> %u\n", MEM32(ps + 0x524));
     }
+}
+
+/* Replace the Xbox Fog.dma draw with an ordered native host fog pass.
+ * The camera supplies the W-buffer scale and sky colour, never a fog texture. */
+extern void sub_000F8DCE_original(void);
+void sub_000F8DCE(void)
+{
+    if (!mm3_mod_on(MM3_MOD_DRAW_DISTANCE)) { sub_000F8DCE_original(); return; }
+    uint32_t camera = MEM32(g_ecx+0xC), device = MEM32(0x351F48);
+    uint32_t cursor = MEM32(device), limit = MEM32(device+4);
+    float depth_scale = MEMF(camera+0x1ED8), far_clip = MEMF(camera+0x1FB0);
+    if (cursor && !(cursor&3) && limit >= cursor && limit-cursor >= NV2A_HOST_FOG_WORDS*4) {
+        MEM32(cursor) = NV2A_HOST_FOG_HEADER; /* Six non-increasing NV097_NO_OPERATION parameters. */
+        MEM32(cursor+4) = NV2A_HOST_FOG_TAG;
+        MEMF(cursor+8) = 1.f/depth_scale;
+        MEMF(cursor+12) = far_clip;
+        MEMF(cursor+16) = fminf(300.f,far_clip*.4f);
+        MEMF(cursor+20) = far_clip*.9f;
+        MEM32(cursor+24) = MEM32(g_esp+4);
+        MEM32(device) = cursor+NV2A_HOST_FOG_WORDS*4;
+    }
+    g_eax = (g_eax & 0xFFFFFF00u) | 1;
+    g_esp += 16;
 }

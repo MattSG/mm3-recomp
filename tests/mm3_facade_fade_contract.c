@@ -14,10 +14,6 @@ static unsigned setter_calls;
 static float original_bias, original_slope;
 static const uint32_t stack = 0x1000;
 
-void nv2a_d3d_set_depth_view_remap(float scale, float knee)
-{
-    assert(scale >= 1.0f && scale <= 4.0f && knee == 0.78f);
-}
 void sub_000E2D5B_original(void) {}
 void sub_000D9E2E_original(void) {}
 void sub_000FE71E_original(void) {}
@@ -32,7 +28,14 @@ void sub_001630A7_original(void) {
     MEM32(g_eax + 0x48) = 0x600;
     g_esp += 4;
 }
-int mm3_mod_on(int mod) { (void)mod; return 1; }
+static int lod_enabled = 1;
+int mm3_mod_on(int mod) { assert(mod == MM3_MOD_DRAW_DISTANCE); return lod_enabled; }
+static unsigned native_fog_calls;
+void sub_000F8DCE_original(void)
+{
+    ++native_fog_calls;
+    g_eax = 0x12340001; g_esp += 16;
+}
 
 void sub_001661D0_original(void)
 {
@@ -124,6 +127,24 @@ int main(int argc, char **argv)
     assert(MEM32(g_eax + 0x1F88) == 0x200u * (scale > 1 ? 5u : 1u));
     assert(MEM32(g_eax + 0x48) == 0x600u * (scale > 1 ? 5u : 1u));
     assert(MEM32(g_eax + 0x1ED0) < 0x10000u);
+    for (int on = 0; on <= 1; ++on) {
+        lod_enabled = on; g_esp = stack; g_eax = 0x12340000;
+        g_ecx = 0x3000; MEM32(g_ecx+0xC) = 0x4000;
+        MEMF(0x4000+0x1ED8) = 16777215.f/759.9f; MEMF(0x4000+0x1FB0) = 760;
+        MEM32(stack+4) = 0xA5A5A5A5;
+        MEM32(0x351F48) = 0x5000; MEM32(0x5000) = 0x6000; MEM32(0x5004) = 0x6100;
+        sub_000F8DCE();
+        assert(g_eax == 0x12340001 && g_esp == stack+16);
+    }
+    assert(native_fog_calls == 1);
+    assert(MEM32(0x5000) == 0x6000+NV2A_HOST_FOG_WORDS*4);
+    assert(MEM32(0x6000) == NV2A_HOST_FOG_HEADER && MEM32(0x6004) == NV2A_HOST_FOG_TAG);
+    assert(MEMF(0x6008) == 1.f/(16777215.f/759.9f));
+    assert(MEMF(0x600C) == 760 && MEMF(0x6010) == 300 && MEMF(0x6014) == 760*.9f);
+    assert(MEM32(0x6018) == 0xA5A5A5A5);
+    /* Never overwrite the native ring's end when no packet fits. */
+    MEM32(0x5000) = 0x6100; g_esp = stack; sub_000F8DCE();
+    assert(MEM32(0x5000) == 0x6100 && g_esp == stack+16);
     printf("facade fade contract passed (scale %.0f)\n", scale);
     return 0;
 }

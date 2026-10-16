@@ -34,7 +34,7 @@ $settings = @{
     MM3_EXTENDED_CAMERAS=[int]$ExtendedCameras.IsPresent; MM3_E3_PRESET=[int]$E3Preset.IsPresent
     MM3_DEBUG_OVERLAY=[int]$DebugOverlay.IsPresent; MM3_MOD_DEV_TOOLS='1'
     MM3_DEBUG_TELEPORT='1'; RECOMP_VSYNC='0'; RECOMP_MSAA='4'; RECOMP_ANISO='16'
-    RECOMP_DRAW_DISTANCE='2'; MM3_FOG_REMAP='1'; RECOMP_PS_SPEC='1'
+    RECOMP_DRAW_DISTANCE='2'; RECOMP_PS_SPEC='1'
     RECOMP_WINDOW_SIZE='1280x720'; RECOMP_D3D_DEBUG=$null
 }
 if ($CaptureDisplay) { $settings.RECOMP_CAPTURE_SURFACE=$null }
@@ -47,7 +47,7 @@ if ($GraphicsPreset -eq 'Retail') {
     $settings.RECOMP_RENDER_SCALE='4'
 }
 foreach ($key in $Graphics.Keys) {
-    if ($key -notin $settings.Keys -or $key -notmatch '^(RECOMP_(MSAA|ANISO|DRAW_DISTANCE|RENDER_SCALE|ASPECT|VSYNC|PS_SPEC|D3D_DEBUG)|MM3_FOG_REMAP)$') {
+    if ($key -notin $settings.Keys -or $key -notmatch '^(RECOMP_(MSAA|ANISO|DRAW_DISTANCE|RENDER_SCALE|ASPECT|VSYNC|PS_SPEC|D3D_DEBUG))$') {
         throw "Unsupported graphics override: $key"
     }
     $settings[$key] = $Graphics[$key]
