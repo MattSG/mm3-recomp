@@ -9,7 +9,7 @@ import unittest
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tools/car-models"))
+sys.path.insert(0, str(ROOT / "tools/car-tools/car-models"))
 import mm3_lights
 from mm3_model import FormatError, MeshBlock, Model, Node, read_model
 

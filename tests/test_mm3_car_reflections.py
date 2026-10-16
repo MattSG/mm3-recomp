@@ -4,7 +4,7 @@ import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tools/car-models"))
+sys.path.insert(0, str(ROOT / "tools/car-tools/car-models"))
 import mm3_model
 import repair_reflections
 

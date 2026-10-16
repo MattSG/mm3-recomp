@@ -2,3 +2,7 @@
 	path = tools/xboxrecomp
 	url = https://github.com/MattSG/xboxrecomp.git
 	branch = main
+[submodule "tools/car-tools"]
+	path = tools/car-tools
+	url = https://github.com/MattSG/mm3-car-tools.git
+	branch = main

@@ -6,7 +6,7 @@ from pathlib import Path, PurePosixPath
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-MODS = ROOT / "tools/car-mods"
+MODS = ROOT / "tools/car-tools/car-mods"
 SPEC = importlib.util.spec_from_file_location("imported_prepare", MODS / "prepare.py")
 PREPARE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(PREPARE)
@@ -36,7 +36,7 @@ class ImportedPresetTest(unittest.TestCase):
             car = selected[car_id]
             value = car["model_package"]
             self.assertEqual(car["alias"], alias)
-            self.assertEqual(value, f"../../out/car-models/packages/{alias}")
+            self.assertEqual(value, f"../../../out/car-models/packages/{alias}")
             self.assertFalse(PurePosixPath(value).is_absolute())
             self.assertNotIn("\\", value)
             self.assertEqual((MODS / value).resolve(), ROOT / "out/car-models/packages" / alias)

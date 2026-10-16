@@ -10,13 +10,13 @@ import numpy as np
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tools" / "car-models"))
+sys.path.insert(0, str(ROOT / "tools" / "car-tools" / "car-models"))
 from mm3_model import (FormatError, MeshBlock, Model, Node, convert_exterior,
                        encode_mesh, encode_shadow_mesh, is_shadow_mesh, mesh_metadata,
                        normalize_repeat_uv, read_model, remap_mesh_materials,
                        shadow_volume_geometry, source_material_shading,
                        GLOSS_VERTEX_SHADING, MATTE_VERTEX_SHADING, write_omb)
-sys.path.insert(0, str(ROOT / "tools" / "mm3view"))
+sys.path.insert(0, str(ROOT / "tools" / "car-tools" / "mm3view"))
 from mm3view import read_cmp, mesh_triangles, read_omb
 
 

@@ -81,9 +81,9 @@ def main():
         data = folder / "game_files/Data"
         data.mkdir(parents=True)
         if "--defaults" in sys.argv:
-            sys.path.insert(0, str(ROOT / "tools/car-mods"))
+            sys.path.insert(0, str(ROOT / "tools/car-tools/car-mods"))
             from factory_specs import factory_physics_settings
-            config = json.loads((ROOT / "tools/car-mods/cars.json").read_text())
+            config = json.loads((ROOT / "tools/car-tools/car-mods/cars.json").read_text())
             (data / "mm3_factory_physics.ini").write_bytes(factory_physics_settings(config))
         else:
             (data / "mm3_factory_physics.ini").write_text(

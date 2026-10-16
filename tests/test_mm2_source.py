@@ -10,7 +10,7 @@ import zipfile
 
 from PIL import Image
 
-SPEC = importlib.util.spec_from_file_location('mm2_source', Path(__file__).parents[1] / 'tools/car-models/mm2_source.py')
+SPEC = importlib.util.spec_from_file_location('mm2_source', Path(__file__).parents[1] / 'tools/car-tools/car-models/mm2_source.py')
 source = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(source)
 

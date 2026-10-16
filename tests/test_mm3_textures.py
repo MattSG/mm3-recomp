@@ -16,7 +16,7 @@ import unittest
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('mm3_textures', ROOT / 'tools/car-models/mm3_textures.py')
+spec = importlib.util.spec_from_file_location('mm3_textures', ROOT / 'tools/car-tools/car-models/mm3_textures.py')
 textures = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(textures)
 

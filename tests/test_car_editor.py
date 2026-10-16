@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location("mm3_editor_test", ROOT / "tools/car-mods/editor.py")
+SPEC = importlib.util.spec_from_file_location("mm3_editor_test", ROOT / "tools/car-tools/car-mods/editor.py")
 editor = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(editor)
 
@@ -64,7 +64,7 @@ class CarEditorTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="mm3-editor-test-")
         self.path = Path(self.temp.name) / "settings with spaces.json"
-        self.path.write_bytes((ROOT / "tools/car-mods/cars.json").read_bytes())
+        self.path.write_bytes((ROOT / "tools/car-tools/car-mods/cars.json").read_bytes())
         self.model = editor.EditorModel(self.path)
 
     def tearDown(self):
@@ -178,7 +178,7 @@ class CarEditorTest(unittest.TestCase):
     def test_apply_uses_existing_installer_with_quoted_path_arguments(self):
         game = Path(self.temp.name) / "game with spaces"
         command = self.model.apply_command(game)
-        self.assertEqual(command[1], str(ROOT / "tools/car-mods/prepare.py"))
+        self.assertEqual(command[1], str(ROOT / "tools/car-tools/car-mods/prepare.py"))
         self.assertEqual(command[2:], ["--config", str(self.path), "--game-dir", str(game.resolve()), "--apply"])
         self.assertNotIn("--restore", command)
 

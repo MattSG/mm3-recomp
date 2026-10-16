@@ -53,7 +53,7 @@ Runtime changes go to the [MattSG/xboxrecomp](https://github.com/MattSG/xboxreco
 fork and are picked up here by moving the `tools/xboxrecomp` gitlink. Keep it
 pointing at a published commit.
 
-Car Workshop defaults are tracked in `tools/car-mods/cars.json`; personal model
+Car Workshop defaults are tracked in `tools/car-tools/car-mods/cars.json`; personal model
 selections and tuning belong in the ignored `cars.local.json`. Game assets,
 prepared model packages and extracted import sources remain local. Tests using
 optional fixtures or an independent decoder must report missing coverage as

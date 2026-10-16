@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location("factory_prepare", ROOT / "tools/car-mods/prepare.py")
+SPEC = importlib.util.spec_from_file_location("factory_prepare", ROOT / "tools/car-tools/car-mods/prepare.py")
 PREPARE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(PREPARE)
 FACTORY = PREPARE.factory_specs
@@ -16,7 +16,7 @@ FACTORY = PREPARE.factory_specs
 
 class FactorySpecsTest(unittest.TestCase):
     def setUp(self):
-        self.config = json.loads((ROOT / "tools/car-mods/cars.json").read_text())
+        self.config = json.loads((ROOT / "tools/car-tools/car-mods/cars.json").read_text())
 
     def validate(self, config):
         with tempfile.TemporaryDirectory() as folder:

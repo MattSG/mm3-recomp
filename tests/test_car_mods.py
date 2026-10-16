@@ -13,7 +13,7 @@ from unittest.mock import patch
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location("car_mods_prepare", ROOT / "tools/car-mods/prepare.py")
+SPEC = importlib.util.spec_from_file_location("car_mods_prepare", ROOT / "tools/car-tools/car-mods/prepare.py")
 MOD = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MOD)
 
@@ -58,7 +58,7 @@ class CarModsTest(unittest.TestCase):
             folder = Path(temporary)
             tracked = folder / "cars.json"
             local = folder / "cars.local.json"
-            tracked.write_bytes((ROOT / "tools/car-mods/cars.json").read_bytes())
+            tracked.write_bytes((ROOT / "tools/car-tools/car-mods/cars.json").read_bytes())
             self.assertEqual(MOD.default_config_path(folder), tracked)
             baseline = MOD.load_config(tracked)
             custom = copy.deepcopy(baseline)
@@ -78,7 +78,7 @@ class CarModsTest(unittest.TestCase):
             folder = Path(temporary)
             tracked, local = folder / "cars.json", folder / "cars.local.json"
             for path in (tracked, local):
-                path.write_bytes((ROOT / "tools/car-mods/cars.json").read_bytes())
+                path.write_bytes((ROOT / "tools/car-tools/car-mods/cars.json").read_bytes())
             selector = MOD.default_config_path
             with patch.object(MOD, "default_config_path", lambda: selector(folder)):
                 self.assertEqual(MOD.parse_args([]).config, local)
@@ -90,7 +90,7 @@ class CarModsTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.game = Path(self.temp.name)
-        self.config = json.loads((ROOT / "tools/car-mods/cars.json").read_text())
+        self.config = json.loads((ROOT / "tools/car-tools/car-mods/cars.json").read_text())
         # Keep donor fixtures independent of locally selected real model packs;
         # package tests below construct their own isolated prepared sources.
         for car in self.config["cars"]:
@@ -680,7 +680,7 @@ class CarModsTest(unittest.TestCase):
             path.write_text(json.dumps(config))
             with self.subTest(key=key, value=value), self.assertRaises(ValueError):
                 MOD.load_config(path)
-        MOD.load_config(ROOT / "tools/car-mods/cars.json")
+        MOD.load_config(ROOT / "tools/car-tools/car-mods/cars.json")
 
     def test_gearing_serialization_and_validation(self):
         config = copy.deepcopy(self.config)

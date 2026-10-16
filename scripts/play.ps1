@@ -237,7 +237,7 @@ try {
     }
     $configFiles = @('game_files\default.xbe', 'game_files\Data\mm3_factory_physics.ini',
         'game_files\Data\mm3_speedometers.ini', 'game_files\.mm3-car-mods\state.json',
-        'tools\car-mods\cars.local.json', 'tools\car-mods\cars.json', 'build\CMakeCache.txt')
+        'tools\car-tools\car-mods\cars.local.json', 'tools\car-tools\car-mods\cars.json', 'build\CMakeCache.txt')
     $files = @($configFiles | ForEach-Object { Get-LaunchFile (Join-Path $repo $_) } | Where-Object { $null -ne $_ })
     $cmakeOptions = [ordered]@{}
     $cachePath = Join-Path (Split-Path $Exe -Parent) 'CMakeCache.txt'

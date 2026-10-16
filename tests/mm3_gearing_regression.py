@@ -32,7 +32,7 @@ def generated_function(name):
 
 def imported_radius(car, config_path):
     """Use the same front-wheel node bounds that the native loader reads."""
-    sys.path.insert(0, str(ROOT / "tools/car-models"))
+    sys.path.insert(0, str(ROOT / "tools/car-tools/car-models"))
     from mm3_model import read_model
     package_path = (config_path.parent / car["model_package"]).resolve()
     package = json.loads((package_path / "package.json").read_text())
@@ -46,7 +46,7 @@ def imported_radius(car, config_path):
     return (bounds[4] - bounds[1]) / 2
 
 
-def case_definitions(config_path=ROOT / "tools/car-mods/cars.json"):
+def case_definitions(config_path=ROOT / "tools/car-tools/car-mods/cars.json"):
     config = json.loads(config_path.read_text())
     ids = [car["id"] for car in config["cars"]]
     if len(ids) != len(ACTIVE_IDS) or set(ids) != ACTIVE_IDS:
@@ -110,7 +110,7 @@ def threshold_builder_tail(text):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=ROOT / "tools/car-mods/cars.json")
+    parser.add_argument("--config", type=Path, default=ROOT / "tools/car-tools/car-mods/cars.json")
     args = parser.parse_args()
     if not shutil.which("cl"):
         raise SystemExit("Run scripts/enter-env.ps1 first so cl.exe is available.")
