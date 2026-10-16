@@ -11,7 +11,7 @@ const Mm3Mod mm3_mods[MM3_MOD_COUNT] = {
     [MM3_MOD_WIDESCREEN] = {"widescreen", "MM3_MOD_WIDESCREEN", "Widescreen",
         "The 3D view widens to the window and the race HUD moves out to its edges. Off: 4:3 with side bars.", 1},
     [MM3_MOD_DRAW_DISTANCE] = {"draw_distance", "MM3_MOD_DRAW_DISTANCE", "Extended draw distance",
-        "Traffic, pedestrians, objects, shadows and the city drawn further, as set under Graphics, with smooth depth-based fog replacing the distance-fog texture. Off: Xbox distances and fog.", 1},
+        "Traffic, pedestrians, objects, shadows and the city drawn further, as set under Graphics, with native depth fog replacing the fog texture and low-resolution horizon strip. Off: Xbox distances, fog and horizon.", 1},
     [MM3_MOD_SKY] = {"sky", "MM3_MOD_SKY", "Smooth skyline",
         "The distant skyline panorama filtered smoothly instead of in blocks and steps.", 1},
     [MM3_MOD_MENU_MOUSE] = {"menu_mouse", "MM3_MOD_MENU_MOUSE", "Menu mouse",

@@ -108,7 +108,7 @@ endif()
 # Render distance renames definitions only: renaming every reference with a
 # compile definition would bypass the hooks for callers in the same chunk.
 set(MM3_DISTANCE_FUNCTIONS sub_000D9E2E sub_000E2D5B sub_000F4AC3 sub_000FE71E
-    sub_001630A7 sub_001661D0 sub_002256C7 sub_002203E5 sub_0022F298 sub_0015A929 sub_000F8DCE)
+    sub_001630A7 sub_001661D0 sub_002256C7 sub_002203E5 sub_0022F298 sub_0015A929 sub_000F8DCE sub_000F8750)
 set(MM3_DEFINITION_ONLY_FUNCTIONS ${MM3_DISTANCE_FUNCTIONS})
 # Native menu layout, focus, activation and composite control geometry.
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001C5935 sub_000C2FA7 sub_00246894

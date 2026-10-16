@@ -15,6 +15,7 @@ static unsigned constructor_budget = 12;
 static const uint32_t manager = 0x1000, particles = 0x3000;
 
 void sub_000F8DCE_original(void) {}
+void sub_000F8750_original(void) {}
 void sub_000E2D5B_original(void) {}
 void sub_000D9E2E_original(void) {}
 void sub_000FE71E_original(void) {}

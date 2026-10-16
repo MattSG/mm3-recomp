@@ -237,9 +237,19 @@ void sub_000F8DCE(void)
         MEMF(cursor+16) = fminf(300.f,far_clip*.4f);
         MEMF(cursor+20) = far_clip*.9f;
         MEM32(cursor+24) = MEM32(g_esp+4);
-        MEM32(cursor+28) = NV2A_HOST_FOG_SKY_MASK; /* Native skyline blends through destination alpha. */
+        MEM32(cursor+28) = NV2A_HOST_FOG_SKY_MASK | NV2A_HOST_FOG_SKY_FILL; /* Sky mask and untextured distant air. */
         MEM32(device) = cursor+NV2A_HOST_FOG_WORDS*4;
     }
     g_eax = (g_eax & 0xFFFFFF00u) | 1;
     g_esp += 16;
+}
+
+/* HorizonMap.dma is a separate low-resolution city panorama, not depth fog.
+ * Keep Atmosphere.dma (cloud sky) and the host depth fog; omit this strip. */
+extern void sub_000F8750_original(void);
+void sub_000F8750(void)
+{
+    if (!mm3_mod_on(MM3_MOD_DRAW_DISTANCE)) { sub_000F8750_original(); return; }
+    g_eax = (g_eax & 0xFFFFFF00u) | 1;
+    g_esp += 8; /* ret 4 */
 }
