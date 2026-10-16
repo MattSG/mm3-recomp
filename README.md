@@ -35,7 +35,8 @@ collision and disc-authentication repairs remain enabled.
 The draw-distance/LOD mod replaces the Xbox fog texture with a dedicated native
 D3D11 fog pass reading scene depth and the current sky colour. Nearby scenery
 stays clear while distant geometry fades gradually. The low-resolution horizon
-panorama is omitted; the cloud sky remains. Disabling the mod restores the
+panorama is omitted; the cloud sky blends into the fog across the camera's
+world horizon. Disabling the mod restores the
 original fog and panorama.
 
 The fork adds nine extra-car identities and a standalone Car Workshop editor,

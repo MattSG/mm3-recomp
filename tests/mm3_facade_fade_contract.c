@@ -136,6 +136,9 @@ int main(int argc, char **argv)
         lod_enabled = on; g_esp = stack; g_eax = 0x12340000;
         g_ecx = 0x3000; MEM32(g_ecx+0xC) = 0x4000;
         MEMF(0x4000+0x1ED8) = 16777215.f/759.9f; MEMF(0x4000+0x1FB0) = 760;
+        MEMF(0x4000+0x1EE4) = MEMF(0x4000+0x1ED8);
+        MEMF(0x4000+0x1EF8) = MEMF(0x4000+0x1ED8);
+        MEMF(0x4000+0x1F34) = 0; MEMF(0x4000+0x1F38) = 1; MEMF(0x4000+0x1F3C) = 0;
         MEM32(stack+4) = 0xA5A5A5A5;
         MEM32(0x351F48) = 0x5000; MEM32(0x5000) = 0x6000; MEM32(0x5004) = 0x6100;
         sub_000F8DCE();
@@ -154,7 +157,14 @@ int main(int argc, char **argv)
     assert(MEM32(0x6000) == NV2A_HOST_FOG_HEADER && MEM32(0x6004) == NV2A_HOST_FOG_TAG);
     assert(MEMF(0x6008) == 1.f/(16777215.f/759.9f));
     assert(MEMF(0x600C) == 760 && MEMF(0x6010) == 300 && MEMF(0x6014) == 760*.9f);
-    assert(MEM32(0x6018) == 0xA5A5A5A5 && MEM32(0x601C) == (NV2A_HOST_FOG_SKY_MASK | NV2A_HOST_FOG_SKY_FILL));
+    assert(MEM32(0x6018) == 0xA5A5A5A5 && MEM32(0x601C) == (NV2A_HOST_FOG_SKY_MASK | NV2A_HOST_FOG_SKY_FILL | NV2A_HOST_FOG_SKY_FADE));
+    assert(MEMF(0x6020) == 0 && MEMF(0x6024) == 1 && MEMF(0x6028) == 0 && MEMF(0x602C) == 1.f/.16f);
+    /* Tilt and asymmetric projection move/rotate the fade with the camera. */
+    MEMF(0x4000+0x1EE4) = 2*MEMF(0x4000+0x1ED8);
+    MEMF(0x4000+0x1EF8) = 4*MEMF(0x4000+0x1ED8);
+    MEMF(0x4000+0x1F34) = .3f; MEMF(0x4000+0x1F38) = .8f; MEMF(0x4000+0x1F3C) = -.2f;
+    MEM32(0x5000) = 0x6000; g_esp = stack; sub_000F8DCE();
+    assert(fabsf(MEMF(0x6020)-.15f) < 1e-6f && fabsf(MEMF(0x6024)-.2f) < 1e-6f && MEMF(0x6028) == -.2f);
     /* Never overwrite the native ring's end when no packet fits. */
     MEM32(0x5000) = 0x6100; g_esp = stack; sub_000F8DCE();
     assert(MEM32(0x5000) == 0x6100 && g_esp == stack+16);
