@@ -9,7 +9,7 @@ latest System Link, Insignia DNS, console keys, account import and render-tick
 changes are retained. Fresh full generation, independent MSVC RelWithDebInfo
 build, compiled hidden-launcher rendering/normal close and scoped native/unit
 checks passed. The latest validation scope is recorded at the beginning
-of [the integration record](docs/integration-2026-10-13.md).
+of the integration record (removed from the repository; see git history).
 
 The earlier driving results below predate the new render-tick policy. With
 console-rate simulation enabled, drawing now follows 30/60 Hz world ticks;
@@ -25,10 +25,10 @@ independently verified the default 30 Hz world clock at requested 60/90 render
 limits; observed medians were 59.96/71.52 FPS. Achieved 90 FPS, real-race 60 Hz
 simulation and matched handling parity remain extended coverage.
 
-See the [integration record](docs/integration-2026-10-13.md) for precise results,
+See the integration record (removed from the repository; see git history) for precise results,
 source pins, corrected scheduler coverage and remaining scenarios. Earlier
 integration timing traces are retained as
-[superseded diagnostics](docs/integration-timing-diagnostics-2026-10-13.md).
+superseded diagnostics (removed from the repository; see git history).
 
 ## Historical journal — beginning 2026-10-01
 
