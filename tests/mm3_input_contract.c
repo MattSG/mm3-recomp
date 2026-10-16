@@ -11,8 +11,17 @@
 static XINPUT_STATE host_state;
 static BOOL host_connected;
 static BOOL driving_context;
+/* The Keyboard driving mod on (the "mm3" run) or off ("legacy"). */
+static BOOL mod_on;
 
-static BOOL fixture_driving(void) { return driving_context; }
+static int fixture_driving(void) { return driving_context; }
+
+void mm3_keyboard_driving_init(int (*driving)(void));
+/* As mm3_mods_init installs the mod; off, nothing is installed. */
+static void set_driving_probe(int (*driving)(void))
+{
+    if (mod_on) mm3_keyboard_driving_init(driving);
+}
 
 static DWORD WINAPI fixture_get_state(DWORD port, XINPUT_STATE *state)
 {
@@ -41,6 +50,7 @@ static DWORD WINAPI fixture_get_caps(DWORD port, DWORD flags,
 #include "../tools/xboxrecomp/src/input/xinput_device.c"
 #include "../tools/xboxrecomp/src/video/fb_present.c"
 #include "../tools/xboxrecomp/src/usb/usb_gamepad.c"
+#include "../src/mods/keyboard_driving.c"
 
 /* Rendering is outside this fixture. No framebuffer thread is started. */
 ptrdiff_t xbox_GetMemoryOffset(void) { return 0; }
@@ -200,14 +210,14 @@ static void check_context(HWND window, BOOL mm3)
 {
     uint8_t out[20];
     /* Until a title registers a probe, arrows are only navigation keys. */
-    xbox_InputSetKeyboardDrivingProbe(NULL);
+    set_driving_probe(NULL);
     key(window, VK_UP, TRUE); key(window, VK_DOWN, TRUE);
     key(window, VK_LEFT, TRUE); key(window, VK_RIGHT, TRUE);
     report(out);
     CHECK((out[2] & 0x0F) == 0x0F);
     CHECK(out[10] == 0 && out[11] == 0 && report_axis(out, 12) == 0);
 
-    xbox_InputSetKeyboardDrivingProbe(fixture_driving);
+    set_driving_probe(fixture_driving);
     driving_context = FALSE;
     report(out);
     CHECK((out[2] & 0x0F) == 0x0F);
@@ -300,9 +310,9 @@ static void check_camera(HWND window, BOOL mm3)
     key(window, 'C', TRUE);
     report(out);
     for (i = 2; i < sizeof out; ++i) CHECK(out[i] == 0);
-    xbox_InputSetKeyboardDrivingProbe(NULL);
+    set_driving_probe(NULL);
     report(out); CHECK(out[8] == 0);
-    xbox_InputSetKeyboardDrivingProbe(fixture_driving);
+    set_driving_probe(fixture_driving);
 
     driving_context = TRUE;
     for (held = 0; held < 3; ++held) {
@@ -361,10 +371,10 @@ static void check_handbrake(HWND window, BOOL mm3)
     report(out);
     for (i = 2; i < sizeof out; ++i) CHECK(out[i] == 0);
     driving_context = TRUE;
-    xbox_InputSetKeyboardDrivingProbe(NULL);
+    set_driving_probe(NULL);
     report(out);
     for (i = 2; i < sizeof out; ++i) CHECK(out[i] == 0);
-    xbox_InputSetKeyboardDrivingProbe(fixture_driving);
+    set_driving_probe(fixture_driving);
 
     for (held = 0; held < 3; ++held) {
         report(out);
@@ -464,7 +474,7 @@ static void check_saved_maps(HWND window)
     /* The launcher's saved map assigns throttle to W, but title driving
      * aliases still work beside it and stop immediately upon pausing. */
     driving_context = TRUE;
-    xbox_InputSetKeyboardDrivingProbe(fixture_driving);
+    set_driving_probe(fixture_driving);
     key(window, '3', TRUE); expect_triggers(0, 0);
     key(window, '3', FALSE);
     key(window, 'W', TRUE); expect_triggers(0, 255);
@@ -538,9 +548,8 @@ int main(int argc, char **argv)
     HWND window;
     BOOL mm3;
     if (argc < 2 || argc > 3) { fprintf(stderr, "Usage: mm3_input_contract mm3|legacy [saved-maps]\n"); return 2; }
-    mm3 = _stricmp(argv[1], "mm3") == 0;
+    mm3 = mod_on = _stricmp(argv[1], "mm3") == 0;
     _putenv_s("RECOMP_KEYBOARD", "1");
-    _putenv_s("RECOMP_KEYBOARD_LAYOUT", argv[1]);
     if (!strcmp(argv[1], "mouse")) _putenv_s("RECOMP_MENU_KEYS", "1");
     _putenv_s("RECOMP_PAD_SCRIPT", ""); _putenv_s("RECOMP_PAD_PRESS", "");
     _putenv_s("RECOMP_PAD_LIVE", ""); _putenv_s("RECOMP_INPUT_DIAG", "");

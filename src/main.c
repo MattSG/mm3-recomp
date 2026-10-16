@@ -180,7 +180,6 @@ int main(void)
         setvbuf(stderr, stderr_buffer, _IOFBF, sizeof stderr_buffer);
     SetUnhandledExceptionFilter(mm3_crash_report);
     xbox_FramebufferSetCloseHandler(mm3_close_game);
-    nv2a_d3d_set_flare_depth_test(1);
     SetConsoleCtrlHandler(mm3_console_control, TRUE);
     puts("MM3 static recompilation");
     /* Profiles seed settings before the launcher; saved choices, including
@@ -226,14 +225,6 @@ int main(void)
         return 1;
     }
 
-    /* MM3 reads the triggers and left stick for driving. Keep the runtime's
-     * legacy keys available, with arrows also driving this title. */
-    if (!getenv("RECOMP_KEYBOARD_LAYOUT") &&
-        _putenv_s("RECOMP_KEYBOARD_LAYOUT", "mm3") != 0) {
-        fprintf(stderr, "cannot select MM3 keyboard controls\n");
-        return 1;
-    }
-
     /* The audio DSP programs the game runs are saved here; the next build
      * recompiles them to C (CMakeLists.txt, XBOXRECOMP_DSP_PROGRAM_DIR). */
     if (!getenv("RECOMP_DSP_PROGRAM_DIR") &&
@@ -273,7 +264,6 @@ int main(void)
 
     g_xbox_mem_offset = xbox_GetMemoryOffset();
     mm3_mods_init();
-    xbox_InputSetKeyboardDrivingProbe(mm3_keyboard_driving);
     /* XPP submits stack-backed USB requests whose callback signals an inline
      * KEVENT. Its explicit wait treats an invalid handle as completion, so
      * the request can outlive its stack frame. Permit only the verified XPP

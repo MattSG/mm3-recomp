@@ -302,6 +302,7 @@ add_executable(${PROJECT_NAME}
     src/mods/widescreen_hud.c
     src/mods/skip_intro.c
     src/mods/framerate.c
+    src/mods/keyboard_driving.c
     src/mm3_unresolved_stubs.c
  src/mm3_memory_compat.c
  src/mm3_memory_tails.c

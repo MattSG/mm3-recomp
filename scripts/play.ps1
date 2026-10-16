@@ -43,7 +43,6 @@ if ($AllowMultipleInstances -and
 $defaults = @{
     RECOMP_PB_EXEC = '1'; RECOMP_FB_WINDOW = '1'; RECOMP_USB = '1'
     RECOMP_APU_DSP_ACK = '0x80458810'; MM3_PERFORMANCE_PROFILE = $Profile
-    RECOMP_KEYBOARD_LAYOUT = 'mm3'
     RECOMP_ASPECT = '16:10'
 }
 if ($PSBoundParameters.ContainsKey('FpsLimit')) { $defaults.RECOMP_FPS_LIMIT = "$FpsLimit" }

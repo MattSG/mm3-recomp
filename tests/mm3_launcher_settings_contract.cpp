@@ -13,6 +13,8 @@ void mm3_dev_tools_tick(void) { assert(false); }
 void mm3_debug_teleport_init(void) { assert(false); }
 void mm3_debug_overlay_init(void) { assert(false); }
 int mm3_keyboard_driving(void) { assert(false); return 0; }
+void mm3_keyboard_driving_init(int (*)(void)) { assert(false); }
+void nv2a_d3d_set_flare_depth_test(uint32_t) { assert(false); }
 }
 int main(int argc, char **argv)
 {

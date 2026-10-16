@@ -22,6 +22,13 @@ void mm3_configure_diagnostics(void)
     const char *trap = getenv("RECOMP_UNIMPL_TRAP");
     g_mm3_unimpl_trap = trap && *trap && *trap != '0';
     g_mm3_frontend_icall_trace = getenv("MM3_FRONTEND_ICALL_TRACE") != NULL;
+    /* The building trace includes the runtime's async-wait trace unless that
+     * is set itself. */
+    {
+        const char *building = getenv("MM3_BUILDING_TRACE");
+        if (building && *building && *building != '0' && !getenv("RECOMP_ASYNC_WAIT_TRACE"))
+            _putenv_s("RECOMP_ASYNC_WAIT_TRACE", "1");
+    }
 }
 
 void recomp_unimpl(const char *text, uint32_t va)

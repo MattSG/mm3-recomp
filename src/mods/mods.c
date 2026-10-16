@@ -35,6 +35,10 @@ const Mm3Mod mm3_mods[MM3_MOD_COUNT] = {
     [MM3_MOD_TRANSLATION] = {"translation", "MM3_MOD_TRANSLATION", "Translation corrections",
         "Hand-written fixes where the generated code differed from the original game (src/mm3_*.c, recomp_manual.c). "
         "Off: the generated code runs without them wherever it has a body of its own (register/SEH preservation, the stream copy). Functions the generator never produced stay filled in.", 1},
+    [MM3_MOD_KEYBOARD_DRIVING] = {"keyboard_driving", "MM3_MOD_KEYBOARD_DRIVING", "Keyboard driving",
+        "With keyboard controls, the arrows drive and steer in a race, R/F change gear, Space is the handbrake and C the camera; Escape goes back. Off: the arrows are only the d-pad.", 1},
+    [MM3_MOD_FLARE_DEPTH] = {"flare_depth", "MM3_MOD_FLARE_DEPTH", "Lamp flare depth",
+        "Street-lamp flares are also tested against the scene's depth, so they stay hidden behind buildings and cars. Off: only the game's own visibility test.", 1},
 };
 
 int mm3_mod_on(int mod)
@@ -64,6 +68,7 @@ extern const NvOverlayHooks mm3_hud_hooks;                        /* widescreen_
 extern void mm3_menu_mouse_init(void);                           /* menu_mouse.c */
 extern void mm3_dev_tools_tick(void);                             /* dev_tools.c */
 extern void mm3_debug_teleport_init(void);                        /* teleport.c */
+extern void mm3_keyboard_driving_init(int (*driving)(void));      /* keyboard_driving.c */
 
 void mm3_mods_init(void)
 {
@@ -82,6 +87,12 @@ void mm3_mods_init(void)
         nv2a_d3d_set_bspline_blend(0x304, 0x305);      /* DST_ALPHA, ONE_MINUS_DST_ALPHA */
     if (mm3_mod_on(MM3_MOD_MENU_MOUSE))
         mm3_menu_mouse_init();
+    if (mm3_mod_on(MM3_MOD_KEYBOARD_DRIVING))
+        mm3_keyboard_driving_init(mm3_keyboard_driving);
+    /* Flares/Flares.psh: its combiner stage program, four projective 2D
+     * stages (three taps of the visibility mask, then the lamp). */
+    if (mm3_mod_on(MM3_MOD_FLARE_DEPTH))
+        nv2a_d3d_set_flare_depth_test(0x8421);
     if (mm3_mod_on(MM3_MOD_TELEPORT) || mm3_mod_on(MM3_MOD_DEBUG_OVERLAY))
         mm3_debug_teleport_init();
     for (i = 0; i < MM3_MOD_COUNT; i++)

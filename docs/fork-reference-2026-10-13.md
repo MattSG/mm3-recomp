@@ -449,7 +449,7 @@ hoops retain their original size.
 Blitz courses stay open; checkpoint races include the closing lap segment.
 Choose **Manual** transmission in car setup, then tap **R** to shift up and **F** to shift down
 (the default Xbox B/X gear controls). These aliases operate only while driving.
-Set `RECOMP_KEYBOARD_LAYOUT=legacy` to use only the original runtime bindings.
+Set `MM3_MOD_KEYBOARD_DRIVING=0` (the Keyboard driving mod) to use only the original runtime bindings.
 
 The closest rear chase camera sits 0.25 m farther back. Its original smoothing
 and collision adjustment still apply; the other camera views retain their
@@ -631,8 +631,8 @@ tools\venv\Scripts\python.exe tools\car-mods\prepare.py --restore
 | `RECOMP_FB_WINDOW` | off | Open the game window. **Required.** |
 | `RECOMP_USB` | off | Emulate the USB controller ports so pads (XInput) reach the game. **Required** for input. |
 | `RECOMP_APU_DSP_ACK` | unset | DSP acknowledgement address(es) the audio needs; use `0x80458810`. |
-| `RECOMP_KEYBOARD` | off | `1`: keyboard as a pad (arrows drive/navigate, Z X A S = A B X Y, Enter = Start, Backspace = Back; MM3 layout also maps Escape to B/menu back). |
-| `RECOMP_KEYBOARD_LAYOUT` | `mm3` | Arrow driving controls; `legacy` restores the original D-pad-only arrows and 1/3 trigger keys. |
+| `RECOMP_KEYBOARD` | off | `1`: keyboard as a pad (arrows drive/navigate, Z X A S = A B X Y, Enter = Start, Backspace = Back; the Keyboard driving mod also maps Escape to B/menu back). |
+| `MM3_MOD_KEYBOARD_DRIVING` | `1` | Arrow driving controls; `0` restores the original D-pad-only arrows and 1/3 trigger keys. |
 | `MM3_PERFORMANCE_PROFILE` | `Balanced` | Shared rendering defaults for launcher and direct executable; `Quality` uses 1440 lines and 8× MSAA, `LowPower` uses 720 lines and a 30 FPS cap. Individual settings override it. |
 | `RECOMP_FPS_LIMIT` | profile: `60` or `30` | Presentation and emulated-vblank cap, 1–60. Uncapped, invalid, or higher values use 60. |
 | `RECOMP_VSYNC` | `0` | Present sync interval passed to DXGI. |
