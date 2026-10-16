@@ -496,6 +496,42 @@ static void check_saved_maps(HWND window)
     host_connected = FALSE;
 }
 
+static unsigned mouse_presses;
+static float press_x, press_y;
+static int fixture_menu(void) { return !driving_context; }
+static int fixture_mouse_press(float x, float y)
+{
+    ++mouse_presses; press_x = x; press_y = y;
+    return 1;
+}
+
+static void check_mouse(HWND window)
+{
+    RECT client;
+    uint8_t out[20];
+    GetClientRect(window, &client);
+    CHECK(client.right > 0 && client.bottom > 0);
+    xbox_InputSetMenuProbe(fixture_menu);
+    xbox_InputSetMenuClickHandler(fixture_mouse_press);
+    /* Down/up between USB polls must survive, using the press coordinates,
+     * without also activating the old focus through a synthetic A button. */
+    SendMessageA(window, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(10, 12));
+    SendMessageA(window, WM_LBUTTONUP, 0, MAKELPARAM(20, 22));
+    CHECK(mouse_presses == 1);
+    CHECK(press_x == 10.0f / client.right && press_y == 12.0f / client.bottom);
+    report(out); CHECK(out[4] == 0);
+    driving_context = TRUE;
+    SendMessageA(window, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(10, 12));
+    CHECK(mouse_presses == 1 && xbox_FramebufferKeyDown(VK_LBUTTON));
+    SendMessageA(window, WM_LBUTTONUP, 0, 0);
+    driving_context = FALSE;
+    xbox_InputSetMenuClickHandler(NULL);
+    SendMessageA(window, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(10, 12));
+    CHECK(mouse_presses == 1 && xbox_FramebufferKeyDown(VK_LBUTTON));
+    report(out); CHECK(out[4] == 255); /* Generic pad-A fallback remains. */
+    SendMessageA(window, WM_LBUTTONUP, 0, 0);
+}
+
 int main(int argc, char **argv)
 {
     WNDCLASSA wc = {0};
@@ -505,6 +541,7 @@ int main(int argc, char **argv)
     mm3 = _stricmp(argv[1], "mm3") == 0;
     _putenv_s("RECOMP_KEYBOARD", "1");
     _putenv_s("RECOMP_KEYBOARD_LAYOUT", argv[1]);
+    if (!strcmp(argv[1], "mouse")) _putenv_s("RECOMP_MENU_KEYS", "1");
     _putenv_s("RECOMP_PAD_SCRIPT", ""); _putenv_s("RECOMP_PAD_PRESS", "");
     _putenv_s("RECOMP_PAD_LIVE", ""); _putenv_s("RECOMP_INPUT_DIAG", "");
     _putenv_s("RECOMP_KEY_TRACE", "");
@@ -516,7 +553,9 @@ int main(int argc, char **argv)
     window = CreateWindowA(wc.lpszClassName, "Offline input test", WS_OVERLAPPED,
         0, 0, 64, 64, NULL, NULL, wc.hInstance, NULL);
     if (!window) return 2;
-    if (argc == 3 && !strcmp(argv[2], "saved-maps")) {
+    if (!strcmp(argv[1], "mouse")) {
+        check_mouse(window);
+    } else if (argc == 3 && !strcmp(argv[2], "saved-maps")) {
         check_saved_maps(window);
     } else {
         check_host_report();

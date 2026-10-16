@@ -58,11 +58,10 @@ static int in_menu(void)
 }
 
 extern void xbox_InputSetMenuProbe(int (*in_menu)(void));
-extern void xbox_InputSetMenuPointer(int (*pointer)(float x, float y, int *offset));
 extern void nv2a_d3d_set_bspline_blend(uint32_t sfactor, uint32_t dfactor);
 #include "nv2a_d3d11.h"
 extern const NvOverlayHooks mm3_hud_hooks;                        /* widescreen_hud.c */
-extern int mm3_menu_pointer(float x, float y, int *offset);       /* menu_mouse.c */
+extern void mm3_menu_mouse_init(void);                           /* menu_mouse.c */
 extern void mm3_dev_tools_tick(void);                             /* dev_tools.c */
 extern void mm3_debug_teleport_init(void);                        /* teleport.c */
 
@@ -82,7 +81,7 @@ void mm3_mods_init(void)
     if (mm3_mod_on(MM3_MOD_SKY))
         nv2a_d3d_set_bspline_blend(0x304, 0x305);      /* DST_ALPHA, ONE_MINUS_DST_ALPHA */
     if (mm3_mod_on(MM3_MOD_MENU_MOUSE))
-        xbox_InputSetMenuPointer(mm3_menu_pointer);
+        mm3_menu_mouse_init();
     if (mm3_mod_on(MM3_MOD_TELEPORT) || mm3_mod_on(MM3_MOD_DEBUG_OVERLAY))
         mm3_debug_teleport_init();
     for (i = 0; i < MM3_MOD_COUNT; i++)

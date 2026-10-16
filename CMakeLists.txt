@@ -110,6 +110,11 @@ endif()
 set(MM3_DISTANCE_FUNCTIONS sub_000D9E2E sub_000E2D5B sub_000F4AC3 sub_000FE71E
     sub_001630A7 sub_001661D0 sub_002256C7 sub_002203E5 sub_0022F298 sub_0015A929)
 set(MM3_DEFINITION_ONLY_FUNCTIONS ${MM3_DISTANCE_FUNCTIONS})
+# Native menu layout, focus, activation and composite control geometry.
+list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001C5935 sub_000C2FA7 sub_00246894
+    sub_001118C7 sub_00111CBF sub_001C1585 sub_00103E41 sub_00103FBD sub_001038D0
+    sub_0010DDC0 sub_001C44F8 sub_00117B03 sub_00117C99 sub_00117D11
+    sub_00104F7B sub_0010514E sub_0010553A)
 # The main loop and world update can share a generated chunk. Rename only
 # these definitions so direct and same-chunk calls enter the clocked wrappers.
 set(MM3_SIMULATION_FUNCTIONS sub_00025422 sub_0002545A sub_001E7590 sub_001EC8E6

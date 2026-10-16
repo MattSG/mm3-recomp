@@ -5,11 +5,10 @@ extern "C" {
 #include <assert.h>
 extern "C" {
 void xbox_InputSetMenuProbe(int (*)(void)) { assert(false); }
-void xbox_InputSetMenuPointer(int (*)(float,float,int *)) { assert(false); }
 void nv2a_d3d_set_bspline_blend(uint32_t,uint32_t) { assert(false); }
 void nv2a_d3d_set_overlay_hooks(const NvOverlayHooks *) { assert(false); }
 extern const NvOverlayHooks mm3_hud_hooks = {};
-int mm3_menu_pointer(float,float,int *) { assert(false); return 0; }
+void mm3_menu_mouse_init(void) { assert(false); }
 void mm3_dev_tools_tick(void) { assert(false); }
 void mm3_debug_teleport_init(void) { assert(false); }
 void mm3_debug_overlay_init(void) { assert(false); }

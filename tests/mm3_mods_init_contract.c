@@ -4,24 +4,19 @@
 
 static int driving;
 static int (*menu_probe)(void);
-static int (*menu_pointer)(float, float, int *);
+static unsigned mouse_init_calls;
 static const NvOverlayHooks *overlay;
 static unsigned sky_calls, teleport_calls, dev_calls;
 const NvOverlayHooks mm3_hud_hooks = {0};
 
 int mm3_keyboard_driving(void) { return driving; }
 void xbox_InputSetMenuProbe(int (*probe)(void)) { menu_probe = probe; }
-void xbox_InputSetMenuPointer(int (*pointer)(float, float, int *)) { menu_pointer = pointer; }
+void mm3_menu_mouse_init(void) { ++mouse_init_calls; }
 void nv2a_d3d_set_overlay_hooks(const NvOverlayHooks *hooks) { overlay = hooks; }
 void nv2a_d3d_set_bspline_blend(uint32_t source, uint32_t destination)
 {
     assert(source == 0x304 && destination == 0x305);
     ++sky_calls;
-}
-int mm3_menu_pointer(float x, float y, int *offset)
-{
-    (void)x; (void)y; (void)offset;
-    return 0;
 }
 void mm3_debug_teleport_init(void) { ++teleport_calls; }
 void mm3_dev_tools_tick(void) { ++dev_calls; }
@@ -44,7 +39,7 @@ int main(int argc, char **argv)
     assert(!strcmp(getenv("RECOMP_ASPECT"), enabled ? "16:10" : "4:3"));
     assert(!strcmp(getenv("RECOMP_WINDOW_SIZE"), "1600x900"));
     assert(overlay == &mm3_hud_hooks); /* UV sanitizer also runs in 4:3. */
-    assert(menu_pointer == mm3_menu_pointer);
+    assert(mouse_init_calls == 1);
     assert(sky_calls == 1 && teleport_calls == 1);
     assert(mm3_mod_on(MM3_MOD_COLLISION_FIX)); /* Required guard stays on. */
     driving = 0; assert(menu_probe && menu_probe());
