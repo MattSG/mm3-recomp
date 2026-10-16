@@ -5,7 +5,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-/* Opt in with MM3_DEBUG_TELEPORT=1 before launching the isolated build. */
+/* ImGui enables this backend; MM3_DEBUG_TELEPORT=1 enables only its local pipe. */
 void mm3_debug_teleport_init(void);
 typedef struct {
     float position[3], heading;

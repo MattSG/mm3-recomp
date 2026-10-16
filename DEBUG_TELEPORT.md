@@ -1,8 +1,11 @@
 # MM3 ground teleport debugger
 
-Opt in with `MM3_DEBUG_TELEPORT=1`. The native panel shows live X/Y/Z and
-the heading in degrees, and accepts destination X/Z plus an optional heading
-in degrees on the same bearing (blank keeps the car's; the pipe takes radians). MM3 is Y-up; its native ground-placement reset
+Use **ImGui debug tools** for live X/Y/Z, heading and coordinate teleport.
+The former separate Windows panel has been removed. Enable
+`MM3_DEBUG_OVERLAY=1` and open the overlay with its configured toggle (F4 by default).
+For scripts, `MM3_DEBUG_TELEPORT=1` enables the local pipe without opening a window.
+
+MM3 is Y-up; its native ground-placement reset
 calculates Y, applies car clearance, aligns to the slope while retaining
 heading, clears motion and updates the cached transform and reset flags.
 No usable ground leaves the car unchanged. Guest changes run in the primary
@@ -11,7 +14,7 @@ player update, with GPR/x87/XMM state restored afterward. Disabled is default.
 The same operation uses the local pipe `\\.\pipe\MM3Teleport-<PID>`:
 `position` or `teleport X Z`, returning JSON with the actual resulting Y.
 Requests that cannot reach the player update within two seconds are cancelled.
-The panel distinguishes ground misses, stalled updates and unavailable cars.
+ImGui reports ground misses, stalled updates and unavailable cars.
 
 ```powershell
 tools/powershell/Send-MM3Teleport.ps1 -ProcessId 12345
@@ -43,7 +46,7 @@ XBE SHA-256: `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`.
 RelWithDebInfo builds. Original-PAL and stub offline fixtures pass automatic
 height/car clearance, ignored supplied Y, heading/quaternion, cleared motion,
 cache/register preservation, ground misses, cancellation, inactive/disabled
-paths and the actual hidden X/Z edit controls/button handler. The original-PAL
+paths and the nonblocking teleport queue used by ImGui. The original-PAL
 fixture uses synthetic collision geometry and registry services; it is not a
 live terrain test. Its PowerShell pipe sequence returns X=-512.25, Y=6.5,
 Z=1001.125 without a Y argument.

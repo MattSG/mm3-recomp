@@ -11,45 +11,21 @@ RECOMP_TLS RecompXmm g_xmm0, g_xmm1, g_xmm2, g_xmm3, g_xmm4, g_xmm5, g_xmm6, g_x
 static unsigned updates, resets, moves, feature_ticks;
 static const uint32_t player = 0x110000, vehicle = 0x120000, car = 0x130000, body = 0x150000;
 static uint32_t expected_update_player = 0x110000;
-static volatile LONG stop_update;
 static int ground_missing;
 
-static DWORD WINAPI fixture_update(void *unused) {
-    (void)unused;
-    g_ecx = player; g_esp = 0x700000;
-    while (!InterlockedCompareExchange(&stop_update, 0, 0)) {
-        sub_002203E5(); Sleep(10);
-    }
-    return 0;
-}
-
-static void check_panel(void) {
-    WNDCLASSA wc = {0};
-    wc.lpfnWndProc = panel_proc; wc.hInstance = GetModuleHandleA(NULL);
-    wc.lpszClassName = "MM3OfflinePanelContract";
-    assert(RegisterClassA(&wc));
-    /* Hidden test window: exercise actual edit controls and button handler
-     * without displaying or controlling any game window. */
-    HWND panel = CreateWindowA(wc.lpszClassName, "Offline test", WS_OVERLAPPED,
-        0, 0, 355, 210, NULL, NULL, wc.hInstance, NULL);
-    assert(panel);
-    SetWindowTextA(edits[0], "-200.5"); SetWindowTextA(edits[1], "44.125");
-    HANDLE updater = CreateThread(NULL, 0, fixture_update, NULL, 0, NULL);
-    assert(updater);
-    SendMessageA(panel, WM_COMMAND, MAKEWPARAM(1, BN_CLICKED), 0);
-    char reply[256]; GetWindowTextA(feedback, reply, sizeof(reply));
-    assert(strstr(reply, "Teleported to"));
-    assert(position[0] == -200.5f && position[1] == 6.5f && position[2] == 44.125f);
-    SendMessageA(panel, WM_TIMER, 1, 0);
-    GetWindowTextA(coordinates, reply, sizeof(reply)); assert(strstr(reply, "-200.500"));
-    SetWindowTextA(edits[1], "nan");
-    SendMessageA(panel, WM_COMMAND, MAKEWPARAM(1, BN_CLICKED), 0);
-    GetWindowTextA(feedback, reply, sizeof(reply)); assert(strstr(reply, "finite"));
-    assert(position[1] == 6.5f);
-    InterlockedExchange(&stop_update, 1);
-    assert(WaitForSingleObject(updater, 3000) == WAIT_OBJECT_0); CloseHandle(updater);
-    KillTimer(panel, 1); DestroyWindow(panel);
-    UnregisterClassA(wc.lpszClassName, wc.hInstance);
+static void check_teleport_queue(void)
+{
+    Mm3TeleportState state;
+    assert(mm3_teleport_queue(-200.5f, 44.125f, 1.5f));
+    mm3_teleport_state(&state);
+    assert(state.pending && state.available);
+    assert(destination_heading == 1.5f);
+    sub_002203E5();
+    mm3_teleport_state(&state);
+    assert(!state.pending && strcmp(state.result, "applied") == 0);
+    assert(state.position[0] == -200.5f && state.position[1] == 6.5f && state.position[2] == 44.125f);
+    assert(!mm3_teleport_queue(NAN, 0, NAN));
+    assert(state.position[1] == 6.5f);
 }
 
 void sub_002203E5_original(void) { ++updates; assert(g_ecx == expected_update_player); }
@@ -274,7 +250,7 @@ int main(int argc, char **argv) {
     assert(strcmp(result, "no usable ground at destination") == 0);
     assert(memcmp(before, (const void *)XBOX_PTR(body + 0xA4), sizeof(before)) == 0);
     ground_missing = 0;
-    check_panel();
+    check_teleport_queue();
     /* No update arriving must cancel the request rather than execute it later. */
     char reply[256]; request_teleport(destination, NAN, reply, sizeof(reply));
     assert(strstr(reply, "game update timeout") && pending == 0);
@@ -285,7 +261,7 @@ int main(int argc, char **argv) {
     request_teleport(destination, NAN, reply, sizeof(reply)); assert(strstr(reply, "no active car"));
     CloseHandle(finished); VirtualFree(ram, 0, MEM_RELEASE);
 #ifdef MM3_TELEPORT_NATIVE_TEST
-    puts("PASS: keyboard heartbeat/pause/scene; original PAL ground reset, automatic Y/clearance, heading, quaternion, motion/cache/registers, ground miss, X/Z panel");
+    puts("PASS: keyboard heartbeat/pause/scene; original PAL ground reset, automatic Y/clearance, heading, quaternion, motion/cache/registers, ground miss, ImGui teleport queue");
 #else
     puts("PASS: keyboard heartbeat/pause/scene; queue, cancellation, inactive path, XYZ/orientation, cache and register contracts (native calls stubbed)");
 #endif
