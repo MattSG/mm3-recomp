@@ -26,7 +26,8 @@ pwsh scripts\setup.ps1 -Iso "<path to your disc image>"
 ```
 
 Setup verifies your disc, extracts it, translates the game code (about six
-minutes) and builds. The game opens a launcher with **Settings**, **Controls**
+minutes) and builds. It then runs the game for a few seconds (a window opens
+briefly) to capture its audio DSP programs, and rebuilds with them compiled in. The game opens a launcher with **Settings**, **Controls**
 and **Mods** tabs; press **Play**.
 
 ### Supported discs
@@ -45,7 +46,7 @@ These images were tested:
   any aspect ratio and a frame-rate limit. Performance profiles (Balanced,
   Quality, LowPower) set these for you.
 - **Audio:** the Xbox's sound DSP (reverb, 3D sound and the game's own mix),
-  recompiled to native code after your first session.
+  captured during setup and compiled to native code.
 - **Input:** keyboard, mouse and controllers, all rebindable.
 - **Multiplayer:** System Link on one PC or a LAN. Xbox Live goes to
   [Insignia](https://insignia.live), but sign-in is not yet verified.

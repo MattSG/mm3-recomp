@@ -10,6 +10,8 @@ Build a playable Midtown Madness 3 from a fresh clone and your own disc image.
 3. verifies the disc's code and extracts it to game_files\
 4. generates the translated C into src\recomp\gen\ (about 6 minutes)
 5. builds build\<Config>\mm3_recomp.exe
+6. captures the audio DSP programs from a short run of the game, then rebuilds
+   so they are compiled to native code
 
 Then run scripts\play.ps1. Re-running skips finished steps; -Force redoes them.
 #>
@@ -54,7 +56,6 @@ if ($LASTEXITCODE -ne 0) { throw 'Python 3.11.4 or newer is required (3.12+ reco
 if (-not (Test-Path 'tools\xboxrecomp\CMakeLists.txt')) {
     git submodule update --init --recursive; Check 'git submodule update'
 }
-& $basePython @pythonArgs scripts\apply_runtime_patch.py; Check 'MM3 runtime fixes'
 if ($portableMsvc) { Write-Host "Local MSVC: $(Join-Path $repo 'tools\bin\msvc')" }
 else { Write-Host "Visual Studio: $vs" }
 
@@ -97,5 +98,42 @@ if ($portableMsvc) {
 & $cmake --build build --config $Config --target mm3_recomp --parallel; Check 'build'
 
 $exe = Join-Path $repo "build\$Config\mm3_recomp.exe"
+
+Step 'Audio DSP programs (game_files\dsp\)'
+$dsp = Join-Path $repo 'game_files\dsp'
+$programs = 'gp.p.bin', 'ep.p.bin' | ForEach-Object { Join-Path $dsp $_ }
+if ($programs | Where-Object { -not (Test-Path $_) }) {
+    # DirectSound assembles these programs at run time, so they come from a
+    # running game: start it without the launcher, wait until it has saved
+    # both (the runtime does after about 8 s of sound), close it, and
+    # rebuild, which compiles them to native code.
+    Write-Host 'Starting the game for up to 2 minutes to capture them...'
+    $info = [Diagnostics.ProcessStartInfo]::new($exe)
+    $info.UseShellExecute = $false
+    $info.RedirectStandardOutput = $true
+    $info.RedirectStandardError = $true
+    $info.WorkingDirectory = $repo
+    $saves = Join-Path ([IO.Path]::GetTempPath()) "mm3-dsp-capture-$PID"
+    $vars = @{
+        RECOMP_PB_EXEC = '1'; RECOMP_FB_WINDOW = '1'; RECOMP_USB = '1'
+        RECOMP_APU_DSP_ACK = '0x80458810'; RECOMP_DSP_PROGRAM_DIR = $dsp
+        MM3_PERFORMANCE_PROFILE = 'LowPower'; MM3_SAVE_DIR = $saves
+    }
+    foreach ($name in $vars.Keys) { $info.Environment[$name] = $vars[$name] }
+    $game = [Diagnostics.Process]::Start($info)
+    $game.BeginOutputReadLine(); $game.BeginErrorReadLine()   # discarded
+    $deadline = (Get-Date).AddMinutes(2)
+    while (-not $game.HasExited -and (Get-Date) -lt $deadline -and
+           ($programs | Where-Object { -not (Test-Path $_) })) { Start-Sleep -Seconds 2 }
+    if (-not $game.HasExited) { $game.Kill(); $game.WaitForExit() }
+    Remove-Item -Recurse -Force $saves -ErrorAction SilentlyContinue
+    if ($programs | Where-Object { -not (Test-Path $_) }) {
+        Write-Warning 'The DSP programs were not saved. Audio still works through the interpreter; the game saves them as you play and the next build compiles them.'
+    } else {
+        & $cmake --build build --config $Config --target mm3_recomp --parallel; Check 'rebuild with the DSP programs'
+    }
+} else {
+    Write-Host 'Captured and compiled in (delete game_files\dsp to capture again)'
+}
 Write-Host "`nBuilt $exe" -ForegroundColor Green
 Write-Host 'Play:  pwsh scripts\play.ps1    (-Keyboard to drive with the keyboard)'
