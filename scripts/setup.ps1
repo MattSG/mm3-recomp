@@ -103,11 +103,11 @@ Step 'Audio DSP programs (game_files\dsp\)'
 $dsp = Join-Path $repo 'game_files\dsp'
 $programs = 'gp.p.bin', 'ep.p.bin' | ForEach-Object { Join-Path $dsp $_ }
 if ($programs | Where-Object { -not (Test-Path $_) }) {
-    # DirectSound assembles these programs at run time, so they come from a
-    # running game: start it without the launcher, wait until it has saved
-    # both (the runtime does after about 8 s of sound), close it, and
-    # rebuild, which compiles them to native code.
-    Write-Host 'Starting the game for up to 2 minutes to capture them...'
+    # The game's DirectSound builds these programs at run time from templates
+    # in its code, so the game itself makes them: run it without a window or
+    # sound until it has saved both (about 10 s), close it, and rebuild, which
+    # compiles them to native code.
+    Write-Host 'Running the game, hidden and muted, to capture them...'
     $info = [Diagnostics.ProcessStartInfo]::new($exe)
     $info.UseShellExecute = $false
     $info.RedirectStandardOutput = $true
@@ -115,7 +115,7 @@ if ($programs | Where-Object { -not (Test-Path $_) }) {
     $info.WorkingDirectory = $repo
     $saves = Join-Path ([IO.Path]::GetTempPath()) "mm3-dsp-capture-$PID"
     $vars = @{
-        RECOMP_PB_EXEC = '1'; RECOMP_FB_WINDOW = '1'; RECOMP_USB = '1'
+        RECOMP_PB_EXEC = '1'; RECOMP_USB = '1'; RECOMP_AUDIO_MUTE = '1'
         RECOMP_APU_DSP_ACK = '0x80458810'; RECOMP_DSP_PROGRAM_DIR = $dsp
         MM3_PERFORMANCE_PROFILE = 'LowPower'; MM3_SAVE_DIR = $saves
     }

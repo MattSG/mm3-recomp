@@ -26,8 +26,8 @@ pwsh scripts\setup.ps1 -Iso "<path to your disc image>"
 ```
 
 Setup verifies your disc, extracts it, translates the game code (about six
-minutes) and builds. It then runs the game for a few seconds (a window opens
-briefly) to capture its audio DSP programs, and rebuilds with them compiled in. The game opens a launcher with **Settings**, **Controls**
+minutes) and builds. It then runs the game for about ten seconds, hidden and
+muted, to capture its audio DSP programs, and rebuilds with them compiled in. The game opens a launcher with **Settings**, **Controls**
 and **Mods** tabs; press **Play**.
 
 ### Supported discs
