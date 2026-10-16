@@ -410,8 +410,11 @@ offline-network bypass.
 Optional developer tools and a teleport debugger are also available. The
 [mod registry](src/mods/mods.c) lists their switches and defaults.
 
-Audio runs the Xbox's sound DSP in an interpreter, as on the console: reverb,
-3D sound and the game's own mix. It needs a fast CPU core. If sound stutters
+Audio runs the Xbox's sound DSP as on the console: reverb, 3D sound and the
+game's own mix. Its programs are recompiled to native code: the first time
+you play, the game saves them to `game_files\dsp` (`[DSP] GP program saved`
+in the log), and the next build compiles them in. Until then an interpreter
+runs them, which needs about half as much CPU again. If sound stutters
 (`[XA2] underrun` in the log), set the launcher's Audio > Sound processor to
 Off (`RECOMP_APU_DSP=0`): the voices are mixed directly at a fraction of the
 CPU, without those effects, as in xemu's default.

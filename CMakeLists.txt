@@ -23,6 +23,9 @@ if(MM3_TRACY)
     add_subdirectory("${MM3_TRACY_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/tracy" EXCLUDE_FROM_ALL)
 endif()
 
+# The audio DSP programs MM3 runs, saved there by the game (src/main.c) and
+# recompiled to C by each build; derived from the user's game like src/recomp/gen.
+set(XBOXRECOMP_DSP_PROGRAM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/game_files/dsp")
 add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)
 if(MSVC AND MM3_DSP_AUTO_INLINE)
     # RelWithDebInfo defaults to /Ob1, which leaves small non-inline interpreter

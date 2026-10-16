@@ -234,6 +234,14 @@ int main(void)
         return 1;
     }
 
+    /* The audio DSP programs the game runs are saved here; the next build
+     * recompiles them to C (CMakeLists.txt, XBOXRECOMP_DSP_PROGRAM_DIR). */
+    if (!getenv("RECOMP_DSP_PROGRAM_DIR") &&
+        _putenv_s("RECOMP_DSP_PROGRAM_DIR", MM3_GAME_DIR "/dsp") != 0) {
+        fprintf(stderr, "cannot set the DSP program folder\n");
+        return 1;
+    }
+
     fprintf(stderr, "[MM3_PERFORMANCE] profile=%s scale=%s msaa=%s distance=%s aniso=%s fps=%s\n",
             mm3_performance_profile(getenv("MM3_PERFORMANCE_PROFILE"))->name,
             getenv("RECOMP_RENDER_SCALE"), getenv("RECOMP_MSAA"),
