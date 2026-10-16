@@ -141,7 +141,7 @@ int main(int argc, char **argv)
     assert(MEM32(0x6000) == NV2A_HOST_FOG_HEADER && MEM32(0x6004) == NV2A_HOST_FOG_TAG);
     assert(MEMF(0x6008) == 1.f/(16777215.f/759.9f));
     assert(MEMF(0x600C) == 760 && MEMF(0x6010) == 300 && MEMF(0x6014) == 760*.9f);
-    assert(MEM32(0x6018) == 0xA5A5A5A5);
+    assert(MEM32(0x6018) == 0xA5A5A5A5 && MEM32(0x601C) == NV2A_HOST_FOG_SKY_MASK);
     /* Never overwrite the native ring's end when no packet fits. */
     MEM32(0x5000) = 0x6100; g_esp = stack; sub_000F8DCE();
     assert(MEM32(0x5000) == 0x6100 && g_esp == stack+16);

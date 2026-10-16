@@ -230,13 +230,14 @@ void sub_000F8DCE(void)
     uint32_t cursor = MEM32(device), limit = MEM32(device+4);
     float depth_scale = MEMF(camera+0x1ED8), far_clip = MEMF(camera+0x1FB0);
     if (cursor && !(cursor&3) && limit >= cursor && limit-cursor >= NV2A_HOST_FOG_WORDS*4) {
-        MEM32(cursor) = NV2A_HOST_FOG_HEADER; /* Six non-increasing NV097_NO_OPERATION parameters. */
+        MEM32(cursor) = NV2A_HOST_FOG_HEADER; /* Seven non-increasing NV097_NO_OPERATION parameters. */
         MEM32(cursor+4) = NV2A_HOST_FOG_TAG;
         MEMF(cursor+8) = 1.f/depth_scale;
         MEMF(cursor+12) = far_clip;
         MEMF(cursor+16) = fminf(300.f,far_clip*.4f);
         MEMF(cursor+20) = far_clip*.9f;
         MEM32(cursor+24) = MEM32(g_esp+4);
+        MEM32(cursor+28) = NV2A_HOST_FOG_SKY_MASK; /* Native skyline blends through destination alpha. */
         MEM32(device) = cursor+NV2A_HOST_FOG_WORDS*4;
     }
     g_eax = (g_eax & 0xFFFFFF00u) | 1;
