@@ -105,7 +105,9 @@ class RuntimeTests(unittest.TestCase):
 
         def launch(command, **kwargs):
             if command == [str(Path(sys.executable).resolve())]:
-                command = [sys.executable, str(Path(__file__).resolve()), "--fixture"]
+                # Windows venv launchers spawn another PID; the fixture's pipe
+                # must belong to the process Session owns, like the game does.
+                command = [sys._base_executable, str(Path(__file__).resolve()), "--fixture"]
             return real_popen(command, **kwargs)
 
         self.patcher = patch.object(harness.subprocess, "Popen", side_effect=launch)
