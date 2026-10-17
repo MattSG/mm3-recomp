@@ -412,10 +412,14 @@ int mm3_tree_use_solid_contact(uint32_t record, float speed)
 {
     /* Retail static collision producers copy primitive flags+0xC8 and
      * LocalObject metadata+0xA0 into these temporary 0x10C contact records.
-     * Above 40km/h, flag 2 makes 1D137B add 10% of speed vertically and exit
-     * without registering a solid contact. For trees, let its normal branch
-     * register the first contact/penetration correction instead. Once its
-     * impact effects finish, remove this instance through native 16CABD.
+     * 1D137B compares speed with 40.0*0.2777778 = 11.11 m/s (XBE 0x3AD06C and
+     * 0x385EF4, the native 40km/h gate) before testing flag 2. Below it the
+     * contact already takes the solid branch. Above it, flag 2 makes 1D137B add
+     * 10% of speed vertically and exit without registering a solid contact.
+     * So this returns 1 for every tree contact at any speed: the native gate
+     * still picks the sub-40 path, and only the above-40 hop is replaced. Do
+     * not add a local speed test; it would duplicate the native constant.
+     * Once the impact effects finish, remove this instance through native 16CABD.
      * Classify only the selected contact; never retain a city across updates. */
     unsigned char local[52];
     char sound[TREE_NAME_SIZE];

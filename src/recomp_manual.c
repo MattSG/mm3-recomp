@@ -14,6 +14,7 @@ typedef void (*recomp_func_t)(void);
 
 static int g_mm3_unimpl_trap;
 static int g_mm3_frontend_icall_trace;
+static int g_mm3_stream_trace;
 
 /* Configure before guest workers start. cli/sti occur in tight polling loops;
  * querying the CRT environment on each no-op serializes those workers. */
@@ -22,6 +23,7 @@ void mm3_configure_diagnostics(void)
     const char *trap = getenv("RECOMP_UNIMPL_TRAP");
     g_mm3_unimpl_trap = trap && *trap && *trap != '0';
     g_mm3_frontend_icall_trace = getenv("MM3_FRONTEND_ICALL_TRACE") != NULL;
+    g_mm3_stream_trace = getenv("MM3_STREAM_TRACE") != NULL;
     /* The building trace includes the runtime's async-wait trace unless that
      * is set itself. */
     {
@@ -31,25 +33,47 @@ void mm3_configure_diagnostics(void)
     }
 }
 
+static void recomp_unimpl_known(volatile LONG *noted, const char *text, uint32_t va,
+                                const char *why)
+{
+    if (InterlockedCompareExchange(noted, 1, 0) == 0)
+        fprintf(stderr, "[UNIMPL] known no-op `%s` at 0x%08X: %s\n", text, va, why);
+}
+
 void recomp_unimpl(const char *text, uint32_t va)
 {
     static volatile LONG printed;
+    static volatile LONG noted[4];
     int stop = g_mm3_unimpl_trap;
 
     if (!stop) {
         /* These exact sites operate Xbox hardware which the native backends
          * already replace. Interrupt masking around the APU clock sample
          * cannot mask Windows interrupts; host port 0x80C0 is not Xbox PCI.
-         * Keep unknown instructions visible and retain the diagnostic trap. */
-        if ((va == 0x0035F882u && strcmp(text, "cli") == 0) ||
-            (va == 0x0035F893u && strcmp(text, "sti") == 0) ||
-            (va == 0x003475DCu && strcmp(text, "out dx, al") == 0 &&
-             (g_edx & 0xFFFFu) == 0x80C0u))
+         * Keep unknown instructions visible and retain the diagnostic trap.
+         * Each known site is logged once at its first hit, then stays a no-op. */
+        if (va == 0x0035F882u && strcmp(text, "cli") == 0) {
+            recomp_unimpl_known(&noted[0], text, va,
+                                "APU clock sample interrupt masking, no-op on the host");
             return;
+        }
+        if (va == 0x0035F893u && strcmp(text, "sti") == 0) {
+            recomp_unimpl_known(&noted[1], text, va,
+                                "APU clock sample interrupt masking, no-op on the host");
+            return;
+        }
+        if (va == 0x003475DCu && strcmp(text, "out dx, al") == 0 &&
+            (g_edx & 0xFFFFu) == 0x80C0u) {
+            recomp_unimpl_known(&noted[2], text, va,
+                                "host port 0x80C0 is not Xbox PCI, no-op");
+            return;
+        }
         if (va == 0x00345E9Du && strcmp(text, "wbinvd") == 0) {
             /* Guest memory is coherent host RAM. Publish earlier writes to
              * the native GPU consumer without flushing host CPU caches. */
             _mm_mfence();
+            recomp_unimpl_known(&noted[3], text, va,
+                                "guest memory is coherent host RAM, mfence in place");
             return;
         }
     }
@@ -120,32 +144,6 @@ void sub_000252AF(void)
     uint32_t caller_ebx = g_ebx;
     uint32_t caller_esi = g_esi;
     uint32_t caller_edi = g_edi;
-    uint32_t trace_context = g_eax - 4u;
-    uint32_t trace_field;
-    unsigned trace_char;
-    static unsigned trace_count;
-    int trace_call = trace_count++ < 20;
-    if (trace_call)
-        fprintf(stderr, "[252AF_ENTRY] esp=%08X ebp=%08X seh=%08X eax=%08X ret=%08X args=%08X,%08X,%08X ctx=%08X:{%08X,%08X,%08X,%08X,%08X,%08X}\n",
-                g_esp, g_ebp, g_seh_ebp, g_eax,
-                MEM32(g_esp), MEM32(g_esp + 4), MEM32(g_esp + 8),
-                MEM32(g_esp + 12), g_eax - 4u, MEM32(g_eax - 4u),
-                MEM32(g_eax), MEM32(g_eax + 4u), MEM32(g_eax + 8u),
-                MEM32(g_eax + 12u), MEM32(g_eax + 16u));
-    if (trace_call) {
-        for (trace_field = 3; trace_field <= 5; trace_field++) {
-            uint32_t text_va = MEM32(trace_context + trace_field * 4u);
-            if (text_va >= 0x01000000u && text_va < 0x02000000u) {
-                fprintf(stderr, "[252AF_CTX_TEXT] field=%u va=%08X text=", trace_field, text_va);
-                for (trace_char = 0; trace_char < 80; trace_char++) {
-                    unsigned char ch = MEM8(text_va + trace_char);
-                    if (ch == 0) break;
-                    fputc(ch >= 32 && ch <= 126 ? ch : '.', stderr);
-                }
-                fputc('\n', stderr);
-            }
-        }
-    }
     /* Native 0x252AF is PUSH [EAX]: the stream's FILE pointer, not the
      * containing polymorphic stream object. Passing EAX-4 makes fread
      * interpret a vtable and path fields as CRT buffering state. */
@@ -153,10 +151,6 @@ void sub_000252AF(void)
     PUSH32(g_esp, 1);
     PUSH32(g_esp, MEM32(g_esp + 0x10));
     PUSH32(g_esp, MEM32(g_esp + 0x10));
-    if (trace_call)
-        fprintf(stderr, "[252AF_ARGS] esp=%08X values=%08X,%08X,%08X,%08X\n",
-                g_esp, MEM32(g_esp), MEM32(g_esp + 4),
-                MEM32(g_esp + 8), MEM32(g_esp + 12));
     uint32_t args_esp = g_esp;
     PUSH32(g_esp, 0x000252C0u);
     RECOMP_ABI_CALL(0x0009492Bu, sub_0009492B);
@@ -318,11 +312,6 @@ void sub_000858F3_original(void)
 void sub_000858F3(void)
 #endif
 {
-    static unsigned calls;
-    if (calls++ < 8)
-        fprintf(stderr, "[858F3_ENTRY] call=%u ret=%08X args=%08X,%08X,%08X esi=%08X edi=%08X\n",
-                calls, MEM32(g_esp), MEM32(g_esp + 4), MEM32(g_esp + 8),
-                MEM32(g_esp + 12), g_esi, g_edi);
     call_alternate_seh_preserving(sub_000858F3_gen);
 }
 #ifdef MM3_HEAP_WATCH_WRAPPER
@@ -351,7 +340,7 @@ void sub_0009418C(void)
     uint32_t edi = g_edi;
  uint32_t path = MEM32(g_esp + 4u);
  sub_0009418C_gen();
- if (getenv("MM3_STREAM_TRACE")) {
+ if (g_mm3_stream_trace) {
   static unsigned samples;
   if (samples++ < 32) {
    fprintf(stderr, "[CRT_OPEN] path=%08X FILE=%08X", path, g_eax);
@@ -966,6 +955,27 @@ void sub_00012850(void)
     g_esp += 0x0C;
 }
 
+/* Past the 50-line cap the non-code and failed-resolve loggers only count.
+ * The totals print at exit and every 1024 suppressed events, so a hot loop
+ * stays bounded but its volume is still visible. */
+static volatile LONG icall_suppressed[2];   /* 0: failed resolve, 1: non-code */
+static volatile LONG icall_summary_armed;
+static void mm3_icall_summary(void)
+{
+    fprintf(stderr, "[ICALL] suppressed after the 50-line cap: failed-resolve=%ld non-code=%ld\n",
+            (long)icall_suppressed[0], (long)icall_suppressed[1]);
+    fflush(stderr);
+}
+
+static void mm3_icall_count_suppressed(int kind)
+{
+    LONG count = InterlockedIncrement(&icall_suppressed[kind]);
+    if (InterlockedCompareExchange(&icall_summary_armed, 1, 0) == 0)
+        atexit(mm3_icall_summary);
+    if (count % 1024 == 0)
+        mm3_icall_summary();
+}
+
 void recomp_icall_fail_log(uint32_t xbox_va)
 {
     static volatile LONG printed;
@@ -975,8 +985,10 @@ void recomp_icall_fail_log(uint32_t xbox_va)
      * Dispatch and fallback behavior are unchanged. Explicit callback tracing
      * retains all failures for diagnosis, matching the non-code logger. */
     if (!g_mm3_frontend_icall_trace &&
-        (printed >= 50 || InterlockedIncrement(&printed) > 50))
+        (printed >= 50 || InterlockedIncrement(&printed) > 50)) {
+        mm3_icall_count_suppressed(0);
         return;
+    }
     if (g_esp >= 0x00010000u && g_esp < 0x04000000u)
         caller = *(const uint32_t *)((uintptr_t)g_esp + g_xbox_mem_offset);
     fprintf(stderr, "[ICALL] Failed resolve VA 0x%08X caller=0x%08X\n",
@@ -1080,8 +1092,10 @@ void recomp_icall_not_code_log(uint32_t xbox_va)
     /* Broken callbacks can recur every frame. Keep a bounded diagnostic,
      * with no decoding, pointer reads or synchronous I/O after the limit. */
     if (!g_mm3_frontend_icall_trace &&
-        (printed >= 50 || InterlockedIncrement(&printed) > 50))
+        (printed >= 50 || InterlockedIncrement(&printed) > 50)) {
+        mm3_icall_count_suppressed(1);
         return;
+    }
     sample = (unsigned)InterlockedIncrement(&sequence);
     tick = (unsigned long long)GetTickCount64();
     mm3_icall_read(g_esp, &caller, 4);
@@ -1293,6 +1307,30 @@ void sub_00358FAC(void) {}
  * ponytail: the racing read is still unidentified; bounded, not removed.
  * Registers are left as the guest routine leaves them. */
 #define MM3_KICK_LAG 0x40000u   /* 256 KB */
+
+/* The ack thread clears the bit between segments. A dead thread would
+ * spin forever with no sign in the log, so report the wait every two
+ * seconds. It keeps waiting: leaving early would let the title reuse
+ * push-buffer space the executor has not read yet. */
+static void mm3_kick_wait_ack(uint32_t flag_va, uint32_t cur, uint32_t get)
+{
+    LARGE_INTEGER freq, start, now;
+    LONGLONG last;
+    unsigned reports = 0;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&start);
+    last = start.QuadPart;
+    while (MEM32(flag_va) & 0x10000u) {
+        QueryPerformanceCounter(&now);
+        if (now.QuadPart - last >= 2 * freq.QuadPart) {
+            last = now.QuadPart;
+            fprintf(stderr, "[KICK_WAIT] ack bit 0x10000 at 0x%08X still set after %.1f s (report %u): cur=0x%08X get=0x%08X lag=0x%08X\n",
+                    flag_va, (double)(now.QuadPart - start.QuadPart) / freq.QuadPart,
+                    ++reports, cur, get, cur - get);
+        }
+    }
+}
+
 void sub_00344AB0(void)
 {
     {   /* D3D's kick runs on the game's render thread: the one spike
@@ -1304,12 +1342,17 @@ void sub_00344AB0(void)
     g_eax = MEM32(MEM32(0x351F48u) + 0x17C8u);
     g_ecx = MEM32(g_eax + 0x100410u) | 0x10000u;
     _mm_sfence();
-    {   /* the executor's lag behind the push pointer about to be kicked */
+    {   /* the executor's lag behind the push pointer about to be kicked. Both
+         * sides are physical offsets (VA & 0x0FFFFFFF): the title writes PUT
+         * that way, and the channel's GET is read back in the same space. The
+         * title's own wait at 0x001F3948 masks both with 0xFFFFFFF, so bit 31
+         * is not significant on either side; mask GET too, or it compares
+         * differently from PUT whenever the GPU's readback sets bit 31. */
         uint32_t dev = MEM32(0x351F48u), regs = MEM32(dev + 0x17C0u);
-        uint32_t cur = MEM32(dev) & 0x0FFFFFFFu, get = MEM32(regs + 0x44u);
+        uint32_t cur = MEM32(dev) & 0x0FFFFFFFu, get = MEM32(regs + 0x44u) & 0x0FFFFFFFu;
         if (cur < get || cur - get > MM3_KICK_LAG) {
             MEM32(g_eax + 0x100410u) = g_ecx;
-            while (MEM32(g_eax + 0x100410u) & 0x10000u) {}
+            mm3_kick_wait_ack(g_eax + 0x100410u, cur, get);
         }
     }
     g_esp += 4;

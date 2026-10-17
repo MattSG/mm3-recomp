@@ -43,13 +43,20 @@ XBE SHA-256: `2B04B66C43E7F37BBCEBBFB5B72CCB96A2AA99CC2C60C53EB7D3530BCC2A3D79`.
 
 ## Validation
 
-RelWithDebInfo builds. Original-PAL and stub offline fixtures pass automatic
-height/car clearance, ignored supplied Y, heading/quaternion, cleared motion,
-cache/register preservation, ground misses, cancellation, inactive/disabled
-paths and the nonblocking teleport queue used by ImGui. The original-PAL
-fixture uses synthetic collision geometry and registry services; it is not a
-live terrain test. Its PowerShell pipe sequence returns X=-512.25, Y=6.5,
-Z=1001.125 without a Y argument.
+RelWithDebInfo builds. The default `mm3_teleport_contract` tests teleport.c's
+own logic: the argument block given to the ground reset, the heading choice
+(queued, or the car's own when none is queued), the position reported back,
+the AL success byte, register restoration, cancellation, inactive paths and the
+nonblocking teleport queue used by ImGui. Its ground reset is a stub that
+supplies outputs (a sentinel Y, AL, clobbered registers), so ground height,
+clearance and the car's transform/cache are checked only by the original-PAL
+fixture below. The original-PAL fixture uses synthetic collision geometry and
+registry services; it is not a live terrain test. Its PowerShell pipe sequence
+returns X=-512.25, Y=6.5, Z=1001.125 without a Y argument.
+
+The PAL build needs `conformance_tmp/native_teleport_memory.bin`, a copy of the
+game's `.rdata` that is never checked in. Without it the program prints `SKIP`
+and exits with code 77 (not a pass), so a missing fixture is never silent.
 
 Generate and compile from the repository, using the toolkit's Python environment
 and the same generated headers as the game build:

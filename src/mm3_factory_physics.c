@@ -41,7 +41,7 @@ typedef struct {
     const FactoryProfile *profile;
 } FactoryBinding;
 static FactoryProfile profiles[PROFILE_LIMIT];
-static unsigned profile_count, initialized, replacement;
+static unsigned profile_count, initialized;
 static FactoryBinding bindings[BINDING_LIMIT];
 /* Runtime low RAM remains committed until shutdown: HeapFree reuses blocks,
  * and NtFreeVirtualMemory decommit zeroes them (kernel_bridge.c). Cache only
@@ -248,7 +248,13 @@ static void bind_player(uint32_t player)
             memset(&bindings[i], 0, sizeof bindings[i]); slot = i;
         } else if (slot == BINDING_LIMIT && !bindings[i].profile) slot = i;
     }
-    if (slot == BINDING_LIMIT) slot = replacement++ % BINDING_LIMIT;
+    if (slot == BINDING_LIMIT) {
+        /* Every slot holds a live car. Refuse rather than evict one: the evicted
+         * car would silently drop to retail physics while still running. */
+        fprintf(stderr, "[FACTORY_PHYSICS] no free binding for alias=%s player=%08X; retail physics\n",
+            alias, player);
+        return;
+    }
     bindings[slot] = value;
     if (binding_for(value.controller)) {
         apply_gearing(&bindings[slot]);

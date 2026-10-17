@@ -331,11 +331,6 @@ int main(void)
 
     /* Optional RECOMP_WATCHDOG_SECS diagnostic; must run on the guest thread. */
     xbox_WatchdogStart();
-    fprintf(stderr, "[CALLBACK_INIT] 392834=%08X 392838=%08X 391F10=%08X 391F14=%08X 391F18=%08X\n",
-            MEM32(0x392834), MEM32(0x392838), MEM32(0x391F10),
-            MEM32(0x391F14), MEM32(0x391F18));
-    fprintf(stderr, "[CALLBACK_INIT] 391F00=%08X 391F04=%08X 391F08=%08X\n",
-            MEM32(0x391F00), MEM32(0x391F04), MEM32(0x391F08));
     if (getenv("MM3_TRACE_BOOT_STATE")) {
         fprintf(stderr,
                 "[BOOT_STATE] host_tid=%lu eax=%08X ebx=%08X ecx=%08X edx=%08X esi=%08X edi=%08X ebp=%08X esp=%08X fs=%08X stack=%08X,%08X,%08X fsdata=%08X,%08X,%08X,%08X kernel=%08X,%08X,%08X kdata=%08X\n",

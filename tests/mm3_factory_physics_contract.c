@@ -242,6 +242,27 @@ static void lifecycle_contract(void)
     puts("PASS 601 native physics ticks, counter wrap, constructor reuse and stock fallback");
 }
 
+static void binding_limit_contract(void)
+{
+    /* A full table of live cars must refuse the next car, not evict one. */
+    FactoryBinding before[BINDING_LIMIT];
+    unsigned i;
+    fixture(7);
+    load_profiles();
+    assert(profile_count == 1);
+    for (i = 0; i < BINDING_LIMIT; ++i) {
+        memset(&bindings[i], 0, sizeof bindings[i]);
+        bindings[i].player = 0x30000u + i;
+        bindings[i].controller = 0x40000u + i;
+        bindings[i].profile = &profiles[0];
+    }
+    memcpy(before, bindings, sizeof before);
+    bind_player(PLAYER);
+    assert(!memcmp(before, bindings, sizeof before));
+    assert(!binding_for(CONTROLLER));
+    puts("PASS full binding table refuses a new car without evicting a live one");
+}
+
 static void rpm_contract(void)
 {
     unsigned i;
@@ -355,7 +376,7 @@ int main(void)
     return 0;
 #else
     parser_contract(); torque_contract(); gearing_contract(1); gearing_contract(7);
-    lifecycle_contract(); rpm_contract(); wheel_path_contract();
+    lifecycle_contract(); binding_limit_contract(); rpm_contract(); wheel_path_contract();
 #ifdef MM3_FACTORY_WINDOWS_MAPPING
     {
         LARGE_INTEGER frequency, start, end;

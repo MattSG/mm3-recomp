@@ -81,7 +81,9 @@ private backup first.
 ## Checks performed
 
 MSVC RelWithDebInfo game build and all five focused contract executables passed.
-The checks exercise actual project source, with native game calls stubbed:
+The checks compile the actual project source. `mm3_teleport_contract` tests
+teleport.c's logic against a stubbed native ground reset; the original-PAL run
+is described in DEBUG_TELEPORT.md and skips without its local fixture:
 
 ```powershell
 cmake --build build --config RelWithDebInfo --target mm3_overlay_contract mm3_dev_tools_contract mm3_teleport_contract mm3_input_capture_contract mm3_launcher_settings_contract

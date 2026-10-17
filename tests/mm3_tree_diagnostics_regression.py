@@ -94,6 +94,16 @@ static void setup(int paris){
  MEM32(event+0xD)=1;MEMF(event+0x1A)=25;
  memcpy((void *)&MEM8(velocity),speed,sizeof speed);
 }
+static void solid_speed_cases(void){
+ /* Retail 1D137B gates flag-2 hops at 40 km/h. Trees must take the solid label
+  * at every speed (below: native solid; above: replaces the hop); other props must not. */
+ static const float speeds[]={0.0f,5.0f,11.0f,11.12f,20.0f};
+ unsigned i;
+ setup(0);MEM16(object+0x100)=2;MEM32(object+0x108)=local;
+ for(i=0;i<sizeof speeds/sizeof speeds[0];i++)assert(mm3_tree_use_solid_contact(object,speeds[i])==1);
+ setup(0);MEM8(local)=0;MEM32(local+0x10)=0x1A0080;MEM16(object+0x100)=2;MEM32(object+0x108)=local;
+ for(i=0;i<sizeof speeds/sizeof speeds[0];i++)assert(mm3_tree_use_solid_contact(object,speeds[i])==0);
+}
 static unsigned count(const char *needle){
  unsigned n=0;const char *p=logs;while((p=strstr(p,needle))){++n;p+=strlen(needle);}return n;
 }
@@ -152,8 +162,9 @@ int main(int argc,char **argv){
  assert(memcmp(expected,ram,0x400000)==0 && MEM16(object+0x100)==2);
  assert(count("[TREE_BREAK_CONTACT]")-before==(tracing?1u:0u));
  if(tracing)assert(strstr(logs,"response=solid original_flags=preserved"));
+ solid_speed_cases();
  free(expected);VirtualFree(ram,0,MEM_RELEASE);
- printf("PASS: tree diagnostics tracing=%d, nested original call ABI/memory, both city tree identifiers, unreadable metadata, renewable budgets and render filtering\n",tracing);
+ printf("PASS: tree diagnostics tracing=%d, nested original call ABI/memory, solid tree contacts at 0-20 m/s, both city tree identifiers, unreadable metadata, renewable budgets and render filtering\n",tracing);
  return 0;
 }
 '''
