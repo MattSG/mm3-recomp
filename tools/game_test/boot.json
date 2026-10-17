@@ -1,0 +1,7 @@
+{
+  "name": "boot-only-not-gameplay",
+  "steps": [
+    {"action": "wait_log", "text": "[MOD] skip_intro: intro", "timeout": 60},
+    {"action": "capture", "timeout": 10}
+  ]
+}
