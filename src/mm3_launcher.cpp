@@ -4,15 +4,219 @@
  * as KEY=VALUE next to game_files\ and Play exports them to the runtime. */
 #include <RmlUi/Core.h>
 #include <RmlUi_Backend.h>
-#include <RmlUi_Renderer_DX11.h>
-#include <windows.h>
-#include <dwmapi.h>
-#include <Xinput.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdint.h>
 #include "mods/mods.h"
+
+#if defined(XBOXRECOMP_SDL3)
+/* The SDL3 GPU build (also Linux) has no Win32 or XInput. The launcher's
+ * Win32 calls are shimmed below with the same names and layouts, so the
+ * shared logic reads the same in both builds. Keys reach the launcher as
+ * RmlUi identifiers, so the SDL build's keyboard capture maps them to the
+ * Windows virtual-key codes the saved keymap uses (vk_of_key). */
+#include <SDL3/SDL.h>
+extern "C" int xbox_FramebufferStartHidden(void);
+extern "C" void xbox_FramebufferSdlHints(void);
+#if defined(_WIN32)
+#include <direct.h>
+#define launcher_chdir _chdir
+#else
+#include <unistd.h>
+#define launcher_chdir chdir
+#endif
+
+typedef uint16_t WORD;
+typedef uint8_t BYTE;
+typedef int16_t SHORT;
+typedef uint32_t DWORD;
+typedef int32_t LONG;
+typedef void *HWND;
+struct POINT {
+    LONG x, y;
+};
+struct XINPUT_STATE {
+    DWORD dwPacketNumber;
+    struct {
+        WORD wButtons;
+        BYTE bLeftTrigger, bRightTrigger;
+        SHORT sThumbLX, sThumbLY, sThumbRX, sThumbRY;
+    } Gamepad;
+};
+#define XINPUT_GAMEPAD_DPAD_UP 0x0001
+#define XINPUT_GAMEPAD_DPAD_DOWN 0x0002
+#define XINPUT_GAMEPAD_DPAD_LEFT 0x0004
+#define XINPUT_GAMEPAD_DPAD_RIGHT 0x0008
+#define XINPUT_GAMEPAD_START 0x0010
+#define XINPUT_GAMEPAD_BACK 0x0020
+#define XINPUT_GAMEPAD_LEFT_THUMB 0x0040
+#define XINPUT_GAMEPAD_RIGHT_THUMB 0x0080
+#define XINPUT_GAMEPAD_LEFT_SHOULDER 0x0100
+#define XINPUT_GAMEPAD_RIGHT_SHOULDER 0x0200
+#define XINPUT_GAMEPAD_A 0x1000
+#define XINPUT_GAMEPAD_B 0x2000
+#define XINPUT_GAMEPAD_X 0x4000
+#define XINPUT_GAMEPAD_Y 0x8000
+#define XUSER_MAX_COUNT 4
+#define ERROR_SUCCESS 0
+#define ERROR_DEVICE_NOT_CONNECTED 1167
+/* Windows virtual-key codes: the values the keymap and the bind table use. */
+#define VK_BACK 0x08
+#define VK_RETURN 0x0D
+#define VK_SHIFT 0x10
+#define VK_CONTROL 0x11
+#define VK_ESCAPE 0x1B
+#define VK_PRIOR 0x21
+#define VK_LEFT 0x25
+#define VK_UP 0x26
+#define VK_RIGHT 0x27
+#define VK_DOWN 0x28
+#define VK_DELETE 0x2E
+#define VK_NUMPAD2 0x62
+#define VK_NUMPAD4 0x64
+#define VK_NUMPAD6 0x66
+#define VK_NUMPAD8 0x68
+#define VK_F1 0x70
+#define VK_F2 0x71
+#define VK_F3 0x72
+#define VK_LBUTTON 0x01
+#define VK_RBUTTON 0x02
+#define VK_MBUTTON 0x04
+#define VK_XBUTTON1 0x05
+#define VK_XBUTTON2 0x06
+#define VK_LSHIFT 0xA0
+#define VK_RMENU 0xA5
+
+static bool file_exists(const char *path)
+{
+    FILE *f = fopen(path, "rb");
+    if (f)
+        fclose(f);
+    return f != NULL;
+}
+
+/* The focused window: the launcher is "in front" while it has keyboard focus. */
+static HWND GetActiveWindow() { return (HWND)SDL_GetKeyboardFocus(); }
+
+static short GetAsyncKeyState(int vk)
+{
+    /* Keys arrive through on_key while a prompt waits; this reads the mouse buttons. */
+    int button = vk == VK_LBUTTON ? SDL_BUTTON_LEFT : vk == VK_RBUTTON ? SDL_BUTTON_RIGHT
+               : vk == VK_MBUTTON ? SDL_BUTTON_MIDDLE : vk == VK_XBUTTON1 ? SDL_BUTTON_X1
+               : vk == VK_XBUTTON2 ? SDL_BUTTON_X2 : 0;
+    float x, y;
+    const SDL_MouseButtonFlags buttons = SDL_GetMouseState(&x, &y);
+    return button && (buttons & (1u << (button - 1))) ? (short)0x8000 : 0;
+}
+
+static bool GetCursorPos(POINT *p)
+{
+    float x, y;
+    SDL_GetGlobalMouseState(&x, &y);
+    p->x = (LONG)x;
+    p->y = (LONG)y;
+    return true;
+}
+
+/* XInput's stick Y is up-positive; SDL's is down-positive. */
+static int stick(SDL_Gamepad *g, SDL_GamepadAxis axis)
+{
+    const int v = SDL_GetGamepadAxis(g, axis);
+    return v < -32767 ? -32767 : v;
+}
+
+static BYTE trigger(SDL_Gamepad *g, SDL_GamepadAxis axis)
+{
+    const int v = SDL_GetGamepadAxis(g, axis);
+    return v <= 0 ? 0 : (BYTE)(v * 255 / 32767);
+}
+
+/* The first controller in each slot, through SDL's gamepad API. */
+static DWORD XInputGetState(DWORD user, XINPUT_STATE *s)
+{
+    static SDL_Gamepad *pads[XUSER_MAX_COUNT];
+    if (user >= XUSER_MAX_COUNT)
+        return ERROR_DEVICE_NOT_CONNECTED;
+    if (!SDL_WasInit(SDL_INIT_GAMEPAD))
+        SDL_InitSubSystem(SDL_INIT_GAMEPAD);
+    if (!pads[user]) {
+        int count = 0;
+        SDL_JoystickID *ids = SDL_GetGamepads(&count);
+        if (ids && (int)user < count)
+            pads[user] = SDL_OpenGamepad(ids[user]);
+        SDL_free(ids);
+    }
+    if (pads[user] && !SDL_GamepadConnected(pads[user])) {
+        SDL_CloseGamepad(pads[user]);
+        pads[user] = nullptr;
+    }
+    SDL_Gamepad *g = pads[user];
+    if (!g)
+        return ERROR_DEVICE_NOT_CONNECTED;
+    static const struct {
+        SDL_GamepadButton button;
+        WORD bit;
+    } buttons[] = {
+        {SDL_GAMEPAD_BUTTON_SOUTH, XINPUT_GAMEPAD_A}, {SDL_GAMEPAD_BUTTON_EAST, XINPUT_GAMEPAD_B},
+        {SDL_GAMEPAD_BUTTON_WEST, XINPUT_GAMEPAD_X}, {SDL_GAMEPAD_BUTTON_NORTH, XINPUT_GAMEPAD_Y},
+        {SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, XINPUT_GAMEPAD_LEFT_SHOULDER},
+        {SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, XINPUT_GAMEPAD_RIGHT_SHOULDER},
+        {SDL_GAMEPAD_BUTTON_START, XINPUT_GAMEPAD_START}, {SDL_GAMEPAD_BUTTON_BACK, XINPUT_GAMEPAD_BACK},
+        {SDL_GAMEPAD_BUTTON_LEFT_STICK, XINPUT_GAMEPAD_LEFT_THUMB},
+        {SDL_GAMEPAD_BUTTON_RIGHT_STICK, XINPUT_GAMEPAD_RIGHT_THUMB},
+        {SDL_GAMEPAD_BUTTON_DPAD_UP, XINPUT_GAMEPAD_DPAD_UP}, {SDL_GAMEPAD_BUTTON_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_DOWN},
+        {SDL_GAMEPAD_BUTTON_DPAD_LEFT, XINPUT_GAMEPAD_DPAD_LEFT},
+        {SDL_GAMEPAD_BUTTON_DPAD_RIGHT, XINPUT_GAMEPAD_DPAD_RIGHT},
+    };
+    WORD held = 0;
+    for (const auto &b : buttons)
+        if (SDL_GetGamepadButton(g, b.button))
+            held |= b.bit;
+    s->Gamepad.wButtons = held;
+    s->Gamepad.sThumbLX = (SHORT)stick(g, SDL_GAMEPAD_AXIS_LEFTX);
+    s->Gamepad.sThumbLY = (SHORT)-stick(g, SDL_GAMEPAD_AXIS_LEFTY);
+    s->Gamepad.bLeftTrigger = trigger(g, SDL_GAMEPAD_AXIS_LEFT_TRIGGER);
+    s->Gamepad.bRightTrigger = trigger(g, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER);
+    return ERROR_SUCCESS;
+}
+
+/* The virtual-key code a key prompt records for an RmlUi key; modifiers are
+ * not bindable (as on Windows, where they are skipped). 0 for the rest. */
+static int vk_of_key(Rml::Input::KeyIdentifier k)
+{
+    if (k >= Rml::Input::KI_A && k <= Rml::Input::KI_Z)
+        return 'A' + (k - Rml::Input::KI_A);
+    if (k >= Rml::Input::KI_0 && k <= Rml::Input::KI_9)
+        return '0' + (k - Rml::Input::KI_0);
+    if (k >= Rml::Input::KI_NUMPAD0 && k <= Rml::Input::KI_NUMPAD9)
+        return 0x60 + (k - Rml::Input::KI_NUMPAD0);
+    if (k >= Rml::Input::KI_F1 && k <= Rml::Input::KI_F12)
+        return VK_F1 + (k - Rml::Input::KI_F1);
+    switch (k) {
+    case Rml::Input::KI_SPACE: return 0x20;
+    case Rml::Input::KI_RETURN: return VK_RETURN;
+    case Rml::Input::KI_BACK: return VK_BACK;
+    case Rml::Input::KI_TAB: return 0x09;
+    case Rml::Input::KI_ESCAPE: return VK_ESCAPE;
+    case Rml::Input::KI_INSERT: return 0x2D;
+    case Rml::Input::KI_DELETE: return VK_DELETE;
+    case Rml::Input::KI_HOME: return 0x24;
+    case Rml::Input::KI_END: return 0x23;
+    case Rml::Input::KI_LEFT: return VK_LEFT;
+    case Rml::Input::KI_UP: return VK_UP;
+    case Rml::Input::KI_RIGHT: return VK_RIGHT;
+    case Rml::Input::KI_DOWN: return VK_DOWN;
+    default: return 0;
+    }
+}
+#else
+#include <RmlUi_Renderer_DX11.h>
+#include <windows.h>
+#include <dwmapi.h>
+#include <Xinput.h>
+#endif
 
 namespace {
 
@@ -273,12 +477,50 @@ scrollbarvertical sliderbar { background-color: #2f333c; border-radius: 2dp; }
     <div class="ghost" data-if="!pad" data-event-click="quit()">Quit</div>
     <div id="hints" data-if="pad"><span class="glyph">LB</span><span class="glyph pair">RB</span>Tabs<span
       class="glyph">A</span>Change<span class="glyph">Y</span>Defaults<span class="glyph">Back</span>Quit</div>
-    <div id="status"><span data-if="missing">game_files\default.xbe not found. Run scripts\setup.ps1.</span></div>
+    <div id="status"><span data-if="missing">game_files/default.xbe not found. Run python scripts/setup.py --iso &lt;disc image&gt;.</span></div>
     <div id="play" data-class-off="missing" data-event-click="play()"><span class="glyph start" data-if="pad">Start</span>Play</div>
   </div>
 </body></rml>
 )RML";
 
+#if defined(XBOXRECOMP_SDL3)
+Rml::String key_name(int vk)
+{
+    switch (vk) {
+    case 0: return "Unbound";
+    case VK_LBUTTON: return "Left mouse";
+    case VK_RBUTTON: return "Right mouse";
+    case VK_MBUTTON: return "Middle mouse";
+    case VK_XBUTTON1: return "Mouse 4";
+    case VK_XBUTTON2: return "Mouse 5";
+    case VK_RETURN: return "Enter";
+    case VK_BACK: return "Backspace";
+    case VK_SHIFT: return "Shift";
+    case VK_CONTROL: return "Ctrl";
+    case VK_LEFT: return "Left";
+    case VK_RIGHT: return "Right";
+    case VK_UP: return "Up";
+    case VK_DOWN: return "Down";
+    case VK_DELETE: return "Delete";
+    case 0x20: return "Space";
+    }
+    char name[16];
+    if ((vk >= 'A' && vk <= 'Z') || (vk >= '0' && vk <= '9')) {
+        snprintf(name, sizeof name, "%c", vk);
+        return name;
+    }
+    if (vk >= VK_F1 && vk <= VK_F1 + 11) {
+        snprintf(name, sizeof name, "F%d", vk - VK_F1 + 1);
+        return name;
+    }
+    if (vk >= 0x60 && vk <= 0x69) {
+        snprintf(name, sizeof name, "Numpad %d", vk - 0x60);
+        return name;
+    }
+    snprintf(name, sizeof name, "Key %02X", vk);
+    return name;
+}
+#else
 Rml::String key_name(int vk)
 {
     switch (vk) {
@@ -303,6 +545,7 @@ Rml::String key_name(int vk)
     snprintf(name, sizeof name, "Key %02X", vk);
     return name;
 }
+#endif
 
 /* The controller's buttons by RECOMP_PADMAP's names, and their XInput bits
  * (tools/xboxrecomp/src/input/xinput_device.c); the last two are triggers. */
@@ -489,6 +732,19 @@ void load_settings()
     fclose(f);
 }
 
+/* Windows' _putenv_s; an empty value removes the variable. */
+void set_env(const char *name, const char *value)
+{
+#if defined(_WIN32)
+    _putenv_s(name, value);
+#else
+    if (*value)
+        setenv(name, value, 1);
+    else
+        unsetenv(name);
+#endif
+}
+
 void save_and_export()
 {
     FILE *f = fopen(kSettingsFile, "w");
@@ -497,7 +753,7 @@ void save_and_export()
             continue;
         if (f)
             fprintf(f, "%s=%s\n", o.env.c_str(), o.value.c_str());
-        _putenv_s(o.env.c_str(), o.value.c_str()); /* "" removes the variable */
+        set_env(o.env.c_str(), o.value.c_str()); /* "" removes the variable */
     }
     const Rml::String keys = keymap("RECOMP_KEYMAP"), hotkeys = keymap("MM3_DEV_HOTKEYS"),
                       pad = keymap("RECOMP_PADMAP");
@@ -506,18 +762,42 @@ void save_and_export()
                 pad.c_str());
         fclose(f);
     }
-    _putenv_s("RECOMP_KEYMAP", keys.c_str());
-    _putenv_s("RECOMP_PADMAP", pad.c_str());
-    _putenv_s("MM3_DEV_HOTKEYS", getenv("MM3_DEV_HOTKEYS_ON") ? hotkeys.c_str() : "");
-    /* What scripts\play.ps1 sets: the window, D3D11 executor, pads and audio. */
-    _putenv_s("RECOMP_PB_EXEC", "1");
-    _putenv_s("RECOMP_FB_WINDOW", "1");
-    _putenv_s("RECOMP_USB", "1");
+    set_env("RECOMP_KEYMAP", keys.c_str());
+    set_env("RECOMP_PADMAP", pad.c_str());
+    set_env("MM3_DEV_HOTKEYS", getenv("MM3_DEV_HOTKEYS_ON") ? hotkeys.c_str() : "");
+    /* What scripts/play.py sets: the window, D3D11 executor, pads and audio. */
+    set_env("RECOMP_PB_EXEC", "1");
+    set_env("RECOMP_FB_WINDOW", "1");
+    set_env("RECOMP_USB", "1");
     if (!getenv("RECOMP_APU_DSP_ACK"))
-        _putenv_s("RECOMP_APU_DSP_ACK", "0x80458810");
+        set_env("RECOMP_APU_DSP_ACK", "0x80458810");
 }
 
 /* Started from build\<config>\: run from the folder above that holds game_files\. */
+#if defined(XBOXRECOMP_SDL3)
+bool find_game_dir()
+{
+    if (file_exists("game_files/default.xbe"))
+        return true;
+    const char *base = SDL_GetBasePath(); /* the exe's folder */
+    if (!base)
+        return false;
+    char dir[4096];
+    snprintf(dir, sizeof dir, "%s", base);
+    for (;;) {
+        char probe[4200];
+        snprintf(probe, sizeof probe, "%s/game_files/default.xbe", dir);
+        if (file_exists(probe))
+            return launcher_chdir(dir) == 0;
+        char *slash = strrchr(dir, '/'), *back = strrchr(dir, '\\');
+        if (back && (!slash || back > slash))
+            slash = back;
+        if (!slash)
+            return false;
+        *slash = 0;
+    }
+}
+#else
 bool find_game_dir()
 {
     char dir[MAX_PATH];
@@ -534,6 +814,7 @@ bool find_game_dir()
     }
     return false;
 }
+#endif
 
 void play()
 {
@@ -775,6 +1056,7 @@ void poll_mouse()
     show_focus();
 }
 
+#if !defined(XBOXRECOMP_SDL3)
 /* A dark title bar in the launcher's colour instead of the light default. */
 void dark_title_bar()
 {
@@ -797,6 +1079,7 @@ void dark_title_bar()
         SendMessageA(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)icon);
     }
 }
+#endif
 
 bool list_ready(Rml::Context *ctx)
 {
@@ -828,6 +1111,12 @@ bool on_key(Rml::Context *ctx, Rml::Input::KeyIdentifier key, int mods, float, b
     if (g_capture >= 0) { /* the prompt owns the keyboard */
         if (key == Rml::Input::KI_ESCAPE)
             end_capture();
+#if defined(XBOXRECOMP_SDL3)
+        else if (!pad_bind(g_binds[g_capture]) && vk_of_key(key)) {
+            set_key(g_binds[g_capture], vk_of_key(key));
+            end_capture();
+        }
+#endif
         return false;
     }
     set_pad(false);
@@ -845,6 +1134,35 @@ bool on_key(Rml::Context *ctx, Rml::Input::KeyIdentifier key, int mods, float, b
     return false;
 }
 
+#if defined(XBOXRECOMP_SDL3)
+/* The document asks for Segoe UI. Off Windows the first installed sans pair
+ * is registered under that family name (regular and bold), and as the
+ * fallback face for glyphs it lacks. */
+void load_fonts()
+{
+    static const char *const faces[][2] = {
+        {"C:/Windows/Fonts/segoeui.ttf", "C:/Windows/Fonts/segoeuib.ttf"},
+        {"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"},
+        {"/usr/share/fonts/TTF/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf"},
+        {"/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"},
+        {"/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+         "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"},
+        {"/System/Library/Fonts/Supplemental/Arial.ttf",
+         "/System/Library/Fonts/Supplemental/Arial Bold.ttf"},
+    };
+    for (const auto &pair : faces)
+        if (file_exists(pair[0])) {
+            Rml::LoadFontFace(pair[0], "Segoe UI", Rml::Style::FontStyle::Normal,
+                              Rml::Style::FontWeight::Normal, true);
+            if (file_exists(pair[1]))
+                Rml::LoadFontFace(pair[1], "Segoe UI", Rml::Style::FontStyle::Normal,
+                                  Rml::Style::FontWeight::Bold);
+            break;
+        }
+}
+#else
 void load_fonts()
 {
     char fonts[MAX_PATH];
@@ -855,6 +1173,7 @@ void load_fonts()
         Rml::LoadFontFace(path);
     }
 }
+#endif
 
 /* The backend's system interface, with RmlUi's log on stderr like the rest
  * of the runtime's diagnostics instead of OutputDebugString. */
@@ -948,10 +1267,12 @@ bool bind_model(Rml::Context *ctx)
 /* 1 = play with the chosen settings exported, 0 = the user quit. */
 extern "C" int mm3_launcher(void)
 {
+#if !defined(XBOXRECOMP_SDL3)
     /* Double-clicked: the console only carries diagnostics, drop it. */
     DWORD pids[2];
     if (GetConsoleProcessList(pids, 2) == 1)
         FreeConsole();
+#endif
 
     g_missing = !find_game_dir();
     load_settings();
@@ -960,16 +1281,43 @@ extern "C" int mm3_launcher(void)
     if (const char *tab = getenv("MM3_LAUNCHER_TAB"))
         g_tab = atoi(tab) >= 0 && atoi(tab) <= 2 ? atoi(tab) : 0;
 
+#if defined(XBOXRECOMP_SDL3)
+    /* 760x720, within 90% of the usable display area (the backend's own
+     * video init is reference-counted on top of this one). */
+    SDL_Rect work = {0, 0, 760 * 10 / 9, 720 * 10 / 9};
+    xbox_FramebufferSdlHints();   /* the same video driver choice as the game */
+    if (SDL_InitSubSystem(SDL_INIT_VIDEO))
+        SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &work);
+    const int width = Rml::Math::Min(760, work.w * 9 / 10);
+    const int height = Rml::Math::Min(720, work.h * 9 / 10);
+    /* The SDL GPU backend ships SPIR-V shaders only, which only Vulkan takes on Windows. */
+    SDL_SetHint(SDL_HINT_GPU_DRIVER, "vulkan");
+#else
     /* Not DPI-aware yet, so the work area is in the backend's 96-dpi units. */
     RECT work = {0, 0, 760, 720};
     SystemParametersInfoA(SPI_GETWORKAREA, 0, &work, 0);
     const int width = Rml::Math::Min(760, (int)(work.right - work.left) * 9 / 10);
     const int height = Rml::Math::Min(720, (int)(work.bottom - work.top) * 9 / 10);
+#endif
     if (!Backend::Initialize("Midtown Madness 3", width, height, false)) {
         save_and_export(); /* no launcher: play with the saved settings */
         return 1;
     }
+#if !defined(XBOXRECOMP_SDL3)
     dark_title_bar();
+#else
+    /* A hidden start (scripts, tests), which the Win32 backend's first
+     * ShowWindow honours and SDL's window does not. */
+    if (xbox_FramebufferStartHidden()) {
+        {
+            int count = 0;
+            SDL_Window **windows = SDL_GetWindows(&count);
+            for (int i = 0; i < count; i++)
+                SDL_HideWindow(windows[i]);
+            SDL_free(windows);
+        }
+    }
+#endif
     g_system.base = Backend::GetSystemInterface();
     Rml::SetSystemInterface(&g_system);
     Rml::SetRenderInterface(Backend::GetRenderInterface());
@@ -1027,8 +1375,26 @@ extern "C" int mm3_launcher(void)
              * A hidden startup need not send another one: seed its viewport
              * from the context's actual pixel size before drawing. */
             const Rml::Vector2i dimensions = ctx->GetDimensions();
+#if !defined(XBOXRECOMP_SDL3)
             static_cast<RenderInterface_DX11 *>(Backend::GetRenderInterface())->SetViewport(
                 dimensions.x, dimensions.y);
+#endif
+#if defined(XBOXRECOMP_SDL3)
+            /* No swapchain image while hidden or minimized, and RmlUi's SDL GPU
+             * backend then submits a cancelled command buffer: skip the frame. */
+            {
+                int count = 0;
+                SDL_Window **windows = SDL_GetWindows(&count);
+                bool drawable = count > 0 && !(SDL_GetWindowFlags(windows[0]) &
+                                               (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED));
+                SDL_free(windows);
+                if (!drawable) {
+                    SDL_Delay(16);
+                    continue;
+                }
+            }
+#endif
+            /* The SDL GPU renderer takes its viewport from each swapchain image. */
             Backend::BeginFrame();
             ctx->Render();
             Backend::PresentFrame();

@@ -1,25 +1,28 @@
 """Run title overlay placement and route upload contracts without a GPU."""
 from pathlib import Path
-import shutil
+import os
 import subprocess
 import tempfile
+
+import cc
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
-    if not shutil.which("cl"):
-        raise SystemExit("Run scripts/enter-env.ps1 first so cl.exe is available.")
+    cc.require_compiler()
     with tempfile.TemporaryDirectory(prefix="mm3-overlay-") as temporary:
         folder = Path(temporary)
-        executable = folder / "contract.exe"
-        subprocess.run([
-            "cl", "/nologo", "/W3", "/WX", "/O2", "/std:c11",
-            "/I" + str(ROOT / "src/mods"),
-            "/I" + str(ROOT / "tools/xboxrecomp/src/video"),
-            str(ROOT / "tests/mm3_overlay_contract.c"),
-            "/Fo:" + str(folder / "contract.obj"), "/Fe:" + str(executable),
-        ], check=True, cwd=folder)
+        executable = folder / f"contract{cc.exe_suffix()}"
+        # POSIX has no Interlocked* in libc: the runtime compat layer provides them.
+        sources = [ROOT / "tests/mm3_overlay_contract.c"]
+        if os.name != "nt":
+            sources.append(ROOT / "tools/xboxrecomp/src/platform/win32_compat.c")
+        subprocess.run(cc.compile_command(
+            sources, executable,
+            includes=[ROOT / "src/mods", ROOT / "tools/xboxrecomp/src/video", ROOT / "tools/xboxrecomp/src"], std="c11",
+            optimize="speed", warnings="normal", werror=True, obj=folder / "contract.obj"),
+            check=True, cwd=folder)
         subprocess.run([str(executable)], check=True, cwd=folder)
 
 

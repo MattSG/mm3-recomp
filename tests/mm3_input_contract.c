@@ -49,6 +49,7 @@ static DWORD WINAPI fixture_get_caps(DWORD port, DWORD flags,
 #define XInputGetCapabilities fixture_get_caps
 #include "../tools/xboxrecomp/src/input/xinput_device.c"
 #include "../tools/xboxrecomp/src/video/fb_present.c"
+#include "../tools/xboxrecomp/src/video/fb_window_win32.c"
 #include "../tools/xboxrecomp/src/usb/usb_gamepad.c"
 #include "../src/mods/keyboard_driving.c"
 

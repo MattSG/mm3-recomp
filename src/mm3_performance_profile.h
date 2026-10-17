@@ -3,6 +3,7 @@
 
 #include <ctype.h>
 #include <stdlib.h>
+#include "platform/win32_compat.h" /* _putenv_s: the CRT on Windows, compat layer elsewhere */
 
 typedef struct MM3PerformanceProfile {
     const char *name;
@@ -39,11 +40,7 @@ static inline int mm3_performance_default(const char *key, const char *value)
 {
     const char *current = getenv(key);
     if (current && *current) return 0;
-#ifdef _WIN32
     return _putenv_s(key, value);
-#else
-    return setenv(key, value, 1);
-#endif
 }
 
 /* Each independently configured setting takes priority over the profile.

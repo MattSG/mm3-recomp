@@ -5,6 +5,8 @@ extern "C" {
 #include <assert.h>
 extern "C" {
 void xbox_InputSetMenuProbe(int (*)(void)) { assert(false); }
+/* The SDL3 launcher's hidden-start query; the settings checks never start hidden. */
+int xbox_FramebufferStartHidden(void) { return 0; }
 void nv2a_d3d_set_bspline_blend(uint32_t,uint32_t) { assert(false); }
 void nv2a_d3d_set_overlay_hooks(const NvOverlayHooks *) { assert(false); }
 extern const NvOverlayHooks mm3_hud_hooks = {};

@@ -2,9 +2,10 @@
 from pathlib import Path
 import os
 import re
-import shutil
 import subprocess
 import tempfile
+
+import cc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -32,8 +33,8 @@ def function(source, name):
 
 
 def main():
-    if not shutil.which("cl"):
-        raise SystemExit("Run scripts/enter-env.ps1 first so cl.exe is available.")
+    cc.skip_unless_windows("the fixtures include windows.h and link user32/xinput")
+    cc.require_compiler()
     source = (ROOT / "src/mm3_launcher.cpp").read_text(encoding="utf-8")
     parts = [
         "#include <windows.h>\n#include <stdio.h>\n#include <stdlib.h>\n"
@@ -75,17 +76,17 @@ int main(int argc, char **argv) {
         folder = Path(temporary)
         utility = folder / "launcher_maps.cpp"
         utility.write_text("\n".join(parts), encoding="utf-8")
-        maps_exe = folder / "launcher_maps.exe"
-        input_exe = folder / "input_contract.exe"
-        subprocess.run([
-            "cl", "/nologo", "/W3", "/O2", "/std:c++17", "/EHsc", "/D_CRT_SECURE_NO_WARNINGS", str(utility),
-            "/Fo:" + str(folder / "launcher_maps.obj"), "/Fe:" + str(maps_exe), "user32.lib",
-        ], cwd=folder, check=True)
-        subprocess.run([
-            "cl", "/nologo", "/W3", "/O2", "/std:c11", "/DWIN32_LEAN_AND_MEAN", "/DNOMINMAX", "/D_CRT_SECURE_NO_WARNINGS",
-            "/I" + str(ROOT / "tools/xboxrecomp/src"), str(ROOT / "tests/mm3_input_contract.c"),
-            "/Fo:" + str(folder / "input_contract.obj"), "/Fe:" + str(input_exe), "user32.lib", "xinput.lib",
-        ], cwd=folder, check=True)
+        maps_exe = folder / f"launcher_maps{cc.exe_suffix()}"
+        input_exe = folder / f"input_contract{cc.exe_suffix()}"
+        subprocess.run(cc.compile_command(
+            [utility], maps_exe, std="c++17", optimize="speed", warnings="normal",
+            defines=["_CRT_SECURE_NO_WARNINGS"], libs=["user32"], obj=folder / "launcher_maps.obj"),
+            cwd=folder, check=True)
+        subprocess.run(cc.compile_command(
+            [ROOT / "tests/mm3_input_contract.c"], input_exe, std="c11", optimize="speed",
+            warnings="normal", defines=["WIN32_LEAN_AND_MEAN", "NOMINMAX", "_CRT_SECURE_NO_WARNINGS"],
+            includes=[ROOT / "tools/xboxrecomp/src"], libs=["user32", "xinput"],
+            obj=folder / "input_contract.obj"), cwd=folder, check=True)
         for saved in (False, True):
             command = [str(maps_exe)] + (["saved"] if saved else [])
             exported = subprocess.check_output(command, text=True, cwd=folder)

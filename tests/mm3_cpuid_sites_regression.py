@@ -67,6 +67,7 @@ def native_source():
         body = re.search(r'void ' + name + r'\(void\)\n\{.*?\n\}', source, re.S).group()
         body = body.replace('    int _flags = 0; /* fallback flag var */\n', '')
         bodies.append(body)
+    pragma_push = '#ifdef _MSC_VER\n#pragma warning(push)\n#pragma warning(disable:4102 4127)\n#endif\n'
     aliases = ''.join(f'#define {r} g_{r}\n' for r in ('eax', 'ebx', 'ecx', 'edx', 'esp', 'esi', 'edi'))
     unaliases = ''.join(f'#undef {r}\n' for r in ('eax', 'ebx', 'ecx', 'edx', 'esp', 'esi', 'edi'))
     return (diagnostics.COMMON_NATIVE.replace('#include "recomp_types.h"',
@@ -83,10 +84,10 @@ void recomp_unimpl(const char *text,uint32_t va){
 }
 void sub_000A4FE0(void);
 void sub_000A5060(void);
-''' + aliases + '#pragma warning(push)\n#pragma warning(disable:4102 4127)\n'
-            + '\n'.join(bodies) + r'''
+''' + aliases
+            + pragma_push + '\n'.join(bodies) + r'''
 static void run_site(uint32_t site){RECOMP_UNIMPL("cpuid",site);}
-''' + '#pragma warning(pop)\n' + unaliases + r'''
+''' + '#ifdef _MSC_VER\n#pragma warning(pop)\n#endif\n' + unaliases + r'''
 static RecompXmm *xmm[8];
 static RecompMmx *mm[8];
 static RecompXmm saved_xmm[8];
@@ -157,7 +158,8 @@ def main():
         from pathlib import Path
         directory = Path(temporary)
         shutil.copyfile(ROOT / 'src/mm3_recomp_types.h', directory / 'recomp_types.h')
-        executable = diagnostics.compile_fixture(directory, 'sites', native_source())
+        executable = diagnostics.compile_fixture(directory, 'sites', native_source(),
+                                                 disable_warnings=('4102',))
         cases = 0
         for site in (0x9379E, 0xA4FED, 0xA504B, 0xA4FEE):
             for leaf in (0, 1, 2, 0xFFFFFFFF, 0x40000000):

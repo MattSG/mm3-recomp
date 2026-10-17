@@ -1,16 +1,16 @@
 """Run the real tree contact seam against retail XBE contact resolution.
 
-Requires scripts/enter-env.ps1, MSVC and Unicorn. The unmodified high-speed
+Requires `python scripts/devenv.py --shell`, MSVC and Unicorn. The unmodified high-speed
 tree negative control must hop and skip the solid contact; the correction
 keeps native first-impact resistance/effects, then removes its native piece.
 """
 import re
-import shutil
 import struct
 import subprocess
 import tempfile
 from pathlib import Path
 
+import cc
 import mm3_graph_edge_regression as common
 
 ROOT = common.ROOT
@@ -233,11 +233,12 @@ def check_impact_resistance(corrected, directory, image):
                             guarded, count=1, flags=re.S)
     assert count == 1
     guarded = 'void resistance_original_stage(void);\n' + guarded + RESISTANCE_TEST
-    code, executable = directory / 'resistance.c', directory / 'resistance.exe'
+    code, executable = directory / 'resistance.c', directory / ('resistance' + cc.exe_suffix())
     code.write_text(guarded)
-    subprocess.run(['cl', '/nologo', '/Od', '/MD', '/std:c11',
-                    '/I' + str(ROOT / 'src'), '/I' + str(ROOT / 'tools/xboxrecomp/include'),
-                    '/Fo' + str(directory / 'resistance.obj'), '/Fe' + str(executable), str(code)], check=True)
+    subprocess.run(cc.compile_command([code], executable,
+                                      includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src'],
+                                      std='c11', optimize='none', dynamic_crt=True,
+                                      obj=directory / 'resistance.obj'), check=True)
     ram = fixture(image, 2, 30)
     break_fixture(ram)
     memory = directory / 'resistance.bin'
@@ -248,8 +249,8 @@ def check_impact_resistance(corrected, directory, image):
 
 
 def main():
-    if not shutil.which('cl'):
-        raise SystemExit('Run scripts/enter-env.ps1 first.')
+    cc.skip_unless_windows('the corrected fixture includes windows.h')
+    cc.require_compiler()
     image = common.common.Image(str(ROOT / 'game_files/default.xbe'))
     with tempfile.TemporaryDirectory(prefix='mm3-tree-contact-') as temporary:
         directory = Path(temporary)
@@ -324,12 +325,13 @@ def main():
           if(g_fp_top!=0||g_fp_control_word!=0x37F||g_df!=0)return 97;
         }'''
         corrected = corrected.replace('recomp_lookup((uint32_t)strtoul(argv[2],0,0))();', classify)
-        executable = directory / 'corrected.exe'
+        executable = directory / ('corrected' + cc.exe_suffix())
         code = directory / 'corrected.c'
         code.write_text(corrected)
-        subprocess.run(['cl', '/nologo', '/Od', '/MD', '/std:c11',
-                        '/I' + str(ROOT / 'src'), '/I' + str(ROOT / 'tools/xboxrecomp/include'),
-                        '/Fo' + str(directory / 'corrected.obj'), '/Fe' + str(executable), str(code)], check=True)
+        subprocess.run(cc.compile_command([code], executable,
+                                          includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src'],
+                                          std='c11', optimize='none', dynamic_crt=True,
+                                          obj=directory / 'corrected.obj'), check=True)
         cases, controls = 0, 0
         for flags in (0, 2, 4, 6):
             for speed in (0, 5, 15, 30, 60):

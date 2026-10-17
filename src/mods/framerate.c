@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
-#include <windows.h>
+#include "platform/xbox_winnt.h"
 #include "recomp_types.h"
 #include "nv2a_d3d11.h"
 #include "mods.h"
@@ -11,7 +11,7 @@
  * at 30 fps: the world updated 30 times a second, each update taking four
  * 1/120 s physics steps. MM3_SIM_HZ picks the rate: 30 (the console's), 60
  * (the default) or 90. At 120 the player car covers ~5% less ground (302 vs
- * 311-336 units in 12 s, Test-MM3AiStart.ps1), likely from one-step ticks
+ * 311-336 units in 12 s, tools/scripts/test_ai_start.py), likely from one-step ticks
  * rounding.
  *
  * The main loop (0x1E77F3, ebx the game object) sets up once, then each
@@ -21,7 +21,7 @@
  * the AI module, cars, physics in fixed 1/120 s substeps, traffic) and
  * renders. The world took the frame's time and not all of it scales with
  * it: at 144 fps the AI module stepped in 1/144 s against the cars' physics
- * and the race AI reversed off the start line (Test-MM3AiStart.ps1).
+ * and the race AI reversed off the start line (tools/scripts/test_ai_start.py).
  *
  * Here a clock fed by the game's own frame time decides, once a frame, how
  * many whole ticks have passed, and the world update runs that many times
@@ -98,7 +98,7 @@ static int ticks_for(float dt)
 
 /* The race AI's update (0x22DBBF: ecx the AI module, dt and a flag, ret 8).
  * Given each tick, the AI drives differently at 60 ticks than at 30 -- its
- * cars covered ~9% more ground in 25 s (Test-MM3AiStart.ps1 -Course) -- so
+ * cars covered ~9% more ground in 25 s (tools/scripts/test_ai_start.py --course) -- so
  * it keeps the console's rate: every second tick (third at 90), with that
  * many ticks' time. Cars and their physics still step every tick. */
 extern void sub_0022DBBF_original(void);

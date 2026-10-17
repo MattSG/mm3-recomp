@@ -1,17 +1,17 @@
 """Check recovered array-destructor callbacks against original XBE code.
 
-Run with tools/venv/Scripts/python.exe after scripts/enter-env.ps1.
+Run with tools/venv/Scripts/python.exe inside `python scripts/devenv.py --shell`.
 Heap free and manager deregistration are recorded identically in both runs;
 the original array iterator, recovered adapters, and member cleanup execute.
 No running game or save files are accessed.
 """
 import re
-import shutil
 import struct
 import subprocess
 import tempfile
 from pathlib import Path
 
+import cc
 import mm3_x87_exp_regression as common
 
 ROOT = common.ROOT
@@ -143,15 +143,14 @@ def original_result(ram, callback, count):
 
 
 def main():
-    if not shutil.which('cl'):raise SystemExit('Run scripts/enter-env.ps1 first.')
+    cc.require_compiler()
     image=common.Image(str(ROOT/'game_files/default.xbe'))
     scratch=ROOT/'conformance_tmp';scratch.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='destructor-callback-',dir=scratch) as directory:
-        directory=Path(directory);source=directory/'callbacks.c';executable=directory/'callbacks.exe'
+        directory=Path(directory);source=directory/'callbacks.c';executable=directory/('callbacks'+cc.exe_suffix())
         source.write_text(native_source())
-        subprocess.run(['cl','/nologo','/Od','/MD','/std:c11','/I'+str(ROOT/'src'),
-                        '/I'+str(ROOT/'tools/xboxrecomp/include'),'/Fo'+str(directory/'callbacks.obj'),
-                        '/Fe'+str(executable),str(source)],check=True)
+        subprocess.run(cc.compile_command([source],executable,includes=[ROOT/'src',ROOT/'tools/xboxrecomp/include'],
+                                          std='c11',optimize='none',dynamic_crt=True,obj=directory/'callbacks.obj'),check=True)
         cases=0
         for callback in CALLBACKS:
             for populated in (False,True):

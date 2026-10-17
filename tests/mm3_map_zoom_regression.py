@@ -1,6 +1,6 @@
 """Run the actual CMake map zoom seams and native road/marker geometry offline.
 
-Requires scripts/enter-env.ps1, generated code and the user's PAL XBE. Graphics
+Requires `python scripts/devenv.py --shell`, generated code and the user's PAL XBE. Graphics
 submission, player lookup and input are capture boundaries; native quad creation,
 rotation, map scale setup and all guest calling conventions remain executable.
 """
@@ -12,6 +12,8 @@ import struct
 import subprocess
 import sys
 import tempfile
+
+import cc
 
 ROOT = Path(__file__).resolve().parents[1]
 SEAMS = ("sub_0011CA25", "sub_0011D1E8", "sub_0011D808", "sub_0011CAE8")
@@ -53,8 +55,9 @@ def constants(source):
 
 
 def main():
-    if not shutil.which("cl") or not shutil.which("cmake"):
-        raise SystemExit("Run scripts/enter-env.ps1 first so cl.exe and CMake are available.")
+    cc.require_compiler()
+    if not shutil.which("cmake"):
+        raise SystemExit("Run `python scripts/devenv.py --shell` first so CMake is available.")
     cmake = (ROOT / "CMakeLists.txt").read_text()
     # The marker owner also has race-guidance seams; both owner groups can
     # register it before CMake removes duplicates.
@@ -127,11 +130,11 @@ def main():
         shutil.copyfile(ROOT / "src/mm3_recomp_types.h", folder / "recomp_types.h")
         production = (ROOT / "src/mm3_map_zoom.c").read_text()
         (folder / "production_map_zoom.c").write_text(production)
-        executable = folder / "contract.exe"
-        command = ["cl", "/nologo", "/W3", "/WX", "/wd4102", "/Od", "/std:c11",
-                   "/I" + str(folder), "/I" + str(ROOT / "tools/xboxrecomp/include"),
-                   str(ROOT / "tests/mm3_map_zoom_contract.c"),
-                   "/Fo:" + str(folder / "contract.obj"), "/Fe:" + str(executable)]
+        executable = folder / f"contract{cc.exe_suffix()}"
+        command = cc.compile_command([ROOT / "tests/mm3_map_zoom_contract.c"], executable,
+                                     includes=[folder, ROOT / "tools/xboxrecomp/include"], std="c11",
+                                     optimize="none", warnings="normal", werror=True,
+                                     disable_warnings=("4101", "4102"), obj=folder / "contract.obj")
         subprocess.run(command, check=True, cwd=folder)
         subprocess.run([str(executable)], check=True, cwd=folder)
         if "--check-mutants" in sys.argv:

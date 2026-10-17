@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "platform/win32_compat.h" /* _putenv_s: CRT on Windows, compat layer elsewhere */
 #include "../src/mods/draw_distance.c"
 
 ptrdiff_t g_xbox_mem_offset;

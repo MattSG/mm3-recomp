@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <windows.h>
+#include "platform/xbox_winnt.h"
 #include "recomp_types.h"
 #include "mods.h"
 
@@ -11,7 +11,7 @@
  * yes. Story and attract movies play as before. The movie name comes from
  * the std::string 0x1DB6E8 is passed (16-byte inline buffer, else a
  * pointer). With MM3_MOVIE_INPUT_TRACE the hooks also report what they see
- * (tools/powershell/Run-MM3MovieSkip.ps1). */
+ * (tools/scripts/run_movie_skip.py). */
 void sub_001DB6E8_original(void);
 void sub_001F2A71_original(void);
 void sub_001F443D_original(void);

@@ -1,6 +1,12 @@
 /* Exercise the production facade wrapper against the setter's guest ABI.
  * The oracle samples the Xbox fade at proportional camera distances, so it
  * detects a moved threshold whose blend width was accidentally left at 9 m. */
+#ifdef _WIN32
+#define SET_ENV(name, value) _putenv_s((name), (value))
+#else
+#define _POSIX_C_SOURCE 200809L /* setenv under -std=c11 */
+#define SET_ENV(name, value) setenv((name), (value), 1)
+#endif
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -99,7 +105,7 @@ int main(int argc, char **argv)
     assert(argc == 2);
     scale = (float)atof(argv[1]);
     assert(scale == 1.0f || scale == 2.0f || scale == 4.0f);
-    _putenv_s("RECOMP_VIEW_DISTANCE", argv[1]);
+    SET_ENV("RECOMP_VIEW_DISTANCE", argv[1]);
     if (scale > 2.0f) scale = 2.0f;
     memset(memory, 0xA5, sizeof memory);
     g_xbox_mem_offset = (ptrdiff_t)memory;

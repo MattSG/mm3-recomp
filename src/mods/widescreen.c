@@ -225,7 +225,7 @@ void sub_0025968E(void)
         }
     }
     /* The launcher's percentage FOV widens the stock view. Explicit
-     * horizontal degrees from play.ps1 take priority, so they never stack. */
+     * horizontal degrees from scripts/play.py take priority, so they never stack. */
     if (race && !camera_fov_degrees() && mm3_mod_on(MM3_MOD_FOV)) {
         const char *value = getenv("MM3_FOV");
         float scale = value ? (float)atof(value) / 100.0f : 1.0f;

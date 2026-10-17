@@ -15,6 +15,7 @@ int xbox_FramebufferHostInputCaptured(void) { return captured; }
 int xbox_FramebufferKeyDown(int vk) { return keys_enabled && (vk == 'Z' || vk == '3' || vk == VK_NUMPAD8); }
 int xbox_FramebufferMouse(float *x, float *y) { *x = *y = 0; return 0; }
 void nv2a_d3d_collect_menu_rects(int on) { (void)on; }
+void xbox_FramebufferSetMousePressHandler(int (*handler)(float, float)) { (void)handler; }
 int main(int argc, char **argv)
 {
     if (argc == 2 && !strcmp(argv[1], "--pad-only")) {

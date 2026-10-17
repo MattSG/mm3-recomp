@@ -573,7 +573,7 @@ static float distance_to_draw(float x, float y, const Draw *draw) {
     float by = .5f*(draw->xy[1][1] + draw->xy[2][1]);
     float dx = bx - ax, dy = by - ay;
     float t = ((x-ax)*dx + (y-ay)*dy) / (dx*dx + dy*dy);
-    if (t < 0) t = 0; if (t > 1) t = 1;
+    t = t < 0 ? 0 : (t > 1 ? 1 : t);
     return hypotf(x - ax - t*dx, y - ay - t*dy);
 }
 static void route_draw_simplification_contract(void) {

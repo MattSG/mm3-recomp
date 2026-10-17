@@ -20,7 +20,7 @@ Date: 2026-10-04
 ## Playback acceptance
 
 - A 130-second normal Windows run opened all three movies and produced framebuffer captures of the DICE logo, Microsoft intro, and main intro scenes without the former block corruption. No crash was reported. Captures include `normal1/frame_015.bmp`, `frame_022.bmp`, and `frame_125.bmp` under the evidence directory above.
-- A second cold run used `run_clean_strict.ps1` with framebuffer sampling disabled. The user confirmed: "Video looks good, just a bit laggy", followed by "Lag is done goal complete". The remaining validation process was stopped after acceptance.
+- A second cold run used `run_clean_strict.py` with framebuffer sampling disabled. The user confirmed: "Video looks good, just a bit laggy", followed by "Lag is done goal complete". The remaining validation process was stopped after acceptance.
 - Video milestone commits: outer `515ddaf` (signed IDCT coefficients) and `99cb046` (persistent overlay); nested XboxRecomp `5d0b56b` and `fe42f62`. Audio is outside this verification.
 
 ## Windows regeneration and runtime

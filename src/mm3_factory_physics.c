@@ -48,8 +48,10 @@ static FactoryBinding bindings[BINDING_LIMIT];
  * OS-verified ranges, refresh on each vehicle construction or memory rebase.
  * Object identity is still checked on every physics call. */
 static struct { uintptr_t lo, hi; } mapped_ranges[4];
+#ifndef MM3_FACTORY_CONTRACT
 static ptrdiff_t mapped_offset;
 static unsigned mapped_next;
+#endif
 
 static int mapped(uint32_t va, size_t size)
 {

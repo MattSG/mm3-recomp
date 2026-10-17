@@ -5,7 +5,9 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 import uuid
@@ -51,54 +53,31 @@ class BenchmarkSummaryTests(unittest.TestCase):
             self.assertFalse((folder / 'summary.json').exists())
 
     @unittest.skipUnless(os.name == 'nt', 'Windows benchmark runner')
-    def test_runner_launch_failure_restores_environment_and_isolates_save(self):
-        pwsh = ROOT / 'tools/bin/powershell/pwsh.exe'
-        if not pwsh.exists():
-            self.skipTest('Checkout PowerShell is unavailable')
+    def test_runner_launch_failure_isolates_save(self):
         tag = 'contract-' + uuid.uuid4().hex
         run_dir = ROOT / 'conformance_tmp/bench' / tag
-        def quote(value):
-            return "'" + str(value).replace("'", "''") + "'"
         with tempfile.TemporaryDirectory() as temporary:
             folder = Path(temporary)
             save = folder / 'save'
             save.mkdir()
             (save / 'keep.txt').write_text('original save')
-            script = folder / 'test.ps1'
-            script.write_text(f'''
-$ErrorActionPreference = 'Stop'
-$env:RECOMP_MSAA = '7'
-$env:RECOMP_PAD_SCRIPT = 'inherited-control'
-function Start-Process {{ throw 'injected launch failure' }}
-try {{
-    try {{
-        & {quote(ROOT / 'tools/bench/run.ps1')} -Exe $env:ComSpec -Save {quote(save)} -Tag {quote(tag)}
-        throw 'runner unexpectedly succeeded'
-    }} catch {{
-        if ($_.Exception.Message -ne 'injected launch failure') {{ throw }}
-    }}
-    if ($env:RECOMP_MSAA -ne '7' -or $env:RECOMP_PAD_SCRIPT -ne 'inherited-control') {{ throw 'environment not restored' }}
-    if (Test-Path -LiteralPath {quote(run_dir / 'save')}) {{ throw 'disposable save remains' }}
-    if ((Get-Content -LiteralPath {quote(save / 'keep.txt')} -Raw) -ne 'original save') {{ throw 'original save changed' }}
-}} finally {{
-    $target = [IO.Path]::GetFullPath({quote(run_dir)})
-    $boundary = [IO.Path]::GetFullPath({quote(ROOT / 'conformance_tmp/bench')}) + [IO.Path]::DirectorySeparatorChar
-    if (-not $target.StartsWith($boundary, [StringComparison]::OrdinalIgnoreCase)) {{ throw 'cleanup escaped boundary' }}
-    Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction SilentlyContinue
-}}
-''', encoding='utf-8')
-            subprocess.run([str(pwsh), '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(script)], check=True)
-            self.assertEqual((save / 'keep.txt').read_text(), 'original save')
+            # A missing executable makes the launch fail before the game runs.
+            result = subprocess.run([sys.executable, str(ROOT / 'tools/bench/run.py'), '--exe',
+                                     str(folder / 'missing.exe'), '--save', str(save), '--tag', tag],
+                                    text=True, capture_output=True)
+            try:
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse((run_dir / 'save').exists(), 'disposable save remains')
+                self.assertEqual((save / 'keep.txt').read_text(), 'original save')
+            finally:
+                shutil.rmtree(run_dir, ignore_errors=True)
 
     @unittest.skipUnless(os.name == 'nt', 'Windows benchmark runner')
     def test_runner_rejects_recursive_save_copy(self):
-        pwsh = ROOT / 'tools/bin/powershell/pwsh.exe'
-        if not pwsh.exists():
-            self.skipTest('Checkout PowerShell is unavailable')
         tag = 'contract-' + uuid.uuid4().hex
-        result = subprocess.run([str(pwsh), '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
-                                 str(ROOT / 'tools/bench/run.ps1'), '-Exe', os.environ['ComSpec'],
-                                 '-Save', str(ROOT), '-Tag', tag], text=True, capture_output=True)
+        result = subprocess.run([sys.executable, str(ROOT / 'tools/bench/run.py'), '--exe',
+                                 os.environ['ComSpec'], '--save', str(ROOT), '--tag', tag],
+                                text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('cannot be inside its save template', result.stderr)
         self.assertFalse((ROOT / 'conformance_tmp/bench' / tag).exists())

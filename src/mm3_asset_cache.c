@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <wchar.h>
-#include <windows.h>
+#include "platform/xbox_winnt.h"
 #include "kernel.h"
 #include "mm3_asset_cache.h"
 
@@ -11,11 +11,16 @@
 /* Retail sub_000224EA divides then multiplies the unsigned FILETIME by
  * 0x01312D00. Compare that quotient so the game's truncated cache timestamp
  * stays current, including source/cache differences below two seconds. */
+static ULONGLONG creation_bucket_ticks(ULONGLONG ticks)
+{
+    return ticks / MM3_CACHE_CREATION_BUCKET_TICKS;
+}
+
+#if defined(_WIN32)
 static ULONGLONG creation_bucket(const FILETIME *time)
 {
-    ULONGLONG ticks = ((ULONGLONG)time->dwHighDateTime << 32) |
-                      time->dwLowDateTime;
-    return ticks / MM3_CACHE_CREATION_BUCKET_TICKS;
+    return creation_bucket_ticks(((ULONGLONG)time->dwHighDateTime << 32) |
+                                 time->dwLowDateTime);
 }
 
 static void cache_error(const char *operation)
@@ -199,3 +204,173 @@ close_files:
             cache_error("cannot invalidate stale cached archive");
     }
 }
+
+#else /* POSIX: same rules over lstat/open; no symlink in any component. */
+
+#include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+static void cache_error_errno(const char *operation)
+{
+    fprintf(stderr, "[MM3_ASSET_CACHE] %s; cache unchanged (%s)\n",
+            operation, strerror(errno));
+}
+
+/* The kernel reports st_ctime as a file's creation time (kernel_file.c). */
+static ULONGLONG ctime_bucket(const struct stat *st)
+{
+    return creation_bucket_ticks(116444736000000000ULL +
+                                 (ULONGLONG)st->st_ctime * 10000000ULL);
+}
+
+/* 1 when path is a regular file reached through no symlink; *missing when
+ * only the leaf does not exist. path must be absolute. */
+static int ordinary_path(const char *path, int *missing)
+{
+    char component[PATH_MAX];
+    int leaf = 1;
+    *missing = 0;
+    if (strlen(path) >= sizeof component || path[0] != '/') {
+        fprintf(stderr, "[MM3_ASSET_CACHE] archive path has no absolute root; cache unchanged\n");
+        return 0;
+    }
+    strcpy(component, path);
+    for (;;) {
+        struct stat st;
+        char *separator;
+        if (lstat(component, &st) != 0) {
+            if (leaf && errno == ENOENT) {
+                *missing = 1;
+                return 0;
+            }
+            cache_error_errno("cannot inspect archive path");
+            return 0;
+        }
+        if (S_ISLNK(st.st_mode) || (leaf && !S_ISREG(st.st_mode))) {
+            fprintf(stderr, "[MM3_ASSET_CACHE] archive path is not an ordinary file; cache unchanged\n");
+            return 0;
+        }
+        separator = strrchr(component, '/');
+        if (separator == component) return 1;
+        *separator = '\0';
+        leaf = 0;
+    }
+}
+
+static int read_block(int fd, unsigned char *data, size_t *length)
+{
+    *length = 0;
+    while (*length < MM3_CACHE_BLOCK_SIZE) {
+        ssize_t count = read(fd, data + *length, MM3_CACHE_BLOCK_SIZE - *length);
+        if (count < 0) {
+            if (errno == EINTR) continue;
+            return 0;
+        }
+        if (!count) break;
+        *length += (size_t)count;
+    }
+    return 1;
+}
+
+static int compare_archives(int source, int cache)
+{
+    static unsigned char source_data[MM3_CACHE_BLOCK_SIZE];
+    static unsigned char cache_data[MM3_CACHE_BLOCK_SIZE];
+    int different = 0;
+    for (;;) {
+        size_t source_length, cache_length;
+        if (!read_block(source, source_data, &source_length) ||
+            !read_block(cache, cache_data, &cache_length)) {
+            cache_error_errno("cannot read archives");
+            return -1;
+        }
+        if (source_length != cache_length ||
+            memcmp(source_data, cache_data, source_length < cache_length ?
+                   source_length : cache_length)) different = 1;
+        if (!source_length && !cache_length) return different;
+    }
+}
+
+/* Absolute, without resolving symlinks (ordinary_path rejects those). */
+static int absolute_path(const char *path, char *out, size_t size)
+{
+    char cwd[PATH_MAX];
+    if (path[0] == '/')
+        return snprintf(out, size, "%s", path) < (int)size;
+    if (!getcwd(cwd, sizeof cwd)) return 0;
+    return snprintf(out, size, "%s/%s", cwd, path) < (int)size;
+}
+
+void mm3_asset_cache_refresh(void)
+{
+    char translated_source[MAX_PATH], translated_cache[MAX_PATH];
+    char source_path[PATH_MAX], cache_path[PATH_MAX];
+    struct stat source_info, cache_info;
+    int source = -1, cache = -1, missing, different = -1, metadata_different = 0;
+
+    if (!xbox_translate_path("D:\\Data\\Data_hd.zip", translated_source, MAX_PATH) ||
+        !xbox_translate_path("Z:\\Data\\Data_hd.zip", translated_cache, MAX_PATH) ||
+        !absolute_path(translated_source, source_path, sizeof source_path) ||
+        !absolute_path(translated_cache, cache_path, sizeof cache_path)) {
+        fprintf(stderr, "[MM3_ASSET_CACHE] cannot resolve archive paths; cache unchanged\n");
+        return;
+    }
+    if (!strcmp(source_path, cache_path)) {
+        fprintf(stderr, "[MM3_ASSET_CACHE] source and cache resolve to the same path; cache unchanged\n");
+        return;
+    }
+    if (!ordinary_path(cache_path, &missing)) return;
+    if (!ordinary_path(source_path, &missing)) {
+        if (missing) fprintf(stderr, "[MM3_ASSET_CACHE] source archive is missing; cache unchanged\n");
+        return;
+    }
+    source = open(source_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (source < 0) {
+        cache_error_errno("cannot open source archive");
+        return;
+    }
+    cache = open(cache_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (cache < 0) {
+        cache_error_errno("cannot open cached archive");
+        goto close_files;
+    }
+    if (fstat(source, &source_info) || fstat(cache, &cache_info)) {
+        cache_error_errno("cannot inspect open archives");
+        goto close_files;
+    }
+    if (!S_ISREG(source_info.st_mode) || !S_ISREG(cache_info.st_mode)) {
+        fprintf(stderr, "[MM3_ASSET_CACHE] open archive is not an ordinary file; cache unchanged\n");
+        goto close_files;
+    }
+    if (source_info.st_dev == cache_info.st_dev && source_info.st_ino == cache_info.st_ino) {
+        fprintf(stderr, "[MM3_ASSET_CACHE] source and cache refer to the same file; cache unchanged\n");
+        goto close_files;
+    }
+    different = compare_archives(source, cache);
+    if (different == 0 && ctime_bucket(&source_info) != ctime_bucket(&cache_info)) {
+        different = 1;
+        metadata_different = 1;
+    }
+
+close_files:
+    if (cache >= 0 && close(cache)) {
+        cache_error_errno("cannot close cached archive");
+        different = -1;
+    }
+    if (close(source)) {
+        cache_error_errno("cannot close source archive");
+        different = -1;
+    }
+    if (different == 1) {
+        if (!unlink(cache_path))
+            fprintf(stderr, "[MM3_ASSET_CACHE] stale Data_hd.zip invalidated (%s); retail startup will rebuild it\n",
+                    metadata_different ? "creation-time metadata" : "archive contents");
+        else
+            cache_error_errno("cannot invalidate stale cached archive");
+    }
+}
+#endif

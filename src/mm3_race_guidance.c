@@ -146,7 +146,7 @@ static int road_snap(RoadPoint position, RoadSnap *snap)
             length2 = x*x + y*y + z*z;
             if (length2 < .0001f) continue;
             t = ((position.x - p.x)*x + (position.y - p.y)*y + (position.z - p.z)*z) / length2;
-            if (t < 0) t = 0; if (t > 1) t = 1;
+            t = t < 0 ? 0 : (t > 1 ? 1 : t);
             projected.x = p.x + t*x; projected.y = p.y + t*y; projected.z = p.z + t*z;
             x = position.x - projected.x; y = position.y - projected.y; z = position.z - projected.z;
             /* Height separates stacked roads and bridges from the street below. */
@@ -548,7 +548,7 @@ static void route_simplify(unsigned count)
             if (++inspected > count * 64) {
                 memset(s_route_draw.keep, 1, count); return;
             }
-            if (t < 0) t = 0; if (t > 1) t = 1;
+            t = t < 0 ? 0 : (t > 1 ? 1 : t);
             x -= t*dx; y -= t*dy; distance = x*x + y*y;
             if (distance > best) { best = distance; furthest = i; }
         }
@@ -595,7 +595,7 @@ static void route_polyline(uint32_t renderer, uint32_t clip, const RoadPoint *po
         if (discriminant < 0) continue;
         lo = (-b - sqrt(discriminant)) / (2*a);
         hi = (-b + sqrt(discriminant)) / (2*a);
-        if (lo < 0) lo = 0; if (hi > 1) hi = 1;
+        lo = lo < 0 ? 0 : lo; hi = hi > 1 ? 1 : hi;
         if (lo >= hi) continue;
         route_segment(renderer, clip, (float)((double)cx + ax + lo*dx), (float)((double)cy + ay + lo*dy),
                       (float)((double)cx + ax + hi*dx), (float)((double)cy + ay + hi*dy), alpha);

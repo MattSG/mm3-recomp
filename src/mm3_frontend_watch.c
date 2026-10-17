@@ -1,8 +1,15 @@
-/* Optional diagnostic: observe RootLevel child-pointer writes. */
-#include <windows.h>
+/* Optional diagnostic: observe RootLevel child-pointer writes.
+ *
+ * The write watch is a hardware watchpoint on the guest field: debug register
+ * 0 set through the exception CONTEXT on Windows, a perf_event breakpoint
+ * (which delivers a synchronous SIGTRAP after the write, seen here as
+ * EXCEPTION_SINGLE_STEP through win32_compat) on Linux. */
+#include "platform/xbox_winnt.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 #include "recomp_funcs.h"
 
 extern void sub_000FA37E_original(void);
@@ -224,6 +231,18 @@ void sub_000858F3(void)
     if (trace) check_heap_frontier(heap, caller, "after");
 }
 
+static void report_write(uint32_t value, uint64_t rip)
+{
+    if (watch_reports++ < 64 || value == 0x2000u) {
+        uintptr_t base = (uintptr_t)GetModuleHandleW(NULL);
+        fprintf(stderr, "[FRONTEND_WRITE] object=%08X child=%08X->%08X hostRVA=%llX eax=%08X ecx=%08X edx=%08X esi=%08X edi=%08X ebp=%08X esp=%08X\n",
+                watch_object, watch_value, value, (unsigned long long)(rip - base),
+                g_eax, g_ecx, g_edx, g_esi, g_edi, g_ebp, g_esp);
+    }
+    watch_value = value;
+}
+
+#if defined(_WIN32)
 static LONG CALLBACK frontend_write_exception(EXCEPTION_POINTERS *p)
 {
     CONTEXT *c = p->ContextRecord;
@@ -241,17 +260,85 @@ static LONG CALLBACK frontend_write_exception(EXCEPTION_POINTERS *p)
     if (p->ExceptionRecord->ExceptionCode != EXCEPTION_SINGLE_STEP || !(c->Dr6 & 1u))
         return EXCEPTION_CONTINUE_SEARCH;
     uint32_t value = *watch_field;
-    if (watch_reports++ < 64 || value == 0x2000u) {
-        uintptr_t base = (uintptr_t)GetModuleHandleW(NULL);
-        fprintf(stderr, "[FRONTEND_WRITE] object=%08X child=%08X->%08X hostRVA=%llX eax=%08X ecx=%08X edx=%08X esi=%08X edi=%08X ebp=%08X esp=%08X\n",
-                watch_object, watch_value, value, (unsigned long long)(c->Rip-base),
-                g_eax, g_ecx, g_edx, g_esi, g_edi, g_ebp, g_esp);
-    }
-    watch_value = value;
+    report_write(value, c->Rip);
     c->Dr6 &= ~1ull;
     if (value == 0x2000u) c->Dr7 &= ~3ull;
     return EXCEPTION_CONTINUE_EXECUTION;
 }
+
+static int arm_watchpoint(void)
+{
+    RaiseException(MM3_ARM_WATCH, 0, 0, NULL);
+    return 1;
+}
+#elif defined(__linux__)
+#include <linux/hw_breakpoint.h>
+#include <linux/perf_event.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+
+static int watch_fd = -1;
+
+#ifndef TRAP_PERF
+#define TRAP_PERF 6
+#endif
+
+/* The breakpoint traps after the write. Other single-step users (the AC'97
+ * trap flag) also arrive as EXCEPTION_SINGLE_STEP; win32_compat passes the
+ * signal's si_code, and TRAP_PERF is ours -- the role Dr6 plays on Windows. */
+static LONG CALLBACK frontend_write_exception(EXCEPTION_POINTERS *p)
+{
+    const EXCEPTION_RECORD *rec = p->ExceptionRecord;
+    uint32_t value;
+    if (GetCurrentThreadId() != watch_thread || watch_fd < 0 ||
+        rec->ExceptionCode != EXCEPTION_SINGLE_STEP || rec->NumberParameters < 1 ||
+        rec->ExceptionInformation[0] != TRAP_PERF)
+        return EXCEPTION_CONTINUE_SEARCH;
+    value = *watch_field;
+    report_write(value, p->ContextRecord->Rip);
+    if (value == 0x2000u) {
+        close(watch_fd);
+        watch_fd = -1;
+    }
+    return EXCEPTION_CONTINUE_EXECUTION;
+}
+
+static int arm_watchpoint(void)
+{
+    struct perf_event_attr attr;
+    memset(&attr, 0, sizeof attr);
+    attr.type = PERF_TYPE_BREAKPOINT;
+    attr.size = sizeof attr;
+    attr.bp_type = HW_BREAKPOINT_W;
+    attr.bp_addr = (uintptr_t)watch_field;
+    attr.bp_len = HW_BREAKPOINT_LEN_4;
+    attr.sample_period = 1;
+    attr.exclude_kernel = 1;
+    attr.exclude_hv = 1;
+    attr.remove_on_exec = 1;
+    attr.sigtrap = 1;           /* synchronous SIGTRAP on the writing thread */
+    /* This thread only, any CPU -- as debug registers are per thread. */
+    watch_fd = (int)syscall(SYS_perf_event_open, &attr, 0, -1, -1, PERF_FLAG_FD_CLOEXEC);
+    if (watch_fd < 0) {
+        fprintf(stderr, "[FRONTEND_WATCH] perf_event breakpoint failed (%s)\n", strerror(errno));
+        return 0;
+    }
+    fprintf(stderr, "[FRONTEND_WATCH] object=%08X child=%08X armed\n", watch_object, watch_value);
+    return 1;
+}
+#else
+static LONG CALLBACK frontend_write_exception(EXCEPTION_POINTERS *p)
+{
+    (void)p;
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+static int arm_watchpoint(void)
+{
+    fprintf(stderr, "[FRONTEND_WATCH] no hardware watchpoints on this host\n");
+    return 0;
+}
+#endif
 
 static void arm_frontend_watch(uint32_t object)
 {
@@ -267,7 +354,7 @@ static void arm_frontend_watch(uint32_t object)
     watch_field = (volatile uint32_t *)(xbox_GetMemoryOffset() + object + 8u);
     watch_value = *watch_field;
     watch_thread = GetCurrentThreadId();
-    RaiseException(MM3_ARM_WATCH, 0, 0, NULL);
+    arm_watchpoint();
 }
 
 void sub_000FA37E(void)

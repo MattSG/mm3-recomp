@@ -8,7 +8,7 @@ Runs the whole recipe the build depends on, in order:
      with the native tail constructors and the proven GUI boundary coalescing
   3. overlays the project wraps: memmove tails, alternate-SEH and ABI bodies
   4. runtime-proven entries (mm3_runtime_entry_repairs.json)
-Tested with Capstone 5.0.7; scripts/setup.ps1 installs that disassembler version.
+Tested with Capstone 5.0.7; scripts/setup.py installs that disassembler version.
 """
 import argparse
 import json
@@ -308,7 +308,7 @@ def main():
     setup_toolkit()
     out = args.out.resolve()
     if not XBE.exists():
-        sys.exit(f'{XBE} missing: run scripts/setup.ps1 -Iso <disc> first')
+        sys.exit(f'{XBE} missing: run scripts/setup.py --iso <disc> first')
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)

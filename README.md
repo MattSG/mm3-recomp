@@ -15,15 +15,20 @@ You need:
 - Visual Studio 2022 or newer with **Desktop development with C++**;
 - Python 3.12;
 - git;
-- PowerShell 7;
 - a dump of your own Midtown Madness 3 disc.
 
 ```powershell
 git clone --recurse-submodules https://github.com/MattSG/mm3-recomp.git
 cd mm3-recomp
-pwsh scripts\setup.ps1 -Iso "<path to your disc image>"
+python scripts/setup.py --iso "<path to your disc image>"
 .\build\RelWithDebInfo\mm3_recomp.exe
 ```
+
+On Linux (x86-64; built and run on Ubuntu 22.04) you need CMake, Ninja, a C/C++
+compiler, OpenSSL, libepoxy and SDL3's build dependencies instead of Visual Studio; the
+game then runs as `./build/mm3_recomp`. The renderer there is SDL3 GPU
+(Vulkan). On Windows, `--renderer SDL3_GPU` builds the same renderer in
+place of the default Direct3D 11 one.
 
 Setup verifies your disc, extracts it, translates the game code (about six
 minutes) and builds. It then runs the game for about ten seconds, hidden and
@@ -82,7 +87,7 @@ Mods tab. The mods marked "always" are needed for the game to run.
 - **Keyboard:** turn it on under Controls.
 - **Fullscreen:** F11 or Alt+Enter.
 - **Sound stutters:** set Audio > Sound processor to Off.
-- **Skipping the launcher:** run `pwsh scripts\play.ps1 -Keyboard -Profile Balanced`.
+- **Skipping the launcher:** run `python scripts/play.py --keyboard --profile Balanced`.
 - **Saves:** back them up before you try a new build.
 
 ## Contributing

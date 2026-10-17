@@ -1,8 +1,7 @@
 """Native map resource lifecycle and asynchronous renderer query contract.
 
 Runs the generated map loader/unloader, with only resource allocation and base
-class calls replaced. No game process or game assets are changed. Run after
-scripts/enter-env.ps1 to make cl.exe available.
+class calls replaced. No game process or game assets are changed. Run inside `python scripts/devenv.py --shell` to make cl.exe available.
 """
 from pathlib import Path
 import os
@@ -10,6 +9,8 @@ import re
 import shutil
 import subprocess
 import tempfile
+
+import cc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -37,8 +38,8 @@ def native_source():
 
 
 def main():
-    if not shutil.which("cl"):
-        raise SystemExit("Run scripts/enter-env.ps1 first so cl.exe is available.")
+    cc.skip_unless_windows("the contract includes windows.h")
+    cc.require_compiler()
     cmake = (ROOT / "CMakeLists.txt").read_text()
     assert "list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0011C742 sub_0011CAAC sub_0007CEC3)" in cmake
     with tempfile.TemporaryDirectory(prefix="mm3-map-ui-") as folder:
@@ -47,12 +48,13 @@ def main():
         shutil.copyfile(ROOT / "src/mods/mods.h", folder / "mods.h")
         shutil.copyfile(ROOT / "src/mods/widescreen.c", folder / "production_widescreen.c")
         (folder / "native_map.inc").write_text(native_source(), encoding="utf-8")
-        subprocess.run(["cl", "/nologo", "/W3", "/WX", "/wd4102", "/O2", "/std:c11",
-                        "/I" + str(folder), "/I" + str(ROOT / "tools/xboxrecomp/include"),
-                        str(ROOT / "tests/mm3_map_ui_contract.c"),
-                        "/Fo:" + str(folder / "contract.obj"),
-                        "/Fe:" + str(folder / "contract.exe")], cwd=folder, check=True)
-        subprocess.run([str(folder / "contract.exe")], cwd=folder, check=True)
+        executable = folder / f"contract{cc.exe_suffix()}"
+        subprocess.run(cc.compile_command(
+            [ROOT / "tests/mm3_map_ui_contract.c"], executable,
+            includes=[folder, ROOT / "tools/xboxrecomp/include"], std="c11", optimize="speed",
+            warnings="normal", werror=True, disable_warnings=("4102",),
+            obj=folder / "contract.obj"), cwd=folder, check=True)
+        subprocess.run([str(executable)], cwd=folder, check=True)
 
 
 if __name__ == "__main__":

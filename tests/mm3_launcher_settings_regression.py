@@ -1,6 +1,6 @@
 """Check production launcher profile/INI precedence without a rendered UI.
 
-Run after scripts/enter-env.ps1. The temporary MSVC fixture compiles the actual
+Run inside `python scripts/devenv.py --shell`. The temporary MSVC fixture compiles the actual
 Option/Choice/Bind tables, mod registry and settings helpers. Only RmlUi's
 string/vector types are substituted with their standard-library equivalents.
 Each case has an isolated environment and mm3_settings.ini directory.
@@ -11,6 +11,8 @@ import re
 import shutil
 import subprocess
 import tempfile
+
+import cc
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,7 +45,10 @@ def function(source, name):
 def fixture_source():
     source = (ROOT / "src/mm3_launcher.cpp").read_text(encoding="utf-8")
     parts = [
-        "#include <windows.h>\n#include <stdio.h>\n#include <stdlib.h>\n"
+        # The Win32 vocabulary (VK_* codes): windows.h, or the runtime's own
+        # definitions of it elsewhere.
+        ("#include <windows.h>\n" if os.name == "nt" else '#include "platform/xbox_winnt.h"\n') +
+        "#include <stdio.h>\n#include <stdlib.h>\n"
         "#include <string.h>\n#include <ctype.h>\n#include <string>\n#include <vector>\n"
         '#include "mods.h"\n'
         "namespace Rml { using String = std::string; template<class T> using Vector = std::vector<T>; }\n",
@@ -188,19 +193,21 @@ def cases():
 
 
 def main():
-    if not shutil.which("cl"):
-        raise SystemExit("Run scripts/enter-env.ps1 first so cl.exe is available.")
+    cc.require_compiler()
     native, registry = fixture_source()
     with tempfile.TemporaryDirectory(prefix="mm3-launcher-settings-") as temporary:
         folder = Path(temporary)
         shutil.copyfile(ROOT / "src/mods/mods.h", folder / "mods.h")
         (folder / "settings.cpp").write_text(native, encoding="utf-8")
         (folder / "registry.c").write_text(registry, encoding="utf-8")
-        subprocess.run(["cl", "/nologo", "/W3", "/WX", "/Od", "/std:c11", "/c", "registry.c",
-                        "/Fo:registry.obj"], check=True, cwd=folder)
-        executable = folder / "settings-contract.exe"
-        subprocess.run(["cl", "/nologo", "/W3", "/WX", "/Od", "/std:c++17", "/D_CRT_SECURE_NO_WARNINGS",
-                        "settings.cpp", "registry.obj", "user32.lib", "/Fe:" + str(executable)],
+        subprocess.run(cc.compile_command(["registry.c"], "registry.obj", std="c11", optimize="none",
+                                          warnings="normal", werror=True, compile_only=True),
+                       check=True, cwd=folder)
+        executable = folder / f"settings-contract{cc.exe_suffix()}"
+        subprocess.run(cc.compile_command(["settings.cpp", "registry.obj"], executable, std="c++17",
+                                          optimize="none", warnings="normal", werror=True,
+                                          defines=["_CRT_SECURE_NO_WARNINGS"], libs=["user32"],
+                                          includes=[ROOT / "tools/xboxrecomp/src"]),
                        check=True, cwd=folder)
         environment = {key: value for key, value in os.environ.items()
                        if not key.upper().startswith(("RECOMP_", "MM3_"))}

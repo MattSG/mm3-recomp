@@ -4,22 +4,22 @@ import shutil
 import subprocess
 import tempfile
 
+import cc
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
-    if not shutil.which("cl"):
-        raise SystemExit("Run scripts/enter-env.ps1 first so cl.exe is available.")
+    cc.require_compiler()
     with tempfile.TemporaryDirectory(prefix="mm3-collision-cell-") as temporary:
         folder = Path(temporary)
         shutil.copyfile(ROOT / "src/mm3_recomp_types.h", folder / "recomp_types.h")
-        executable = folder / "contract.exe"
-        subprocess.run([
-            "cl", "/nologo", "/W3", "/WX", "/O2", "/std:c11",
-            "/I" + str(folder), "/I" + str(ROOT / "tools/xboxrecomp/include"),
-            str(ROOT / "tests/mm3_collision_cell_contract.c"),
-            "/Fo:" + str(folder / "contract.obj"), "/Fe:" + str(executable),
-        ], check=True, cwd=folder)
+        executable = folder / f"contract{cc.exe_suffix()}"
+        subprocess.run(cc.compile_command(
+            [ROOT / "tests/mm3_collision_cell_contract.c"], executable,
+            includes=[folder, ROOT / "tools/xboxrecomp/include"], std="c11",
+            optimize="speed", warnings="normal", werror=True,
+            obj=folder / "contract.obj"), check=True, cwd=folder)
         subprocess.run([str(executable)], check=True, cwd=folder)
 
 

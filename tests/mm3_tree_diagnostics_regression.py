@@ -1,13 +1,14 @@
 """Exercise production contact diagnostics with original-call state sentinels.
 
-Run after scripts/enter-env.ps1. This checks that opt-in observation leaves
+Run inside `python scripts/devenv.py --shell`. This checks that opt-in observation leaves
 every guest register, x87 value, memory byte and call sequence unchanged,
 including nested events, unreadable metadata and renewable line budgets.
 """
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+
+import cc
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = r'''
@@ -171,20 +172,19 @@ int main(int argc,char **argv){
 
 
 def main():
-    if not shutil.which('cl'):
-        raise SystemExit('Run scripts/enter-env.ps1 first.')
+    cc.skip_unless_windows('the contract includes windows.h')
+    cc.require_compiler()
     cmake = (ROOT / 'CMakeLists.txt').read_text()
     assert 'list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0016AEDB sub_000E1F49 sub_001D137B)' in cmake
     assert cmake.count('src/mm3_tree_diagnostics.c') == 1
     with tempfile.TemporaryDirectory(prefix='mm3-tree-diagnostics-') as path:
         folder = Path(path)
-        source, executable = folder / 'contract.c', folder / 'contract.exe'
+        source, executable = folder / 'contract.c', folder / ('contract' + cc.exe_suffix())
         source.write_text(SOURCE)
-        subprocess.run(['cl', '/nologo', '/W4', '/Od', '/std:c11',
-                        '/D_CRT_SECURE_NO_WARNINGS', '/I' + str(ROOT / 'src'),
-                        '/I' + str(ROOT / 'tools/xboxrecomp/include'),
-                        '/Fo:' + str(folder / 'contract.obj'), '/Fe:' + str(executable),
-                        str(source)], check=True, cwd=folder)
+        subprocess.run(cc.compile_command([source], executable,
+                                          includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src'],
+                                          defines=['_CRT_SECURE_NO_WARNINGS'], std='c11', optimize='none',
+                                          warnings='high', obj=folder / 'contract.obj'), check=True, cwd=folder)
         for tracing in ('0', '1', '2'):
             subprocess.run([str(executable), tracing], check=True)
 

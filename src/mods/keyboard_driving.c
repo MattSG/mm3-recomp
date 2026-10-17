@@ -5,7 +5,7 @@
  * in either context. While driving, R/F are Xbox B/X (the default manual
  * gear up/down), Space is A (handbrake) and C is Black (change camera
  * view). Escape is B everywhere, as X's menu back. Enter remains Start. */
-#include <windows.h>
+#include "platform/xbox_winnt.h"
 #include <input/xinput_xbox.h>
 
 extern int xbox_FramebufferKeyDown(int vk);

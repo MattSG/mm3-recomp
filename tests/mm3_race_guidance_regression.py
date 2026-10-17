@@ -9,6 +9,8 @@ import tempfile
 import zipfile
 import math
 
+import cc
+
 from mm3_map_zoom_regression import constants
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -189,8 +191,9 @@ def ui_declaration_data():
 
 
 def main():
-    if not shutil.which("cl") or not shutil.which("cmake"):
-        raise SystemExit("Run scripts/enter-env.ps1 first.")
+    cc.require_compiler()
+    if not shutil.which("cmake"):
+        raise SystemExit("Run `python scripts/devenv.py --shell` first so CMake is available.")
     native = {}
     for path in sorted((Path(os.environ.get("MM3_TEST_GENERATED_DIR", ROOT / "src/recomp/gen"))).glob("recomp_*.c")):
         source = path.read_text()
@@ -256,12 +259,14 @@ def main():
             declarations + "\n" + body + constants(file_constants) + ui_declaration_data())
         shutil.copyfile(ROOT / "src/mm3_recomp_types.h", folder / "recomp_types.h")
         shutil.copyfile(ROOT / "src/mm3_race_guidance.c", folder / "production_race_guidance.c")
-        executable = folder / "contract.exe"
-        subprocess.run(["cl", "/nologo", "/W3", "/WX", "/wd4102", "/Od", "/std:c11",
-                        "/I" + str(folder), "/I" + str(ROOT / "tools/xboxrecomp/include"),
-                        str(ROOT / "tests/mm3_race_guidance_contract.c"),
-                        "/Fo:" + str(folder / "contract.obj"), "/Fe:" + str(executable)],
-                       check=True, cwd=folder)
+        executable = folder / f"contract{cc.exe_suffix()}"
+        subprocess.run(cc.compile_command(
+            [ROOT / "tests/mm3_race_guidance_contract.c"], executable,
+            includes=[folder, ROOT / "tools/xboxrecomp/include"], std="c11", optimize="none",
+            warnings="normal", werror=True,
+            # Generated native fixture: unused _flags/_icall_esp temporaries are emitted by the translator.
+            disable_warnings=("4101", "4102"),
+            obj=folder / "contract.obj"), check=True, cwd=folder)
         fixtures = [retail_city_fixture(city, folder / (city + ".bin")) for city in ("Paris", "Washington")]
         subprocess.run([str(executable), *(str(path) for path in fixtures)], check=True, cwd=folder)
     print("PASS race guidance seams: source owners, LF/CRLF, unchanged native instructions and invalid anchors")

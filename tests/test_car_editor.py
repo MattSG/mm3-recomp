@@ -309,7 +309,10 @@ class CarEditorTest(unittest.TestCase):
             self.assertEqual(car["model_package"], f"models/{editor.prepare.IDENTITIES[ident][0]}")
 
     def test_running_game_check_parses_process_rows(self):
-        with patch.object(editor.sys, "platform", "win32"), patch.object(editor.subprocess, "run") as run:
+        # CREATE_NO_WINDOW only exists on Windows; the platform check is faked here.
+        with patch.object(editor.sys, "platform", "win32"), \
+                patch.object(editor.subprocess, "CREATE_NO_WINDOW", 0x08000000, create=True), \
+                patch.object(editor.subprocess, "run") as run:
             run.return_value = subprocess.CompletedProcess([], 0, '"mm3_recomp.exe","1234","Console","1","10 K"\n', "")
             self.assertTrue(editor.game_is_running())
             run.return_value = subprocess.CompletedProcess([], 0, "INFO: No tasks are running which match the specified criteria.\n", "")

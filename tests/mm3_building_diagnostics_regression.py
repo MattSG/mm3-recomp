@@ -1,14 +1,15 @@
 """Check facade diagnostic ABI, guarded reads and repeatable log budgets.
 
-Run with tools/venv/Scripts/python.exe after scripts/enter-env.ps1.
+Run with tools/venv/Scripts/python.exe inside `python scripts/devenv.py --shell`.
 The fixture includes the production wrappers and exercises their original
 function seams without launching MM3 or changing game/save files.
 """
-import shutil
 import re
 import subprocess
 import tempfile
 from pathlib import Path
+
+import cc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -226,21 +227,20 @@ int main(int argc,char**argv){
 
 
 def main():
-    if not shutil.which('cl'):
-        raise SystemExit('Run scripts/enter-env.ps1 first.')
+    cc.skip_unless_windows('the contract includes windows.h')
+    cc.require_compiler()
     with tempfile.TemporaryDirectory(prefix='mm3-building-diagnostics-') as path:
         folder = Path(path)
-        source, executable = folder / 'contract.c', folder / 'contract.exe'
+        source, executable = folder / 'contract.c', folder / f'contract{cc.exe_suffix()}'
         generated = (ROOT / 'src/recomp/gen/recomp_0014.c').read_text()
         native = generated.split('void sub_00162F75(void)', 1)[1].split('\n/**', 1)[0]
         native = 'void sub_00162F75_original(void)' + native
         native = re.sub(r'\b(eax|ecx|edx|esp|ebx|esi|edi|ebp)\b', r'g_\1', native)
         source.write_text(SOURCE.replace('/* NATIVE_ALLOCATOR */', native))
-        subprocess.run(['cl', '/nologo', '/W4', '/Od', '/std:c11',
-                        '/D_CRT_SECURE_NO_WARNINGS', '/I' + str(ROOT / 'src'),
-                        '/I' + str(ROOT / 'tools/xboxrecomp/include'),
-                        '/Fo:' + str(folder / 'contract.obj'), '/Fe:' + str(executable),
-                        str(source)], check=True, cwd=folder)
+        subprocess.run(cc.compile_command(
+            [source], executable, includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src'],
+            defines=['_CRT_SECURE_NO_WARNINGS'], std='c11', optimize='none', warnings='high',
+            obj=folder / 'contract.obj'), check=True, cwd=folder)
         for tracing in ('0', '1'):
             subprocess.run([str(executable), tracing], check=True)
 

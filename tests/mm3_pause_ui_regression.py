@@ -8,6 +8,7 @@ from pathlib import Path
 import os
 import re
 import shutil
+import cc
 import subprocess
 import tempfile
 
@@ -25,8 +26,7 @@ def between(source, start, end):
 
 
 def main():
-    if not shutil.which("cl"):
-        raise SystemExit("Run scripts/enter-env.ps1 first so cl.exe is available.")
+    cc.require_compiler()
     names = ("sub_001E25C1", "sub_001E2CD5", "sub_001E2BDA")
     native = {}
     # Generated translation-unit boundaries change after regeneration.
@@ -124,10 +124,14 @@ int main(void) {
         shutil.copyfile(ROOT / "src/mods/mods.h", folder / "mods.h")
         shutil.copyfile(ROOT / "src/mods/widescreen.c", folder / "production_widescreen.c")
         (folder / "contract.c").write_text(harness)
-        subprocess.run(["cl", "/nologo", "/W3", "/WX", "/O2", "/std:c11",
-                        "/I" + str(ROOT / "tools/xboxrecomp/include"),
-                        "contract.c", "/Fe:contract.exe"], cwd=folder, check=True)
-        subprocess.run([str(folder / "contract.exe")], cwd=folder, check=True)
+        executable = folder / f"contract{cc.exe_suffix()}"
+        command = cc.compile_command(["contract.c"], executable,
+                                     includes=[ROOT / "tools/xboxrecomp/include"], std="c11",
+                                     optimize="speed", warnings="normal", werror=True)
+        if os.name != "nt":
+            command.append("-lm")  # tanf/atanf in widescreen.c; libm is separate on POSIX
+        subprocess.run(command, cwd=folder, check=True)
+        subprocess.run([str(executable)], cwd=folder, check=True)
 
 
 if __name__ == "__main__":

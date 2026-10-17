@@ -1,25 +1,24 @@
 """Compile the real cache helper and exercise it only in a temporary directory."""
 from pathlib import Path
-import shutil
 import subprocess
 import tempfile
+
+import cc
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
-    if not shutil.which("cl"):
-        raise SystemExit("Run scripts/enter-env.ps1 first so cl.exe is available.")
+    cc.skip_unless_windows("the contract includes windows.h")
+    cc.require_compiler()
     with tempfile.TemporaryDirectory(prefix="mm3-asset-cache-") as temporary:
         folder = Path(temporary)
-        executable = folder / "contract.exe"
-        subprocess.run([
-            "cl", "/nologo", "/W4", "/WX", "/Od", "/std:c11", "/D_CRT_SECURE_NO_WARNINGS",
-            "/I" + str(ROOT / "tools/xboxrecomp/src"),
-            "/I" + str(ROOT / "tools/xboxrecomp/src/kernel"),
-            str(ROOT / "tests/mm3_asset_cache_contract.c"),
-            "/Fo:" + str(folder / "contract.obj"), "/Fe:" + str(executable),
-        ], check=True, cwd=folder)
+        executable = folder / f"contract{cc.exe_suffix()}"
+        subprocess.run(cc.compile_command(
+            [ROOT / "tests/mm3_asset_cache_contract.c"], executable,
+            includes=[ROOT / "tools/xboxrecomp/src", ROOT / "tools/xboxrecomp/src/kernel"],
+            defines=["_CRT_SECURE_NO_WARNINGS"], std="c11", optimize="none",
+            warnings="high", werror=True, obj=folder / "contract.obj"), check=True, cwd=folder)
         subprocess.run([str(executable)], check=True, cwd=folder)
 
 

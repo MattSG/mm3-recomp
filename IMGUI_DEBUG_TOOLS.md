@@ -16,7 +16,7 @@ The overlay closes on focus loss. Gameplay continues while it is open.
 For a direct isolated test run after building and preparing the private data:
 
 ```powershell
-pwsh tools/debug-features/run.ps1 -Config RelWithDebInfo -DebugOverlay -CaptureDisplay
+python tools/debug-features/run.py --config RelWithDebInfo --debug-overlay --capture-display
 ```
 
 This script uses its own worktree's data and `out/debug-features/save`. It bypasses

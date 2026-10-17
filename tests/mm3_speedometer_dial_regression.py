@@ -1,6 +1,6 @@
 """Run the production configurable HUD dial offline, with native drawing mocked.
 
-Run after scripts/enter-env.ps1. Compilation uses the project's real guest
+Run inside `python scripts/devenv.py --shell`. Compilation uses the project's real guest
 register/memory header. A temporary fixture contains the settings sidecar;
 no game, GPU, archives or saved profile is opened or changed.
 """
@@ -9,23 +9,21 @@ import shutil
 import subprocess
 import tempfile
 
+import cc
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
-    if not shutil.which("cl"):
-        raise SystemExit("Run scripts/enter-env.ps1 first so cl.exe is available.")
+    cc.require_compiler()
     with tempfile.TemporaryDirectory(prefix="mm3-speedometer-dial-") as temporary:
         folder = Path(temporary)
         shutil.copyfile(ROOT / "src/mm3_recomp_types.h", folder / "recomp_types.h")
-        executable = folder / "contract.exe"
-        subprocess.run([
-            "cl", "/nologo", "/W3", "/WX", "/Od", "/std:c11",
-            "/I" + str(folder),
-            "/I" + str(ROOT / "tools/xboxrecomp/include"),
-            str(ROOT / "tests/mm3_speedometer_dial_contract.c"),
-            "/Fo:" + str(folder / "contract.obj"), "/Fe:" + str(executable),
-        ], check=True, cwd=folder)
+        executable = folder / f"contract{cc.exe_suffix()}"
+        subprocess.run(cc.compile_command(
+            [ROOT / "tests/mm3_speedometer_dial_contract.c"], executable,
+            includes=[folder, ROOT / "tools/xboxrecomp/include"], std="c11", optimize="none",
+            warnings="normal", werror=True, obj=folder / "contract.obj"), check=True, cwd=folder)
         subprocess.run([str(executable), "missing"], check=True, cwd=folder)
         data = folder / "game_files/Data"
         data.mkdir(parents=True)

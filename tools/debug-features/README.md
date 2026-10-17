@@ -27,7 +27,7 @@ Rendering corruption was seen during testing, particularly after debug drawing c
 
 ## Use
 
-Build Release with the Visual Studio CMake. Run tools/venv/Scripts/python.exe tools/debug-features/prepare.py while the game is stopped, then tools/debug-features/run.ps1.
+Build Release with the Visual Studio CMake. Run tools/venv/Scripts/python.exe tools/debug-features/prepare.py while the game is stopped, then `python tools/debug-features/run.py`.
 
 While gameplay is active, write one number to the request.txt path in out/debug-features/current-run.json's run directory:
 
@@ -49,9 +49,9 @@ The isolated instance is left running with the debug menu and HUD enabled for re
 
 ## Launch flags and graphics regression
 
-`run.ps1 -DevHud -DebugMenu -ExtendedCameras` enables the corresponding tools on the first player update. `-E3Preset` runs the E3 settings too. Environment equivalents are MM3_DEV_HUD, MM3_DEBUG_MENU, MM3_EXTENDED_CAMERAS and MM3_E3_PRESET (1 enables, 0 disables). Scripts must first be installed with prepare.py. Startup flags were exercised in run-20261009-135727 (probes 1, 2 and 3 all loaded=1).
+`python tools/debug-features/run.py --dev-hud --debug-menu --extended-cameras` enables the corresponding tools on the first player update. `--e3-preset` runs the E3 settings too. Environment equivalents are MM3_DEV_HUD, MM3_DEBUG_MENU, MM3_EXTENDED_CAMERAS and MM3_E3_PRESET (1 enables, 0 disables). Scripts must first be installed with prepare.py. Startup flags were exercised in run-20261009-135727 (probes 1, 2 and 3 all loaded=1).
 
-`-GraphicsPreset Retail|Default|Max` selects baseline/enhanced/max quality. Max uses draw distance 4, 8x MSAA, 16x AF, 1920 internal lines. `-Graphics @{ RECOMP_MSAA='1' }` overrides a supported graphics option. `-CaptureDisplay` captures the final window composite; otherwise captures are at internal resolution. The D3D debug layer is optional via `-Graphics @{ RECOMP_D3D_DEBUG='1' }`; it is not a quality feature.
+`--graphics-preset Retail|Default|Max` selects baseline/enhanced/max quality. Max uses draw distance 4, 8x MSAA, 16x AF, 1920 internal lines. `--graphics RECOMP_MSAA=1` overrides a supported graphics option. `--capture-display` captures the final window composite; otherwise captures are at internal resolution. The D3D debug layer is optional via `--graphics RECOMP_D3D_DEBUG=1`; it is not a quality feature.
 
 For blank-frame or texture-dropout regression testing omit all developer overlay switches. Capture a sequence by writing N to capture.flag. Run `python tools/debug-features/analyze_frames.py <run-directory> --start <first-gameplay-frame>` to produce frame-analysis.json. It reports sampled black frames and adjacent image changes; visual inspection must distinguish scene motion from defects. `--self-test` checks the metrics.
 

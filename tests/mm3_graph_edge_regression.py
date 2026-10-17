@@ -1,18 +1,18 @@
 """Compare graph edge lookup and its caller with original XBE instructions.
 
-Run with tools/venv/Scripts/python.exe after scripts/enter-env.ps1.
+Run with tools/venv/Scripts/python.exe inside `python scripts/devenv.py --shell`.
 The actual generated lookup, shared tail, index helpers and vector caller run
 against the original XBE in Unicorn. An isolated old-tail negative control
 must reproduce the stack/register defect. No game or save files are written.
 """
 import math
 import re
-import shutil
 import struct
 import subprocess
 import tempfile
 from pathlib import Path
 
+import cc
 import mm3_x87_exp_regression as common
 
 ROOT = common.ROOT
@@ -172,8 +172,7 @@ def compare(label, entry, initial, native, original):
 
 
 def main():
-    if not shutil.which('cl'):
-        raise SystemExit('Run scripts/enter-env.ps1 first.')
+    cc.require_compiler()
     image = common.Image(str(ROOT / 'game_files/default.xbe'))
     scratch = ROOT / 'conformance_tmp'
     scratch.mkdir(exist_ok=True)
@@ -182,11 +181,12 @@ def main():
         executables = []
         for old_tail in (False, True):
             name = 'old-tail' if old_tail else 'repaired-tail'
-            source, executable = directory / (name + '.c'), directory / (name + '.exe')
+            source, executable = directory / (name + '.c'), directory / (name + cc.exe_suffix())
             source.write_text(native_source(old_tail))
-            subprocess.run(['cl', '/nologo', '/Od', '/MD', '/std:c11',
-                            '/I' + str(ROOT / 'src'), '/I' + str(ROOT / 'tools/xboxrecomp/include'),
-                            '/Fo' + str(directory / (name + '.obj')), '/Fe' + str(executable), str(source)], check=True)
+            subprocess.run(cc.compile_command([source], executable,
+                                              includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include'],
+                                              std='c11', optimize='none', dynamic_crt=True,
+                                              obj=directory / (name + '.obj')), check=True)
             executables.append(executable)
         cases = [('lookup-empty-null', 0x144EAE, {'empty': 'null'}),
                  ('lookup-empty-allocated', 0x144EAE, {'empty': 'allocated'}),

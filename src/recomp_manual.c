@@ -5,7 +5,7 @@
 #include <xmmintrin.h>
 #include <emmintrin.h>
 #include <string.h>
-#include <windows.h>
+#include "platform/xbox_winnt.h"
 
 #include "recomp_types.h"
 #include "mods/mods.h"

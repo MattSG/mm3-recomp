@@ -12,11 +12,7 @@ static const char *keys[] = {
 
 static void setting(const char *key, const char *value)
 {
-#ifdef _WIN32
     assert(_putenv_s(key, value ? value : "") == 0);
-#else
-    assert(value ? setenv(key, value, 1) == 0 : unsetenv(key) == 0);
-#endif
 }
 
 static void clear_settings(void)

@@ -25,7 +25,7 @@ typedef struct XboxOverlay { int unused; } XboxOverlay;
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL line %d: %s (events=%s)\n", __LINE__, #x, events); exit(1); } } while (0)
 
 enum { PROF_PACE, PROF_WRITEBACK, PROF_PRESENT };
-static int s_prof_on, s_init_state, s_frame_bg_tex, s_frame_tag_window, s_wb_pending;
+static int s_prof_on, s_init_state, s_wb_pending;
 static int64_t s_prof[3];
 static Surface *s_shown;
 static DWORD s_last_present, s_last_flip;
@@ -125,6 +125,33 @@ static int xbox_FramebufferScanSource(uint32_t *address, uint32_t *pitch)
 { *address = 0x10000; *pitch = 2560; return cpu_scanout; }
 static int xbox_FramebufferOverlay(XboxOverlay *overlay) { (void)overlay; return overlay_ok; }
 
+/* Renderer state used by the extracted bodies. These are inert: the flip
+ * order above is the only ordering contract, so none of them emit events. */
+typedef struct ID3D11DeviceContext ID3D11DeviceContext;
+typedef struct NvOverlayHooks { void (*frame)(void); } NvOverlayHooks;
+typedef struct MenuRect { int unused; } MenuRect;
+typedef struct SRWLOCK { int unused; } SRWLOCK;
+typedef long LONG;
+static ID3D11DeviceContext *s_ctx;
+static NvOverlayHooks s_overlay;            /* frame hook unset: no-op */
+static MenuRect s_mr_frame[4], s_mr_shown[4];
+static int s_mr_frame_n, s_mr_shown_n;
+static SRWLOCK s_mr_lock;
+static void AcquireSRWLockExclusive(SRWLOCK *lock) { (void)lock; }
+static void ReleaseSRWLockExclusive(SRWLOCK *lock) { (void)lock; }
+static volatile LONG s_repeat;              /* repeat path is not exercised */
+static LONG InterlockedExchange(volatile LONG *target, LONG value)
+{ LONG old = *target; *target = value; return old; }
+static int s_depth_hazed;
+static float s_loading;
+static void spike_check(int64_t interval, int64_t pace) { (void)interval; (void)pace; }
+static void keep_image(ID3D11Texture2D *bb) { (void)bb; }
+static void unbind_targets(void) { }
+static void xbox_FramebufferRenderHostOverlay(int device, ID3D11DeviceContext *context,
+                                              ID3D11RenderTargetView *target)
+{ (void)device; (void)context; (void)target; }
+static int present_kept(void) { return 0; }
+
 #define getenv test_getenv
 #include "production_pacing.inc"
 #undef getenv
@@ -154,7 +181,7 @@ static void successful_flip(const char *expected)
     CHECK(strcmp(events, expected) == 0);
     CHECK(pace_calls == 1 && present_calls == 1 && csv_calls == 1 && csv_ticks == 7);
     CHECK(s_prof[PROF_PACE] == 7 && s_prof[PROF_WRITEBACK] == 2);
-    CHECK(s_frame == 1 && s_frame_tag_window == 1 && s_frame_bg_tex == 0);
+    CHECK(s_frame == 1);
 }
 
 static void flip_cases(void)

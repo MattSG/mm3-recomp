@@ -6,12 +6,14 @@ a controller.
 Run from the repository root with the local toolchain:
 
 ```powershell
-Set-ExecutionPolicy -Scope Process Bypass -Force
-. .\scripts\enter-env.ps1
+python scripts/devenv.py --shell
 cmake -S tests/input_contract -B conformance_tmp/input_contract -G Ninja
 cmake --build conformance_tmp/input_contract
 ctest --test-dir conformance_tmp/input_contract --output-on-failure
 ```
+
+`python scripts/devenv.py --shell` opens a shell with the MSVC toolchain and
+tools/venv on PATH; run the remaining commands in it.
 
 Checks cover independent trigger pressures through the 20-byte USB report,
 face buttons, bumpers, signed stick axes, short buffers, legacy and MM3 arrow

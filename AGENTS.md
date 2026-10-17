@@ -80,7 +80,7 @@ from scratch.
 Install the pinned Windows profiler with:
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File tools\powershell\install_tracy.ps1
+python tools/scripts/install_tracy.py
 ```
 
 The executable is `tools\bin\tracy-0.14.1\tracy-profiler.exe`. Tracy is useful

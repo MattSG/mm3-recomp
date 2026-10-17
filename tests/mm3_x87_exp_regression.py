@@ -1,18 +1,18 @@
 """Compare production MM3 exp with original XBE instructions.
 
-Run with tools/venv/Scripts/python.exe after scripts/enter-env.ps1.
+Run with tools/venv/Scripts/python.exe inside `python scripts/devenv.py --shell`.
 Requires capstone and unicorn. Scratch files stay under conformance_tmp;
 the test never reads or changes a running game or save files.
 """
 import math
 import re
-import shutil
 import struct
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
+import cc
 import unicorn
 from unicorn import x86_const as x86
 
@@ -145,8 +145,7 @@ def original_result(ram, value, control, entry=0x25371C):
 
 
 def main():
-    if not shutil.which('cl'):
-        raise SystemExit('Run scripts/enter-env.ps1 first so cl.exe is available.')
+    cc.require_compiler()
     image = Image(str(ROOT / 'game_files/default.xbe'))
     ram = bytearray(0x1000000)
     for address, raw, size, _ in image.secs:
@@ -155,13 +154,14 @@ def main():
     scratch.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='x87-exp-', dir=scratch) as directory:
         directory = Path(directory)
-        source, executable = directory / 'exp.c', directory / 'exp.exe'
+        source, executable = directory / 'exp.c', directory / ('exp' + cc.exe_suffix())
         source.write_text(native_source())
         memory = directory / 'image.bin'
         memory.write_bytes(ram)
-        subprocess.run(['cl', '/nologo', '/Od', '/MD', '/std:c11',
-                        '/I' + str(ROOT / 'src'), '/I' + str(ROOT / 'tools/xboxrecomp/include'),
-                        '/Fo' + str(directory / 'exp.obj'), '/Fe' + str(executable), str(source)], check=True)
+        subprocess.run(cc.compile_command([source], executable,
+                                          includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include'],
+                                          std='c11', optimize='none', dynamic_crt=True,
+                                          obj=directory / 'exp.obj'), check=True)
         count = 0
         for control in (0x7F, 0x27F, 0x37F, 0xC7F):
             for value in VALUES:

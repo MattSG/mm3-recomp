@@ -4,6 +4,7 @@ import os
 import json
 import shutil
 import sys
+import cc
 import re
 import struct
 import subprocess
@@ -68,12 +69,16 @@ def native_wheel_path():
     for addr in sorted(addresses):
         section = next(s for s in sections if s[0] <= addr < s[0] + s[3])
         constants += f"    MEM32(0x{addr:X}) = 0x{u32(section[2] + addr - section[0]):08X}u;\n"
+    # Generator fallback variables that these copied bodies never read: GCC warns
+    # under -Werror, MSVC does not. Silence them in the copied text only.
+    native = native.replace("int _flags = 0; /*", "int _flags = 0; (void)_flags; /*")
+    native = native.replace("ebp = g_ebp;  /* prologue saves caller's frame */\n    int _flags",
+                            "ebp = g_ebp; (void)ebp; /* prologue saves caller's frame */\n    int _flags")
     return native + constants + "}\n"
 
 
 def main():
-    if not shutil.which("cl"):
-        raise SystemExit("Run scripts/enter-env.ps1 first so cl.exe is available.")
+    cc.require_compiler()
     with tempfile.TemporaryDirectory(prefix="mm3-factory-physics-") as folder:
         folder = Path(folder)
         shutil.copyfile(ROOT / "src/mm3_recomp_types.h", folder / "recomp_types.h")
@@ -90,15 +95,16 @@ def main():
                 "# Only explicit factory profiles are emitted by prepare.py\n"
                 "Viper 18000 .33 2 0 1 19000 .8\n"  # Retail identity must be ignored.
                 "Form1 18000 .33 4 0 .2 14000 1 18000 .9 19000 .8\n")
-        executable = folder / "contract.exe"
-        mode = ["/O2", "/DMM3_FACTORY_WINDOWS_MAPPING"] if "--windows-mapping" in sys.argv else ["/Od"]
+        executable = folder / f"contract{cc.exe_suffix()}"
+        windows_mapping = "--windows-mapping" in sys.argv
+        defines = ["MM3_FACTORY_WINDOWS_MAPPING"] if windows_mapping else []
         if "--defaults" in sys.argv:
-            mode.append("/DMM3_FACTORY_DEFAULTS")
-        subprocess.run(["cl", "/nologo", "/W3", "/WX", "/wd4102", *mode, "/std:c11",
-                        "/I" + str(folder), "/I" + str(ROOT / "tools/xboxrecomp/include"),
-                        str(ROOT / "tests/mm3_factory_physics_contract.c"),
-                        "/Fo:" + str(folder / "contract.obj"), "/Fe:" + str(executable)],
-                       check=True, cwd=folder)
+            defines.append("MM3_FACTORY_DEFAULTS")
+        subprocess.run(cc.compile_command(
+            [ROOT / "tests/mm3_factory_physics_contract.c"], executable,
+            includes=[folder, ROOT / "tools/xboxrecomp/include"], defines=defines, std="c11",
+            optimize="speed" if windows_mapping else "none", warnings="normal", werror=True,
+            disable_warnings=("4102",), obj=folder / "contract.obj"), check=True, cwd=folder)
         result = subprocess.run([str(executable)], capture_output=True, text=True, cwd=folder)
         print(result.stdout, end="")
         if result.returncode:

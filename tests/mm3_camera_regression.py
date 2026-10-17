@@ -1,6 +1,6 @@
 """Exercise camera hooks through the retail chase callers and projection math.
 
-Run after scripts/enter-env.ps1. Requires generated code and the user's PAL XBE;
+Run inside `python scripts/devenv.py --shell`. Requires generated code and the user's PAL XBE;
 extracts its constants at test time. No game process, GPU or assets are modified.
 """
 from pathlib import Path
@@ -11,6 +11,8 @@ import struct
 import subprocess
 import sys
 import tempfile
+
+import cc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -61,6 +63,9 @@ def native_source():
         constants.add(int(addr, 16))
         if kind == "D":
             constants.add(int(addr, 16) + 4)
+    # The generator's fallback flag variable is unused in these bodies: GCC warns
+    # about it under -Werror, MSVC does not. Silence it in the copied text only.
+    native = native.replace("int _flags = 0; /*", "int _flags = 0; (void)_flags; /*")
     native += "\nstatic void native_constants(void) {\n"
     for address in sorted(constants):
         native += f"    MEM32(0x{address:X}) = 0x{word(address):08X}u;\n"
@@ -68,8 +73,7 @@ def native_source():
 
 
 def main():
-    if not shutil.which("cl"):
-        raise SystemExit("Run scripts/enter-env.ps1 first so cl.exe is available.")
+    cc.require_compiler()
     cmake = (ROOT / "CMakeLists.txt").read_text()
     assert "list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001EEC53)" in cmake
     with tempfile.TemporaryDirectory(prefix="mm3-camera-") as folder:
@@ -79,11 +83,11 @@ def main():
         production = (ROOT / "src/mods/widescreen.c").read_text()
         (folder / "production_widescreen.c").write_text(production, encoding="utf-8")
         (folder / "native_camera.inc").write_text(native_source(), encoding="utf-8")
-        executable = folder / "contract.exe"
-        command = ["cl", "/nologo", "/W3", "/WX", "/wd4102", "/Od", "/std:c11",
-                        "/I" + str(folder), "/I" + str(ROOT / "tools/xboxrecomp/include"),
-                        str(ROOT / "tests/mm3_camera_contract.c"),
-                        "/Fo:" + str(folder / "contract.obj"), "/Fe:" + str(executable)]
+        executable = folder / f"contract{cc.exe_suffix()}"
+        command = cc.compile_command([ROOT / "tests/mm3_camera_contract.c"], executable,
+                                     includes=[folder, ROOT / "tools/xboxrecomp/include"], std="c11",
+                                     optimize="none", warnings="normal", werror=True,
+                                     disable_warnings=("4102",), obj=folder / "contract.obj")
         subprocess.run(command, check=True, cwd=folder)
         for value in (None, "", "60", "80", "95.5", "100", "110", "nan", "inf", "59", "111", "80garbage"):
             environment = os.environ.copy()

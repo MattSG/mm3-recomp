@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <windows.h>
+#include "platform/xbox_winnt.h"
 
 #include <xbox/xboxrecomp.h>
 
@@ -206,7 +206,7 @@ int main(void)
         return 0;
 
     /* Apply the same bounded rate before either vblank or presentation
-     * caches its setting, including launches that bypass play.ps1. */
+     * caches its setting, including launches that bypass scripts/play.py. */
     char frame_limit[16];
     snprintf(frame_limit, sizeof frame_limit, "%d",
              mm3_frame_limit(getenv("RECOMP_FPS_LIMIT")));

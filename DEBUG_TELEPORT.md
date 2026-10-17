@@ -3,7 +3,7 @@
 Use **ImGui debug tools** for live X/Y/Z, heading and coordinate teleport.
 The former separate Windows panel has been removed. Enable
 `MM3_DEBUG_OVERLAY=1` and open the overlay with its configured toggle (F4 by default).
-For scripts, `MM3_DEBUG_TELEPORT=1` enables the local pipe without opening a window.
+For scripts, `MM3_DEBUG_TELEPORT=1` enables the local endpoint without opening a window.
 
 MM3 is Y-up; its native ground-placement reset
 calculates Y, applies car clearance, aligns to the slope while retaining
@@ -11,14 +11,31 @@ heading, clears motion and updates the cached transform and reset flags.
 No usable ground leaves the car unchanged. Guest changes run in the primary
 player update, with GPR/x87/XMM state restored afterward. Disabled is default.
 
-The same operation uses the local pipe `\\.\pipe\MM3Teleport-<PID>`:
-`position` or `teleport X Z`, returning JSON with the actual resulting Y.
-Requests that cannot reach the player update within two seconds are cancelled.
-ImGui reports ground misses, stalled updates and unavailable cars.
+The same operation uses the local endpoint `\\.\pipe\MM3Teleport-<PID>` on
+Windows, and a Unix stream socket elsewhere: `$XDG_RUNTIME_DIR/MM3Teleport-<PID>.sock`,
+or `/tmp/MM3Teleport-<PID>.sock` when `XDG_RUNTIME_DIR` is unset or empty.
+Both carry the same requests: `position`, `teleport X Z [heading]`, `cars`, and
+`peek ADDR LEN`, each returning JSON; the teleport reply includes the actual
+resulting Y. Requests that cannot reach the player update within two seconds
+are cancelled. ImGui reports ground misses, stalled updates and unavailable cars.
+
+Socket protocol: one connection serves one request at a time. The client sends
+the request, then either a newline or a half-close (`shutdown(SHUT_WR)`); the
+game replies and closes, so the client reads to EOF. The socket file is removed
+on normal exit; a process killed by signal leaves it behind until the same PID
+is reused. A stale socket answers "connection refused", which the tools report
+as not connected.
 
 ```powershell
-tools/powershell/Send-MM3Teleport.ps1 -ProcessId 12345
-tools/powershell/Send-MM3Teleport.ps1 -ProcessId 12345 -X -512.25 -Z 1001.125
+python tools/scripts/send_teleport.py --process-id 12345
+python tools/scripts/send_teleport.py --process-id 12345 --x -512.25 --z 1001.125
+```
+
+On Linux and macOS, use the Python tools, which pick the same socket path:
+
+```sh
+python3 tools/scripts/send_teleport.py --process-id 12345
+python3 tools/scripts/send_teleport.py --process-id 12345 --x -512.25 --z 1001.125
 ```
 
 These example coordinates are fixture values, not a verified destination.

@@ -59,8 +59,10 @@ static Result draw(const float (*pos)[4], uint32_t count, const uint32_t *idx,
     d.tex = texture; d.textured = textured; d.reads_wide = reads_wide;
     for (i = 0; i < ni; ++i) {
         const float *v = pos[idx[i] - lo];
-        if (v[0] < d.x0) d.x0 = v[0]; if (v[0] > d.x1) d.x1 = v[0];
-        if (v[1] < d.y0) d.y0 = v[1]; if (v[1] > d.y1) d.y1 = v[1];
+        if (v[0] < d.x0) d.x0 = v[0];
+        if (v[0] > d.x1) d.x1 = v[0];
+        if (v[1] < d.y0) d.y0 = v[1];
+        if (v[1] > d.y1) d.y1 = v[1];
     }
     r.use_dx = mm3_hud_hooks.place(&d, dx, &r.squeeze, &r.shift);
     for (i = 0; i < count; ++i) {

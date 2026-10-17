@@ -1,6 +1,6 @@
 """Compare the recovered CRT CPU probe with Xbox instructions and test logs.
 
-Run under scripts/enter-env.ps1 with tools/venv/Scripts/python.exe. Uses the
+Run inside `python scripts/devenv.py --shell` with tools/venv/Scripts/python.exe. Uses the
 original XBE and Unicorn; it never opens a running game or a saved profile.
 """
 import os
@@ -10,6 +10,8 @@ import struct
 import subprocess
 import tempfile
 from pathlib import Path
+
+import cc
 
 import mm3_x87_exp_regression as common
 
@@ -59,7 +61,9 @@ COMMON_NATIVE = r'''
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#ifdef _WIN32
 #include <windows.h>
+#endif
 #include <emmintrin.h>
 #include "recomp_types.h"
 ptrdiff_t g_xbox_mem_offset;
@@ -144,20 +148,20 @@ int main(int argc,char**argv){
 ''')
 
 
-def compile_fixture(directory, name, source):
+def compile_fixture(directory, name, source, disable_warnings=()):
     path = directory / (name + '.c')
-    executable = directory / (name + '.exe')
+    executable = directory / (name + cc.exe_suffix())
     path.write_text(source)
-    subprocess.run(['cl', '/nologo', '/W4', '/WX', '/Od', '/std:c11', '/D_CRT_SECURE_NO_WARNINGS',
-                    '/I' + str(directory), '/I' + str(ROOT / 'tools/xboxrecomp/include'),
-                    '/Fo' + str(directory / (name + '.obj')),
-                    '/Fe' + str(executable), str(path)], check=True)
+    subprocess.run(cc.compile_command(
+        [path], executable, includes=[directory, ROOT / 'tools/xboxrecomp/include'],
+        defines=['_CRT_SECURE_NO_WARNINGS'], std='c11', optimize='none', warnings='high',
+        werror=True, disable_warnings=disable_warnings, obj=directory / (name + '.obj')), check=True)
     return executable
 
 
 def main():
-    if not shutil.which('cl'):
-        raise SystemExit('Run scripts/enter-env.ps1 first.')
+    cc.skip_unless_windows('the fixture includes windows.h')
+    cc.require_compiler()
     image = common.Image(str(ROOT / 'game_files/default.xbe'))
     (ROOT / 'conformance_tmp').mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='cpu-diagnostics-', dir=ROOT / 'conformance_tmp') as temporary:

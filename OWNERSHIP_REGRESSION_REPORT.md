@@ -122,8 +122,8 @@ ctest --test-dir build/ownership-regression/<project> -C Release --output-on-fai
 
 tools/.mm3-gen-venv/Scripts/python.exe tools/xboxrecomp/tools/texpack/upscale.py --selftest
 python tools/xboxrecomp/tools/bench/frames.py --selftest
-tools/powershell/check_worker_bootstrap.ps1
-tools/powershell/check_memmove_tails.ps1 -GeneratorDir conformance_tmp/mm3_seeded_gen_20261004
+python tools/scripts/check_worker_bootstrap.py
+python tools/scripts/check_memmove_tails.py --generator-dir conformance_tmp/mm3_seeded_gen_20261004
 tools/xboxrecomp/tools/powershell/check_pvideo_registers.ps1
 cmake --build build-msvc-tailfix --config RelWithDebInfo --target mm3_recomp --parallel 4
 ```

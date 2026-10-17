@@ -1,6 +1,6 @@
 """Exercise falling native trees without a graphics device.
 
-Run after scripts/enter-env.ps1. The generated native retirement/ID chain
+Run inside `python scripts/devenv.py --shell`. The generated native retirement/ID chain
 executes against the existing two-class city fixture. A queued-copy renderer
 checks the production draw wrapper, grounded geometry, visible trajectories,
 guest state restoration, streaming guards, and pause/resume clock behavior.
@@ -8,12 +8,12 @@ The real native renderer and both matrix-copy queues also run against a
 billboard submission stub, including the former upright-copy negative control.
 """
 import re
-import shutil
 import struct
 import subprocess
 import tempfile
 from pathlib import Path
 
+import cc
 import mm3_tree_contact_regression as contact
 
 ROOT = contact.ROOT
@@ -627,29 +627,28 @@ def check_render_seams(directory):
 
 
 def main():
-    if not shutil.which('cl'):
-        raise SystemExit('Run scripts/enter-env.ps1 first.')
+    cc.skip_unless_windows('the generated fixtures include windows.h')
+    cc.require_compiler()
     image = contact.common.common.Image(str(ROOT / 'game_files/default.xbe'))
     with tempfile.TemporaryDirectory(prefix='mm3-tree-fall-') as temporary:
         directory = Path(temporary)
         seams = check_render_seams(directory) + check_mesh_seam(directory)
-        code, executable = directory / 'fall.c', directory / 'fall.exe'
+        code, executable = directory / 'fall.c', directory / ('fall' + cc.exe_suffix())
         code.write_text(native_source())
-        subprocess.run(['cl', '/nologo', '/Od', '/MD', '/std:c11',
-                        '/D_CRT_SECURE_NO_WARNINGS', '/I' + str(ROOT / 'src'),
-                        '/I' + str(ROOT / 'tools/xboxrecomp/include'),
-                        '/Fo' + str(directory / 'fall.obj'), '/Fe' + str(executable),
-                        str(code)], check=True, cwd=directory)
+        subprocess.run(cc.compile_command([code], executable,
+                                          includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src'],
+                                          defines=['_CRT_SECURE_NO_WARNINGS'], std='c11', optimize='none',
+                                          dynamic_crt=True, obj=directory / 'fall.obj'), check=True, cwd=directory)
         renderer_executables = []
         for patched in (False, True):
             name = 'native-mesh' if patched else 'native-billboard-control'
-            renderer_source, renderer_executable = directory / (name + '.c'), directory / (name + '.exe')
+            renderer_source, renderer_executable = directory / (name + '.c'), directory / (name + cc.exe_suffix())
             renderer_source.write_text(real_renderer_source(directory, patched))
-            subprocess.run(['cl', '/nologo', '/Od', '/MD', '/std:c11',
-                            '/D_CRT_SECURE_NO_WARNINGS', '/I' + str(ROOT / 'src'),
-                            '/I' + str(ROOT / 'tools/xboxrecomp/include'),
-                            '/Fo' + str(directory / (name + '.obj')), '/Fe' + str(renderer_executable),
-                            str(renderer_source)], check=True, cwd=directory)
+            subprocess.run(cc.compile_command([renderer_source], renderer_executable,
+                                              includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src'],
+                                              defines=['_CRT_SECURE_NO_WARNINGS'], std='c11', optimize='none',
+                                              dynamic_crt=True, obj=directory / (name + '.obj')),
+                           check=True, cwd=directory)
             renderer_executables.append(renderer_executable)
         cases = renderer_cases = 0
         for kind in (0, 1):

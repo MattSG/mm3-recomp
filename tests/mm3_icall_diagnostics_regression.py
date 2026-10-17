@@ -1,6 +1,6 @@
 """Exercise bounded indirect-call diagnostics using original Xbox call bytes.
 
-Run after scripts/enter-env.ps1 with tools/venv/Scripts/python.exe. Compiles the
+Run inside `python scripts/devenv.py --shell` with tools/venv/Scripts/python.exe. Compiles the
 production logger unchanged and never accesses a running game or save files.
 """
 import re
@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import cc
 import mm3_cpu_diagnostics_regression as cpu
 import mm3_x87_exp_regression as common
 
@@ -114,8 +115,8 @@ int main(int argc,char**argv){
 
 
 def main():
-    if not shutil.which('cl'):
-        raise SystemExit('Run scripts/enter-env.ps1 first.')
+    cc.skip_unless_windows('the fixture includes windows.h')
+    cc.require_compiler()
     image = common.Image(str(ROOT / 'game_files/default.xbe'))
     scratch = ROOT / 'conformance_tmp'
     scratch.mkdir(exist_ok=True)
