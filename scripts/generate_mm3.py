@@ -23,12 +23,11 @@ import os
 import tarfile
 
 REPO = Path(__file__).resolve().parents[1]
-# The generator is pinned separately from the runtime: this commit's lifter
-# reproduces the translation the game was proven on (menus, races, AI).
-# Newer lifters (upstream v0.13.x) translate ~3.6k functions differently and
-# the race AI misdrives; see README "Regenerating". MM3_GENERATOR_DIR points
-# at another checkout instead, for bisecting.
-GENERATOR_COMMIT = '967ec30f362dee229183b4e112e928cd41830484'
+# This pin keeps the game-proven lifter and adds the reachable-CFG backport.
+# The FP80 compatibility repair below preserves the old lifter behavior used
+# by the proven MM3 translation. Keep game validation paired with pin changes.
+# MM3_GENERATOR_DIR points at another checkout for isolated comparisons.
+GENERATOR_COMMIT = '34330f4ae0d2c7dcea1d1173c202f18620bd3291'
 
 
 def generator_dir():
