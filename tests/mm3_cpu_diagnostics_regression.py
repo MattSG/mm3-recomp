@@ -116,13 +116,11 @@ int main(int argc,char**argv){
 
 def diagnostics_fixture():
     source = (ROOT / 'src/recomp_manual.c').read_text()
-    bodies = []
-    for name in ('mm3_configure_diagnostics', 'recomp_unimpl', 'recomp_icall_fail_log'):
-        body = re.search(r'void ' + name + r'\([^)]*\)\n\{.*?\n\}', source, re.S)
-        assert body, name
-        bodies.append(body.group())
-    return (COMMON_NATIVE + '\nstatic int g_mm3_unimpl_trap,g_mm3_frontend_icall_trace;\n'
-            + '\n'.join(bodies) + r'''
+    # Compile the complete implementation and its private dependencies together.
+    # Copying individual function bodies hid dependencies as diagnostics evolved.
+    implementation = source[source.index('static int g_mm3_unimpl_trap;'):
+                            source.index('extern void sub_000838C3(void);')]
+    return (COMMON_NATIVE + '\n' + implementation + r'''
 int main(int argc,char**argv){
  assert(argc==2);g_xbox_mem_offset=(ptrdiff_t)memory;
  _set_abort_behavior(0,_WRITE_ABORT_MSG|_CALL_REPORTFAULT);
@@ -135,9 +133,12 @@ int main(int argc,char**argv){
    recomp_unimpl("out dx, al",0x3475DC);recomp_unimpl("wbinvd",0x345E9D);
   }
   assert(g_esp==0x700000&&g_eax==1&&g_ecx==2&&g_edx==0x80C0&&g_ebx==4&&g_df==1);
+ }else if(strcmp(argv[1],"wrong-port")==0){
+  g_edx=0x80C1;recomp_unimpl("out dx, al",0x3475DC);return 99;
+ }else if(strcmp(argv[1],"wrong-instruction")==0){
+  recomp_unimpl("hlt",0x35F882);return 99;
  }else{
-  for(unsigned i=0;i<100;i++)recomp_unimpl("cli",0x123456);
-  for(unsigned i=0;i<100;i++)recomp_icall_fail_log(0x123456);
+  recomp_unimpl("cli",0x123456);return 99;
  }
  return 0;
 }
@@ -177,17 +178,15 @@ def main():
         diagnostic_env.pop('RECOMP_UNIMPL_TRAP', None)
         diagnostic_env.pop('MM3_FRONTEND_ICALL_TRACE', None)
         result = subprocess.run([str(diagnostics), 'handled'], capture_output=True, text=True, env=diagnostic_env)
-        assert result.returncode == 0 and not result.stderr, result
-        result = subprocess.run([str(diagnostics), 'unknown'], capture_output=True, text=True, env=diagnostic_env)
-        assert result.returncode == 0
-        assert result.stderr.count('[UNIMPL]') == 50 and result.stderr.count('[ICALL]') == 50
-        trace_env = dict(diagnostic_env, MM3_FRONTEND_ICALL_TRACE='1')
-        result = subprocess.run([str(diagnostics), 'unknown'], capture_output=True, text=True, env=trace_env)
-        assert result.returncode == 0 and result.stderr.count('[ICALL]') == 100
+        assert result.returncode == 0 and result.stderr.count('[UNIMPL] known no-op') == 4, result
+        for mode, address in (('unknown', '0x00123456'), ('wrong-port', '0x003475DC'),
+                              ('wrong-instruction', '0x0035F882')):
+            result = subprocess.run([str(diagnostics), mode], capture_output=True, text=True, env=diagnostic_env)
+            assert result.returncode not in (0, 99) and address in result.stderr and 'stopping' in result.stderr, result
         trap_env = dict(diagnostic_env, RECOMP_UNIMPL_TRAP='1')
         result = subprocess.run([str(diagnostics), 'trap'], capture_output=True, text=True, env=trap_env)
-        assert result.returncode != 0 and '0x0035F882' in result.stderr, result
-        print(f'PASS: {cases} CPU-probe cases match original Xbox instructions and the generated baseline: complete registers, frame bridges, saved stack memory, capability/cache and Bink selection. Handled hardware sites stay quiet; unknown diagnostics stay visible and bounded; detailed callback tracing and instruction traps remain available.')
+        assert result.returncode not in (0, 99) and '0x0035F882' in result.stderr, result
+        print(f'PASS: {cases} CPU-probe cases match original Xbox instructions and the generated baseline. Known hardware sites preserve registers and log once; unknown instructions and mismatched known-site operands stop execution; explicit traps stop known sites too.')
 
 
 if __name__ == '__main__':

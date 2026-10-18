@@ -180,6 +180,11 @@ class RuntimeTests(unittest.TestCase):
             sentinel.terminate()
             sentinel.wait(timeout=5)
 
+    def test_delayed_input_polling_still_requires_acknowledgement(self):
+        with self.session(env={"MM3_FIXTURE_MODE": "slow_input"}) as session:
+            session.press("start", wait_release=False)
+            self.assertEqual(session.pad_ack.get("start:150"), 1)
+
     def test_pipe_reply_and_run_deadlines_cannot_hang(self):
         with self.session(env={"MM3_FIXTURE_MODE": "hang"}) as session:
             session.wait_for(lambda: "[FIXTURE_READY]" in session.log_text, 3, "fixture startup")
@@ -287,6 +292,8 @@ def fixture():
         with Path(os.environ["RECOMP_PAD_LIVE"]).open() as pad:
             pad.seek(pad_offset)
             for line in pad:
+                if mode == "slow_input":
+                    time.sleep(6)  # longer than the old five-second limit
                 print(f'  PAD: live "{line.strip()}" at t=0 ms', flush=True)
             pad_offset = pad.tell()
         if flag.exists():

@@ -69,9 +69,7 @@ Mods tab. The mods marked "always" are needed for the game to run.
 | Menu mouse | on | Point at a menu item to select it and click to confirm. |
 | Lamp flare depth | on | Street-lamp flares stay hidden behind buildings and cars. |
 | Skip intro movies | on | Skips the logo and intro movies at start-up. |
-| Offline network | on | Skips a 9-second network wait when the network is off. |
 | Collision cell guard | always | Repairs a broken Paris collision cell that can freeze the game. |
-| Disc check bypass | always | Skips the DVD authentication the emulated drive can't pass. |
 | Developer tools | off | The retail debug HUD, menu and cameras. |
 | ImGui debug tools | off | An in-game developer interface, with teleport. |
 

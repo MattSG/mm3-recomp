@@ -205,7 +205,7 @@ int main(void)
     if ((!scripted || !*scripted) && !mm3_launcher())
         return 0;
 
-    /* Apply the same bounded rate before either vblank or presentation
+    /* Validate the rate before either vblank or presentation
      * caches its setting, including launches that bypass play.ps1. */
     char frame_limit[16];
     snprintf(frame_limit, sizeof frame_limit, "%d",

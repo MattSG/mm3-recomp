@@ -166,9 +166,10 @@ void sub_001E7590(void)
 extern void sub_001EC8E6_original(void);
 #define KEEP_LO 0x003C5680u   /* the render's queue counters only */
 #define KEEP_HI 0x003C57B0u
-static uint32_t s_keep_pre[(KEEP_HI - KEEP_LO) / 4], *s_keep_post;
-static uint32_t *s_keep_idx;
-static int s_keep_n;
+static uint32_t s_keep_pre[(KEEP_HI - KEEP_LO) / 4];
+static uint32_t s_keep_post[(KEEP_HI - KEEP_LO) / 4];
+static uint32_t s_keep_idx[(KEEP_HI - KEEP_LO) / 4];
+static int s_keep_n, s_keep_ready;
 
 
 /* A guest pointer: not put back. The render allocates and frees, and the
@@ -183,10 +184,6 @@ static void render_ticked(void)
 {
     uint32_t n = (KEEP_HI - KEEP_LO) / 4, i;
     volatile uint32_t *g = (volatile uint32_t *)XBOX_PTR(KEEP_LO);
-    if (!s_keep_idx) {
-        s_keep_idx = (uint32_t *)malloc(n * sizeof *s_keep_idx);
-        s_keep_post = (uint32_t *)malloc(n * sizeof *s_keep_post);
-    }
     for (i = 0; i < n; i++)
         s_keep_pre[i] = g[i];
     sub_001EC8E6_original();
@@ -197,6 +194,7 @@ static void render_ticked(void)
             s_keep_post[s_keep_n] = g[i];
             s_keep_idx[s_keep_n++] = i;
         }
+    s_keep_ready = 1;
 }
 
 static void render_again(void)
@@ -227,7 +225,7 @@ void sub_001EC8E6(void)
         static int every = -1;
         if (every < 0) every = getenv("MM3_RENDER_EVERY_FRAME") && atoi(getenv("MM3_RENDER_EVERY_FRAME")) == 1;
         if (every) {
-            if (s_ticks == 0 && s_keep_idx) render_again(); else render_ticked();
+            if (s_ticks == 0 && s_keep_ready) render_again(); else render_ticked();
             return;
         }
         if (s_ticks == 0) {             /* not drawn: the last image again */

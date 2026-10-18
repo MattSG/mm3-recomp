@@ -24,6 +24,8 @@ def main():
     user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
     user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
     user32.IsWindowVisible.argtypes = [wintypes.HWND]
+    user32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.GetWindowLongW.restype = wintypes.LONG
     env = os.environ.copy()
     env.pop('RECOMP_PB_EXEC', None)
     startup = subprocess.STARTUPINFO()
@@ -60,6 +62,10 @@ def main():
                 time.sleep(0.05)
             assert window is not None, f'Launcher did not render a frame within 15 s:\n{log}'
             hwnd, width, height = window
+            style = user32.GetWindowLongW(hwnd, -16) & 0xffffffff  # GWL_STYLE
+            assert style & 0x00c00000 == 0x00c00000, f'Launcher needs a native caption: {style:#010x}'
+            assert style & 0x00080000, f'Launcher needs a native system menu: {style:#010x}'
+            assert not style & 0x80000000, f'Launcher must not use a popup frame: {style:#010x}'
             assert not user32.IsWindowVisible(hwnd), 'Hidden-start regression must keep the test window hidden.'
             assert user32.PostMessageW(hwnd, 0x0010, 0, 0), 'Could not send WM_CLOSE to the owned launcher.'
             assert process.wait(timeout=5) == 0, 'Normal launcher close must exit successfully.'

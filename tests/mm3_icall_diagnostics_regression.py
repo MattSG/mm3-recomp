@@ -19,7 +19,10 @@ CALLS = ((0x1F635D, 0x64), (0x14E6CB, 0x70), (0x14E732, 0x70),
 
 def fixture(image):
     source = (ROOT / 'src/recomp_manual.c').read_text()
-    bodies = []
+    # Keep the logger's real accounting helpers; extracting only its body hid
+    # new dependencies and left this regression unable to compile.
+    bodies = [source[source.index('static volatile LONG icall_suppressed[2];'):
+                     source.index('void recomp_icall_fail_log(uint32_t xbox_va)')]]
     for name in ('mm3_icall_read', 'mm3_icall_decode', 'recomp_icall_not_code_log'):
         body = re.search(r'(?:static (?:int|unsigned)|void) ' + name
                          + r'\([^)]*\)\n\{.*?\n\}', source, re.S)
@@ -126,8 +129,13 @@ def main():
         for mode in ('default', 'trace', 'cascade', 'invalid', 'usb', 'bad_request', 'bad_stack'):
             result = subprocess.run([str(executable), mode], capture_output=True, text=True)
             assert result.returncode == 0, (mode, result)
-            lines = [line for line in result.stderr.splitlines() if line.startswith('[ICALL]')]
+            lines = [line for line in result.stderr.splitlines() if line.startswith('[ICALL] non-code')]
             assert len(lines) == (100 if mode in ('trace', 'invalid') else 50), (mode, result)
+            summaries = [line for line in result.stderr.splitlines()
+                         if line.startswith('[ICALL] suppressed')]
+            assert len(summaries) == (0 if mode in ('trace', 'invalid') else 1), (mode, result)
+            if summaries:
+                assert 'failed-resolve=0 non-code=50' in summaries[0], (mode, result)
             states = [line for line in result.stderr.splitlines() if line.startswith('[ICALL_STATE]')]
             assert len(states) == len(lines), (mode, result)
             assert [int(re.search(r'sample=(\d+)', line)[1]) for line in lines] == list(range(1, len(lines)+1))
