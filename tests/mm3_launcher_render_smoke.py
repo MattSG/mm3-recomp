@@ -1,7 +1,8 @@
 """Exercise the compiled launcher, render a frame, then close it.
 
-Windows (D3D11 launcher): the window starts hidden; the test finds the
-launcher's own window, checks it stayed hidden, then sends WM_CLOSE.
+Windows: the test checks the launcher's own native frame and visibility,
+then sends WM_CLOSE. D3D11 can render hidden; use --visible for SDL3, whose
+launcher suspends GPU rendering while hidden.
 
 Other platforms (SDL3 launcher, RmlUi SDL GPU backend): the launcher opens
 normally; the test waits for the first-frame log line, then sends SIGTERM,
@@ -18,7 +19,7 @@ FIRST_FRAME = '[launcher] first frame rendered:'
 RENDER_TIMEOUT = 15
 
 
-def run_windows(exe, root, output_dir):
+def run_windows(exe, root, output_dir, visible=False):
     import ctypes
     from ctypes import wintypes
 
@@ -29,11 +30,13 @@ def run_windows(exe, root, output_dir):
     user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
     user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
     user32.IsWindowVisible.argtypes = [wintypes.HWND]
+    user32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.GetWindowLongW.restype = wintypes.LONG
     env = os.environ.copy()
     env.pop('RECOMP_PB_EXEC', None)
     startup = subprocess.STARTUPINFO()
     startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    startup.wShowWindow = subprocess.SW_HIDE
+    startup.wShowWindow = 1 if visible else subprocess.SW_HIDE  # SW_SHOWNORMAL
     stderr_path = output_dir / 'stderr.log'
     with (output_dir / 'stdout.log').open('wb') as stdout, stderr_path.open('wb') as stderr:
         process = subprocess.Popen([str(exe.resolve())], cwd=root, env=env,
@@ -65,13 +68,17 @@ def run_windows(exe, root, output_dir):
                 time.sleep(0.05)
             assert window is not None, f'Launcher did not render a frame within 15 s:\n{log}'
             hwnd, width, height = window
-            assert not user32.IsWindowVisible(hwnd), 'Hidden-start regression must keep the test window hidden.'
+            style = user32.GetWindowLongW(hwnd, -16) & 0xffffffff  # GWL_STYLE
+            assert style & 0x00c00000 == 0x00c00000, f'Launcher needs a native caption: {style:#010x}'
+            assert style & 0x00080000, f'Launcher needs a native system menu: {style:#010x}'
+            assert not style & 0x80000000, f'Launcher must not use a popup frame: {style:#010x}'
+            assert bool(user32.IsWindowVisible(hwnd)) == visible, 'Launcher visibility differs from requested startup state.'
             assert user32.PostMessageW(hwnd, 0x0010, 0, 0), 'Could not send WM_CLOSE to the owned launcher.'
             assert process.wait(timeout=5) == 0, 'Normal launcher close must exit successfully.'
             log = stderr_path.read_text(encoding='utf-8', errors='replace')
             assert 'CreateTexture2D (' not in log, log
             assert '[CRASH]' not in log and '[UNIMPL]' not in log, log
-            print(f'PASS: hidden launcher rendered at {width}x{height}, then exited normally on WM_CLOSE.')
+            print(f'PASS: {"visible" if visible else "hidden"} launcher rendered at {width}x{height} with native style {style:#010x}, then exited normally on WM_CLOSE.')
         finally:
             if process.poll() is None:
                 process.terminate()
@@ -115,10 +122,11 @@ def main():
     default_exe = 'build/RelWithDebInfo/mm3_recomp.exe' if os.name == 'nt' else 'build/mm3_recomp'
     parser.add_argument('--exe', type=Path, default=root / default_exe)
     parser.add_argument('--output-dir', type=Path, default=root / 'conformance_tmp/launcher-render-smoke')
+    parser.add_argument('--visible', action='store_true', help='Render the Windows SDL3 launcher in its visible state.')
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     if os.name == 'nt':
-        run_windows(args.exe, root, args.output_dir)
+        run_windows(args.exe, root, args.output_dir, visible=args.visible)
     else:
         run_sdl(args.exe, root, args.output_dir)
 
