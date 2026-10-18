@@ -16,9 +16,10 @@ reaches Mathilda's Paris mission, not the saved-profile Cruise route.
   Startup reports `fps=0`. Motion checks pass; baseline capture was inspected.
 - No unknown untranslated instruction, unresolved stub or taken dead-branch
   diagnostic appeared in the baseline. Four known hardware replacements did.
-- `NtFsControlFile(0x90020)` was rejected. This is GET_COMPRESSION; unsupported
-  per-stream compression on FATX can correctly fail. Do not invent a successful
-  compression result merely to remove a log line.
+- `NtFsControlFile(0x90020)` was rejected. The Windows SDK identifies this as
+  `FSCTL_DISMOUNT_VOLUME` (filesystem function8), not GET_COMPRESSION
+  (function15, `0x9003c`). Volume flush/dismount semantics remain unimplemented;
+  returning success without doing that work would be another false result.
 - Harness defaults include the DSP ACK override. These runs do not establish
   native DSP/audio fidelity. Frame CSV data is not external performance proof.
 
@@ -76,8 +77,11 @@ Generic runtime findings and crypto vector sources are tracked in
 - Finish crypto, settings, MMIO aliases, I/O dispatch, POSIX timers/waits/input,
   device getters/reset and the remaining runtime inventory. Do not conflate
   explicit unsupported errors with fabricated successful implementations.
+- Implement the reached `FSCTL_DISMOUNT_VOLUME` request against emulated volume
+  ownership and host-file caching; never dismount the host filesystem itself.
 - Validate the SDL branch, restore a clean working tree through reviewed commits,
   and remove temporary audit caches after preserving the final evidence report.
 
-Primary compression contract:
-[Microsoft FSCTL_GET_COMPRESSION](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-fsa/80c21e17-6ad4-48b3-b287-a63c3e7edb94).
+Primary dismount contract:
+[Microsoft FSCTL_DISMOUNT_VOLUME](https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-fsctl_dismount_volume).
+Numeric code verified against Windows SDK10.0.26100.0 `um/winioctl.h`.
