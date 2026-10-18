@@ -12,8 +12,9 @@ int main(void)
 {
     static const struct { const char *value; int expected; } cases[] = {
         { NULL, 60 }, { "", 60 }, { "60", 60 }, { "59", 59 },
-        { "30", 30 }, { "1", 1 }, { "0", 60 }, { "-1", 60 },
-        { "61", 61 }, { "90", 90 }, { "91", 60 }, { "120", 60 }, { "165", 60 },
+        { "30", 30 }, { "1", 1 }, { "0", 0 }, { "-1", 60 },
+        { "61", 61 }, { "90", 90 }, { "91", 91 }, { "120", 120 }, { "165", 165 },
+        { "2147483647", INT_MAX }, { "2147483648", 60 },
         { "invalid", 60 }, { "30junk", 60 }, { "59.94", 60 },
         { " 30\t ", 30 }, { "999999999999999999999999999999", 60 },
         { "-999999999999999999999999999999", 60 }
@@ -28,7 +29,7 @@ int main(void)
      * later rejections fall back silently. */
     CHECK(mm3_frame_limit("") == 60);
     CHECK(mm3_frame_limit("invalid") == 60);
-    CHECK(mm3_frame_limit("91") == 60);
+    CHECK(mm3_frame_limit("91") == 91);
     for (unsigned i = 0; i < sizeof cases / sizeof cases[0]; ++i) {
         int actual = mm3_frame_limit(cases[i].value);
         if (actual != cases[i].expected) {
@@ -53,6 +54,6 @@ int main(void)
         failed = 1;
     }
     if (failed) return 1;
-    puts("PASS: MM3 frame limit preserves lower rates and supports configured rates through 90 with safe invalid-value fallback, logged once");
+    puts("PASS: MM3 frame limit preserves lower rates and supports explicit unpaced mode and positive integer rates with safe invalid-value fallback, logged once");
     return 0;
 }

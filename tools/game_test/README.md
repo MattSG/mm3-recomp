@@ -18,7 +18,9 @@ and require measured forward motion. It saves a
 presented frame for the agent to inspect. Menu transitions have short calibrated
 delays; loading completion polls for a continuously live player rather than
 sleeping for an assumed loading duration. USB presses must be acknowledged by
-the runtime before the next action proceeds.
+the runtime before the next action proceeds. Input acknowledgement allows up to
+30 seconds, bounded by the session deadline, for the original offline network
+initialization to finish; the harness does not force guest readiness.
 
 The menu path expects a saved profile and the default initial selections. It
 was exercised with Player1/Stocker on the PAL game. Different profile/menu

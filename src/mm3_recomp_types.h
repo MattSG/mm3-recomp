@@ -1368,11 +1368,10 @@ void recomp_unimpl(const char *text, uint32_t va);
 } while (0)
 
 /* A conditional jump whose target label is not in its function (the
- * translator's "dead code" marker, see scripts/generate_mm3.py
- * mark_dead_branches). Audit: all 5923 sites are data decoded as code or
- * unreachable tails, so the branch is never taken. If one ever is, the
- * jump is skipped as before (falls through) and the first hit per target
- * is logged with its guest stack pointer (src/mm3_unresolved_stubs.c). */
+ * translator's residual missing-label marker, see scripts/generate_mm3.py
+ * mark_dead_branches). Correctly decoded branches jump to their real blocks.
+ * Reaching a residual marker reports the target and stops execution; missing
+ * translated code cannot safely continue (src/mm3_unresolved_stubs.c). */
 int mm3_dead_branch_hit(uint32_t target);
 #ifndef RECOMP_DEAD_BRANCH
 #define RECOMP_DEAD_BRANCH(target) ((void)mm3_dead_branch_hit(target))

@@ -272,8 +272,8 @@ def mark_dead_branches(out):
     function with `(void)0; /* goto loc_X - dead code ... */`, so a branch that is
     reached would silently fall through. This pass rewrites each such site to
     `RECOMP_DEAD_BRANCH(0xXXXXXXXXu);`, which src/mm3_recomp_types.h defines to log
-    the first hit per target and still fall through, so runtime behaviour is unchanged.
-    The audit found all 5923 sites in data decoded as code or unreachable tails.
+    the target and stops execution. Current translation recovers overlapping
+    direct-target streams; this pass handles legacy missing-label markers.
 
     Returns the number of sites rewritten.
     """

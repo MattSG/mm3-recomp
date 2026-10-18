@@ -20,8 +20,6 @@ const Mm3Mod mm3_mods[MM3_MOD_COUNT] = {
         "The retail developer HUD, debug menu and cameras; their options appear under Settings and Controls. Needs tools\\debug-features\\prepare.py.", 0},
     [MM3_MOD_TELEPORT] = {"teleport", "MM3_DEBUG_TELEPORT", "Teleport debug pipe",
         "Local position and teleport commands for scripts. Use ImGui debug tools for the in-game interface. See DEBUG_TELEPORT.md.", 0},
-    [MM3_MOD_OFFLINE] = {"offline", "MM3_MOD_OFFLINE", "Offline network",
-        "Skips the frontend's wait for the network while Network (Settings) is off. Off, with no network: startup takes about 9 s longer.", 1},
     [MM3_MOD_COLLISION_FIX] = {"collision_fix", "MM3_MOD_COLLISION_FIX", "Collision cell guard",
         "Out-of-range face indices in a Paris collision cell are repaired at load; without it the game can freeze or drop the car through the road.", 1, 1},
     [MM3_MOD_SKIP_INTRO] = {"skip_intro", "MM3_MOD_SKIP_INTRO", "Skip intro movies",

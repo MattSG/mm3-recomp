@@ -406,7 +406,9 @@ class Session:
         with (self.run_dir / "pad.txt").open("a", encoding="ascii", newline="\n") as stream:
             stream.write(line)
         self.emit("press", buttons=buttons, hold_ms=hold_ms)
-        self.wait_for(lambda: self.pad_ack.get(command, 0) > previous, 5, f"USB input acknowledgement: {command}")
+        # The original network readiness path can delay input polling during
+        # startup. Require an actual acknowledgement, within the run deadline.
+        self.wait_for(lambda: self.pad_ack.get(command, 0) > previous, 30, f"USB input acknowledgement: {command}")
         self.wait((hold_ms / 1000 + .25 if wait_release else 0) + after)
 
     def wait_player(self, timeout=30, advance=None):

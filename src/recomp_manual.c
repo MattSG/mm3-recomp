@@ -42,7 +42,6 @@ static void recomp_unimpl_known(volatile LONG *noted, const char *text, uint32_t
 
 void recomp_unimpl(const char *text, uint32_t va)
 {
-    static volatile LONG printed;
     static volatile LONG noted[4];
     int stop = g_mm3_unimpl_trap;
 
@@ -77,14 +76,11 @@ void recomp_unimpl(const char *text, uint32_t va)
             return;
         }
     }
-    if (stop || (printed < 50 && InterlockedIncrement(&printed) <= 50)) {
-        fprintf(stderr,
-                "[UNIMPL] untranslated instruction REACHED: `%s` at 0x%08X"
-                " (a no-op; set RECOMP_UNIMPL_TRAP=1 to stop here)\n",
-                text, va);
-        fflush(stderr);
-    }
-    if (stop) abort();
+    fprintf(stderr,
+            "[UNIMPL] untranslated instruction REACHED: `%s` at 0x%08X; stopping%s\n",
+            text, va, stop ? " (RECOMP_UNIMPL_TRAP=1)" : "");
+    fflush(stderr);
+    abort();
 }
 
 extern void sub_000838C3(void);
