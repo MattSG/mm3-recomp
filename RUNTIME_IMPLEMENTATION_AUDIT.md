@@ -63,6 +63,98 @@ Generic runtime findings and crypto vector sources are tracked in
 
 ## Open work
 
+### Continuation evidence, 2026-10-18
+
+- POSIX wait-all now checks readiness under every participating object's lock
+  and consumes signals only when the whole set is ready. Shared readiness and
+  acquisition helpers also serve single-object waits. The regression fails on
+  the previous source at the lost auto-reset-event signal; the new source passes
+  event, semaphore, cross-thread mutex, auto-reset timer, delayed acquisition,
+  reversed lock order and wait-any ordering checks. Independent Release build
+  on WSL `mm3-gpu-test` passed ten consecutive CTest runs. Luna's Ubuntu run
+  also passed with ASan/UBSan. These checks cover host wait acquisition, not
+  periodic timers, APC delivery or abandoned mutexes. Windows uses native waits.
+- All 11 game-harness regressions pass on Windows. These exercise the harness
+  and its fixture process, not a fresh gameplay run of the changed runtime.
+- After rebuilding main with the IOSB marshaling fix, fresh-profile uncapped
+  driving passed in 62.484 s at
+  `build/audit-continuation/driving/run-pa2ntdnh`. Five-second telemetry records
+  81.73 m player motion and 80.71 m AI motion; the capture was inspected and
+  shows intact city geometry, cars and HUD. This is a bounded Windows gameplay
+  check for that build, not proof of later changes or POSIX timer behavior.
+- Translator investigation retained a concrete candidate at `0x00093D6D`:
+  generated code initializes `_flags` to zero at an overlapping branch entry,
+  while the enclosing XBE stream sets flags at `0x00093D68`. The apparent
+  vtable was found heuristically; no static reference to that table or direct
+  caller establishes live dispatch. Do not count this as a proven reachable
+  defect or change its semantics without establishing entry ownership.
+- I/O builder investigation confirmed direct casts from guest status blocks
+  to host `XBOX_IO_STATUS_BLOCK`: guest storage is 8 bytes, while the x64 host
+  struct is 16 bytes. Both builder bridges now use native temporaries and the
+  existing two-field guest writer. Actual thunk-dispatch tests pass on MSVC
+  Release and Linux Release, covering both fields, adjacent canaries, null
+  IOSBs and stack cleanup. Linking the old bridge into the same Linux test
+  fails all four field/canary assertions. The older ordinal-173 fixture now
+  correctly expects rejection of an uninitialized contiguous alias. This fix
+  does not implement IRP construction or driver dispatch. The shared IOSB
+  writer still needs complete guest-range/write-permission validation with
+  caller-appropriate error handling. Xbox definitions also contradict the
+  bridge's `0x28` IRP header assumption and its two-argument `IoAllocateIrp`
+  signature; request construction, driver dispatch and completion remain open.
+- The allocator/initializer/device ABI slice now uses fixed-width guest
+  layouts checked against nxdk commit
+  `14d5ee97e73347c973f1f57b68b79ec08c9e77f2` compiled for its actual
+  `i386-pc-win32` target: IRP size `0x68`, stack-location pointer at `0x5c`,
+  device size `0x48`, device stack count at `0x1e`. Allocation initializes
+  real guest IRP fields and stack storage; ordinal 59 consumes one argument.
+  Device extensions follow the complete device header. Actual dispatcher
+  tests cover initialization, stack cleanup, free accounting, size/canary limits
+  and device queue/event fields. This supplies allocation and initialization,
+  not request construction, driver callbacks or completion.
+- POSIX timers now implement periodic expiration, monotonic relative due
+  times, manual/auto-reset signals and APC delivery on the arming thread
+  during alertable waits. Cancel preserves an expired signal and removes
+  outstanding callbacks; rearm clears the old signal. Native Windows probes
+  established that callback timers survive last-handle close until delivery
+  or owner rundown. Three registered wait/timer CTests pass independently
+  under ASan/UBSan. Cooperative service has a bounded polling delay; power
+  resume is unsupported and reported through `ERROR_NOT_SUPPORTED`. Forced
+  `TerminateThread` rundown remains unimplemented and is not covered by the
+  normal owner-thread exit tests.
+- Directory enumeration now prevents fixed-header/name overruns, serializes
+  query/close, retains overflowed entries and EOF correctly, and captures the
+  search mask once. POSIX metadata errors propagate; names are copied while
+  the enumeration owns its `readdir` storage. Native Windows directory and
+  renderer controls pass 6/6; Linux directory integration passes 1/1. Minimum
+  length `0x48` follows the compiled nxdk structure size. These tests do not
+  establish complete FATX behavior on original hardware.
+- Final combined Windows build passed extended fresh-profile driving in
+  72.797 s (`final-driving/run-81609qm4`). Captures show intact geometry and
+  continued motion after two Start presses, but those presses did not visibly
+  open pause UI: this is not pause/resume proof. A copied save from that owned
+  run then passed saved-profile Cruise with `MM3_RENDER_EVERY_FRAME=1`,
+  `RECOMP_FPS_LIMIT=0` and `RECOMP_VSYNC=0` in 56.328 s
+  (`final-every-frame/run-jnagam6a`), including 95.05 m player movement and a
+  normal inspected capture. Evidence is under `build/audit-continuation`.
+  Audio/DSP fidelity and general queue ownership are still unproven.
+
+Local runtime commits: `af7fa42` (I/O guest ABI), `712554a` (waits/timers),
+`cb4206a` (directory bounds and ownership). Independent bridge CTest passes
+on Windows and Linux; directory tests pass on both; final wait/timer sanitizer
+CTest passes 3/3. Old-source controls fail the lost-signal, IOSB canary, IRP
+initialization/stack and zero-length directory-output checks.
+
+References: [Win32 wait-all contract](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitformultipleobjects),
+[nxdk Xbox kernel ABI](https://github.com/XboxDev/nxdk/blob/master/lib/xboxkrnl/xboxkrnl.h).
+
+Reproduce the focused POSIX check:
+
+```sh
+cmake -S tools/xboxrecomp/tests/platform_wait_all -B /tmp/mm3-wait-all -DCMAKE_BUILD_TYPE=Release
+cmake --build /tmp/mm3-wait-all
+ctest --test-dir /tmp/mm3-wait-all --output-on-failure
+```
+
 - Reachable overlapping x86 control-flow stream recovery is validated by the
   refined translator tests, 26 generated dead-branch guards, native before/
   after tests against Unicorn, and the bounded main/SDL gameplay runs above.
@@ -74,6 +166,13 @@ Generic runtime findings and crypto vector sources are tracked in
   based on pointer-looking values. Identify and preserve actual queue ownership;
   cover pause, menus, race transitions and driving. The bounded snapshot arrays
   now use static storage, removing their unchecked allocation paths.
+  Investigation confirms the 76-dword span `[0x3C5680,0x3C57B0)` is not a single
+  owned queue: generated functions `sub_0011C742`, `sub_00138FB6` and
+  `sub_0014BAE9` write separate state inside it. A direct-call closure of the
+  main render does not establish those writers' runtime ownership because
+  indirect calls remain. Trace write sites and before/after values during
+  ticked and repeated renders before replacing this heuristic; substituting
+  host-frame repeat would not implement the requested every-frame rendering.
 - Prove CLI/STI clock-sampling semantics against the runtime's interrupt/thread
   model; host interrupt masking alone is not an implementation of guest IRQs.
 - Finish crypto, settings, MMIO aliases, I/O dispatch, POSIX timers/waits/input,
@@ -83,7 +182,9 @@ Generic runtime findings and crypto vector sources are tracked in
   ownership and host-file caching; never dismount the host filesystem itself.
 - Final evidence is archived at
   `C:\Users\Matt\Documents\MM3-Recovery-20261017\Audit-evidence-20261018`;
-  temporary audit worktrees and build caches have been removed.
+  earlier temporary audit worktrees and build caches were removed. Current
+  continuation evidence/builds remain at `build/audit-continuation`; owned
+  temporary RED-control worktrees were removed.
 
 Primary dismount contract:
 [Microsoft FSCTL_DISMOUNT_VOLUME](https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-fsctl_dismount_volume).
