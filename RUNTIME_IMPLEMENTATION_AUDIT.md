@@ -81,8 +81,9 @@ Generic runtime findings and crypto vector sources are tracked in
   explicit unsupported errors with fabricated successful implementations.
 - Implement the reached `FSCTL_DISMOUNT_VOLUME` request against emulated volume
   ownership and host-file caching; never dismount the host filesystem itself.
-- Preserve the final evidence report and restore the reviewed working trees;
-  audit caches remain in use.
+- Final evidence is archived at
+  `C:\Users\Matt\Documents\MM3-Recovery-20261017\Audit-evidence-20261018`;
+  temporary audit worktrees and build caches have been removed.
 
 Primary dismount contract:
 [Microsoft FSCTL_DISMOUNT_VOLUME](https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-fsctl_dismount_volume).
