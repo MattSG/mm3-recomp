@@ -42,6 +42,9 @@ endif()
 # from the user's game like src/recomp/gen.
 set(XBOXRECOMP_DSP_PROGRAM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/game_files/dsp")
 add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)
+# MM3 VP-only playback was measured about 10 dB above GP output (-10.7 vs
+# -20.7 dBFS in a race). Keep its existing calibration outside the runtime.
+target_compile_definitions(xbox_apu PRIVATE XBOXRECOMP_APU_VP_MONITOR_GAIN=0.316f)
 if(MSVC AND MM3_DSP_AUTO_INLINE)
     # RelWithDebInfo defaults to /Ob1, which leaves small non-inline interpreter
     # helpers as calls. Override only this measured hot source, retaining its

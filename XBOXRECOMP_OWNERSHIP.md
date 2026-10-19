@@ -34,7 +34,7 @@ such as g_mm3 are architectural state, not title coupling.
 | Private fog stream | Fixed tag/header and parser moved from runtime into src/mods/render_commands.*; executor has an optional ordered NOP hook | Moved and validated |
 | Panorama selection | MM3 render_policy.c selects its authored 256x256 DXT5 horizon; backends only execute an optional sampling hook | Moved and validated |
 | Lamp selection | MM3 render_policy.c owns Flares.psh recognition and diagnostic dumps; backends only execute an optional depth hook | Moved and validated |
-| Extended-distance shaders | Retired remap/sky-feedback branches removed; active fog shader, parameters and sky composition moved to src/mods/render_fog* | Implementation moved; full game proof pending |
+| Extended-distance shaders | Retired remap/sky-feedback branches removed; active fog shader, parameters and sky composition moved to src/mods/render_fog* | Moved and validated on both backends |
 | Overlay placement | Existing NvOverlayHooks already delegates HUD/sanitization to MM3 | Verify remaining renderer assumptions and tests |
 | Runtime / platform | Audit all fork-vs-upstream runtime changes for hidden guest addresses/defaults and title-only behavior | In progress |
 | Tools / templates / tests / docs | Review tracked artifacts and build dependencies, including captured game-specific fixtures | In progress |
@@ -158,3 +158,26 @@ Validation so far:
 - Full D3D11 and SDL GPU game rebuilds are running after the public header
   change. Their final build and bounded gameplay proof remain outstanding.
   The overall runtime/artifact ownership audit is also still incomplete.
+
+
+### Fifth-boundary full game proof
+
+- Both full game builds passed. D3D11 night Cruise `run-jk8gwj39` passed:
+  33.704 units forward, zero backward, 29 samples. SDL GPU night Cruise
+  `run-14qffiay` passed: 39.440 units forward, zero backward, 29 samples.
+  Inspected both night settings and final gameplay captures. Both logs confirm
+  `[MM3_FOG] pass 853x480 depth-bits=24 samples=1`; the port-owned shader runs
+  during real driving. Each harness closed only its child.
+- These checks prove the moved path is playable and retains its tested pixel
+  contracts; they do not establish a fix for the reported temporal lamp/sky
+  defects. The wider ownership audit remains required.
+
+## Sixth boundary: VP monitor calibration
+
+- Found a hard-coded 0.316 multiplier in the generic VP-only monitor, justified
+  by MM3 race measurements (GP -20.7 versus VP -10.7 dBFS, 0.4 percent clipped).
+  MM3 now supplies that calibration in its CMake configuration. The generic
+  VP monitor defaults to unity; voice/bin hardware mixing is unchanged.
+- Existing production-VP attenuation and SGE checks pass. Generated APU build
+  definitions on both backends confirm MM3 still supplies 0.316f. No claim is
+  made here about full audio fidelity or measured output levels after the move.
