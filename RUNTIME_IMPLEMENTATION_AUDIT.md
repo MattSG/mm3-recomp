@@ -65,6 +65,25 @@ Generic runtime findings and crypto vector sources are tracked in
 
 ### Continuation evidence, 2026-10-18
 
+- Final I/O continuation pins runtime `f24d793` and `0a9a236`: mandatory
+  IOSB/offset preflight, real synchronous guest helper dispatch/wait, corrected
+  KEVENT headers and completion ownership cleanup before waking the waiter.
+  Original kernel 4627 instruction bytes settle immediate/pending return
+  policy, notification-event type, ordinal 84's unconditional Information copy
+  and the 84/85 stack cleanup sizes. The primary trace is retained under
+  `tools/xboxrecomp/build/audit-continuation/xemu-io-policy/`.
+  Independent Windows/Linux mapping and bridge tests pass. An isolated build
+  of the previous bridge with the final mapping fixture fails seven pointer
+  assertions. Temporary renderer diagnostics were archived and removed.
+- The final rebuilt uncapped Windows game passed its bounded scenario in
+  64.812 seconds at `build/audit-continuation/final-io-gameplay/run-qt3xn93h`.
+  Actual captures show Mathilda's Paris mission, intact scene/HUD and moving
+  player/AI cars. The two five-second samples measured player movement of
+  81.37 and 124.12 units and AI movement of 78.37 and 146.09 units. Inspected
+  capture-001 does not show a pause menu despite the scripted Start press;
+  this run establishes driving, not pause/resume acceptance. It also does not
+  establish that the newly implemented guest driver helpers were exercised.
+
 ### Renderer ownership investigation, 2026-10-19
 
 The opt-in renderer diagnostic reached actual zero-tick Cruise rendering in
@@ -102,7 +121,7 @@ as driving or pause traces.
   Independent Windows MSVC and Linux GCC 13 bridge tests pass, including
   pending completion, malformed/cyclic queues, ownership reuse and the gap
   between completion and StartNextPacket. Native host-pointer driver I/O,
-  synchronous helper ordinals 84/85 and request-owner rundown remain open.
+  request-owner rundown remains open; helpers 84/85 are addressed above.
 - Runtime `e781d37` repairs POSIX page state/protection, query extents,
   release ownership, Linux decommit and mapped access. Explicit POSIX span
   carving retains ownership IDs and fixes layout teardown. The canonical
