@@ -15,6 +15,10 @@ int mm3_pause_ui_active(void) { return paused; }
 int mm3_map_texture_role(uint32_t address) {
     return address == map_base ? 1 : address == map_marker ? 2 : 0;
 }
+#include "../src/mods/render_policy.c"
+const uint32_t (*nv2a_vsh_program(uint32_t *start, uint32_t *version))[4] { (void)start; (void)version; return NULL; }
+const float (*nv2a_vsh_constants(uint32_t *version))[4] { (void)version; return NULL; }
+
 #include "../src/mods/widescreen_hud.c"
 
 static int16_t packed_uv[64][8];

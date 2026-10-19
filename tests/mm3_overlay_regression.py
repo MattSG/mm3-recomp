@@ -20,7 +20,7 @@ def main():
             sources.append(ROOT / "tools/xboxrecomp/src/platform/win32_compat.c")
         subprocess.run(cc.compile_command(
             sources, executable,
-            includes=[ROOT / "src/mods", ROOT / "tools/xboxrecomp/src/video", ROOT / "tools/xboxrecomp/src"], std="c11",
+            includes=[ROOT / "src/mods", ROOT / "tools/xboxrecomp/src/video", ROOT / "tools/xboxrecomp/src"], defines=["_CRT_SECURE_NO_WARNINGS"], std="c11",
             optimize="speed", warnings="normal", werror=True, obj=folder / "contract.obj"),
             check=True, cwd=folder)
         subprocess.run([str(executable)], check=True, cwd=folder)

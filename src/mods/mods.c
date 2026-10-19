@@ -59,7 +59,6 @@ static int in_menu(void)
 }
 
 extern void xbox_InputSetMenuProbe(int (*in_menu)(void));
-extern void nv2a_d3d_set_bspline_blend(uint32_t sfactor, uint32_t dfactor);
 #include "nv2a_d3d11.h"
 extern const NvOverlayHooks mm3_hud_hooks;                        /* widescreen_hud.c */
 extern void mm3_menu_mouse_init(void);                           /* menu_mouse.c */
@@ -77,20 +76,11 @@ void mm3_mods_init(void)
     /* Without the widescreen hooks the title draws 4:3; show it that way. */
     if (!mm3_mod_on(MM3_MOD_WIDESCREEN))
         _putenv_s("RECOMP_ASPECT", "4:3");
-    /* The horizon panorama: a 256x256 strip around the whole horizon drawn
-     * without depth test through destination alpha, where the haze pass
-     * left sky, magnified ten times and more. */
     nv2a_d3d_set_overlay_hooks(&mm3_hud_hooks);
-    if (mm3_mod_on(MM3_MOD_SKY))
-        nv2a_d3d_set_bspline_blend(0x304, 0x305);      /* DST_ALPHA, ONE_MINUS_DST_ALPHA */
     if (mm3_mod_on(MM3_MOD_MENU_MOUSE))
         mm3_menu_mouse_init();
     if (mm3_mod_on(MM3_MOD_KEYBOARD_DRIVING))
         mm3_keyboard_driving_init(mm3_keyboard_driving);
-    /* Flares/Flares.psh: its combiner stage program, four projective 2D
-     * stages (three taps of the visibility mask, then the lamp). */
-    if (mm3_mod_on(MM3_MOD_FLARE_DEPTH))
-        nv2a_d3d_set_flare_depth_test(0x8421);
     if (mm3_mod_on(MM3_MOD_TELEPORT) || mm3_mod_on(MM3_MOD_DEBUG_OVERLAY))
         mm3_debug_teleport_init();
     for (i = 0; i < MM3_MOD_COUNT; i++)

@@ -32,8 +32,8 @@ such as g_mm3 are architectural state, not title coupling.
 | --- | --- | --- |
 | SDL3 integration | Main ancestry in root and fork, preserved lighting changes | Merged locally |
 | Private fog stream | Fixed tag/header and parser moved from runtime into src/mods/render_commands.*; executor has an optional ordered NOP hook | Moved and validated |
-| Panorama selection | Both renderers identify MM3's 256x256 DXT5 horizon by fixed dimensions/mip/filter/blend criteria | Must move classifier to MM3 |
-| Lamp selection | Both renderers identify Flares.psh's three visibility taps and lamp texture; title supplies only stage_program | Must move classifier to MM3 |
+| Panorama selection | MM3 render_policy.c selects its authored 256x256 DXT5 horizon; backends only execute an optional sampling hook | Moved and validated |
+| Lamp selection | MM3 render_policy.c owns Flares.psh recognition and diagnostic dumps; backends only execute an optional depth hook | Moved and validated |
 | Extended-distance shaders | Depth-view remap, haze coverage, sky fill/fade and skyline filtering contain enhancement policy | Audit and move all title policy; retain only proven reusable primitives |
 | Overlay placement | Existing NvOverlayHooks already delegates HUD/sanitization to MM3 | Verify remaining renderer assumptions and tests |
 | Runtime / platform | Audit all fork-vs-upstream runtime changes for hidden guest addresses/defaults and title-only behavior | In progress |
@@ -65,3 +65,30 @@ Validation so far:
   visually inspected, 34.817 units forward, zero backward travel, 29 samples.
   The harness closed only its owned child after the successful run.
 - Full ownership cleanup remains incomplete; continue through the ledger.
+
+
+## Second boundary: authored rendering selectors
+
+- `src/mods/render_policy.c` owns horizon texture/mip/filter/blend selection and
+  Flares.psh's three-mask-tap classification. Existing mod gates and the optional
+  lamp trace/vertex-program dump are now game-owned. Both backend implementations
+  use the same MM3 policy, supplied through `NvOverlayHooks`.
+- The runtime retains cubic filtering and non-writing scene-depth tests as
+  generic mechanisms. No hook means no change to guest sampling/depth. The
+  cubic hook cannot select a cube or volume resource as a 2D image.
+- Captured MM3 lamp vertex/combiner data and its pass decision table moved out of
+  the fork to `tests/mm3_renderer_lamps`. Those fixtures compile the production
+  MM3 policy. Generic GPU sampling tests now verify the callback boundary and
+  opt-in behavior; game-specific selector cases live in MM3 CPU contracts.
+- Validation: MM3 policy, initialization and overlay contracts pass; 12 generic
+  graphics cases pass; cube/volume rejection gate checks pass on both backends;
+  all 8 moved lamp GPU cases pass, including with RECOMP_FLARE_TRACE=1.
+- Full D3D11 game build passes. Night Cruise run
+  `conformance_tmp/game_test/run-putssbyj` passed: 35.947 units forward, zero
+  backward travel, 29 samples. Settings/gameplay captures were inspected; player
+  and NPC tail glows and road illumination remain present.
+- Remaining audit entries above are still required. In particular, investigate
+  the depth-view-remap and dependent shader branches rather than assuming that
+  a parameterized API makes every authored enhancement generic. An initial
+  search found no MM3 caller of the old remap setter, but that is not yet a
+  complete removal proof. Both renderer builds and final inventory are pending.

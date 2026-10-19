@@ -1,3 +1,4 @@
+#include "render_policy.h"
 #include "platform/xbox_winnt.h"
 #include <math.h>
 #include <stdlib.h>
@@ -325,4 +326,4 @@ static int hold_aspect(void)
     return InterlockedCompareExchange(&s_edge_hud, 0, 0) != 0;
 }
 
-const NvOverlayHooks mm3_hud_hooks = { frame, place, hold_aspect, sanitize_vertex_upload };
+const NvOverlayHooks mm3_hud_hooks = { frame, place, hold_aspect, sanitize_vertex_upload, mm3_render_force_depth, mm3_render_cubic_filter };

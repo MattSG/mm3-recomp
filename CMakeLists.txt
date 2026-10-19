@@ -362,6 +362,7 @@ add_executable(${PROJECT_NAME}
     ${MM3_RMLUI_BACKEND}
     src/mods/mods.c
     src/mods/render_commands.c
+    src/mods/render_policy.c
     src/mods/debug_overlay.cpp
     src/mods/dev_tools.c
     src/mods/menu_mouse.c
