@@ -3,6 +3,8 @@
 #include "../src/mods/mods.c"
 
 static int driving;
+static int render_commands_initialized;
+void mm3_render_commands_init(void) { ++render_commands_initialized; }
 static int (*menu_probe)(void);
 static unsigned mouse_init_calls;
 static const NvOverlayHooks *overlay;
@@ -42,6 +44,7 @@ int main(int argc, char **argv)
     _putenv_s("MM3_MOD_KEYBOARD_DRIVING", enabled ? "1" : "0");
     _putenv_s("MM3_MOD_FLARE_DEPTH", enabled ? "1" : "0");
     mm3_mods_init();
+    assert(render_commands_initialized == 1);
     assert(!strcmp(getenv("RECOMP_ASPECT"), enabled ? "16:10" : "4:3"));
     assert(!strcmp(getenv("RECOMP_WINDOW_SIZE"), "1600x900"));
     assert(overlay == &mm3_hud_hooks); /* UV sanitizer also runs in 4:3. */

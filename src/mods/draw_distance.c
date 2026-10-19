@@ -4,7 +4,7 @@
 #include <string.h>
 #include "recomp_types.h"
 #include "mods.h"
-#include "nv2a_host_commands.h"
+#include "render_commands.h"
 
 /* PAL MM3: increase the title's own visibility/LOD distances before its
  * native D3D11 translation sees geometry. Keep the original fade fractions,
@@ -229,22 +229,22 @@ void sub_000F8DCE(void)
     uint32_t camera = MEM32(g_ecx+0xC), device = MEM32(0x351F48);
     uint32_t cursor = MEM32(device), limit = MEM32(device+4);
     float depth_scale = MEMF(camera+0x1ED8), far_clip = MEMF(camera+0x1FB0);
-    if (cursor && !(cursor&3) && limit >= cursor && limit-cursor >= NV2A_HOST_FOG_WORDS*4) {
-        MEM32(cursor) = NV2A_HOST_FOG_HEADER; /* Eleven non-increasing NV097_NO_OPERATION parameters. */
-        MEM32(cursor+4) = NV2A_HOST_FOG_TAG;
+    if (cursor && !(cursor&3) && limit >= cursor && limit-cursor >= MM3_FOG_WORDS*4) {
+        MEM32(cursor) = MM3_FOG_HEADER; /* Eleven non-increasing NV097_NO_OPERATION parameters. */
+        MEM32(cursor+4) = MM3_FOG_TAG;
         MEMF(cursor+8) = 1.f/depth_scale;
         MEMF(cursor+12) = far_clip;
         MEMF(cursor+16) = fminf(300.f,far_clip*.4f);
         MEMF(cursor+20) = far_clip*.9f;
         MEM32(cursor+24) = MEM32(g_esp+4);
-        MEM32(cursor+28) = NV2A_HOST_FOG_SKY_MASK | NV2A_HOST_FOG_SKY_FILL | NV2A_HOST_FOG_SKY_FADE; /* Sky mask and untextured distant air. */
+        MEM32(cursor+28) = NV_D3D_FOG_SKY_MASK | NV_D3D_FOG_SKY_FILL | NV_D3D_FOG_SKY_FADE; /* Sky mask and untextured distant air. */
         /* World-up dotted with a camera ray: pitch/roll and projection follow
          * the native cloud dome. Fade its lower edge over about nine degrees. */
         MEMF(cursor+32) = MEMF(camera+0x1F34)*depth_scale/MEMF(camera+0x1EE4);
         MEMF(cursor+36) = MEMF(camera+0x1F38)*depth_scale/MEMF(camera+0x1EF8);
         MEMF(cursor+40) = MEMF(camera+0x1F3C);
         MEMF(cursor+44) = 1.f/.16f;
-        MEM32(device) = cursor+NV2A_HOST_FOG_WORDS*4;
+        MEM32(device) = cursor+MM3_FOG_WORDS*4;
     }
     g_eax = (g_eax & 0xFFFFFF00u) | 1;
     g_esp += 16;

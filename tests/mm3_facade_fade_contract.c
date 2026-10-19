@@ -159,11 +159,11 @@ int main(int argc, char **argv)
     }
     assert(native_horizon_calls == 1);
     assert(native_fog_calls == 1);
-    assert(MEM32(0x5000) == 0x6000+NV2A_HOST_FOG_WORDS*4);
-    assert(MEM32(0x6000) == NV2A_HOST_FOG_HEADER && MEM32(0x6004) == NV2A_HOST_FOG_TAG);
+    assert(MEM32(0x5000) == 0x6000+MM3_FOG_WORDS*4);
+    assert(MEM32(0x6000) == MM3_FOG_HEADER && MEM32(0x6004) == MM3_FOG_TAG);
     assert(MEMF(0x6008) == 1.f/(16777215.f/759.9f));
     assert(MEMF(0x600C) == 760 && MEMF(0x6010) == 300 && MEMF(0x6014) == 760*.9f);
-    assert(MEM32(0x6018) == 0xA5A5A5A5 && MEM32(0x601C) == (NV2A_HOST_FOG_SKY_MASK | NV2A_HOST_FOG_SKY_FILL | NV2A_HOST_FOG_SKY_FADE));
+    assert(MEM32(0x6018) == 0xA5A5A5A5 && MEM32(0x601C) == (NV_D3D_FOG_SKY_MASK | NV_D3D_FOG_SKY_FILL | NV_D3D_FOG_SKY_FADE));
     assert(MEMF(0x6020) == 0 && MEMF(0x6024) == 1 && MEMF(0x6028) == 0 && MEMF(0x602C) == 1.f/.16f);
     /* Tilt and asymmetric projection move/rotate the fade with the camera. */
     MEMF(0x4000+0x1EE4) = 2*MEMF(0x4000+0x1ED8);

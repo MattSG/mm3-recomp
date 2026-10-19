@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "mods.h"
+#include "render_commands.h"
 
 const Mm3Mod mm3_mods[MM3_MOD_COUNT] = {
     [MM3_MOD_DEBUG_OVERLAY] = {"debug_overlay", "MM3_DEBUG_OVERLAY", "ImGui debug tools",
@@ -71,6 +72,7 @@ void mm3_mods_init(void)
     int i;
     extern void mm3_debug_overlay_init(void);
     mm3_debug_overlay_init();
+    mm3_render_commands_init();
     xbox_InputSetMenuProbe(in_menu);
     /* Without the widescreen hooks the title draws 4:3; show it that way. */
     if (!mm3_mod_on(MM3_MOD_WIDESCREEN))
