@@ -92,3 +92,28 @@ Validation so far:
   a parameterized API makes every authored enhancement generic. An initial
   search found no MM3 caller of the old remap setter, but that is not yet a
   complete removal proof. Both renderer builds and final inventory are pending.
+
+
+## Third boundary: retired distance remap
+
+- Removed the uncalled `nv2a_d3d_set_depth_view_remap` API, its per-frame haze
+  state, nonlinear Y16 remap and post-haze foliage coverage shader branch.
+  The previous distance implementation has no active caller; the current MM3
+  distance mod submits its own fog command instead. Reintroducing this retired
+  enhancement in the generic toolkit would retain title policy with no user.
+- Native Y16 word extraction, quarter-guest-pixel alignment and W-depth
+  quantization/polygon offset remain. Existing actual-GPU Y16/depth checks are
+  the regression boundary; no rendering enhancement is enabled by this removal.
+- Both backends' 12 graphics-quality cases pass, including Y16 and W-depth.
+  Full D3D11 game build passes. Night Cruise run `run-8l09mkp3` passed with
+  39.846 units forward, zero backward, 29 samples; night settings and gameplay
+  captures were inspected. Player/NPC rear glows appear in its final capture.
+- This is behavior-preservation evidence only. The user's original live build
+  separately has dark rear lamps in `run-996jw7qq/capture-035.bmp`, with the road
+  ahead illuminated. Temporal lamp/reflection flicker and sky motion remain
+  unresolved; individual lit captures do not establish visual fidelity.
+- Full SDL GPU game build has been configured and is running. Remaining
+  ownership audit is incomplete, including the dedicated fog shader and dead
+  panorama/framebuffer mixing branch. The fog curve and destination-alpha sky
+  mask must be reviewed as authored enhancement policy, not assumed generic
+  solely because its inputs are parameters.
