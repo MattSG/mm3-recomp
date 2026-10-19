@@ -65,6 +65,38 @@ Generic runtime findings and crypto vector sources are tracked in
 
 ### Continuation evidence, 2026-10-18
 
+- Runtime commit `1875038` adds POSIX thread-owner cleanup on normal return,
+  `ExitThread` and deferred cancellation, with terminal state published after
+  timer/APC rundown. Condition-wait cancellation releases reacquired mutexes;
+  normal condition waits retain their critical section. Detached workers release
+  their reference once. The final source passes the three focused tests under
+  independent GCC 13.3 ASan+UBSan, plus warning-clean and UBSan gates. GCC 11
+  ASan still fails internally during cancellation unwind; that investigation
+  remains open. Deferred cancellation cannot promptly stop CPU-bound guest code.
+
+- A separate native-vs-POSIX probe establishes another open memory contract
+  defect. After protecting the first of two committed pages read-only,
+  native Windows reports protection `2` and region size `4096`; the POSIX
+  shim reports protection `4` and size `8192`. For a reserve-only allocation,
+  Windows reports `MEM_RESERVE` (`0x2000`), while POSIX reports `MEM_COMMIT`
+  (`0x1000`) and read/write. The probe exits zero on Windows and one on POSIX.
+  Source and binaries are in `build/audit-continuation/reference` under
+  `virtual-query-probe*` and `virtual-query-win`. Canonical guest-buffer
+  validation also currently accepts mapped low RAM/contiguous ranges without
+  checking their actual page rights. Repair needs shared page-state tracking
+  before bridge callers can rely on those rights; this remains open.
+
+- Saved-profile Cruise subsequently passed actual pause/resume in
+  `build/audit-continuation/pause-cruise-resume/run-mwbm2quv`. The baseline
+  sample measured 26.80 units over three seconds; after Start and five seconds
+  waiting, capture-002 shows the dimmed Cruise pause menu. Start and throttle
+  then resumed driving: motion acquisition passed and the next three-second
+  sample measured 44.01 units. Capture-003 shows active Paris driving. Both
+  captures were independently inspected. This proves pause UI and resumed
+  movement for that build, not an in-pause movement measurement or correctness
+  of subsequent runtime edits. Sampling while paused in the preceding attempt
+  failed because player telemetry was unavailable; it is not freeze proof.
+
 - POSIX wait-all now checks readiness under every participating object's lock
   and consumes signals only when the whole set is ready. Shared readiness and
   acquisition helpers also serve single-object waits. The regression fails on
