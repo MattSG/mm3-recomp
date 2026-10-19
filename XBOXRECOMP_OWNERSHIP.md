@@ -34,7 +34,7 @@ such as g_mm3 are architectural state, not title coupling.
 | Private fog stream | Fixed tag/header and parser moved from runtime into src/mods/render_commands.*; executor has an optional ordered NOP hook | Moved and validated |
 | Panorama selection | MM3 render_policy.c selects its authored 256x256 DXT5 horizon; backends only execute an optional sampling hook | Moved and validated |
 | Lamp selection | MM3 render_policy.c owns Flares.psh recognition and diagnostic dumps; backends only execute an optional depth hook | Moved and validated |
-| Extended-distance shaders | Depth-view remap, haze coverage, sky fill/fade and skyline filtering contain enhancement policy | Audit and move all title policy; retain only proven reusable primitives |
+| Extended-distance shaders | Retired remap/sky-feedback branches removed; active fog shader, parameters and sky composition moved to src/mods/render_fog* | Implementation moved; full game proof pending |
 | Overlay placement | Existing NvOverlayHooks already delegates HUD/sanitization to MM3 | Verify remaining renderer assumptions and tests |
 | Runtime / platform | Audit all fork-vs-upstream runtime changes for hidden guest addresses/defaults and title-only behavior | In progress |
 | Tools / templates / tests / docs | Review tracked artifacts and build dependencies, including captured game-specific fixtures | In progress |
@@ -135,3 +135,26 @@ Validation so far:
   visual defects reported in the user's original running build.
 - Dedicated fog enhancement ownership and the remaining runtime/artifact audit
   are still open; this milestone does not claim the fork is fully generic.
+
+
+## Fifth boundary: active fog enhancement
+
+- `src/mods/render_fog.c`, backend drawing headers and
+  `src/mods/shaders/distance_fog.hlsl` now own the entire active enhancement:
+  range validation, depth-to-distance conversion, exponential curve, sky fill,
+  destination-alpha mask and camera-plane fade. MM3 builds its own embedded
+  D3D11 shader and SDL GPU SPIR-V/DXIL. The fork no longer compiles a fog shader,
+  has no dedicated fog API/flags, and has no fog-only pipeline blend branch.
+- The generic `nv2a_d3d_host_draw` callback borrows current colour/depth handles,
+  device and context/command buffer. The runtime flushes prior draws, restores
+  its retained bindings after native client drawing and tracks colour writes.
+  This follows the existing host-overlay interoperability boundary without
+  giving the toolkit knowledge of MM3's fog parameters or private stream.
+- Moved the three authored GPU cases to `tests/mm3_renderer_fog`. They reuse
+  generic fixture setup/readback without making the fork depend on MM3.
+  All 3 pass, including D3D11 MSAA and SDL GPU. The fork's independent suite
+  passes 19/19, including new synthetic host-draw ordering/rejection/recovery
+  checks. MM3 command, facade and initialization CPU contracts pass.
+- Full D3D11 and SDL GPU game rebuilds are running after the public header
+  change. Their final build and bounded gameplay proof remain outstanding.
+  The overall runtime/artifact ownership audit is also still incomplete.

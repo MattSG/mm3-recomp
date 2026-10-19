@@ -237,7 +237,7 @@ void sub_000F8DCE(void)
         MEMF(cursor+16) = fminf(300.f,far_clip*.4f);
         MEMF(cursor+20) = far_clip*.9f;
         MEM32(cursor+24) = MEM32(g_esp+4);
-        MEM32(cursor+28) = NV_D3D_FOG_SKY_MASK | NV_D3D_FOG_SKY_FILL | NV_D3D_FOG_SKY_FADE; /* Sky mask and untextured distant air. */
+        MEM32(cursor+28) = MM3_FOG_SKY_MASK | MM3_FOG_SKY_FILL | MM3_FOG_SKY_FADE; /* Sky mask and untextured distant air. */
         /* World-up dotted with a camera ray: pitch/roll and projection follow
          * the native cloud dome. Fade its lower edge over about nine degrees. */
         MEMF(cursor+32) = MEMF(camera+0x1F34)*depth_scale/MEMF(camera+0x1EE4);

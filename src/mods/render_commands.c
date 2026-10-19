@@ -12,7 +12,7 @@ static int render_nop(const NvD3DState *state, uint32_t subchannel, uint32_t val
         float values[8];
         memcpy(values, words, 4 * sizeof(float));
         memcpy(values + 4, words + 6, 4 * sizeof(float));
-        nv2a_d3d_distance_fog(state, values[0], values[1], values[2], values[3],
+        mm3_render_fog(state, values[0], values[1], values[2], values[3],
                              words[4], words[5], values + 4);
         next = 0;
     }

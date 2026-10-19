@@ -5,7 +5,7 @@ static int (*hook)(const NvD3DState *, uint32_t, uint32_t);
 static unsigned calls;
 static NvD3DState state;
 void nv2a_pb_set_nop_hook(int (*fn)(const NvD3DState *, uint32_t, uint32_t)) { hook = fn; }
-void nv2a_d3d_distance_fog(const NvD3DState *st, float scale, float far_clip,
+void mm3_render_fog(const NvD3DState *st, float scale, float far_clip,
     float start, float end, uint32_t argb, uint32_t flags, const float sky[4])
 {
     assert(st == &state && scale == 1 && far_clip == 1000 && start == 300 && end == 900);

@@ -498,3 +498,8 @@ endif()
 if(MSVC)
     target_compile_options(mm3_launcher_settings_contract PRIVATE /UNDEBUG)
 endif()
+
+# The distance enhancement belongs to this port, including host shaders.
+target_sources(mm3_recomp PRIVATE src/mods/render_fog.c)
+include(cmake/MM3RenderFog.cmake)
+mm3_render_fog_shaders(mm3_recomp "${XBOXRECOMP_RENDERER}")
