@@ -117,3 +117,21 @@ Validation so far:
   panorama/framebuffer mixing branch. The fog curve and destination-alpha sky
   mask must be reviewed as authored enhancement policy, not assumed generic
   solely because its inputs are parameters.
+
+
+## Fourth boundary: unused panorama feedback
+
+- Both backend PS flag producers set only bits 0..2. Removed the unactivated
+  bits-8..15 panorama sky-colour mixing branch, its shader resources and its
+  extra scene copies. Native render-to-texture feedback copies remain; texture
+  binding indices stay stable (slot 8 reserved, volumes in 9..12).
+- All 12 actual-GPU graphics cases pass after removal. Full D3D11 and SDL GPU
+  game rebuilds pass after removal.
+- The first full SDL GPU build of the previous depth-cleanup milestone passed
+  Night Cruise run `run-dizlb5s6`: 34.074 units forward, zero backward, 29 samples.
+  Inspected night settings and final gameplay captures; geometry, HUD, road
+  illumination and player/NPC rear glows are present in those frames. The
+  harness closed its own child. This does not resolve the separate temporal
+  visual defects reported in the user's original running build.
+- Dedicated fog enhancement ownership and the remaining runtime/artifact audit
+  are still open; this milestone does not claim the fork is fully generic.
