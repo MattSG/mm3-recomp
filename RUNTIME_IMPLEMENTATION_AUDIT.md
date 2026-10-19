@@ -65,6 +65,38 @@ Generic runtime findings and crypto vector sources are tracked in
 
 ### Continuation evidence, 2026-10-18
 
+### Renderer ownership investigation, 2026-10-19
+
+The opt-in renderer diagnostic reached actual zero-tick Cruise rendering in
+`build/audit-continuation/render-queue-phase-pause-final/run-h0y7zzhh`.
+With 30 Hz simulation and uncapped every-frame rendering, 31 consecutive
+zero-tick calls restored the packed-vertex offset at `0x3C568C` from 76 to
+zero and rendering advanced it back to 76. The backing pointer `0x3C5688`
+and capacity `0x3A0EC0` stayed unchanged in this 328 ms sample. The scenario
+passed with 92.07 units of movement over three seconds; its capture was
+independently inspected and shows active Cruise gameplay. This diagnoses the
+existing rollback, rather than proving that rollback safe.
+
+Original XBE instructions and generated code show that the broad snapshot
+`[0x3C5680,0x3C57B0)` also contains floats, callback pointers, owning object
+pointers and reference/generation counts. Value-shaped pointer filtering
+cannot establish ownership. The six changing indices at `0x3C5788`,
+`0x3C578C`, `0x3C5790`, `0x3C5798`, `0x3C57A0` and `0x3C57A4` address bounded
+renderer tables with capacity-wrap resets; no ordinary frame-reset writer
+was found among direct XBE stores. Some producers invoke constructors or
+virtual helpers, so index-only rollback does not establish payload lifetime.
+The packed-vertex pool separately has a live-block count (`0x3C5690`) and
+an initialization flag (`0x3C5694`); its reset/release path is `0x11DCBF`.
+A safe every-frame repair remains open. Repeating the last host frame is an
+existing separate mode and does not validate every-frame guest rendering.
+
+A timed pause diagnostic (`run-jb1pao76` in the same evidence directory)
+captured the actual pause menu, but every sampled call reported the stored
+`ticked` classification. That state may be stale while world update is
+skipped; it is not evidence of simulation updates during pause. Earlier
+render-ordinal thresholds sampled before gameplay and must not be described
+as driving or pause traces.
+
 - Runtime `fab9d21` replaces fake-success guest I/O builders with packets,
   driver callbacks, completion, event consumption and validated device queues.
   Independent Windows MSVC and Linux GCC 13 bridge tests pass, including
