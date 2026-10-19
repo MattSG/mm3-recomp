@@ -31,7 +31,7 @@ such as g_mm3 are architectural state, not title coupling.
 | Area | Evidence / required action | Status |
 | --- | --- | --- |
 | SDL3 integration | Main ancestry in root and fork, preserved lighting changes | Merged locally |
-| Private fog stream | Fixed tag/header and parser moved from runtime into src/mods/render_commands.*; executor has an optional ordered NOP hook | Moved; integration validation in progress |
+| Private fog stream | Fixed tag/header and parser moved from runtime into src/mods/render_commands.*; executor has an optional ordered NOP hook | Moved and validated |
 | Panorama selection | Both renderers identify MM3's 256x256 DXT5 horizon by fixed dimensions/mip/filter/blend criteria | Must move classifier to MM3 |
 | Lamp selection | Both renderers identify Flares.psh's three visibility taps and lamp texture; title supplies only stage_program | Must move classifier to MM3 |
 | Extended-distance shaders | Depth-view remap, haze coverage, sky fill/fade and skyline filtering contain enhancement policy | Audit and move all title policy; retain only proven reusable primitives |
@@ -60,5 +60,8 @@ Validation so far:
   pipeline binding/reset, failures, resize and overlay upload. Its SDL recorder
   still expected nine bindings after the volume work introduced thirteen;
   updating that fixture restored two failing binding checks.
-- Full isolated D3D11 build is still compiling generated code (exec session
-  10572); no whole-goal completion claimed.
+- Full isolated D3D11 game build passes. Bounded night Cruise run
+  conformance_tmp/game_test/run-5en73gvu passed: settings/gameplay captures
+  visually inspected, 34.817 units forward, zero backward travel, 29 samples.
+  The harness closed only its owned child after the successful run.
+- Full ownership cleanup remains incomplete; continue through the ledger.
