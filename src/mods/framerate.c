@@ -128,7 +128,8 @@ static int smooth(void)
     return m;
 }
 
-/* Ticks the last world update ran; -1 before the first. */
+/* Ticks the last world update ran; -1 before the first and once a render
+ * has used them. */
 static int s_ticks = -1;
 
 /* The world update (edi the game, one argument, ret 4), with the console's
@@ -213,8 +214,14 @@ static void render_again(void)
 void sub_001EC8E6(void)
 {
     if (MEM32(g_esp) == 0x001E78AAu && mm3_mod_on(MM3_MOD_FRAMERATE)) {
+        /* The ticks of the world update since the last render, used once. A
+         * frame with none (the post-race and briefing screens, which skip it)
+         * is drawn: a stale 0 kept those showing one image -- the briefing's
+         * fade frozen almost black until A -- however long they ran. */
+        int ticks = s_ticks;
+        s_ticks = -1;
         if (smooth()) {
-            int drew = s_ticks != 0;
+            int drew = ticks != 0;
             if (drew) sub_001EC8E6_original(); else g_esp += 12;
             nv2a_d3d_interp_frame(s_alpha, drew);
             return;
@@ -225,10 +232,10 @@ void sub_001EC8E6(void)
         static int every = -1;
         if (every < 0) every = getenv("MM3_RENDER_EVERY_FRAME") && atoi(getenv("MM3_RENDER_EVERY_FRAME")) == 1;
         if (every) {
-            if (s_ticks == 0 && s_keep_ready) render_again(); else render_ticked();
+            if (ticks == 0 && s_keep_ready) render_again(); else render_ticked();
             return;
         }
-        if (s_ticks == 0) {             /* not drawn: the last image again */
+        if (ticks == 0) {               /* not drawn: the last image again */
             g_esp += 12;
             nv2a_d3d_repeat_frame();
             return;
