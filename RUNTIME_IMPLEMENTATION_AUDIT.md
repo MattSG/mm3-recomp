@@ -65,6 +65,34 @@ Generic runtime findings and crypto vector sources are tracked in
 
 ### Continuation evidence, 2026-10-18
 
+- Runtime `fab9d21` replaces fake-success guest I/O builders with packets,
+  driver callbacks, completion, event consumption and validated device queues.
+  Independent Windows MSVC and Linux GCC 13 bridge tests pass, including
+  pending completion, malformed/cyclic queues, ownership reuse and the gap
+  between completion and StartNextPacket. Native host-pointer driver I/O,
+  synchronous helper ordinals 84/85 and request-owner rundown remain open.
+- Runtime `e781d37` repairs POSIX page state/protection, query extents,
+  release ownership, Linux decommit and mapped access. Explicit POSIX span
+  carving retains ownership IDs and fixes layout teardown. The canonical
+  guest-buffer validator now checks every host region's commitment and rights;
+  event validation reuses it. Windows/Linux mapping tests pass; the same
+  fixture with the previous bridge fails four rights assertions. The native
+  query probe now passes on Linux too. Independent GCC 13 ASan+UBSan memory
+  tests and the corrected kernel-memory fixture pass. macOS decommit remains
+  explicitly unsupported. These gates do not establish gameplay acceptance
+  for the newly combined runtime.
+
+- The stack-location payload needs different evidence from IRP/device header
+  sizes. Compiling Cxbx's pinned `IO_STACK_LOCATION` declaration for x86 places
+  its union at `+8`, contradicting its own `+4` comments. Original XBE driver
+  instructions instead read Length at `+4`, Buffer at `+8` and the 64-bit
+  offset at `+0xc/+0x10` (`0x35B2B0` onward); its IOCTL handler reads the code
+  at `+0x10` (`0x35B1DB`). Neither the Cxbx structure nor its comments may be
+  copied wholesale as a verified Xbox payload. The compiler probe and original
+  binary disassembly are retained in `build/audit-continuation/reference`.
+  These are static ABI expectations, not proof that a driver path ran on
+  original hardware or in the recompilation.
+
 - Runtime commit `1875038` adds POSIX thread-owner cleanup on normal return,
   `ExitThread` and deferred cancellation, with terminal state published after
   timer/APC rundown. Condition-wait cancellation releases reacquired mutexes;
@@ -82,9 +110,9 @@ Generic runtime findings and crypto vector sources are tracked in
   (`0x1000`) and read/write. The probe exits zero on Windows and one on POSIX.
   Source and binaries are in `build/audit-continuation/reference` under
   `virtual-query-probe*` and `virtual-query-win`. Canonical guest-buffer
-  validation also currently accepts mapped low RAM/contiguous ranges without
-  checking their actual page rights. Repair needs shared page-state tracking
-  before bridge callers can rely on those rights; this remains open.
+  validation also accepted mapped low RAM/contiguous ranges without checking
+  their actual page rights. The subsequent `e781d37` repair above addresses
+  those checks; the shared IOSB writer's caller error policy remains open.
 
 - Saved-profile Cruise subsequently passed actual pause/resume in
   `build/audit-continuation/pause-cruise-resume/run-mwbm2quv`. The baseline
