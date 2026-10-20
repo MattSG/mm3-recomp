@@ -37,10 +37,11 @@ int mm3_render_force_depth(const NvD3DState *st, uint32_t width, uint32_t height
     }
     if (traced < 4 && getenv("RECOMP_FLARE_TRACE") &&
         gpu_address(st->tex[1].addr) == address && gpu_address(st->tex[2].addr) == address) {
-        fprintf(stderr, "[MM3_RENDER] lamp pass reject=%X clip=%ux%u mask=%ux%u depth=%u write=%u zeta=%08X wbuffer=%u tex_used=%X filter=%08X/%08X/%08X\n",
+        fprintf(stderr, "[MM3_RENDER] lamp pass reject=%X clip=%ux%u mask=%ux%u depth=%u write=%u zeta=%08X wbuffer=%u tex_used=%X filter=%08X/%08X/%08X address=%08X/%08X/%08X\n",
                 reject, st->clip_w, st->clip_h, width, height,
                 st->depth_test, st->depth_mask, st->zeta_addr, st->z_perspective,
-                st->tex_used, st->tex[0].filter, st->tex[1].filter, st->tex[2].filter);
+                st->tex_used, st->tex[0].filter, st->tex[1].filter, st->tex[2].filter,
+                st->tex[0].address, st->tex[1].address, st->tex[2].address);
         if (!traced) {
             uint32_t start = 0, version = 0, cver = 0, k;
             const uint32_t (*prog)[4] = nv2a_vsh_program(&start, &version);

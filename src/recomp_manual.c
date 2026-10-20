@@ -1284,31 +1284,16 @@ void sub_00317F5B(void) {}
 void sub_00319630(void) {}
 void sub_00358FAC(void) {}
 
-/* XDK write-back-cache flush (D3D's push-buffer kick): set NV_PFB_WBC_FLUSH
- * and spin until the ack thread clears it, which it does between push-buffer
- * segments -- so each kick-off waits for the executor to finish the segment
- * in progress.
- *
- * 7fa6fcc made this a bare store fence so the title could run ahead of the
- * executor without limit. That broke a result MM3 reads mid-frame: a frame
- * now and then came out lit as if in a tunnel -- dark, headlights on, night
- * speedometer (5-22 per 1200-frame drive, cruise and missions alike). Truthful
- * fences, segment-end write-back of its 40x30 brightness targets and
- * serialising only BlockOnFence each fixed cruise but not the missions.
- * Bounding the run-ahead fixes both: the spin runs only once the executor is
- * more than MM3_KICK_LAG bytes of push buffer behind (or across a wrap).
- * 0 dark frames over 4 mission drives at 256 KB, 64 KB and 1 MB alike.
- * Race uncapped: spin every kick 296 fps, 64 KB 327, 256 KB 352, 1 MB 356,
- * unbounded 373.
- * ponytail: the racing read is still unidentified; bounded, not removed.
- * Registers are left as the guest routine leaves them. */
-#define MM3_KICK_LAG 0x40000u   /* 256 KB */
+/* XDK write-back-cache flush. The retail routine at 0x00344AB0 fences
+ * writes, sets NV_PFB_WBC_FLUSH and waits for acknowledgement on every
+ * kick. A byte-lag threshold cannot prove the executor has consumed a
+ * reused vertex buffer or produced a GPU result the guest is about to read. */
 
 /* The ack thread clears the bit between segments. A dead thread would
  * spin forever with no sign in the log, so report the wait every two
  * seconds. It keeps waiting: leaving early would let the title reuse
  * push-buffer space the executor has not read yet. */
-static void mm3_kick_wait_ack(uint32_t flag_va, uint32_t cur, uint32_t get)
+static void mm3_kick_wait_ack(uint32_t flag_va)
 {
     LARGE_INTEGER freq, start, now;
     LONGLONG last;
@@ -1320,9 +1305,9 @@ static void mm3_kick_wait_ack(uint32_t flag_va, uint32_t cur, uint32_t get)
         QueryPerformanceCounter(&now);
         if (now.QuadPart - last >= 2 * freq.QuadPart) {
             last = now.QuadPart;
-            fprintf(stderr, "[KICK_WAIT] ack bit 0x10000 at 0x%08X still set after %.1f s (report %u): cur=0x%08X get=0x%08X lag=0x%08X\n",
+            fprintf(stderr, "[KICK_WAIT] ack bit 0x10000 at 0x%08X still set after %.1f s (report %u)\n",
                     flag_va, (double)(now.QuadPart - start.QuadPart) / freq.QuadPart,
-                    ++reports, cur, get, cur - get);
+                    ++reports);
         }
     }
 }
@@ -1336,20 +1321,9 @@ void sub_00344AB0(void)
         if (!watched) { watched = 1; recomp_sampler_watch_current_thread(); }
     }
     g_eax = MEM32(MEM32(0x351F48u) + 0x17C8u);
-    g_ecx = MEM32(g_eax + 0x100410u) | 0x10000u;
     _mm_sfence();
-    {   /* the executor's lag behind the push pointer about to be kicked. Both
-         * sides are physical offsets (VA & 0x0FFFFFFF): the title writes PUT
-         * that way, and the channel's GET is read back in the same space. The
-         * title's own wait at 0x001F3948 masks both with 0xFFFFFFF, so bit 31
-         * is not significant on either side; mask GET too, or it compares
-         * differently from PUT whenever the GPU's readback sets bit 31. */
-        uint32_t dev = MEM32(0x351F48u), regs = MEM32(dev + 0x17C0u);
-        uint32_t cur = MEM32(dev) & 0x0FFFFFFFu, get = MEM32(regs + 0x44u) & 0x0FFFFFFFu;
-        if (cur < get || cur - get > MM3_KICK_LAG) {
-            MEM32(g_eax + 0x100410u) = g_ecx;
-            mm3_kick_wait_ack(g_eax + 0x100410u, cur, get);
-        }
-    }
+    g_ecx = MEM32(g_eax + 0x100410u) | 0x10000u;
+    MEM32(g_eax + 0x100410u) = g_ecx;
+    mm3_kick_wait_ack(g_eax + 0x100410u);
     g_esp += 4;
 }
