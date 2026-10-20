@@ -224,3 +224,22 @@ Validation so far:
 - 0x01191EA0 was an observed streamed-voice heap pointer. Identity mapping
   below/above 64 MB and unmapped-address rejection are generic bus contracts;
   their fixture no longer retains that title pointer.
+
+
+## Eighth boundary: async wait diagnostics
+
+- A deeper address audit found three literal MM3 return PCs still embedded in
+  `bridge_async_wait_log`. They selected ESI for MM3's auto-submit helper and
+  EBX for its explicit wait/cancel helper, then decoded request words by field.
+  The logger now records guarded raw 12-word snapshots from both registers.
+  The generic wait implementation no longer selects a title layout or caller.
+- MM3 interpretation: caller 0x0035C7F1 retains its request in ESI; callers
+  0x0035D553 and 0x0035D56C retain it in EBX. Request dwords 1/2/3 were status,
+  callback and context. This knowledge stays here and in MM3 diagnostics,
+  including `src/recomp_manual.c`, rather than the reusable wait bridge.
+- The generic trace regression now uses a synthetic return PC and raw sentinel
+  words. Trace-off, trace-on and inline-event cases pass, covering both readable
+  and unreadable register pointers, real wait outcomes, preserved guest state
+  and LastError, and separate bounded success/failure log budgets.
+- `request_*` fields in ASYNC_WAIT logs are replaced by `esi`, `esi_read`,
+  `esi_words`, `ebx`, `ebx_read`, `ebx_words`. No runtime behavior opt-in changed.
