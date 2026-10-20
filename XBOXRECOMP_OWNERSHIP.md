@@ -261,3 +261,20 @@ Validation so far:
 - This audit found real policy beyond literal MM3-name matches. Continue the
   remaining runtime/tooling review and final repository inventory; the goal
   is not yet marked complete.
+
+## Night rendering validation caveat (2026-10-20)
+
+- MM3 fba38ce and XboxRecomp a18f4eb restore the native kick acknowledgement
+  and resolve constant render-target taps at guest pixel scale. All 13 graphics
+  checks passed; the flush handshake regression passed. SDL GPU D3D12 and
+  Vulkan builds and bounded night-driving checks completed.
+- Distant-light flicker remains unresolved, with small forward/back movement
+  at the reported location providing a live reproduction. Sky jumping and
+  rooftop bloom blur have not been demonstrated resolved. These commits do
+  not establish complete visual fidelity on either D3D12 or Vulkan.
+- The live flare-depth override was an investigative A/B change only; it is
+  not a committed default change or evidence that flicker is fixed.
+- Ordinary ambient traffic assets lack the separate road-light projector
+  present on the player car. Their glowing headlights without ground beams
+  appear consistent with original-disc asset design; original-console runtime,
+  police and race-opponent behavior remain unverified.
