@@ -243,3 +243,21 @@ Validation so far:
   and LastError, and separate bounded success/failure log budgets.
 - `request_*` fields in ASYNC_WAIT logs are replaced by `esi`, `esi_read`,
   `esi_words`, `ebx`, `ebx_read`, `ebx_words`. No runtime behavior opt-in changed.
+
+
+## Ninth boundary: sharing diagnostics and save-path fixtures
+
+- The opt-in file ledger hard-coded `Data_hd.zip`, and sharing-failure evidence
+  was further limited to `Cache/Data/Data_hd.zip`. Removed both title filters:
+  `RECOMP_FILE_DIAGNOSTICS` now records shared-file owners for any normalized
+  file path. Access, share modes, retries and handle ownership remain unchanged.
+- The path fixture no longer embeds title ID 4d53002a, observed save-slot IDs,
+  `Data/Shared/Cars/VRace/body.cmp` or `Data/Data_hd.zip`. It uses synthetic
+  01234567 title data and example assets while retaining drive routing, path
+  case handling, save isolation and non-creation contracts.
+- Sharing and diagnostics cases pass, including a real conflict on synthetic
+  `sharing.bin` and guest-owner evidence. The standalone save-path case passes.
+  Both full D3D11 and SDL GPU game rebuilds pass after this boundary.
+- This audit found real policy beyond literal MM3-name matches. Continue the
+  remaining runtime/tooling review and final repository inventory; the goal
+  is not yet marked complete.
