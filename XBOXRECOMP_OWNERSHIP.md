@@ -181,3 +181,46 @@ Validation so far:
 - Existing production-VP attenuation and SGE checks pass. Generated APU build
   definitions on both backends confirm MM3 still supplies 0.316f. No claim is
   made here about full audio fidelity or measured output levels after the move.
+
+
+## Seventh boundary: title-derived runtime fixtures
+
+- Inline-event registration now uses synthetic PCs, event metadata and request
+  sentinels. MM3's actual allow-list remains in `src/main.c`, outside the fork.
+  Allocator churn tests use synthetic non-page-aligned block sizes instead of
+  captured car-model sizes. APU physical-memory checks use synthetic addresses.
+  The timer deadline case remains a generic deferred-work/rearm contract.
+- Moved title-specific provenance below; runtime comments describe reusable
+  mechanisms and limits. Standalone pacing instructions no longer depend on
+  MM3's developer environment. Removed a no-op MM3_BUILDING_TRACE test setting.
+- Fixed two existing standalone-test build gaps exposed by these checks:
+  kernel_dispatch now enables the C11 dialect its included headers require;
+  apu_phys supplies the physical resolver it previously failed to link. The
+  resolver fixture also checks accepted synthetic runtime IDs and rejection of
+  IDs outside the 28-bit bus before they can alias a cached contiguous page.
+- Validation: 9 inline-event caller cases, 9 timer lifecycle/deadline cases,
+  all 7 memory regressions, APU physical mapping and kernel-bridge tests pass.
+  These are standalone fork builds with no MM3 source or assets linked.
+
+### Title-derived regression provenance retained by MM3
+
+- PAL inline-event callers: setter 0x0035C348, wait 0x0035D553, cancellation wait
+  0x0035D56C and auto-reset wait 0x0035C7F1. The original request callback was
+  0x0035C33A; 0x00343D57 was an unrelated caller. Return PCs are still configured
+  by the MM3 entry point; generic tests need only distinct registered/unrelated
+  identifiers, not these addresses or the captured request/header words.
+- Guest packet ABI evidence came from default.xbe SHA-256
+  2b04b66c43e7f37bbcebbfb5b72ccb96a2aa99cc2c60c53eb7d3530bcc2a3d79:
+  0x35B2B3/0x35B2B6 read stack+0x0c/+0x04, 0x35B2D3 reads +0x10,
+  0x35B2F4 tests flags+2, 0x35B2FA reads buffer+8, and 0x35B1DE reads
+  IoControlCode+0x10. This is static evidence of driver expectations, not proof
+  of runtime reachability, hardware conformance or backing-device transfers.
+- MM3 audio callback sub_0027B554 -> sub_0027B389 motivated the future absolute
+  timer deadline case. The test executes a synthetic callback, not guest code.
+- Original race/menu/model-churn allocation sizes were 2441264, 2818096,
+  1638448, 1720368, 1261616, 1458224, 1635472 and 1342608 bytes. The generic
+  contract concerns release/reuse, zeroed allocations, alignment and intact
+  neighbours; its synthetic replacement preserves those stress conditions.
+- 0x01191EA0 was an observed streamed-voice heap pointer. Identity mapping
+  below/above 64 MB and unmapped-address rejection are generic bus contracts;
+  their fixture no longer retains that title pointer.
