@@ -20,6 +20,11 @@
     "note": "Runtime array-destructor callback observed at 0x00012BAB while changing game modes. Convert this from ECX to EAX and tail-call the existing 0x0024D249 destructor."
   },
   {
+    "start": "0x0006726A",
+    "end": "0x0006727D",
+    "note": "Count-with-minimum leaf (mov eax,[eax]; add eax,4; call 0x4DBC7; at least 4; ret), EAX in, reached only as the tail jump of 0x135B2A (game vtable). As an unresolved stub it returned without computing EAX; with stubs stopping, starting a race aborted."
+  },
+  {
     "start": "0x0009B4E2",
     "end": "0x0009B4E7",
     "note": "Shared x87 exponential-underflow tail: replace the input with zero while preserving the floating-point stack depth. The unresolved stub leaves the negative exponent as the tire-force result."
@@ -189,6 +194,11 @@
     "start": "0x00144ED9",
     "end": "0x00144EDE",
     "note": "Shared successful graph-edge lookup epilogue, reached by 0x00144EDE from vtable method 0x00144EAE. Original POP EDI; POP ESI; RET 4 restores both saved registers and eight bytes missing from the unresolved stub. Without these pops the outer 0x001F6349 frame restores its registers from the wrong stack words."
+  },
+  {
+    "start": "0x00154018",
+    "end": "0x0015407E",
+    "note": "Function-local static getter: on first call constructs the object at 0x431A28 (vtable 0x3A85D4, registers its atexit cleanup 0x258566) and returns it in EAX. Reached only through the tail jump of the vtable thunk 0x15407E, called from 0x1EB6C7 at race start (the player's [edi+0xD8] object). As an unresolved stub it returned garbage EAX and never built the object."
   },
   {
     "start": "0x00189153",
