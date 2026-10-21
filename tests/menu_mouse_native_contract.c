@@ -27,17 +27,14 @@ void xbox_FramebufferSetCursorHandler(HCURSOR (*handler)(void)) { cursor_handler
 int xbox_FramebufferHostInputCaptured(void) { return 0; }
 void xbox_FramebufferSetMousePressHandler(int (*handler)(float, float)) { (void)handler; }
 
-void nv2a_d3d_collect_menu_rects(int on) { (void)on; assert(0); }
 
 int mm3_mod_on(int mod) { return mod == MM3_MOD_MENU_MOUSE; }
 int xbox_FramebufferMouse(float *x, float *y) { *x = mouse_x; *y = mouse_y; return moves; }
 int xbox_FramebufferKeyDown(int vk) { assert(vk == VK_LBUTTON); return down; }
-int nv2a_d3d_menu_rects(NvMenuRect *out, int max, float present[4])
+void nv2a_d3d_get_present_rect(float present[4])
 {
-    assert(out && max == 0); /* never request captured rendering quads */
     viewport_calls++;
     memcpy(present, viewport, sizeof viewport);
-    return 0;
 }
 void sub_001C5935_original(void)
 {

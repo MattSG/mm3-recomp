@@ -1,0 +1,27 @@
+static uint32_t *s_tint, s_tint_cap;       /* menu hover: each vertex's final colour */
+
+static uint32_t pack_argb(const float c[4])
+{
+    uint32_t out = 0;
+    int i;
+    for (i = 0; i < 4; i++) {
+        uint32_t ch = c[i] <= 0 ? 0 : c[i] >= 1 ? 255 : (uint32_t)(c[i] * 255 + 0.5f);
+        out |= ch << (i == 3 ? 24 : 16 - 8 * i);
+    }
+    return out;
+}
+
+/* The colour a vertex leaves the vertex stage with: what tells a focused
+ * menu item from the rest when everything else about them is the same. */
+static uint32_t d3d_vertex_tint(uint32_t guest_idx, int program)
+{
+    float c[4] = { 1, 1, 1, 1 };
+    if (program) {
+        Nv2aVshOutput o;
+        if (transform_vertex(guest_idx, &o)) return pack_argb(o.d0);
+    } else if (s_gpu.attr[3].size && fetch_attr(&s_gpu.attr[3], guest_idx, c)) {
+        return pack_argb(c);
+    }
+    return pack_argb(c);
+}
+

@@ -129,16 +129,9 @@ static int xbox_FramebufferOverlay(XboxOverlay *overlay) { (void)overlay; return
  * order above is the only ordering contract, so none of them emit events. */
 typedef struct ID3D11DeviceContext ID3D11DeviceContext;
 typedef struct NvOverlayHooks { void (*frame)(void); int (*idle_present)(uint32_t,uint32_t,int); } NvOverlayHooks;
-typedef struct MenuRect { int unused; } MenuRect;
-typedef struct SRWLOCK { int unused; } SRWLOCK;
 typedef long LONG;
 static ID3D11DeviceContext *s_ctx;
 static NvOverlayHooks s_overlay;            /* frame hook unset: no-op */
-static MenuRect s_mr_frame[4], s_mr_shown[4];
-static int s_mr_frame_n, s_mr_shown_n;
-static SRWLOCK s_mr_lock;
-static void AcquireSRWLockExclusive(SRWLOCK *lock) { (void)lock; }
-static void ReleaseSRWLockExclusive(SRWLOCK *lock) { (void)lock; }
 static volatile LONG s_repeat;              /* repeat path is not exercised */
 static LONG InterlockedExchange(volatile LONG *target, LONG value)
 { LONG old = *target; *target = value; return old; }

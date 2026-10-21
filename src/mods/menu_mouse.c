@@ -281,9 +281,8 @@ void sub_0010514E(void)
 
 static int menu_point(uint32_t root, float *x, float *y)
 {
-    NvMenuRect unused;
     float present[4];
-    nv2a_d3d_menu_rects(&unused, 0, present); /* viewport only; no quad copy */
+    nv2a_d3d_get_present_rect(present);
     if (!isfinite(*x) || !isfinite(*y) || !(present[2] > 0) || !(present[3] > 0)) return 0;
     *x = (*x-present[0])/present[2]; *y = (*y-present[1])/present[3];
     if (!(*x >= 0 && *x <= 1 && *y >= 0 && *y <= 1)) return 0;
@@ -317,9 +316,8 @@ void sub_0010DDC0(void)
         next.tick = GetTickCount64();
         prompts[target] = next;
         last_help_node = next.node;
-        NvMenuRect unused;
         float present[4], rw = MEMF(next.context+12), rh = MEMF(next.context+16);
-        nv2a_d3d_menu_rects(&unused, 0, present);
+        nv2a_d3d_get_present_rect(present);
         if (rw > 0 && rh > 0 && present[2] > 0 && present[3] > 0) {
             CursorPrompt p = {present[0]+(next.x-MEMF(next.context+4))/rw*present[2],
                 present[1]+(next.y-MEMF(next.context+8))/rh*present[3],

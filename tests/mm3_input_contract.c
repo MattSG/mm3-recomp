@@ -61,7 +61,6 @@ bool nv2a_hook_pvideo_snapshot(uint32_t regs[0x1000 / 4])
 }
 void nv2a_hook_pvideo_consume(unsigned bank) { (void)bank; }
 float nv2a_d3d_display_aspect(void) { return 4.0f / 3.0f; }
-void nv2a_d3d_collect_menu_rects(int on) { (void)on; }
 
 static unsigned checks, failures;
 #define CHECK(condition) do { \

@@ -531,3 +531,29 @@ this goal complete from the spinner migration or a clean name search alone.
   Replace that retired path with a generic presentation-rectangle getter and
   retain native menu hit-testing. Trace both renderers/executor/input and their
   contracts before removing the unused collection machinery.
+
+
+### Eighteenth boundary: retired renderer-quad menu observation
+
+- Removed dormant quad arrays, per-frame copies and CPU vertex-tint extraction
+  from both renderers and the executor. The input backend no longer couples
+  its optional pointer callback to renderer quad capture. Retired source
+  fragments are retained in MM3 tools/reference/legacy_menu_quads, uncompiled.
+- MM3 native menu input reads a generic presentation rectangle directly. The
+  getter copies the last composited viewport under the existing backend lock;
+  viewport publication and native menu geometry/focus remain unchanged.
+- Both complete Windows game builds pass. Production getter checks cover both
+  backend bodies, locking, initial/current viewport and independent copies.
+  Native mouse/mod initialization (3), input (4), keymap (2), before/after
+  presentation pacing and all 61 kernel-dispatch plus 19 binding tests pass.
+  Evidence: ownership-menu-{contracts,runtime}.log and both build logs.
+- Fresh owned Night Cruise checks passed all 49 actions on Vulkan run-bz7fljh7
+  (123.5 seconds) and D3D12 run-nnn5kru1 (123.454 seconds), with backend logs,
+  movement telemetry and captures inspected. Vulkan shows both lamps before
+  later foreground-traffic occlusion; D3D12 ends in bonnet view, so supplies
+  scene/sky/HUD preservation evidence rather than rear-lamp evidence. These
+  bounded runs do not establish full temporal fidelity or native mouse UI flow.
+- Getter contracts also pass under WSL Linux. Actual input-capture/release
+  contracts pass in keyboard/pad and physical-only modes.
+- Renderer overlay hooks and the remaining input callback API still require
+  usefulness review; this boundary does not complete the whole-fork audit.

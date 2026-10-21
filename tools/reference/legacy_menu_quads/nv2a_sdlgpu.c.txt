@@ -1,0 +1,56 @@
+/* Menu pointing (see nv2a_d3d11.c). */
+typedef NvMenuRect MenuRect;
+#define MENU_RECTS 1024
+static MenuRect s_mr_frame[MENU_RECTS], s_mr_shown[MENU_RECTS];
+static int s_mr_frame_n, s_mr_shown_n;
+static float s_present_rect[4];
+static SDL_SpinLock s_mr_lock;
+static SDL_AtomicInt s_mr_on;
+static const uint32_t *s_mr_tints;
+
+void nv2a_d3d_collect_menu_rects(int on)
+{
+    SDL_SetAtomicInt(&s_mr_on, on != 0);
+}
+
+int nv2a_d3d_menu_rects_on(void)
+{
+    return SDL_GetAtomicInt(&s_mr_on) != 0;
+}
+
+void nv2a_d3d_set_menu_tints(const uint32_t *tints)
+{
+    s_mr_tints = tints;
+}
+
+int nv2a_d3d_menu_rects(NvMenuRect *out, int max, float present[4])
+{
+    int n;
+    SDL_LockSpinlock(&s_mr_lock);
+    n = s_mr_shown_n < max ? s_mr_shown_n : max;
+    memcpy(out, s_mr_shown, (size_t)n * sizeof *out);
+    memcpy(present, s_present_rect, sizeof s_present_rect);
+    SDL_UnlockSpinlock(&s_mr_lock);
+    return n;
+}
+
+
+static void note_menu_rects(const float (*pos)[4], const uint32_t *idx, uint32_t ni, uint32_t lo)
+{
+    uint32_t group = ni % 3 == 0 ? 3 : ni, k, j;
+    for (k = 0; k + group <= ni && s_mr_frame_n < MENU_RECTS; k += group) {
+        MenuRect r = { 1e30f, 1e30f, -1e30f, -1e30f, s_draw_tex_addr,
+                       s_mr_tints ? s_mr_tints[idx[k] - lo] : 0xFFFFFFFFu };
+        for (j = k; j < k + group; j++) {
+            const float *v = pos[idx[j] - lo];
+            if (v[3] != 1.0f) return;
+            if (v[0] < r.x0) r.x0 = v[0];
+            if (v[0] > r.x1) r.x1 = v[0];
+            if (v[1] < r.y0) r.y0 = v[1];
+            if (v[1] > r.y1) r.y1 = v[1];
+        }
+        if (s_mr_frame_n && !memcmp(&s_mr_frame[s_mr_frame_n - 1], &r, sizeof r))
+            continue;
+        s_mr_frame[s_mr_frame_n++] = r;
+    }
+}
