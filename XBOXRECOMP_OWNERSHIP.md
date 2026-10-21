@@ -278,3 +278,32 @@ Validation so far:
   present on the player car. Their glowing headlights without ground beams
   appear consistent with original-disc asset design; original-console runtime,
   police and race-opponent behavior remain unverified.
+
+
+## Black-sky root cause and fix (2026-10-21)
+
+- User confirms the building-window shimmer also occurs in xemu; it is no
+  longer a renderer-fix acceptance condition. Tail-light dropouts remain
+  unresolved; headlamp dropouts have not yet been confirmed.
+- A normal-settings D3D12 diagnostic run (`run-sbx4439m`) captured seven brief
+  whole-sky blackouts. Every detected flash followed a logged omission of the
+  custom fog packet because the native push cursor had reached its soft limit
+  or fewer than 48 bytes remained. No host-fog rejection was logged. The
+  missing packet also omitted the destination-alpha sky mask.
+- `sub_000F8DCE` now uses native D3D rollover (`sub_00344770`, the same block
+  sizes as the native setters) before writing the packet. It preserves guest
+  registers and stack arguments. No renderer-specific workaround is needed.
+- `mm3_draw_distance_contract` fails before the fix and passes afterward. It
+  covers exact fit, insufficient space, cursor past limit, guest ABI and the
+  disabled-mod path. Full SDL GPU and D3D11 builds and both contract binaries
+  pass. Temporary diagnostics were removed from production source.
+- Normal-settings night Cruise checks passed on D3D12 (`run-rhh2u9d0`) and
+  Vulkan (`run-asiqn_dq`): 120-second Windows Graphics Capture videos each,
+  including short forward/reverse movement, teleport settling and idle. The
+  same whole-sky temporal check found zero flashes in 7,199 normalized output
+  frames per backend; darkest frames were inspected and retain the sky.
+  This is bounded proof for the captured blackout, not full rendering parity.
+- Evidence: `conformance_tmp/sky-fog-correlation.json`, `sky-trace-live.mp4`,
+  `sky-fixed-d3d12.mp4`, `sky-fixed-vulkan.mp4` and their `.sky-check.json`
+  reports. Only this sky fix is published; earlier sampling experiments remain
+  separate from the unresolved tail/headlamp investigation.

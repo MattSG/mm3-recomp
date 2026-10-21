@@ -436,7 +436,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${rmlui_SOURCE_DIR}/Backends)
 # Focused offline checks; explicitly built, never part of the game build.
 # Each one links the platform layer, which supplies the <platform/xbox_winnt.h>
 # vocabulary off Windows (on Windows it only adds the include path).
-foreach(check teleport dev_tools)
+foreach(check teleport dev_tools draw_distance)
     add_executable(mm3_${check}_contract EXCLUDE_FROM_ALL tests/mm3_${check}_contract.c)
     target_include_directories(mm3_${check}_contract PRIVATE src src/recomp ${RECOMP_GEN_DIR}
         ${XBOXRECOMP_DIR}/include ${XBOXRECOMP_DIR}/src/video)
