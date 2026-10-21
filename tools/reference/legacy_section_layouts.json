@@ -1,0 +1,279 @@
+{
+  "dashboard_3944": {
+    "sections": [
+      {
+        "name": ".text",
+        "va": 73728,
+        "va_size": 636684,
+        "raw_addr": 8192,
+        "raw_size": 636684,
+        "is_code": true
+      },
+      {
+        "name": "D3D",
+        "va": 710432,
+        "va_size": 72432,
+        "raw_addr": 647168,
+        "raw_size": 72432,
+        "is_code": true
+      },
+      {
+        "name": "D3DX",
+        "va": 782880,
+        "va_size": 153536,
+        "raw_addr": 708608,
+        "raw_size": 153536,
+        "is_code": true
+      },
+      {
+        "name": "XGRPH",
+        "va": 936416,
+        "va_size": 7624,
+        "raw_addr": 864256,
+        "raw_size": 7624,
+        "is_code": true
+      },
+      {
+        "name": "DSOUND",
+        "va": 944064,
+        "va_size": 31344,
+        "raw_addr": 872448,
+        "raw_size": 31344,
+        "is_code": true
+      },
+      {
+        "name": "WMADECXM",
+        "va": 975424,
+        "va_size": 4912,
+        "raw_addr": 905216,
+        "raw_size": 4912,
+        "is_code": true
+      },
+      {
+        "name": "WMADEC",
+        "va": 980352,
+        "va_size": 101720,
+        "raw_addr": 913408,
+        "raw_size": 101720,
+        "is_code": true
+      },
+      {
+        "name": "DVDTHUNK",
+        "va": 1082080,
+        "va_size": 1116,
+        "raw_addr": 1015808,
+        "raw_size": 1116,
+        "is_code": true
+      },
+      {
+        "name": "XPP",
+        "va": 1083200,
+        "va_size": 31436,
+        "raw_addr": 1019904,
+        "raw_size": 31436,
+        "is_code": true
+      },
+      {
+        "name": ".data",
+        "va": 1114656,
+        "va_size": 140392,
+        "raw_addr": 1052672,
+        "raw_size": 140392,
+        "is_code": false
+      },
+      {
+        "name": "DOLBY",
+        "va": 1255072,
+        "va_size": 28056,
+        "raw_addr": 1126400,
+        "raw_size": 28056,
+        "is_code": true
+      },
+      {
+        "name": ".data1",
+        "va": 1283136,
+        "va_size": 7536,
+        "raw_addr": 1155072,
+        "raw_size": 7536,
+        "is_code": false
+      },
+      {
+        "name": "XIPS",
+        "va": 1290688,
+        "va_size": 20760,
+        "raw_addr": 1163264,
+        "raw_size": 20760,
+        "is_code": true
+      }
+    ],
+    "entry_point": 338561,
+    "kernel_thunk_addr": 73728
+  },
+  "burnout3": {
+    "sections": [
+      [
+        ".text",
+        69632,
+        2863616,
+        4096
+      ],
+      [
+        "XMV",
+        2933248,
+        163124,
+        2871296
+      ],
+      [
+        "DSOUND",
+        3096384,
+        52668,
+        3035136
+      ],
+      [
+        "WMADEC",
+        3149056,
+        105828,
+        3088384
+      ],
+      [
+        "XONLINE",
+        3254912,
+        124764,
+        3194880
+      ],
+      [
+        "XNET",
+        3379680,
+        78056,
+        3321856
+      ],
+      [
+        "D3D",
+        3457760,
+        83828,
+        3403776
+      ],
+      [
+        "XGRPH",
+        3541600,
+        8300,
+        3473408
+      ],
+      [
+        "XPP",
+        3549920,
+        36052,
+        3485696
+      ],
+      [
+        ".rdata",
+        3585984,
+        289684,
+        3522560
+      ],
+      [
+        ".data",
+        3875680,
+        3904988,
+        3813376
+      ],
+      [
+        "DOLBY",
+        7780672,
+        29056,
+        4243456
+      ],
+      [
+        "XON_RD",
+        7809728,
+        5416,
+        4276224
+      ],
+      [
+        ".data1",
+        7815168,
+        224,
+        4284416
+      ]
+    ]
+  },
+  "burnout3_disasm": {
+    "XBE_IMAGE_SIZE": 7766528,
+    "ENTRY_POINT": 1910791,
+    "KERNEL_THUNK_ADDR": 3585984,
+    "EXECUTABLE_SECTIONS": [
+      [
+        ".text",
+        69632,
+        2863616
+      ],
+      [
+        "XMV",
+        2933248,
+        163124
+      ],
+      [
+        "DSOUND",
+        3096384,
+        52668
+      ],
+      [
+        "WMADEC",
+        3149056,
+        105828
+      ],
+      [
+        "XONLINE",
+        3254912,
+        124764
+      ],
+      [
+        "XNET",
+        3379680,
+        78056
+      ],
+      [
+        "D3D",
+        3457760,
+        83828
+      ],
+      [
+        "XGRPH",
+        3541600,
+        8300
+      ],
+      [
+        "XPP",
+        3549920,
+        36052
+      ],
+      [
+        "DOLBY",
+        7780672,
+        29056
+      ]
+    ],
+    "DATA_SECTIONS": [
+      [
+        ".rdata",
+        3585984,
+        289684
+      ],
+      [
+        ".data",
+        3875680,
+        3904988
+      ],
+      [
+        "XON_RD",
+        7809728,
+        5416
+      ],
+      [
+        ".data1",
+        7815168,
+        224
+      ]
+    ]
+  }
+}

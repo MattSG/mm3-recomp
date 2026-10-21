@@ -434,3 +434,44 @@ this goal complete from the spinner migration or a clean name search alone.
 - Lifter/disassembler name matches inspected so far are regression provenance
   and XBE/config-driven discovery, not a sufficient whole-tool audit. Remaining
   runtime/tool/template review and final inventory are still required.
+
+
+### Fourteenth boundary: analysis-tool image layouts (2026-10-21)
+
+- Removed Burnout 3/Dashboard section, entry-point and thunk defaults from
+  disassembly, function identification and recompilation configuration.
+  Unconfigured modules contain no image ranges. Installing another image clears
+  absent optional ranges and zero entry/thunk values rather than retaining the
+  previous image's metadata. Removed authored translation-resource names from
+  the recompiler's data-section overrides; conventional section/XDK rules stay.
+- Function identification configures the supplied XBE in its public `run()`
+  entry, covering direct callers as well as CLI use. The removed reference
+  layouts are recorded only in MM3 `tools/reference/legacy_section_layouts.json`.
+- `analyze_unresolved.py` now requires the matching XBE and accepts explicit
+  functions/symbol/output paths. It classifies resources from parsed code/data
+  flags instead of treating every unfamiliar section as a library. No fixed
+  title address table remains in that tool.
+- Nine focused checks cover empty defaults, sequential different-image layouts,
+  direct identification API setup and unresolved reports for a synthetic image
+  beyond the old ranges. Full recompiler/disassembler/identifier suite: 535
+  passed, 17 skipped, 69 subtests passed under the MSVC environment with a private
+  pytest temp directory. The initial unconfigured-environment run failed on
+  missing C headers/temp access; that was corrected before collecting results.
+- Actual MM3 XBE comparison: both old/new configured recompilation and function
+  identification expose the same 35 sections and address ranges, entry and
+  thunk data (`conformance_tmp/ownership-tool-layout-parity.json`). This is
+  metadata/translation-contract proof, not a full game regeneration or new
+  gameplay acceptance run. Previous runtime checks remain separately scoped.
+
+### Fifteenth boundary: obsolete runtime starter implementations
+
+- Moved the old `xbox_memory.h` section-address/allocator blueprint and the
+  `kernel_stubs.h` success-stub bodies into MM3 reference storage. Their template
+  include paths remain, forwarding to the supported runtime memory/kernel
+  headers instead of encouraging duplicate allocators or fake kernel success.
+- Updated the runtime guide and template inventory to use the real runtime.
+  A standalone MSVC syntax check including both replacement template headers
+  passes (`conformance_tmp/check_runtime_template_headers.py`). No new runtime
+  implementation or title-specific compatibility API was added.
+- Runtime/API usefulness and full artifact inventory audit remain open; the
+  goal is not complete from these tooling/template migrations.
