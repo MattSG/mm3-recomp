@@ -608,3 +608,27 @@ this goal complete from the spinner migration or a clean name search alone.
   claim is made. Existing worker-error/fallback behavior remains a separate
   runtime correctness issue, not proof of full kernel thread semantics.
 - Full runtime/API, artifact and final inventory audits remain incomplete.
+
+
+### Twenty-first boundary: title-specific runtime migration history
+
+- Moved docs/technical/burnout3-reunification.md out of the fork into MM3
+  tools/reference/historical_runtime. Its migration phases, title measurements
+  and status are historical, not generic toolkit functionality or current
+  acceptance evidence. The original bytes match fork f8b1214 exactly (SHA256
+  d5bbf7c24c83fe2badebdfd7d2fb4a4f0ace50e7e14d11fadd0587e2dd5e99d7).
+- Replaced both documentation-index entries with the current generic runtime
+  guide. Removed the remaining header reference to the retired report and
+  documented active callback-stack consumers: DPC/timer, network, USB and APU.
+  The source call paths confirm the pool is useful generic runtime code.
+- Reviewed src/host/host.c and xbox_host.h: hardware fault routing and graphics
+  initialization are active reusable mechanisms, with caller-supplied window
+  title and hardware/backend selection. No title policy move justified there.
+- Verified the archive byte comparison, new documentation target and diff
+  whitespace. This documentation/reference move changes no executable code,
+  and adds no new game-runtime acceptance claim.
+- Next runtime review: the callback stack pool still derives guest addresses
+  from XBOX_WORKER_STACK_BASE while spawned-thread stacks use image-aware heap
+  allocations. Its active cross-subsystem callers require range/lifetime
+  validation before concluding that the fixed pool is safe for other images.
+- The full artifact/runtime and final inventory audits remain incomplete.
