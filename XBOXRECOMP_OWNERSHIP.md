@@ -475,3 +475,59 @@ this goal complete from the spinner migration or a clean name search alone.
   implementation or title-specific compatibility API was added.
 - Runtime/API usefulness and full artifact inventory audit remain open; the
   goal is not complete from these tooling/template migrations.
+
+
+### Sixteenth boundary: feedback window follows the loaded image (2026-10-22)
+
+- Removed the 8 MiB indirect-target recorder window derived from a reference
+  title. The loader configures the recorder from actual executable bounds.
+  Standalone hosts may configure the same generic mechanism before workers
+  start. Reconfiguration clears prior target/site observations; invalid ranges
+  leave the active window unchanged, and allocation failure disables recording
+  for that load without changing guest execution.
+- Code/image bounds now reset when a new image's sections are loaded, preventing
+  absent executable sections from inheriting a previous image's range.
+- Target-dump checks cover addresses beyond the old limit, lower/exclusive upper
+  boundaries, overlapping flags, invalid 32-bit ranges, a different second image
+  and clearing. Enabled and disabled standalone kernel builds both pass. The
+  enabled loader fixture records a synthetic high-code target and clears
+  it when loading a second image with no code sections.
+- Enabled the existing runtime feedback tests on MSVC rather than skipping them.
+  Recompiler/disassembler/identifier validation: 538 passed, 15 skipped,
+  69 subtests passed (`ownership-tools-recomp-tests.log`).
+
+### Seventeenth boundary: host movie presentation and exit policy
+
+- Removed the `.wmv` auto-play selector and 60-second movie-completion wait from
+  kernel bridges. MM3 owns them in `src/mm3_host_video.c`, using the existing
+  optional `RECOMP_FMV_HOST` mode and generic video player. Normal guest opens
+  in the fork do not select host playback or delay firmware return.
+- Added startup-only successful-host-open and firmware-return observers. File
+  observers receive borrowed native paths after result publication, preserving
+  the caller's host and translated error state. Firmware notification belongs
+  in the shared HAL entry, covering direct and bridged calls with no default
+  product policy. Kernel/video linkage remains for GPU/scanout dependencies.
+- MM3 policy contract passes with mocked playback/waits: opt-in selection,
+  UTF-8 path conversion, active-playback guard, completion and the 60-second
+  ceiling on Windows and Linux. Generic sharing tests verify success-only open notification and
+  caller error preservation even after an observer's nested failed open.
+- Standalone kernel builds with feedback on/off each pass all four bridge/
+  firmware tests (default, callback and cleared callback). The full kernel
+  dispatch suite passes 61/61 cases. Both full game builds pass. Vulkan
+  `run-50818hrf` and D3D12 `run-5d74q20k` each passed 49 night-Cruise actions
+  in 123.4 seconds, including movement and fresh player telemetry. Driver logs
+  and captures were inspected; visible sky, geometry, HUD and rear lamps remain.
+  The Vulkan final view includes normal foreground-NPC occlusion. These are
+  bounded preservation checks, not host-movie decode parity. POSIX compilation
+  of both changed file/HAL source modules also passes.
+
+### Confirmed next cleanup: retired menu-quad observation
+
+- The native MM3 menu mouse reads only the presented viewport via
+  `nv2a_d3d_menu_rects(..., 0, present)`; it does not consume renderer quads.
+- The input runtime retains pointer-gated quad collection, but no production
+  caller registers that retired pointer callback. Its dormant machinery computes
+  CPU vertex colours and stores per-frame rectangles with no current consumer.
+  Replace that retired path with a generic presentation-rectangle getter and
+  retain native menu hit-testing. Trace both renderers/executor/input and their
+  contracts before removing the unused collection machinery.

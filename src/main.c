@@ -30,6 +30,7 @@ static HANDLE g_mm3_main_worker_ready;
 static int g_mm3_inline_threads;
 extern void sub_00083A6C_original(void);
 extern void mm3_configure_diagnostics(void);
+extern void mm3_host_video_init(void);
 
 static void mm3_close_game(void)
 {
@@ -298,6 +299,7 @@ int main(void)
     /* D3D's GPU-notify KEVENT (device+0x196C, waited on in 0x344640),
      * raised by the NOP(5) it patches into the push buffer */
     xbox_Nv2aNotifyEvent(0x00351F48u, 0x196Cu, 5u);
+    mm3_host_video_init();
     /* Preserve MM3's existing online-service routing outside the runtime. */
     static const XboxDnsAlias service_dns[] = {
         {"macs.xboxlive.com", "macs.insig.uk"},

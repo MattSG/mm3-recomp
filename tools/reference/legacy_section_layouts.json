@@ -275,5 +275,9 @@
         224
       ]
     ]
+  },
+  "icall_feedback_window": {
+    "base": 65536,
+    "size": 8388608
   }
 }
