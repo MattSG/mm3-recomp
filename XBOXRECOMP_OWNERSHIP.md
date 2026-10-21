@@ -283,8 +283,8 @@ Validation so far:
 ## Black-sky root cause and fix (2026-10-21)
 
 - User confirms the building-window shimmer also occurs in xemu; it is no
-  longer a renderer-fix acceptance condition. Tail-light dropouts remain
-  unresolved; headlamp dropouts have not yet been confirmed.
+  longer a renderer-fix acceptance condition. Vehicle-lamp queue exhaustion
+  is addressed separately below.
 - A normal-settings D3D12 diagnostic run (`run-sbx4439m`) captured seven brief
   whole-sky blackouts. Every detected flash followed a logged omission of the
   custom fog packet because the native push cursor had reached its soft limit
@@ -305,5 +305,31 @@ Validation so far:
   This is bounded proof for the captured blackout, not full rendering parity.
 - Evidence: `conformance_tmp/sky-fog-correlation.json`, `sky-trace-live.mp4`,
   `sky-fixed-d3d12.mp4`, `sky-fixed-vulkan.mp4` and their `.sky-check.json`
-  reports. Only this sky fix is published; earlier sampling experiments remain
-  separate from the unresolved tail/headlamp investigation.
+  reports. The earlier sampling experiments were not published.
+
+
+## Vehicle-lamp queue exhaustion (2026-10-21)
+
+- Native flare submission (`sub_001A831B`) rejects records when the scene's
+  256-entry queue fills. A baseline river-scene diagnostic captured rejected
+  red rear-lamp and white headlamp records at the player's lamp positions.
+  Enhanced visibility exhausted this shared budget before vehicle submission.
+- Scale only the scene's original 256-entry constructor request by the larger
+  draw/view multiplier. The native allocator grows the record array and all
+  three buffered vertex allocations together. Mod-off, stock-distance and
+  unrelated constructor calls retain their original budgets and guest ABI.
+- Full SDL GPU and D3D11 builds pass. Eight contract runs cover both builds,
+  stock/enhanced settings, other callers/capacities and guest ABI preservation.
+- D3D12 and Vulkan night Cruise captures include repeated forward/reverse
+  movement with close chase view. Both rear lamps remain lit in the inspected
+  unobstructed views, including all 1,350 normalized frames in each capture's
+  first 45 seconds. D3D12 reached 261 queued flares, exceeding the old limit.
+  Default saved settings allocated 512 records and three 229,376-byte VBs;
+  Vulkan maximum-distance settings allocated 1,024 and three 458,752-byte VBs.
+  Vulkan's sampled traffic did not exceed 256; this remains bounded gameplay
+  validation, not proof for every scene. Native occlusion remains enabled.
+- The same sky check found zero black flashes in both 60-second captures.
+  Evidence: `conformance_tmp/tail-budget-{d3d12,vulkan}.mp4`, matching
+  `.lamps-metrics.json`, `.sky-check.json`, native/pressure reports and
+  `tail-budget-contract-results.json`. No experimental sampling/shader changes
+  are included in this fix.
