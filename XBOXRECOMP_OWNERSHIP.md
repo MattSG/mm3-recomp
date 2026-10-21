@@ -580,3 +580,31 @@ this goal complete from the spinner migration or a clean name search alone.
   ownership-pointer-contracts.log and ownership-pointer-*-build.log. There is
   no fresh gameplay or Linux input-runtime acceptance claim for this boundary.
 - The broader runtime, tools/artifact and final inventory audits remain open.
+
+
+### Twentieth boundary: generic thread creation defaults to spawning
+
+- Both bridge thread-create APIs previously privileged the first call as the
+  title's inline main routine by default. Default to the existing spawned
+  execution path instead; ports may explicitly select first-call inline
+  compatibility before startup. MM3 already selects SPAWN for normal operation
+  and INLINE for its diagnostic environment option, so that policy stays in
+  the game. No new runtime selector or title address was added.
+- Actual thunk-dispatch tests cover ordinals 254 and 255 in fresh child
+  processes. Default calls use a different host thread, preserve the caller's
+  registers, receive both start contexts, use a separate guest stack and, with
+  the fixture's valid TLS directory, an independent TIB. Explicit inline calls
+  retain their documented register/stack/context behavior. Spawned handles
+  close after joining the worker, before guest memory is released.
+- The two default-mode cases failed against the prior inline default while
+  explicit inline cases passed. After the change all 8 bridge tests pass with
+  feedback disabled and enabled; all 61 kernel-dispatch tests and both complete
+  Windows game builds pass. Logs: ownership-thread-{red,green}-tests.log,
+  ownership-thread-bridge-feedback-tests.log, ownership-thread-kernel-tests.log
+  and ownership-thread-{sdlgpu,d3d11}-build.log.
+- An initial fixture check assumed an exact bridge stack offset and omitted
+  a TLS directory. Those fixture assumptions were corrected before accepting
+  the results. No new Linux thread-runtime or fresh game-driving acceptance
+  claim is made. Existing worker-error/fallback behavior remains a separate
+  runtime correctness issue, not proof of full kernel thread semantics.
+- Full runtime/API, artifact and final inventory audits remain incomplete.
