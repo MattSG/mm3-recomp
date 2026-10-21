@@ -128,7 +128,7 @@ static int xbox_FramebufferOverlay(XboxOverlay *overlay) { (void)overlay; return
 /* Renderer state used by the extracted bodies. These are inert: the flip
  * order above is the only ordering contract, so none of them emit events. */
 typedef struct ID3D11DeviceContext ID3D11DeviceContext;
-typedef struct NvOverlayHooks { void (*frame)(void); } NvOverlayHooks;
+typedef struct NvOverlayHooks { void (*frame)(void); int (*idle_present)(uint32_t,uint32_t,int); } NvOverlayHooks;
 typedef struct MenuRect { int unused; } MenuRect;
 typedef struct SRWLOCK { int unused; } SRWLOCK;
 typedef long LONG;
@@ -143,7 +143,11 @@ static volatile LONG s_repeat;              /* repeat path is not exercised */
 static LONG InterlockedExchange(volatile LONG *target, LONG value)
 { LONG old = *target; *target = value; return old; }
 static int s_depth_hazed;
-static float s_loading;
+static volatile LONG s_interp_req;
+static uint32_t s_interp_seen;
+static float s_interp_t;
+long nv2a_pb_frames_done(void) { return 0; }
+int nv2a_pb_replay(float t) { (void)t; return 1; }
 static void spike_check(int64_t interval, int64_t pace) { (void)interval; (void)pace; }
 static void keep_image(ID3D11Texture2D *bb) { (void)bb; }
 static void unbind_targets(void) { }

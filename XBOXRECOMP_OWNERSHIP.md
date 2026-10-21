@@ -1,8 +1,10 @@
 # XboxRecomp ownership migration
 
-Goal: merge SDL3 into main, then keep all MM3-specific code and policy in this
-repository. Broader XboxRecomp refactoring is out of scope. No GitHub changes
-have been published.
+Goal: XboxRecomp contains useful, reusable runtime/lifter mechanisms only.
+Title-specific behavior, policy, fixtures and tooling belong in this game
+repository; add a generic extension boundary where a direct move is impossible.
+Audit the entire current fork, including inherited upstream code. Earlier
+milestones were published; the renewed whole-fork audit below is incomplete.
 
 ## Baseline and merge
 
@@ -333,3 +335,102 @@ Validation so far:
   `.lamps-metrics.json`, `.sky-check.json`, native/pressure reports and
   `tail-budget-contract-results.json`. No experimental sampling/shader changes
   are included in this fix.
+
+
+## Renewed whole-fork audit (2026-10-21, in progress)
+
+The previous ledger is historical evidence, not a completed ownership audit.
+Baseline: MM3 `253565f`, fork `a18f4eb`; upstream main fetched at `f0f8a461`.
+Work remains isolated in `I:/repos/mm3-ownership-main`. No unrelated running
+instance or original checkout was stopped or edited.
+
+### Tenth boundary: loading presentation policy
+
+- Removed the runtime's built-in amber spinner, MM3 timeout, environment
+  selection and shader drawing. Both renderers expose an optional idle-present
+  policy callback, with time since the last native flip and movie activity.
+  No hook requests no extra idle presentations; native CPU/movie scanout stays.
+- MM3 owns the 700 ms threshold, enable setting and animation phase in
+  `render_policy.c`, and draws the arc through its existing ImGui host overlay.
+  Spinner-only registration has no event/input-capture handlers; the debug
+  overlay still requires its existing opt-in.
+- Full SDL GPU and D3D11 game builds pass. MM3 policy tests cover threshold,
+  movie suppression, flip reset and disable; actual SDL tick-body checks cover
+  no-hook versus requested redraw and both pacing orders. The debug-overlay
+  input contract passes. Generic binding suite: 19/19 pass; graphics suite:
+  13/13 pass. Explicit Vulkan reruns pass all 9 binding and 7 graphics cases.
+- Build evidence: `conformance_tmp/ownership-spinner-*-build.log`; contracts:
+  `conformance_tmp/verify_spinner.py`. Vulkan night Cruise `run-7fc1utu4`
+  passed 49 actions including forward/reverse input and fresh position
+  telemetry; gameplay capture was inspected. This does not finish the broader
+  ownership audit or establish pixel-identical spinner animation.
+
+### Eleventh boundary: dormant captured-menu prototype
+
+- Moved `nv2a_pb_replay.c`, its empty menu/font capture placeholders,
+  `nv2a_pb_test.c` and the title-profiled `nv2a_pgraph_d3d11.*` to
+  `tools/reference/legacy_nv2a` in MM3. They retain their original bytes for
+  provenance and are explicitly not a supported/buildable runtime plugin.
+- No MM3 caller initializes that translator or calls the replay/test activation
+  functions. Its PGRAPH entry always returned unhandled until initialized.
+  Removed its dormant dispatch branch and build dependency. The actual
+  pushbuffer executor/host rendering and register-state fallback remain.
+- This removes Burnout 3 menu navigation, font address/name mappings, chyron
+  animation, external frontend globals and the command-injection test's fixed
+  guest pointer defaults from the fork without adding an unused hook API.
+- Both full game builds pass after removal. Cumulative night-driving evidence
+  is recorded in the next boundary.
+
+### Twelfth boundary: kernel import defaults
+
+- Removed the legacy 0x0036B7C0 thunk-table default and reference-title import
+  order. MM3 already supplies its own address/count in `src/main.c`; the generic
+  loader also parses each XBE. The old import list is retained only as reference
+  in MM3 `tools/reference/legacy_kernel_imports.h`.
+- Unconfigured bridge state is genuinely zero, matching the public API
+  contract. Bridge initialization returns before touching guest memory when no
+  thunk table is configured. The host import table stays empty without an XBE;
+  callers needing a canonical export can use `xbox_resolve_ordinal` directly.
+- Extended the existing kernel bridge regression: no legacy fallback,
+  initialization without mapped memory, empty host table, synthetic XBE import
+  order/count and normal bridge dispatch all pass. Both game builds pass.
+  Cumulative Vulkan `run-cgs0jo4s` (128.6 s) and D3D12 `run-x3dosfz8`
+  (123.7 s) passed 49 actions each, including forward/reverse motion and fresh
+  player telemetry. Captures were inspected: scene, sky, HUD and lamps remain
+  present. Foreground NPC occlusion in final captures is not a lamp failure.
+  This is preservation evidence, not full rendering or runtime conformance.
+- Existing D3D11 pacing extraction had fallen behind the flip-present wrapper
+  and interpolation path. Updated its fixture to exercise the actual bodies;
+  both before/after-present orders pass alongside the SDL pacing checks.
+
+Remaining audit: full runtime/platform defaults and guest-address selectors;
+legacy renderer and input behavior; tools, templates, tests and documentation;
+usefulness and real consumers of fork-only APIs; both-backend preservation
+proof; final fork commit/root pin and source/worktree inventory. Do not mark
+this goal complete from the spinner migration or a clean name search alone.
+
+
+### Thirteenth boundary: online-service DNS policy
+
+- Removed hard-coded Insignia alias names/destinations from the generic NAT.
+  `net_backend_set_dns_aliases` accepts a caller-owned table before startup;
+  no table means ordinary DNS forwarding. MM3 installs its existing four rules
+  in `src/main.c` before hardware/network initialization.
+- Generic network tests use `name.test` -> numeric loopback, not a live service.
+  They cover no default alias, truncated/unrelated/non-A requests, the actual
+  guest UDP DNS answer and clearing the table. Both network/NIC ring cases pass.
+  Both full game builds pass after integration. No online login or
+  service-availability claim is made by these local tests.
+
+
+### Additional areas inspected in this continuation
+
+- Input keymap defaults are console button/axis mappings; title-context keyboard
+  behavior already uses a game-supplied hook. No fixed MM3 asset/guest address
+  was found in the inspected XInput or USB descriptor/report paths.
+- `nv2a_ps_manifest.h`, `nv2a_pacing.h` and `nv2a_sampler_cache.h` retain bounded
+  generic cache/host timing/resource mechanisms, with no baked title activation
+  or authored data in those inspected helpers.
+- Lifter/disassembler name matches inspected so far are regression provenance
+  and XBE/config-driven discovery, not a sufficient whole-tool audit. Remaining
+  runtime/tool/template review and final inventory are still required.

@@ -17,6 +17,7 @@
 #include <xinput_xbox.h>
 #include <video/fb_present.h>
 #include <video/nv2a_d3d11.h>
+#include <net/net.h>
 
 #define MM3_XBE_PATH "game_files/default.xbe"
 #define MM3_GAME_DIR "game_files"
@@ -297,6 +298,14 @@ int main(void)
     /* D3D's GPU-notify KEVENT (device+0x196C, waited on in 0x344640),
      * raised by the NOP(5) it patches into the push buffer */
     xbox_Nv2aNotifyEvent(0x00351F48u, 0x196Cu, 5u);
+    /* Preserve MM3's existing online-service routing outside the runtime. */
+    static const XboxDnsAlias service_dns[] = {
+        {"macs.xboxlive.com", "macs.insig.uk"},
+        {"as.xboxlive.com", "as.insig.uk"},
+        {"tgs.xboxlive.com", "tgs.insig.uk"},
+        {"xds.xboxlive.com", "xexds.xboxlive.com"},
+    };
+    net_backend_set_dns_aliases(service_dns, sizeof service_dns / sizeof service_dns[0]);
     if (!xbox_HostHardwareInit()) {
         xbox_kernel_shutdown();
         xbox_MemoryLayoutShutdown();

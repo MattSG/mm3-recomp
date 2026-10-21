@@ -20,6 +20,7 @@ extern "C" {
 #include "fb_present.h"
 #include "teleport.h"
 #include "dev_tools.h"
+#include "render_policy.h"
 }
 #if !defined(XBOXRECOMP_SDL3)
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
@@ -41,6 +42,7 @@ unsigned short toggle_pad = kPadBackThumb;
 // locking permits synchronous focus callbacks during capture changes.
 std::recursive_mutex imgui_lock;
 bool backend_ready;
+bool debug_enabled;
 Mm3TeleportState bookmark = {};
 bool bookmark_saved;
 
@@ -173,6 +175,20 @@ void build_frame()
     mm3_teleport_state(&state);
     if (!state.available || state.world != bookmark.world) bookmark_saved = false;
     if (visible) draw_tools(state);
+    float phase = mm3_loading_phase();
+    if (phase > 0) {
+        ImVec2 size = ImGui::GetIO().DisplaySize;
+        float scale = size.y / 720.f;
+        ImVec2 centre(size.x - 40.f * scale, size.y - 40.f * scale);
+        ImDrawList *draw = ImGui::GetForegroundDrawList();
+        for (int n = 0; n < 32; ++n) {
+            float a = (phase + .15f + .85f * n / 32.f) * 6.2831853f;
+            float b = a + .85f * 6.2831853f / 32.f;
+            draw->AddLine(ImVec2(centre.x + cosf(a)*13.f*scale, centre.y + sinf(a)*13.f*scale),
+                          ImVec2(centre.x + cosf(b)*13.f*scale, centre.y + sinf(b)*13.f*scale),
+                          IM_COL32(232,163,61,255*n/32), 2.f*scale);
+        }
+    }
 }
 
 #if !defined(XBOXRECOMP_SDL3)
@@ -389,6 +405,7 @@ void render(void *h, void *device, void *context, void *target)
     std::lock_guard<std::recursive_mutex> guard(imgui_lock);
     static bool failed;
     if (!h || !device || !context || !target) return;
+    if (!debug_enabled && mm3_loading_phase() <= 0) return;
     if (failed) return;
     if (!backend_ready) {
         create_context();
@@ -399,7 +416,7 @@ void render(void *h, void *device, void *context, void *target)
         backend_ready = true;
     }
     bool focused = window_focused(h);
-    bool down = focused && toggle_pad && (pad_buttons() & toggle_pad) == toggle_pad;
+    bool down = debug_enabled && focused && toggle_pad && (pad_buttons() & toggle_pad) == toggle_pad;
     pad_edge(focused, down);
     backend_new_frame();
     build_frame();
@@ -411,16 +428,18 @@ void render(void *h, void *device, void *context, void *target)
 extern "C" void mm3_debug_overlay_init()
 {
     const char *enabled = getenv("MM3_DEBUG_OVERLAY");
-    if (!enabled || !*enabled || !strcmp(enabled, "0")) return;  /* as mm3_mod_on */
+    debug_enabled = enabled && *enabled && strcmp(enabled, "0");
+    const char *spinner = getenv("RECOMP_LOADING_SPINNER");
+    if (!debug_enabled && spinner && atoi(spinner) == 0) return;
     toggle_key = setting("MM3_OVERLAY_KEY", kVkF4, 255);
     toggle_mouse = setting("MM3_OVERLAY_MOUSE", 0, 6);
     if (toggle_mouse != kVkMButton && toggle_mouse != kVkXButton1 && toggle_mouse != kVkXButton2) toggle_mouse = 0;
     toggle_pad = (unsigned short)setting("MM3_OVERLAY_PAD", kPadBackThumb, 0xFFFF);
 #if defined(XBOXRECOMP_SDL3)
     toggle_scancode = vk_to_scancode(toggle_key);
-    XboxHostOverlay hooks = {render, event, capture};
+    XboxHostOverlay hooks = {render, debug_enabled ? event : nullptr, debug_enabled ? capture : nullptr};
 #else
-    XboxHostOverlay hooks = {render, message, capture};
+    XboxHostOverlay hooks = {render, debug_enabled ? message : nullptr, debug_enabled ? capture : nullptr};
 #endif
     xbox_FramebufferSetHostOverlay(&hooks);
 }

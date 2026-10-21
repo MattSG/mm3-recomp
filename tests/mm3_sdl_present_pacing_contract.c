@@ -42,7 +42,8 @@ static uint32_t s_kept_w = 640, s_kept_h = 480;
 static uint64_t s_last_present;
 static FILE *s_frame_csv_file;
 static int s_repeat, s_interp_req;
-static float s_interp_t, s_loading;
+static float s_interp_t;
+static struct { int (*idle_present)(uint32_t,uint32_t,int); } s_overlay;
 static unsigned s_frame;
 static uint64_t s_last_flip;
 static Surface shown_surface = {0, 0};
@@ -85,6 +86,9 @@ static void surface_sync(Surface *s,int f) { (void)s;(void)f; }
 #include "production_pacing.inc"
 #undef getenv
 
+static int idle_hook(uint32_t now,uint32_t idle,int movie)
+{ CHECK(now==test_now && idle==test_now-s_last_flip && !movie); return 1; }
+
 static void reset(void)
 {
     memset(events,0,sizeof events); event_count=0; pace_calls=submit_calls=0;
@@ -106,6 +110,10 @@ int main(int argc,char **argv)
     reset(); s_repeat=1; nv2a_d3d_tick();
     CHECK(strcmp(events,after_policy?"ABOSWF":"ABOWSF")==0);
     CHECK(pace_calls==1 && submit_calls==1 && !s_repeat);
+    reset(); test_now=1000; s_last_flip=100;
+    s_overlay.idle_present=NULL; nv2a_d3d_tick(); CHECK(!event_count);
+    reset(); test_now=1000; s_last_flip=100;
+    s_overlay.idle_present=idle_hook; nv2a_d3d_tick(); CHECK(!strcmp(events,"X"));
     puts("PASS: real flip and repeat submit pacing order");
     return 0;
 }

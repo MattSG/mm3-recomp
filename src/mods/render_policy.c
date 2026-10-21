@@ -78,3 +78,14 @@ int mm3_render_cubic_filter(const NvD3DState *st, int source_is_target, uint32_t
         ((t->filter >> 24) & 15u) != 1 && !st->depth_test && st->blend_enable &&
         st->blend_sfactor == 0x304 && st->blend_dfactor == 0x305;
 }
+
+/* Called and consumed on the renderer thread, including flip resets. */
+static float loading_phase;
+float mm3_loading_phase(void) { return loading_phase; }
+int mm3_render_idle(uint32_t now_ms, uint32_t idle_ms, int movie)
+{
+    const char *enabled = getenv("RECOMP_LOADING_SPINNER");
+    loading_phase = (!enabled || atoi(enabled) != 0) && !movie && idle_ms > 700
+        ? 1.f + (float)(now_ms % 1000) / 1000.f : 0.f;
+    return loading_phase > 0;
+}

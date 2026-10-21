@@ -1,4 +1,7 @@
 #include <assert.h>
+#if !defined(_WIN32)
+#define _putenv_s(k,v) setenv(k,v,1)
+#endif
 #include "../src/mods/render_policy.c"
 const uint32_t (*nv2a_vsh_program(uint32_t *start, uint32_t *version))[4] { (void)start; (void)version; return NULL; }
 const float (*nv2a_vsh_constants(uint32_t *version))[4] { (void)version; return NULL; }
@@ -7,6 +10,14 @@ static int enabled = 1;
 int mm3_mod_on(int mod) { (void)mod; return enabled; }
 int main(void)
 {
+    _putenv_s("RECOMP_LOADING_SPINNER", "");
+    assert(!mm3_render_idle(1000,700,0) && mm3_loading_phase()==0);
+    assert(mm3_render_idle(1250,701,0) && mm3_loading_phase()==1.25f);
+    assert(!mm3_render_idle(1250,701,1) && mm3_loading_phase()==0);
+    assert(!mm3_render_idle(1250,0,0) && mm3_loading_phase()==0);
+    _putenv_s("RECOMP_LOADING_SPINNER", "0");
+    assert(!mm3_render_idle(1250,1000,0));
+    _putenv_s("RECOMP_LOADING_SPINNER", "");
     NvD3DState base = {0}, changed;
     unsigned i;
     base.tex_used = 1; base.blend_enable = 1;
