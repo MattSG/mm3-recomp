@@ -557,3 +557,26 @@ this goal complete from the spinner migration or a clean name search alone.
   contracts pass in keyboard/pad and physical-only modes.
 - Renderer overlay hooks and the remaining input callback API still require
   usefulness review; this boundary does not complete the whole-fork audit.
+
+
+### Nineteenth boundary: retired pointer-to-D-pad navigation
+
+- No production code registers xbox_InputSetMenuPointer. Removed that unused
+  public callback and its highlight stabilization, row/strip pulse scheduling,
+  and focus-wait policy. Retained the old implementation in MM3 reference
+  storage beside the retired quad collector, with its original provenance.
+- The shared input path retains its active native-click callback and generic
+  mouse-to-A fallback. With no pointer callback, the old path immediately
+  started the same 80 ms pulse; the simplified path preserves that behavior
+  without dormant focus heuristics. Native MM3 geometry/focus is unchanged.
+- Removed historical title-specific API call counts and title-named public
+  header guard. The header describes the reusable input ABI only.
+- Native mouse/mod checks (3), input checks (4), keymap checks (3), viewport and
+  before/after pacing checks pass. A deterministic production-input fixture
+  verifies consumed clicks, pulse boundaries, held-button suppression and a
+  new press; assertions remain enabled in Release builds.
+- Both full Windows game targets rebuild successfully. Input-capture contracts
+  pass in keyboard/pad and physical-only modes for both builds. Evidence:
+  ownership-pointer-contracts.log and ownership-pointer-*-build.log. There is
+  no fresh gameplay or Linux input-runtime acceptance claim for this boundary.
+- The broader runtime, tools/artifact and final inventory audits remain open.

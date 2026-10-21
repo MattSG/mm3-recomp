@@ -314,12 +314,12 @@ int main(void)
     driving = 1; assert(!cursor_handler());
     driving = 0; assert(cursor_handler());
     BOOL pad_click;
-    down = 0; menu_hover(FALSE, &pad_click);
+    down = 0; pad_click = menu_click();
     mouse_x = 0.5f; mouse_y = 0.3125f;
-    down = 1; menu_hover(FALSE, &pad_click); assert(!pad_click);
-    menu_hover(FALSE, &pad_click); assert(!pad_click); /* held is not another press */
+    down = 1; pad_click = menu_click(); assert(!pad_click);
+    pad_click = menu_click(); assert(!pad_click); /* held is not another press */
     down = 0; mouse_x = 0.9f; mouse_y = 0.9f; moves++;
-    menu_hover(FALSE, &pad_click); assert(!pad_click);
+    pad_click = menu_click(); assert(!pad_click);
     layout = &frame; frame.count = 1; frame.root = root;
     frame.car_node = frame.car_context = 0;
     g_esp = 0x700000; MEM32(g_esp+8) = root;
@@ -567,7 +567,7 @@ int main(void)
     painting_colors = NULL; swatch_fixture = 0;
     layout = NULL;
     xbox_InputSetMenuClickHandler(NULL);
-    down = 1; menu_hover(FALSE, &pad_click); assert(pad_click); /* default input preserved */
+    down = 1; pad_click = menu_click(); assert(pad_click); /* default input preserved */
     free(memory);
     puts("native menu mouse contracts passed");
     return 0;

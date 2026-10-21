@@ -6,3 +6,6 @@ menu geometry and focus. The active runtime exposes only its presentation
 rectangle for translating native menu coordinates into window coordinates.
 
 Reference only; these fragments are not compiled.
+
+The unused pointer-to-D-pad callback and navigation policy are preserved in
+input-pointer.c.txt from commit 6eef38a; native MM3 menu input does not use it.
