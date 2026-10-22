@@ -40,6 +40,7 @@ such as g_mm3 are architectural state, not title coupling.
 | Overlay placement | Existing NvOverlayHooks already delegates HUD/sanitization to MM3 | Verify remaining renderer assumptions and tests |
 | Runtime / platform | Audit all fork-vs-upstream runtime changes for hidden guest addresses/defaults and title-only behavior | In progress |
 | Tools / templates / tests / docs | Review tracked artifacts and build dependencies, including captured game-specific fixtures | In progress |
+| Inventory coverage | Complete fork commit tree captured: 624 tracked files, including all 153 src paths; modes/blob IDs and working-tree hashes checked | Covered; ownership decisions remain scoped |
 | Build / runtime proof | Same behavior after each ownership boundary; D3D11 and SDL GPU builds, focused tests, bounded gameplay | In progress |
 | Final inventory | Both main branches, root submodule pin, clean intended source state, worktrees, no unresolved ownership entries | Not yet satisfied |
 
@@ -939,3 +940,25 @@ source area, final cumulative runtime checks and repository/publication inventor
   fidelity. This ownership decision does not certify complete USB/lifecycle
   correctness. Full gamepad source review, remaining source/tool artifacts,
   whole-fork inventory and cumulative final proof remain open.
+
+### Canonical whole-fork inventory coverage
+
+- Reconciled FFF prefix discovery with the committed fork tree at 3ccf1b2
+  (tree 57618620f5d206ebe50d4325685f9ef09949d0c7). The manifest now covers
+  all 624 tracked files, rather than only the 153 src files. Existing scoped
+  reviews and the DSP compiler tool review are preserved.
+- Added committed file modes/blob IDs alongside working-tree SHA256 values.
+  These are distinct evidence: Git records committed content and the hashes
+  record this checkout's bytes, including its line-ending conversions.
+- Coverage: src 153, tests 194, tools 217, docs 33, templates 7, cmake 7,
+  include 2, LICENSES 2 and nine top-level files. No tracked path is missing
+  from the manifest. FFF has 21 stale paths and omits the three recently added
+  DSP-export/starter test paths; those discrepancies are recorded explicitly.
+- Verified exact path-set equality, uniqueness, mode/blob identity, every
+  working-tree hash, existing tool-review hashes, tree/head identity and counts.
+  Evidence: ownership-canonical-inventory-check.log. This is metadata coverage;
+  it does not certify the unreviewed files or new gameplay/runtime behavior.
+- Remaining ownership decisions across that full tree, cumulative validation
+  and final branch/submodule/worktree/publication proof remain open. Earlier
+  ledger statements about discovery incompleteness describe their snapshots;
+  the canonical coverage check above supersedes that inventory limitation.
