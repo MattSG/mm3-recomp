@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "babce61170c030315a00f04aee362f48cba8e902",
+  "fork_commit": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -66,14 +66,14 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "git_blob": "1984435a8ee7e1be9a7850497d5702332c9ed8d5",
-      "sha256": "1cf5bf2ac417327718f3750bdb78ed2b81d27e8cf9ceaa02579ad69166f01a7b",
+      "git_blob": "c105a856987565318dc2001a4e892c731aaf6d45",
+      "sha256": "40dfdb86c5761d059f28873e20d2772ad5a9ad405347d787b8c10173d7b8d2db",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "a35977bda89c49c107ac3d30aff88a6c45249057",
-        "scope": "Introduction and target/project sections only; other README sections not certified",
-        "evidence": "Introduced local links resolve; original guide/README sections preserved in MM3; documented parser command passes with synthetic conformance XBE",
-        "limit": "Documentation ownership and CLI check; not compatibility, game difficulty or gameplay acceptance"
+        "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
+        "scope": "Reference-analysis navigation/provenance paragraph; prior target/port-policy edits retained; unrelated content not certified",
+        "evidence": "Five captured corpus/adoption documents preserved in MM3 with source blob identities; new/updated guide links resolve; checked callers have no removed-page references; 42 Fusion tests pass",
+        "limit": "Documentation ownership, not validation against actual captured modules, corpus claims, complete private compiler formats or gameplay"
       }
     },
     {
@@ -133,14 +133,14 @@
     {
       "path": "docs/INDEX.md",
       "mode": "100644",
-      "git_blob": "9fcfbb49e78e6650108d5c254033d3003b3ce16f",
-      "sha256": "339065ed6114ed459bb02dadd53af3eec8c48a945a05f247609266b5db28aa57",
+      "git_blob": "3f18f347268cce5477782cb579aa32e6f98150d3",
+      "sha256": "204bae76c9ff28a04d625c763ea77ff42cffbf867b4a6168ad570463224aa68c",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "a35977bda89c49c107ac3d30aff88a6c45249057",
-        "scope": "Target-evaluation link label only; other index entries not certified",
-        "evidence": "Introduced local links resolve; original guide/README sections preserved in MM3; documented parser command passes with synthetic conformance XBE",
-        "limit": "Documentation ownership and CLI check; not compatibility, game difficulty or gameplay acceptance"
+        "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
+        "scope": "Reference-analysis navigation/provenance paragraph; prior target/port-policy edits retained; unrelated content not certified",
+        "evidence": "Five captured corpus/adoption documents preserved in MM3 with source blob identities; new/updated guide links resolve; checked callers have no removed-page references; 42 Fusion tests pass",
+        "limit": "Documentation ownership, not validation against actual captured modules, corpus claims, complete private compiler formats or gameplay"
       }
     },
     {
@@ -241,6 +241,19 @@
       "sha256": "56d62e2dd1008ef0f9ab5a60d715c4fcc9a99f855d84cbc6fd5f17ee2500d2ef"
     },
     {
+      "path": "docs/technical/fusion-analysis.md",
+      "mode": "100644",
+      "git_blob": "aeb69da1f793e03650f536c4ed6d52bc7c99d793",
+      "sha256": "9e2f06b358748a3b789ce1a231733c31b3874a4d06cc8be97cf3e430d4053263",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
+        "scope": "Full current caller-supplied reference-analysis guide",
+        "evidence": "Five captured corpus/adoption documents preserved in MM3 with source blob identities; new/updated guide links resolve; checked callers have no removed-page references; 42 Fusion tests pass",
+        "limit": "Documentation ownership, not validation against actual captured modules, corpus claims, complete private compiler formats or gameplay"
+      }
+    },
+    {
       "path": "docs/technical/gap-analysis.md",
       "mode": "100644",
       "git_blob": "5ecab3918441e0a96c2228660f53f286eea63598",
@@ -249,8 +262,15 @@
     {
       "path": "docs/technical/indirect-calls.md",
       "mode": "100644",
-      "git_blob": "13aa92e6a4711c5f3d4495a948e1a14dc6552772",
-      "sha256": "2f8362ad362eaf769a15c40ce40a6630ca6d8f8699591cbf0c1e8025832e8167"
+      "git_blob": "440fd3c3ef9e912a0db99c12aa6f25a231b5ea0d",
+      "sha256": "0511ac5a2b292b0fe1269c115a34683d6e083d837549dcf66603a670d314f4bd",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
+        "scope": "Reference-analysis navigation/provenance paragraph; prior target/port-policy edits retained; unrelated content not certified",
+        "evidence": "Five captured corpus/adoption documents preserved in MM3 with source blob identities; new/updated guide links resolve; checked callers have no removed-page references; 42 Fusion tests pass",
+        "limit": "Documentation ownership, not validation against actual captured modules, corpus claims, complete private compiler formats or gameplay"
+      }
     },
     {
       "path": "docs/technical/kernel-replacement.md",
@@ -269,30 +289,6 @@
       "mode": "100644",
       "git_blob": "5ad4906bc00f06d535cdc5c895b0d19b2a68f034",
       "sha256": "edfe85c56fb1ccb1d6c89fccd6290253826df70a7e87d0042ec2f59f43af083a"
-    },
-    {
-      "path": "docs/technical/ms-fusion-adoption-plan.md",
-      "mode": "100644",
-      "git_blob": "ae3cf097fb65f5a5fb08b8552d131b4acdd1fd90",
-      "sha256": "27ecd9a654923f8853fa2ca6ee3fd1b2e747af319e0bd91993572d24123eb33e"
-    },
-    {
-      "path": "docs/technical/ms-fusion-codegen-teardown.md",
-      "mode": "100644",
-      "git_blob": "25e3cf8798b3fbf7b1af4621311301d6f3139c89",
-      "sha256": "7cc605ce24b291fc84fbd3f1fcd14469de5a7ca9e55a436b31f585a9815c88fe"
-    },
-    {
-      "path": "docs/technical/ms-fusion-corpus.md",
-      "mode": "100644",
-      "git_blob": "ebd6065d19ff1e042660d7e1a315fd9757d43346",
-      "sha256": "181c86427eeaadccb6b06bfc694479fb2216a8b20e908a176d0508e86e20fb17"
-    },
-    {
-      "path": "docs/technical/ms-fusion-recompiler.md",
-      "mode": "100644",
-      "git_blob": "36d05a83c2b4c67ca0ca586678069165c0fb7594",
-      "sha256": "057dac292e22c5851ebe8aebcef67a5e65d8ad92d26fca8e7928467cc110c4db"
     },
     {
       "path": "docs/technical/nv2a-shaders.md",
@@ -317,12 +313,6 @@
       "mode": "100644",
       "git_blob": "0ba8225d28b700d68f487a45aac7ea5a8f4a3b17",
       "sha256": "301e0390018fb573e2c43122a25fd2a396aa826b05aa8dcaa7011c9c149e5211"
-    },
-    {
-      "path": "docs/technical/svod-extraction.md",
-      "mode": "100644",
-      "git_blob": "55d07cf921e0866cdd9b28905dabb4753d7c229b",
-      "sha256": "074da5b27cc640d74f7bf527fb1ab1ccc0a6b718c360f9699e999eb331bf70ae"
     },
     {
       "path": "docs/technical/xemu-debugging.md",
@@ -817,9 +807,17 @@
     },
     {
       "path": "src/kernel/icall_feedback.c",
-      "sha256": "b3bf513bf1dd63d1064e5d077c63064c3041bc13d850b67949c4f8253bd18209",
+      "sha256": "a010a2aa5e6afcf8a6a233a9316e0287b24e1b3e34dee52910587d7ee67dd98e",
       "mode": "100644",
-      "git_blob": "cb8be75f893e0373de1fec05600b500ddb830482"
+      "git_blob": "42519c5238c4907bf228e03ff27f3ae600c649f5",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "scope": "Documentation/provenance references only; other implementation behavior not certified by this pass",
+        "evidence": " Documentation-only migration verified with unchanged Python executable AST/C non-comment body; reference now points to generic current interfaces.",
+        "limit": "No new runtime or complete mechanism acceptance",
+        "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
+        "source_changed_since_review": false
+      }
     },
     {
       "path": "src/kernel/kernel.h",
@@ -968,9 +966,17 @@
     },
     {
       "path": "src/kernel/recomp_icall_feedback.h",
-      "sha256": "23220606da9b4c7a63d0d27fd72f6c8c9abbbdf74085ee7615499e22f036822e",
+      "sha256": "84b588c9f7738d4cce741547872e4df06bea46952ab423405ae1d69fe128dab6",
       "mode": "100644",
-      "git_blob": "d2a5d1d1de6451231721fc40c906763403c95f78"
+      "git_blob": "9c5d24e751f263e8fe71afdceee65c4da10b72fd",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "scope": "Documentation/provenance references only; other implementation behavior not certified by this pass",
+        "evidence": " Documentation-only migration verified with unchanged Python executable AST/C non-comment body; reference now points to generic current interfaces.",
+        "limit": "No new runtime or complete mechanism acceptance",
+        "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
+        "source_changed_since_review": false
+      }
     },
     {
       "path": "src/kernel/recomp_trace.c",
@@ -2937,8 +2943,16 @@
     {
       "path": "tools/disasm/engine.py",
       "mode": "100644",
-      "git_blob": "e4fdebaa2ccb4200a0e4cf13a6851a4c19a107ef",
-      "sha256": "92d44de65a7053c1bd9e2db92db5fd704daffa022167c892ee9f3b2d8172a81b"
+      "git_blob": "e570075fad605b6ab1e67fbfdb1c721b6bfffac7",
+      "sha256": "f2e28347ea4e39459dbd9e45f0b0bf3c116931f58153ccff80ee3cd244e731c4",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "scope": "Documentation/provenance references only; other implementation behavior not certified by this pass",
+        "evidence": " Documentation-only migration verified with unchanged Python executable AST/C non-comment body; reference now points to generic current interfaces.",
+        "limit": "No new runtime or complete mechanism acceptance",
+        "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
+        "source_changed_since_review": false
+      }
     },
     {
       "path": "tools/disasm/functions.py",
@@ -3150,14 +3164,15 @@
     {
       "path": "tools/fusion/lifter_diff.py",
       "mode": "100644",
-      "git_blob": "e4468f31f4c5e2ace6e03b8d7cf995f6c0c91e16",
-      "sha256": "1ed7160204ac0dc172b287a48e4595eec12eda7ae2c57c74c50d3e14a832a4d1",
+      "git_blob": "63a663f2cd503b12eb8585d56b244462e7847c5e",
+      "sha256": "bae621ca5c5b126bf2daaf3a1974b5a6ae84727cbe82612bc0b94b226f021b11",
       "ownership_review": {
         "decision": "retain_generic",
-        "reviewed_at_fork": "babce61170c030315a00f04aee362f48cba8e902",
+        "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
         "scope": "Full caller-supplied reference-listing/generated-C comparison aid under its explicit host-register model",
-        "evidence": "Later-operand mask regression fails before instruction offset fix and passes after; all 42 Fusion cases pass; comparator executable ASTs unchanged; captured notes/global example moved to MM3",
-        "limit": "Heuristic candidate naming and manual reference analysis, not semantic equivalence, complete private-format support or cross-title precision proof; saved signature databases need regeneration after masker fixes"
+        "evidence": "Later-operand mask regression fails before instruction offset fix and passes after; all 42 Fusion cases pass; comparator executable ASTs unchanged; captured notes/global example moved to MM3 Documentation-only migration verified with unchanged Python executable AST/C non-comment body; reference now points to generic current interfaces.",
+        "limit": "Heuristic candidate naming and manual reference analysis, not semantic equivalence, complete private-format support or cross-title precision proof; saved signature databases need regeneration after masker fixes",
+        "source_changed_since_review": false
       }
     },
     {
@@ -3435,8 +3450,16 @@
     {
       "path": "tools/recomp/icall_feedback.py",
       "mode": "100644",
-      "git_blob": "bf7b693cc3cfaa4f1cb94a58aac2d9af0dc0173f",
-      "sha256": "f434b893cadec1261dfb1b6a98717233448b7f94b085da0da6e60a0993a35719"
+      "git_blob": "773294b99919e9de36147a646b6ab8b8128d0b11",
+      "sha256": "b32b7b2256e83f9cece471f741619f00116dcbdf5f58648632443627d793f90d",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "scope": "Documentation/provenance references only; other implementation behavior not certified by this pass",
+        "evidence": " Documentation-only migration verified with unchanged Python executable AST/C non-comment body; reference now points to generic current interfaces.",
+        "limit": "No new runtime or complete mechanism acceptance",
+        "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
+        "source_changed_since_review": false
+      }
     },
     {
       "path": "tools/recomp/lifter.py",
@@ -4094,9 +4117,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "027b43a29e61f9df2394aa2811c1840254fba50a",
+  "fork_tree": "37aa5ee293f769bf9c2e0d1dbd941bb6286c74c5",
   "coverage": {
-    "tracked_files": 625,
+    "tracked_files": 621,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -4110,7 +4133,7 @@
       "NOTICE": 1,
       "README.md": 1,
       "cmake": 7,
-      "docs": 33,
+      "docs": 29,
       "include": 2,
       "src": 153,
       "templates": 7,
@@ -4119,6 +4142,7 @@
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
     "tracked_paths_missing_from_fff": [
+      "docs/technical/fusion-analysis.md",
       "tests/dsp/dsp_program_dump_test.c",
       "tests/new_game_template/CMakeLists.txt",
       "tests/new_game_template/test_main.c",
@@ -4126,6 +4150,11 @@
     ],
     "stale_fff_paths": [
       "docs/technical/burnout3-reunification.md",
+      "docs/technical/ms-fusion-adoption-plan.md",
+      "docs/technical/ms-fusion-codegen-teardown.md",
+      "docs/technical/ms-fusion-corpus.md",
+      "docs/technical/ms-fusion-recompiler.md",
+      "docs/technical/svod-extraction.md",
       "include/nv2a_host_commands.h",
       "src/nv2a/font_atlas_data.h",
       "src/nv2a/menu_pb_crash_select.h",

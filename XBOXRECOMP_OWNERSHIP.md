@@ -40,7 +40,7 @@ such as g_mm3 are architectural state, not title coupling.
 | Overlay placement | Existing NvOverlayHooks already delegates HUD/sanitization to MM3 | Verify remaining renderer assumptions and tests |
 | Runtime / platform | Audit all fork-vs-upstream runtime changes for hidden guest addresses/defaults and title-only behavior | In progress |
 | Tools / templates / tests / docs | Review tracked artifacts and build dependencies, including captured game-specific fixtures | In progress |
-| Inventory coverage | Complete fork commit tree captured: 625 tracked files, including all 153 src paths; modes/blob IDs and working-tree hashes checked | Covered; ownership decisions remain scoped |
+| Inventory coverage | Complete fork commit tree captured: 621 tracked files, including all 153 src paths; modes/blob IDs and working-tree hashes checked | Covered; ownership decisions remain scoped |
 | Build / runtime proof | Same behavior after each ownership boundary; D3D11 and SDL GPU builds, focused tests, bounded gameplay | In progress |
 | Final inventory | Both main branches, root submodule pin, clean intended source state, worktrees, no unresolved ownership entries | Not yet satisfied |
 
@@ -1167,3 +1167,28 @@ source area, final cumulative runtime checks and repository/publication inventor
   precision, private compiler convention coverage or gameplay proof is claimed.
   Complete 625-file inventory refreshed. Remaining corpus/docs/runtime/artifact
   ownership, cumulative validation and final repository proof remain open.
+
+### Captured Fusion corpus/adoption documentation moves out of the toolkit
+
+- Moved five complete original documents (single-title recompiler analysis,
+  codegen teardown, four-title corpus, Crimson adoption plan and measured SVOD
+  extraction notes) into tools/reference/legacy_fusion_docs. Its README records
+  source commit/blob identities and original runtime feedback provenance.
+  Historical claims/status/relative references are not asserted current.
+- The fork now has one generic fusion-analysis guide derived from current
+  interfaces: inputs/dependencies, version-1 metadata reader, heuristic address
+  maps, package reads, comparison aids, signature candidates and runtime feedback.
+  It contains no captured title tables or measured guest addresses.
+- Updated README/index navigation, indirect-call workflow references and the
+  known source callers. Checked new/updated links and removed-page references;
+  all five archived texts match their source versions. Python executable ASTs
+  and C non-comment source are unchanged. Evidence:
+  ownership-fusion-doc-migration-check.log. All 42 Fusion tests still pass
+  (ownership-fusion-doc-tests.log); no runtime behavior or gameplay was changed.
+- The original source texts remain in MM3 rather than being replaced by a
+  claim that synthetic tests establish private-format/corpus fidelity. Other
+  documentation and runtime/tool/test ownership decisions, cumulative validation
+  and final repository/publication proof remain open.
+- Five fork pages were removed and one generic guide added: complete tree/blob/
+  hash inventory now covers 621 files, including all 153 src paths. Historical
+  624/625-file snapshot records above retain their original scope and counts.
