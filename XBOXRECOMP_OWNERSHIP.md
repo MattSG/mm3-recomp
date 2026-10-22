@@ -1034,3 +1034,31 @@ source area, final cumulative runtime checks and repository/publication inventor
   exposed host adapter matches every guest SDK ABI. No new playback or full
   graphics/USB/audio fidelity is claimed. Complete 624-file inventory refreshed;
   remaining ownership decisions and cumulative/final repository proof stay open.
+
+### Retained DirectSound PCM adapter: prove and repair both storage paths
+
+- Reviewed the generic DirectSound host-buffer adapter and its existing
+  actual-mixer regression. Retain the implemented PCM creation, playback,
+  state/cursor, volume/frequency and cleanup mechanisms; they contain no fixed
+  guest address, title selector, authored audio or game-specific input.
+- Found a real shared-adapter gap: CreateSoundBuffer allocated storage for the
+  public Lock/Unlock path after mixer voice initialization, leaving that voice
+  unattached. SetBufferData worked, so existing tests missed the silent path.
+  Allocate storage before binding and supply its pointer/byte count to the
+  mixer for 16-bit buffers. No title workaround or new configuration was added.
+- Added mono/stereo sample, cursor/status and release checks through actual
+  CreateSoundBuffer/Lock/Unlock/Play calls. This fails on the old code and
+  passes with the fix. Existing replacement/clearing, loop, fractional cursor,
+  stop/resume and long-buffer checks pass too.
+- The complete extracted-code case passes with WSL GCC and MSVC. The MSVC
+  fixture run exposed omitted stdlib declarations; added the explicit includes
+  required by the extracted mixer and test before rerunning successfully.
+  Both Windows game renderer builds pass. Evidence:
+  ownership-audio-buffer-{baseline,linux,windows}.log and
+  ownership-audio-buffer-{sdlgpu,d3d11}-build.log.
+- Replaced the audio README's unsupported streaming/circular-lock/spatial claims
+  with current implemented paths and limitations. Test wakeups/locking remain
+  fixture stubs: no audio-device, concurrency, complete SDK ABI or game-audio
+  fidelity claim follows from synthetic PCM samples. No new audio hardware or
+  deferred API feature was implemented. The full 624-file inventory is refreshed;
+  other ownership areas and cumulative/final proof remain open.

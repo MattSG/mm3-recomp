@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "1988028bb7655f7796af5dda1479c92feb2e5847",
+  "fork_commit": "33bf2a9c9e085ed12814ee2e2bcd1bfe6b271a3b",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -569,21 +569,28 @@
     },
     {
       "path": "src/audio/README.md",
-      "sha256": "00eb6d2af1bd31171bb06bb8a6044103d626a24569ca85963f08a4450ba2d5b6",
+      "sha256": "b36414e3918b2ca935255e78bee0dd55f21c9312b5c40f1c78f3c68098ab6f40",
       "mode": "100644",
-      "git_blob": "8efa4c351111a9751d38a1b282c9bb3eace4a93b"
+      "git_blob": "1db542f3c15d78dacc1999f58e08fb42dee200c8",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "33bf2a9c9e085ed12814ee2e2bcd1bfe6b271a3b",
+        "scope": "Full current capability/limitation and regression guide",
+        "evidence": "Preallocated Lock-path mono/stereo playback regression fails before storage binding and passes after; complete extracted mixer/adapter case passes on WSL GCC and MSVC; both Windows renderer builds pass",
+        "limit": "Synthetic sample/state proof with wakeup target absent; not audio-device output, thread safety, complete DirectSound SDK ABI or game-audio fidelity"
+      }
     },
     {
       "path": "src/audio/dsound_device.c",
-      "sha256": "e26fc4b6128feca4d372a17af9ebbdbcbcbc85033afdbd852df193d2b1373e31",
+      "sha256": "f21cb2a8238463525aa09642a177a5276a2485cea5cb02133999071be732f26f",
       "mode": "100644",
-      "git_blob": "2c3f7d3f3019772d5ad33a27f6aa5002ea1ce309",
+      "git_blob": "47d66840791709f5b152659c5a145b45bb7ba500",
       "ownership_review": {
-        "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "1988028bb7655f7796af5dda1479c92feb2e5847",
-        "scope": "PCM buffer adapter delegation and corrected capability/startup descriptions",
-        "evidence": "Six header bodies identical after guard normalization and comment exclusion; standalone MSVC double-inclusion checks pass; audio executable body identical except startup log; both Windows renderer builds and Linux runtime/mapping check pass",
-        "limit": "No new playback, full SDK ABI, graphics/USB fidelity or lifecycle acceptance; unsupported DirectSound stream/spatial methods remain partial stubs"
+        "decision": "retain_generic",
+        "reviewed_at_fork": "33bf2a9c9e085ed12814ee2e2bcd1bfe6b271a3b",
+        "scope": "Generic PCM host-buffer adapter creation/storage, mixer delegation, cursor/status and release; unsupported methods remain partial stubs",
+        "evidence": "Preallocated Lock-path mono/stereo playback regression fails before storage binding and passes after; complete extracted mixer/adapter case passes on WSL GCC and MSVC; both Windows renderer builds pass",
+        "limit": "Synthetic sample/state proof with wakeup target absent; not audio-device output, thread safety, complete DirectSound SDK ABI or game-audio fidelity"
       }
     },
     {
@@ -1467,14 +1474,28 @@
     {
       "path": "tests/audio_mixer/run.py",
       "mode": "100644",
-      "git_blob": "c9803c4e6a3d39b83e9e77c02bc565a050e3c2b6",
-      "sha256": "8b0d02b448915537f2c2b025ae78349b85967ed071ec60a10498409eaa814d91"
+      "git_blob": "fc32e7538d214dc84100deaf47e48cbe8486de27",
+      "sha256": "8986e142d8ea1930dfb4949511ff94370880391351c1cb2cab4bced7c2b86fda",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "33bf2a9c9e085ed12814ee2e2bcd1bfe6b271a3b",
+        "scope": "Full actual-source extraction/compile runner with APU wakeup/locking fixture boundary",
+        "evidence": "Preallocated Lock-path mono/stereo playback regression fails before storage binding and passes after; complete extracted mixer/adapter case passes on WSL GCC and MSVC; both Windows renderer builds pass",
+        "limit": "Synthetic sample/state proof with wakeup target absent; not audio-device output, thread safety, complete DirectSound SDK ABI or game-audio fidelity"
+      }
     },
     {
       "path": "tests/audio_mixer/test_main.c",
       "mode": "100644",
-      "git_blob": "92bf5c76fbae4785b266139d364aa2fc21ab2f16",
-      "sha256": "40702f28c389daa33c8f5d9d70a32e5432830949541ea43cec19195cf43fc37d"
+      "git_blob": "cfea9e3883d22ce6d427a252157b086756bce387",
+      "sha256": "d3f2a7b130365e6a61d669a4b474d6ff7ef8377a67d8ba58216a37124d195736",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "33bf2a9c9e085ed12814ee2e2bcd1bfe6b271a3b",
+        "scope": "Full synthetic adapter/mixer sample, cursor, lifecycle and storage-path regression",
+        "evidence": "Preallocated Lock-path mono/stereo playback regression fails before storage binding and passes after; complete extracted mixer/adapter case passes on WSL GCC and MSVC; both Windows renderer builds pass",
+        "limit": "Synthetic sample/state proof with wakeup target absent; not audio-device output, thread safety, complete DirectSound SDK ABI or game-audio fidelity"
+      }
     },
     {
       "path": "tests/cpu_helpers/CMakeLists.txt",
@@ -3948,7 +3969,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "e4b87a9379a0eef84b32dfdff651e9ca5d29ad85",
+  "fork_tree": "deceacb896b2e587db4fefffc782b99ac9ac4d7f",
   "coverage": {
     "tracked_files": 624,
     "tracked_src_files": 153,
