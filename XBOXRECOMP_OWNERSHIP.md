@@ -714,3 +714,29 @@ source area, final cumulative runtime checks and repository/publication inventor
   road lighting, sky, scene geometry and HUD. These are bounded preservation
   checks, not full temporal/visual fidelity or all-menu-flow acceptance.
   The broader source/artifact and final inventory audits remain open.
+
+
+### Twenty-fourth boundary: starter reuses shared host bring-up
+
+- The generic new-game starter retained a second APU bootstrap/MMIO handler,
+  an unhandled GPU-register TODO and no shared USB/NIC bring-up. Removed that
+  duplicate hardware implementation; the starter now calls existing shared
+  host hardware/graphics interfaces and shuts hardware down before kernel and
+  guest-memory teardown. The umbrella header exposes the existing host API.
+- The starter explicitly selects first-call INLINE for its minimal guest-driven
+  loop, preserving its historical model after the generic runtime default
+  changed. A host-driven port chooses SPAWN and owns its live-worker lifetime;
+  that policy is documented at the port integration boundary.
+- Archived the previous starter source from fork 6994d5d in MM3
+  tools/reference/legacy_host_starter (reference only). Its diagnostic guest
+  register/trace support remains in the active starter. Corrected stale public
+  header startup/API/TLS examples and template library-count comments.
+- Four runnable Windows contracts compile the actual starter source against
+  runtime headers with mocked runtime boundaries. They verify success and
+  memory/hardware/graphics initialization failures, exact startup/cleanup order,
+  explicit thread mode, and that failure does not enter guest code. All four
+  pass; assertions are enabled in Release. Both complete MM3 Windows game
+  targets also rebuild successfully. Logs: ownership-starter-*.log.
+- This is starter control-flow/header/build proof, not actual emulated MMIO,
+  audio, a newly recompiled title, Linux starter support or new MM3 gameplay.
+  Whole-fork source/artifact and final inventory audits remain open.
