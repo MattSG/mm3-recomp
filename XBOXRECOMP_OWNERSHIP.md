@@ -1446,3 +1446,37 @@ source area, final cumulative runtime checks and repository/publication inventor
   consistency in the existing per-host-thread guest model, not full processor/
   scheduler/KPRCB emulation or gameplay fidelity. Remaining ownership decisions,
   cumulative validation and final repository/publication proof remain open.
+
+
+### Replace fixed main TLS buffers with owned image-safe storage
+
+- Found fixed TLS/thread-data buffers 512 bytes apart in shared startup. A larger
+  template overlapped the thread data, and a loaded section at those addresses
+  was overwritten before its TLS bytes were copied. Archived the full original
+  bootstrap in tools/reference/legacy_fixed_tls_storage.md.
+- Main TLS and slot-zero thread data now share one owned heap allocation outside
+  loaded image/reservation/stack ranges, using the existing allocator. Directory
+  and template ranges and size arithmetic are checked before access/allocation;
+  invalid metadata fails initialization with mapping cleanup. Worker cloning
+  continues to use the resulting template.
+- A synthetic data section at the former scratch range with a template larger
+  than 512 bytes fails four checks on old code. The replacement preserves source,
+  initialized bytes, zero-fill and separate thread data. Three invalid directory/
+  bounds/overflow cases verify rejection and cleanup. Windows memory cases pass
+  11/11, kernel cases 61/61 and Linux focused TLS cases 4/4. Both Windows renderer
+  game builds pass. Evidence: ownership-tls-layout-{baseline,build,tests}.log,
+  ownership-tls-kernel-{build,tests}.log, ownership-tls-linux-focused.log and
+  ownership-tls-{sdl,d3d11}-build.log.
+- Bounded SDL3/D3D12 night Cruise passed through menus/loading with inspected
+  captures and 1.5m measured post-teleport driving displacement. Its real 20-byte
+  TLS block was allocated at 0x00F80000. Evidence: ownership-tls-cruise.log and
+  conformance_tmp/game_test/run-mm8r30qt. This is bounded gameplay proof, not
+  exhaustive fidelity or runtime validation of the other renderer drivers.
+- The broader Linux memory attempt failed in ext-vma: host reservation was
+  unavailable, allocation fell back to a different address, and the fixture then
+  dereferenced the unbacked requested address. ownership-tls-linux.log retains
+  the failure. Do not report the full Linux suite green; investigate this path
+  and its fixture failure handling next. Heap-header captured CRT rationale,
+  remaining ownership and cumulative/final repository proof also remain open.
+- Complete 622-file committed identities/hashes refreshed; scope remains the
+  full ownership goal, with no claim of complete loader/TLS/kernel emulation.
