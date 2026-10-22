@@ -1632,3 +1632,54 @@ source area, final cumulative runtime checks and repository/publication inventor
   per-thread unwind bounds, thunk-table range/scan bounds, broader source/data/
   docs/artifact ownership, cumulative checks and final publication proof remain
   open. The full goal is not complete. Nothing pushed in this batch.
+
+
+### Patch only explicitly selected kernel imports
+
+- The bridge automatically scanned sixteen words before the configured import
+  table, a Halo-specific recovery policy. A synthetic ordinal-shaped ordinary
+  word outside the declared range is overwritten by the old bridge; the new
+  regression fails there and passes when only selected imports are patched.
+  The original workaround, guessed-count setter and old loader scan are retained
+  unchanged as normalized text in `tools/reference/legacy_thunk_range_policy.md`.
+- MM3 already selects its exact known range in `src/main.c`. Mapping its original
+  XBE section bytes shows no ordinal-marker words in the old 64-byte scan region;
+  that title recovery is not active MM3 policy. Other ports can explicitly
+  select a known bounded span through the existing setter. Native pointer
+  initialization now continues across NULL gaps, while the bridge patches only
+  the selected entries. No new pattern-based import discovery was added.
+- XBE retail/debug decoding now validates a complete terminated marker run using
+  actual mapped backing and wide per-read bounds, rather than a fixed 64 MiB
+  ceiling and unchecked reads. Nonzero source ordinals need not be canonical;
+  the bridge's port-supplied ordinal remap still works. Malformed/unterminated
+  tables fail initialization instead of registering a partial run.
+- Zero/absent/empty tables leave no configured imports. Zero address/count clears
+  explicit selection; invalid alignment, wrap, backing or slot count clears
+  selection rather than guessing an old count or clamping. Initialization and
+  shutdown retire prior import metadata and slot state. A failed protection
+  change returns before import/data patching. Standalone hosts remain responsible
+  for mapping explicitly supplied storage; configuration is startup/quiesced.
+- The stricter loader exposed a synthetic bridge fixture whose thunk field
+  pointed at its section header. It now correctly declares no image imports;
+  its later explicit ABI/bridge setup remains unchanged.
+- Windows memory suite passes 34/34, kernel 62/62 and bridge 8/8. Linux kernel
+  61/61, actual C++ link/run, all 21 prior memory modes and all 12 new thunk
+  modes pass. Both Windows renderer game builds pass. Evidence:
+  `ownership-thunk-{range,loader}-baseline.log`,
+  `ownership-thunk-{build,tests}.log`,
+  `ownership-thunk-{kernel,bridge}-{build,tests}.log`,
+  `ownership-thunk-{linux,linux-extra}.log`, and
+  `ownership-thunk-{sdl,d3d11}-build.log` in `conformance_tmp`.
+- Bounded SDL3/Vulkan night Cruise passes menus/loading/movement, with inspected
+  capture 004 and 1.985m post-teleport movement (`ownership-thunk-cruise.log`,
+  `conformance_tmp/game_test/run-hurwkm2q`). The loader registers all 151 MM3
+  imports at the expected address. This is scene/gameplay evidence, beyond the
+  earlier black startup-only Vulkan capture, but still bounded acceptance.
+- Complete committed inventory is now 625 files (153 src, 198 tests). Broader
+  native-pointer/dispatcher remap paths, fixed kernel-data placement, thread
+  sizing/unwind/lifetime, other source/data/docs/artifact ownership, cumulative
+  validation and final repository/publication proof remain open. The full goal
+  is not complete. Validated checkpoints are now published as they are finished,
+  fork first and MM3's matching submodule pointer second.
+
+Fork checkpoint for this batch: `364d9d1`.
