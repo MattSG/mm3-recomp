@@ -1243,3 +1243,22 @@ source area, final cumulative runtime checks and repository/publication inventor
 - Refreshed the complete 622-file committed-tree/blob/hash inventory with ten
   scoped decisions. Remaining fork ownership decisions, cumulative validation
   and final repository/publication proof remain open.
+
+
+### Captured D3D8LTCG device map moves to MM3
+
+- Preserved the full original device-context page, including captured Burnout 3
+  addresses, offsets, per-entry stack cleanup and snapshot/forced-state bypasses,
+  in tools/reference/legacy_d3d8ltcg_device_context.md. The archive records source
+  commit/blob provenance; its original text was checked exactly.
+- Replaced the fork page at its existing path with a generic investigation guide:
+  recover image-specific state ownership, queue/fence contracts and guest calling
+  conventions; place instruction/call/runtime defects in shared mechanisms and
+  discovered application layouts/policy in the port. Counting pushes or escaping
+  a spin loop does not establish a valid guest contract or completed rendering.
+- Updated both navigation descriptions. Replacement local links resolve and the
+  fork diff contains only three documentation files. No executable behavior or
+  runtime verification is claimed for this documentation-only checkpoint.
+- Refreshed all 622 committed file identities/hashes; preserved prior scoped
+  navigation reviews. Other documentation/runtime/artifact ownership, cumulative
+  validation and final branch/submodule/worktree/publication proof remain open.

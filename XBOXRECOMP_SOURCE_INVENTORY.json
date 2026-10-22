@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
+  "fork_commit": "e7a7589beb9668f223527c8fedd3bdf3a7107cba",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -66,14 +66,21 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "git_blob": "c105a856987565318dc2001a4e892c731aaf6d45",
-      "sha256": "40dfdb86c5761d059f28873e20d2772ad5a9ad405347d787b8c10173d7b8d2db",
+      "git_blob": "a6f224e0e99e269645cd2ef49e76a5fa7d01a74f",
+      "sha256": "a7804b5b9e799624b26d5483a4810dc15270e4c20b2a7b8f32ff3ff8f34c7b57",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
-        "scope": "Reference-analysis navigation/provenance paragraph; prior target/port-policy edits retained; unrelated content not certified",
-        "evidence": "Five captured corpus/adoption documents preserved in MM3 with source blob identities; new/updated guide links resolve; checked callers have no removed-page references; 42 Fusion tests pass",
-        "limit": "Documentation ownership, not validation against actual captured modules, corpus claims, complete private compiler formats or gameplay"
+        "reviewed_at_fork": "e7a7589beb9668f223527c8fedd3bdf3a7107cba",
+        "scope": "Navigation description for per-image D3D8LTCG investigation; prior scoped edits retained, unrelated text unreviewed",
+        "evidence": "Complete captured-title map archived in MM3 with source commit/blob and exact original text; replacement local links resolve; only documentation changed.",
+        "limit": "Documentation ownership and preservation, not validation of captured offsets, historical bypasses, GPU completion or original-game fidelity.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
+          "scope": "Reference-analysis navigation/provenance paragraph; prior target/port-policy edits retained; unrelated content not certified",
+          "evidence": "Five captured corpus/adoption documents preserved in MM3 with source blob identities; new/updated guide links resolve; checked callers have no removed-page references; 42 Fusion tests pass",
+          "limit": "Documentation ownership, not validation against actual captured modules, corpus claims, complete private compiler formats or gameplay"
+        }
       }
     },
     {
@@ -182,14 +189,21 @@
     {
       "path": "docs/INDEX.md",
       "mode": "100644",
-      "git_blob": "3f18f347268cce5477782cb579aa32e6f98150d3",
-      "sha256": "204bae76c9ff28a04d625c763ea77ff42cffbf867b4a6168ad570463224aa68c",
+      "git_blob": "37e775275783a30b49a72d6c29bd5941d0b4413e",
+      "sha256": "197c400d1e72e8b60c653aa93d8be95f90b5f92428c54f100eaedf530b81f6e1",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
-        "scope": "Reference-analysis navigation/provenance paragraph; prior target/port-policy edits retained; unrelated content not certified",
-        "evidence": "Five captured corpus/adoption documents preserved in MM3 with source blob identities; new/updated guide links resolve; checked callers have no removed-page references; 42 Fusion tests pass",
-        "limit": "Documentation ownership, not validation against actual captured modules, corpus claims, complete private compiler formats or gameplay"
+        "reviewed_at_fork": "e7a7589beb9668f223527c8fedd3bdf3a7107cba",
+        "scope": "Navigation description for per-image D3D8LTCG investigation; prior scoped edits retained, unrelated text unreviewed",
+        "evidence": "Complete captured-title map archived in MM3 with source commit/blob and exact original text; replacement local links resolve; only documentation changed.",
+        "limit": "Documentation ownership and preservation, not validation of captured offsets, historical bypasses, GPU completion or original-game fidelity.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
+          "scope": "Reference-analysis navigation/provenance paragraph; prior target/port-policy edits retained; unrelated content not certified",
+          "evidence": "Five captured corpus/adoption documents preserved in MM3 with source blob identities; new/updated guide links resolve; checked callers have no removed-page references; 42 Fusion tests pass",
+          "limit": "Documentation ownership, not validation against actual captured modules, corpus claims, complete private compiler formats or gameplay"
+        }
       }
     },
     {
@@ -280,8 +294,15 @@
     {
       "path": "docs/technical/d3d8ltcg-device-context.md",
       "mode": "100644",
-      "git_blob": "5ef1cf067cd8ca282d197a2863d313abb550671c",
-      "sha256": "15123beb5652fcbc71c3fa016aed102cbb1c4937adda910a908c3caaa443db02"
+      "git_blob": "4968750010d54a138d08ea86804883ac9ede8691",
+      "sha256": "ceb23525dcc53a8ba8d561d9c3dbf22301467ad52090cc413845668a2993065f",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "e7a7589beb9668f223527c8fedd3bdf3a7107cba",
+        "scope": "Full replacement guide: per-image field/queue/call-contract recovery and generic versus port ownership",
+        "evidence": "Complete captured-title map archived in MM3 with source commit/blob and exact original text; replacement local links resolve; only documentation changed.",
+        "limit": "Documentation ownership and preservation, not validation of captured offsets, historical bypasses, GPU completion or original-game fidelity."
+      }
     },
     {
       "path": "docs/technical/function-coalescence.md",
@@ -4249,7 +4270,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "b258dabe4683ebb2a346ae1ffa75a074673952f9",
+  "fork_tree": "f953b4de9181f169c9f75ab96c2c2e0290a27441",
   "coverage": {
     "tracked_files": 622,
     "tracked_src_files": 153,
