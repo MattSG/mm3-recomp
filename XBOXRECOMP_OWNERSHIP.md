@@ -740,3 +740,27 @@ source area, final cumulative runtime checks and repository/publication inventor
 - This is starter control-flow/header/build proof, not actual emulated MMIO,
   audio, a newly recompiled title, Linux starter support or new MM3 gameplay.
   Whole-fork source/artifact and final inventory audits remain open.
+
+
+### Twenty-fifth boundary: remaining DPC fixture identity captures
+
+- Found a DPC regression still carrying two observed vtable addresses and a
+  captured return PC. Production code does not match those identities; the
+  fixture uses them only as distinct live/dead markers and a stack-write
+  pattern. Replaced them with synthetic addresses in its existing arena and
+  preserved the original values/provenance in MM3 legacy_section_layouts.json.
+- Kept the actual generic failure conditions: completion before destruction,
+  intrusive-list lifetime, a request below the caller's ESP, callback stack
+  isolation/exhaustion, IRQL state and nonrecursive/concurrent DPC draining.
+  No runtime activation, branch or game implementation changed.
+- All 61 kernel-dispatch cases pass, including all eight DPC-lowering modes.
+  Evidence: ownership-dpc-identities-{build,tests}.log. This fixture-only move
+  provides no new game-driving, graphics or Linux acceptance claim.
+- Reviewed the kernel identity export defaults: standard console hardware,
+  version, boot filename and zeroed HLE keys are generic console configuration,
+  with a caller version override; they do not select a game. The settings-store
+  implementation beyond those declarations still needs its own ownership pass.
+- The inspected memory-regression README now describes synthetic scene-load
+  sizes, rather than the stale indexed title-sized description. Retain those
+  allocator contracts; discovery-index hits alone cannot establish current
+  artifact content. Full source/artifact and final inventory audits stay open.

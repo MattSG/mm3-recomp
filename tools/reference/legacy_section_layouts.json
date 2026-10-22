@@ -279,5 +279,12 @@
   "icall_feedback_window": {
     "base": 65536,
     "size": 8388608
+  },
+  "dpc_lower_fixture_addresses": {
+    "source": "XboxRecomp 2572551 tests/kernel_dispatch/kernel_dpc_lower_test.c",
+    "live_vtable": "0x00362978",
+    "dead_vtable": "0x00362910",
+    "return_pc": "0x0035FBD3",
+    "purpose": "Historical observed markers; runtime regression now uses synthetic identities while retaining queue lifetime and caller-stack alias conditions."
   }
 }
