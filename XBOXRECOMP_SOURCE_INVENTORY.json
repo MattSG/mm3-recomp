@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "3d1d24313e4156517d323caaece5b0fed280adc7",
+  "fork_commit": "5a365594048f767791eb074fb5673a8f66328402",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -505,9 +505,9 @@
     },
     {
       "path": "src/apu/apu_core.c",
-      "sha256": "4163a17d92db58a0582dec307eed311d29aae7b402b1731499b1a531eeb3f951",
+      "sha256": "412631ceba402d4ae20ba244fe81d8f5793874f91373168281f0643fb2a8c779",
       "mode": "100644",
-      "git_blob": "8ab4dadb5a28ee4a0db9d24011a57284828a1223"
+      "git_blob": "c9238e67175f8983c0ba1a015f9c15a4a02b9809"
     },
     {
       "path": "src/apu/apu_debug.h",
@@ -548,15 +548,15 @@
     },
     {
       "path": "src/apu/apu_state.h",
-      "sha256": "54149478834b2a2663a3b816b07becccdfaf217efe28caf1acecef5c80f1fe26",
+      "sha256": "76b608ee55ba4aff1329f46cb3d8dd61550c66bce4650cea71976bed87ebf54b",
       "mode": "100644",
-      "git_blob": "a6479240583beb993e038c5e97b9c1b4e63668af"
+      "git_blob": "a1e92bd309445a820eb0c01977bcb958854a2e11"
     },
     {
       "path": "src/apu/apu_vp.c",
-      "sha256": "97c7a6bbae2e28683f9f930f0287bed0f54d98c991b377c313efd3507e6b294a",
+      "sha256": "6f1cf583265f79b9a7731783b9ccb37749544f38f595b04d2c2609dacfd7cdbc",
       "mode": "100644",
-      "git_blob": "6a9881189605c37bfdf33e880c31d1d9ae80f89e"
+      "git_blob": "c38fe2a30a569821375a8efc51b51d683d0ac250"
     },
     {
       "path": "src/apu/apu_xaudio2.c",
@@ -975,9 +975,9 @@
     },
     {
       "path": "src/kernel/kernel.h",
-      "sha256": "f302b64607bac5e5b8e5e7ea80ed06faa0e6e16bb4032c9ac0ffb0f7bdb2ac59",
+      "sha256": "cf21e31ae40434b18a3fc179d6c3442a0320c6a77205d7eb8c3ec145b771172d",
       "mode": "100644",
-      "git_blob": "314ec865b6dae210affc403a1e8882bfa0df3c0a",
+      "git_blob": "fe4d2425cf0ff2169b673c8a8308e2138243efba",
       "ownership_review": {
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "3d1d24313e4156517d323caaece5b0fed280adc7",
@@ -1033,9 +1033,9 @@
     },
     {
       "path": "src/kernel/kernel_hal.c",
-      "sha256": "fab56d9ea5cd179d3f8a7adfa9cd71d62c1f3dcba21bd0b49d3ea7a614bf5a2b",
+      "sha256": "c733fca3746f222a6ae32faff615e6e445c624735fdb0bb32cebecaaf74c5a41",
       "mode": "100644",
-      "git_blob": "7c781143317d45152f89530c6ced375655dac4ac"
+      "git_blob": "45fdbd41a65da825b8b8c6416df41df9b6476760"
     },
     {
       "path": "src/kernel/kernel_io.c",
@@ -4869,7 +4869,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "c26d2d869e46f5e2df060d7a554b65ebcfd5e85d",
+  "fork_tree": "336a813ec393f657e0365d7f544b1413c5500843",
   "coverage": {
     "tracked_files": 625,
     "tracked_src_files": 153,

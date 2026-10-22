@@ -1708,3 +1708,12 @@ Fork checkpoint for this batch: `364d9d1`.
 - A first fixture exposed missing native export 103 despite bridge support;
   that separate coverage gap remains open. Fixed kernel-data placement, worker
   stack policy, broader export coverage and whole-fork ownership remain open.
+
+- Publication reconciliation: remote fork 371a553 (APU FIFO) and root 87bebad
+  (audio guard wait, including race-entry metadata) advanced during validation.
+  They are merged without rewriting history. Inventory hashes include the merge;
+  this checkpoint does not certify ownership of the incoming changes. Combined
+  Windows memory/kernel/bridge suites and Linux kernel/thunk suites pass again.
+  The refreshed runtime-entry metadata required regenerating ignored local bodies
+  with MM3's pinned generator before rebuilding the combined game.
+- Combined SDL3 GPU and D3D11 game builds pass after pinned runtime-entry regeneration.
