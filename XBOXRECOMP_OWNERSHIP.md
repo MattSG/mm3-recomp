@@ -632,3 +632,30 @@ this goal complete from the spinner migration or a clean name search alone.
   allocations. Its active cross-subsystem callers require range/lifetime
   validation before concluding that the fixed pool is safe for other images.
 - The full artifact/runtime and final inventory audits remain incomplete.
+
+
+### Twenty-second boundary: image-aware callback-stack placement
+
+- The active callback pool used the fixed 0x780000 guest range even when an
+  image occupied it. A real-loader synthetic image at 0x910000 reproduced
+  corruption: filling all leased callback stacks overwrote its code bytes.
+- The loader now places the existing pool page-aligned beyond all loaded
+  sections, retaining the conventional runtime stack base when it is already
+  above the image. Both fresh and reused ordinary heap allocations stay above
+  the image/pool ownership floor. No per-title classifier, new allocator or
+  per-callback heap churn was introduced; the bounded slot allocator remains.
+- A pool that cannot fit in mapped guest RAM is disabled. Shutdown clears its
+  placement and leases; the next load computes a fresh range. The startup-only
+  reset interface also supports standalone caller-owned guest mappings.
+- Regression checks fill all 16 leases and preserve image bytes, check pool
+  exhaustion/release, shutdown and image replacement, place an image above the
+  conventional heap, exclude that relocated pool from heap allocation, and
+  reject pool/heap allocations for an image reaching mapped RAM's upper edge.
+  The corruption check failed before the repair and passes after it.
+- Validation: both 8-case bridge builds (feedback on/off), 61 kernel cases,
+  7 memory regressions, 2 network cases, APU physical mapping and both complete
+  Windows game builds pass. Evidence: ownership-callback-*-{build,tests}.log.
+  Actual MM3 XBE inspection finds 35 sections ending at 0x489DE0 and the same
+  0x780000 callback placement as before (ownership-callback-mm3-layout.json).
+  No fresh gameplay or Linux callback-runtime acceptance is claimed here.
+- Full artifact/runtime and final inventory audits remain incomplete.
