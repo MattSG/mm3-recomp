@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "f507c486bcc8e7fdd11ea10c47f293b3ad3543c1",
+  "fork_commit": "494beb888bca0f4487fe14838645046d19fb41d5",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -251,14 +251,21 @@
     {
       "path": "docs/pipeline/05-runtime.md",
       "mode": "100644",
-      "git_blob": "5c2155905a0e5420f78b1e35f2c26513299a062b",
-      "sha256": "2554d308199621f0fac729bbd42a53f467373d6d0e669d12c371dce3d0370b0c",
+      "git_blob": "b9a03c6097ebed1356341b9185eec34243b2fadf",
+      "sha256": "74b7b75b53bc48cbf1514c9c9c35a5475a7f254048cf1e73d0614bedad31d3d2",
       "ownership_review": {
-        "decision": "retain_generic",
-        "reviewed_at_fork": "f507c486bcc8e7fdd11ea10c47f293b3ad3543c1",
-        "scope": "Full current-API runtime integration guide replacing captured-title setup and obsolete bring-up claims",
-        "evidence": "Original runtime guide and two captured-title source comments archived in MM3 with commit/blob provenance; normalized guide text preserved; new links resolve; source code identical with comments removed; Windows starter rebuilt and 4/4 startup/failure cases pass.",
-        "limit": "Documentation and scoped comment ownership; no new gameplay/renderer/kernel fidelity claim. Legacy fence description and remaining runtime/header ownership need separate review."
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
+        "scope": "Migration guidance for removed synthetic GPU progress in the previously reviewed current-API setup guide",
+        "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
+        "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite.",
+        "prior_review": {
+          "decision": "retain_generic",
+          "reviewed_at_fork": "f507c486bcc8e7fdd11ea10c47f293b3ad3543c1",
+          "scope": "Full current-API runtime integration guide replacing captured-title setup and obsolete bring-up claims",
+          "evidence": "Original runtime guide and two captured-title source comments archived in MM3 with commit/blob provenance; normalized guide text preserved; new links resolve; source code identical with comments removed; Windows starter rebuilt and 4/4 startup/failure cases pass.",
+          "limit": "Documentation and scoped comment ownership; no new gameplay/renderer/kernel fidelity claim. Legacy fence description and remaining runtime/header ownership need separate review."
+        }
       }
     },
     {
@@ -1063,21 +1070,35 @@
     },
     {
       "path": "src/kernel/xbox_memory_layout.c",
-      "sha256": "0779d3e61891245e6359edcecc185520e600c026bd1a202789fd80de31fa16f8",
+      "sha256": "ce0b5af3a8dbdab53af8992187edff9281a1cbc9fb88ce0742965d863721d009",
       "mode": "100644",
-      "git_blob": "27620f07d5b3c910f9c5e243cf7de14cfc555399"
+      "git_blob": "5392556db76d8251d985089bd7f955468436b44b",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
+        "scope": "Registered counters/fence completion boundary: removed submitted-counter mirroring, wall-clock frame synthesis and snapshot-derived fences; retain executed flips and command releases only",
+        "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
+        "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite."
+      }
     },
     {
       "path": "src/kernel/xbox_memory_layout.h",
-      "sha256": "4ef62ee0f85a500dc7de15e522201c0a9dcc777247a2ec080301de8dd01b2004",
+      "sha256": "e3324f32457b4184cc7b6fc4cb16ee32678141d008e4244e7c959baf99ada886",
       "mode": "100644",
-      "git_blob": "908c0ff26131066277e5326d63009d47f2fb1bc6",
+      "git_blob": "24ab9de0a14b36b44602ea23d2ee7b3a243d8c99",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "f507c486bcc8e7fdd11ea10c47f293b3ad3543c1",
-        "scope": "Expanded mapping rationale comment only; remaining declarations and legacy fence commentary not certified",
-        "evidence": "Original runtime guide and two captured-title source comments archived in MM3 with commit/blob provenance; normalized guide text preserved; new links resolve; source code identical with comments removed; Windows starter rebuilt and 4/4 startup/failure cases pass.",
-        "limit": "Documentation and scoped comment ownership; no new gameplay/renderer/kernel fidelity claim. Legacy fence description and remaining runtime/header ownership need separate review."
+        "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
+        "scope": "Counter/fence API declarations and documentation for the removed policies; other header areas retain only their prior scoped reviews",
+        "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
+        "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "f507c486bcc8e7fdd11ea10c47f293b3ad3543c1",
+          "scope": "Expanded mapping rationale comment only; remaining declarations and legacy fence commentary not certified",
+          "evidence": "Original runtime guide and two captured-title source comments archived in MM3 with commit/blob provenance; normalized guide text preserved; new links resolve; source code identical with comments removed; Windows starter rebuilt and 4/4 startup/failure cases pass.",
+          "limit": "Documentation and scoped comment ownership; no new gameplay/renderer/kernel fidelity claim. Legacy fence description and remaining runtime/header ownership need separate review."
+        }
       }
     },
     {
@@ -2036,8 +2057,15 @@
     {
       "path": "tests/kernel_dispatch/nv2a_command_fence_test.c",
       "mode": "100644",
-      "git_blob": "c57fdd27600e8b55957a5ff901bdc42ca9ea90d7",
-      "sha256": "b194cfe7401cfa7b891042df59f9a9fdb950798cfd8e9170713fd3e380202940"
+      "git_blob": "16eb7a306c136d559cc13b17fbaf7cbc6779d6cb",
+      "sha256": "2a3ff2f281026b5c18e66489c1a78a99baac347f039296f21c4c16f34ead0444",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
+        "scope": "Synthetic executed semaphore/flip counters, invalid chains, wrap, unconfigured registration, ordering and read-only diagnostics",
+        "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
+        "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite."
+      }
     },
     {
       "path": "tests/kernel_dispatch/nv2a_dma_sync_test.c",
@@ -4291,7 +4319,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "16cb7bf35e4f3208325578c7fd4137886afd7411",
+  "fork_tree": "d4706b6067ed682c39963c61de184aa24e4bbfa0",
   "coverage": {
     "tracked_files": 622,
     "tracked_src_files": 153,

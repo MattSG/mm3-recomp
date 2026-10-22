@@ -1287,3 +1287,30 @@ source area, final cumulative runtime checks and repository/publication inventor
   edits. Complete 622-file committed-tree/blob/hash inventory refreshed.
 - Broader ownership decisions, cumulative validation and final repository/
   publication proof remain open.
+
+
+### Remove synthetic GPU completion policy from the shared runtime
+
+- Removed the unused submitted-to-completed field mirror API, wall-clock frame
+  counter fallback and snapshot-derived fence publication. The original source
+  blocks/header commentary, including captured dashboard/Wreckless/Half-Life 2
+  observations, are preserved as normalized text in
+  tools/reference/legacy_gpu_counter_policy.md. Ports needing synthetic pacing
+  own that compatibility policy; the SDK guide documents this breaking change.
+- Retained actual executed non-replay flip counters and command-driven semaphore
+  completion. Registering a fence alone cannot publish completion; the port must
+  configure its command selector. MM3 already registers command-driven fences
+  and has no counter-mirror or frame-clock registrations. Version-1 capture
+  layout is retained with the obsolete counter_mirrors field zero.
+- Extended the real command-fence regression with flip-counter uint32 wrap,
+  missing device chains and inert unconfigured fence registration. Windows
+  kernel suite passes 61/61; both Windows renderer game builds pass. Evidence:
+  ownership-counter-policy-{build,tests,sdl-build,d3d11-build}.log. Linux focused
+  command-fence validation passes 1/1 (ownership-counter-policy-linux.log); the
+  full Linux kernel suite was not run.
+- Refreshed the complete 622-file committed-tree/blob/hash inventory. This is
+  scoped completion-policy ownership evidence, not a full memory-layout audit
+  or gameplay/device fidelity proof. CaptureSnapshot still decodes device fields
+  at 0x17C0 and 0x4F8; that image-layout boundary needs a separate caller-configured
+  migration. Other ownership, cumulative validation and final repository/
+  publication proof remain open.
