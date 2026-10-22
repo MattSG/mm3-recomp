@@ -303,5 +303,18 @@
     "legacy_private_arena_end": "0x80001000",
     "half_life2_usb_aperture": "0xFED00000",
     "purpose": "Historical driver observations, not runtime address selectors. Shared physical resolution covers backed contiguous pages and runtime RAM IDs; loaded-image precedence preserves legacy static buffers."
+  },
+  "usb_transfer_debug_history": {
+    "source": "XboxRecomp 9c71042 src/usb/ohci.c and src/usb/usb_gamepad.c comments",
+    "dds9_reset_write": "0x01100010",
+    "dds9_enumeration_loop": "GET_DESCRIPTOR, SET_ADDRESS, GET_DESCRIPTOR when each chunk repeated the start of the configuration descriptor",
+    "burnout3_rumble_interleaving": "Crash countdown rumble on endpoint 2 cleared pending endpoint-zero setup; menu SET_REPORT (21 09) completions overwrote same-pass input completions before a combined done queue was used",
+    "xmen_legends_configuration_request": {
+      "requested_bytes": 80,
+      "returned_bytes": 32,
+      "observed_failure": "Success path followed a dummy-tail descriptor when a short non-rounded IN did not halt with DATA UNDERRUN"
+    },
+    "burnout3_stick_input": "Steering and map location selection use stick directions independently of d-pad input",
+    "purpose": "Captured title debugging context is owned here; generic USB protocol mechanisms and independent scripted input remain in XboxRecomp."
   }
 }

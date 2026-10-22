@@ -1,6 +1,6 @@
 {
   "scope": "FFF-discovered src files verified present in the ownership worktree; whole-fork completeness is not established",
-  "fork_commit": "9c71042c2c25182372dd576a9c423c3001390788",
+  "fork_commit": "3ccf1b295483c3226313ed44fa50755f232de80e",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -517,13 +517,13 @@
     },
     {
       "path": "src/usb/ohci.c",
-      "sha256": "2333c19b02cd0966e816a4df4e241116023e2406939461804538d04b4ab0ea41",
+      "sha256": "a4c86491045ab62dd7cb5c634313ac2f4b2908253f41a79fdd8133a3ac519ac9",
       "ownership_review": {
-        "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "9c71042c2c25182372dd576a9c423c3001390788",
-        "scope": "Guest DMA resolver and rd32/wr32/guest_ptr callers",
-        "evidence": "Real Windows kernel_io_mapping regression fails before fallback removal and passes after; backed page zero/edge and runtime RAM IDs retained; both MM3 backends build; WSL Linux real memory-mapping case also passes",
-        "limit": "Remaining OHCI internals not reviewed; not complete USB fidelity or shutdown lifecycle proof"
+        "decision": "retain_generic",
+        "reviewed_at_fork": "3ccf1b295483c3226313ed44fa50755f232de80e",
+        "scope": "Register/root-hub writes, control/report TDs, ED walker, completion publication and service/IRQ paths; prior DMA boundary review retained",
+        "evidence": "Title debugging history moved to MM3 reference data; non-comment source identical to 9c71042; prior Windows/Linux real memory-mapping regressions and Windows renderer builds passed",
+        "limit": "Ownership review, not full USB protocol, timing, interrupt or lifecycle fidelity. Four-ms sweep, bounded walkers and forced IRQL recovery remain model approximations."
       }
     },
     {
@@ -539,7 +539,14 @@
     },
     {
       "path": "src/usb/usb_gamepad.c",
-      "sha256": "cd44cce2467140d3f40438044c5e2f535f1ff27c754473f482b47c7e4d0ab647"
+      "sha256": "2bb43fecd0368c51cf57a9343fb88139f214234f4bebac6ec9c7fd4ed3f37781",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "3ccf1b295483c3226313ed44fa50755f232de80e",
+        "scope": "Scripted stick-direction button parsing comment; broader device implementation not covered by this pass",
+        "evidence": "Captured Burnout 3 input motivation moved to MM3 reference data; non-comment source identical to 9c71042",
+        "limit": "No new input behavior or gameplay proof; full gamepad review remains open"
+      }
     },
     {
       "path": "src/usb/usb_gamepad.h",

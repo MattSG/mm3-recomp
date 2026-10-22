@@ -915,3 +915,27 @@ source area, final cumulative runtime checks and repository/publication inventor
   the Windows parent worktree metadata while applying the SDL source patch.
 - Remaining OHCI transfer/scheduler/IRQ internals, other runtime/tool artifacts,
   whole-fork inventory and cumulative final proof remain open.
+
+### USB protocol mechanisms and captured debugging history
+
+- Reviewed root-hub reset/change ordering, control response chunking, report and
+  OUT endpoints, short-IN outcomes, descriptor walking, done publication and
+  the service/IRQ paths. Retain these generic mechanisms; no title name selects
+  them. Scripted stick directions likewise remain independent of d-pad input.
+- Moved the DDS9 reset/enumeration history, Burnout 3 rumble/completion and
+  stick-input observations, and X-Men Legends short-descriptor history into
+  MM3 reference data. Runtime comments now describe the generic mechanism.
+- Removed stale comments claiming descriptor walking/repeated interrupts were
+  absent, corrected the four-ms frame-count explanation and stopped describing
+  the two-second model holdoff as an 80-ms hardware rule. No scheduler, timing,
+  IRQ, transfer or input behavior changed.
+- Compared both edited files against fork 9c71042 with strings preserved and
+  comments/whitespace excluded: their remaining source is identical. Evidence:
+  ownership-usb-history-check.log. No new runtime acceptance is claimed for a
+  comment-only migration; preceding Windows/Linux mapping and Windows build
+  results remain scoped to their actual checks.
+- Four-ms periodic sweeps, bounded walkers, delayed device arrival and forced
+  delivery after IRQL holdoff are model approximations, not proven hardware
+  fidelity. This ownership decision does not certify complete USB/lifecycle
+  correctness. Full gamepad source review, remaining source/tool artifacts,
+  whole-fork inventory and cumulative final proof remain open.
