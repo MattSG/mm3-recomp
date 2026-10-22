@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "6ee217d95a50e48182f5275f7f78f7ab00ed7ef9",
+  "fork_commit": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1305,7 +1305,14 @@
       "path": "src/video/nv2a_d3d11.c",
       "sha256": "1327edceec92598c83bce6bc5931d787d8138c74aeaa2feba1922d236288a842",
       "mode": "100644",
-      "git_blob": "aa68c3620b8d5ea3b0446e32cca9fc1dd2481aae"
+      "git_blob": "aa68c3620b8d5ea3b0446e32cca9fc1dd2481aae",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
+        "scope": "Shader-family identity and manifest import/worker integration boundary only; rest of renderer remains unreviewed",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
+      }
     },
     {
       "path": "src/video/nv2a_d3d11.h",
@@ -1323,7 +1330,14 @@
       "path": "src/video/nv2a_ps_manifest.h",
       "sha256": "5d82461218446d30e108eee5960c2a6aa34f5a1f18bfc74452610a7184e311eb",
       "mode": "100644",
-      "git_blob": "5ddea2c54e39f2f8557b4dcf34722ba9a3b7c10f"
+      "git_blob": "5ddea2c54e39f2f8557b4dcf34722ba9a3b7c10f",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
+        "scope": "Full bounded observed-state metadata format, validation and atomic publication",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
+      }
     },
     {
       "path": "src/video/nv2a_render_common.h",
@@ -1347,7 +1361,14 @@
       "path": "src/video/nv2a_shader_cache.h",
       "sha256": "f62f9407e018145c62381fc07b6eddea386488729ec8a7de41e8df49d6ca08ff",
       "mode": "100644",
-      "git_blob": "b1b85c0b983ccf54c32b107e71b20b943a264eea"
+      "git_blob": "b1b85c0b983ccf54c32b107e71b20b943a264eea",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
+        "scope": "Full portable hashing/key and Windows validated bytecode file-cache implementation",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
+      }
     },
     {
       "path": "src/video/nv2a_texture_hash.h",
@@ -2382,25 +2403,53 @@
       "path": "tests/nv2a_ps_prewarm/CMakeLists.txt",
       "mode": "100644",
       "git_blob": "fb502ccdfb33090c90e7e2d7def770782078178f",
-      "sha256": "176efe97b4710a0aa5525cb6b3e998bdc152782ea9e8c76add586fe61501817d"
+      "sha256": "176efe97b4710a0aa5525cb6b3e998bdc152782ea9e8c76add586fe61501817d",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
+        "scope": "Standalone synthetic cache/warmup regression fixtures and build instructions",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
+      }
     },
     {
       "path": "tests/nv2a_ps_prewarm/README.md",
       "mode": "100644",
-      "git_blob": "bef5a46e6cea7169d9bc247ae12b364d674c266a",
-      "sha256": "2ec3e40e345fd0506197f3c1c6afc4186d5ed5d2348450b1cfc755c5d871062d"
+      "git_blob": "57cd105708e6f10287b950c027e355f8f6951c8b",
+      "sha256": "22fef3c55c8ffdc2eeace73d273694f7ac95321c6b29b7964fa4819a2671af9a",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
+        "scope": "Standalone synthetic cache/warmup regression fixtures and build instructions",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
+      }
     },
     {
       "path": "tests/nv2a_ps_prewarm/test_main.c",
       "mode": "100644",
       "git_blob": "6e8b1376490247b32b777ed702f8ffaf7c6790ae",
-      "sha256": "1ee741eb789c693d57e513197f2bbb2d30d269faff4bd54f421283d6c34f6c3e"
+      "sha256": "1ee741eb789c693d57e513197f2bbb2d30d269faff4bd54f421283d6c34f6c3e",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
+        "scope": "Standalone synthetic cache/warmup regression fixtures and build instructions",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
+      }
     },
     {
       "path": "tests/nv2a_ps_prewarm/test_ps_prewarm_sdlgpu.c",
       "mode": "100644",
       "git_blob": "d322a761b190bf0d0f4cececf7c864022c2d1b9f",
-      "sha256": "8a6ef606d6bbf91f125bfd878e06a382ac0ec1eb35f29567236c817dd0726f11"
+      "sha256": "8a6ef606d6bbf91f125bfd878e06a382ac0ec1eb35f29567236c817dd0726f11",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
+        "scope": "Standalone synthetic cache/warmup regression fixtures and build instructions",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
+      }
     },
     {
       "path": "tests/nv2a_readback/CMakeLists.txt",
@@ -2478,19 +2527,40 @@
       "path": "tests/nv2a_shader_cache/CMakeLists.txt",
       "mode": "100644",
       "git_blob": "c09b47d1bf192c4f5a328780b6fea8805c62aec0",
-      "sha256": "51682f47aeb4be58e665cec8c83154fae1186cb0c074f20b93b3030989e5cd99"
+      "sha256": "51682f47aeb4be58e665cec8c83154fae1186cb0c074f20b93b3030989e5cd99",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
+        "scope": "Standalone synthetic cache/warmup regression fixtures and build instructions",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
+      }
     },
     {
       "path": "tests/nv2a_shader_cache/test_key.c",
       "mode": "100644",
       "git_blob": "5e9c326122040074043060539d5e957cd9896857",
-      "sha256": "3b8ed279143060e159e3a7f8078d825d6470c7bebca27ce0f22e3ca35e05bfba"
+      "sha256": "3b8ed279143060e159e3a7f8078d825d6470c7bebca27ce0f22e3ca35e05bfba",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
+        "scope": "Standalone synthetic cache/warmup regression fixtures and build instructions",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
+      }
     },
     {
       "path": "tests/nv2a_shader_cache/test_main.c",
       "mode": "100644",
       "git_blob": "ff86cb712913f66849244df6639013f7467cd57a",
-      "sha256": "153e86e1bd1acc59239a3dfcef6416dfaa07480bebf62d6732d22327674c9ac3"
+      "sha256": "153e86e1bd1acc59239a3dfcef6416dfaa07480bebf62d6732d22327674c9ac3",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
+        "scope": "Standalone synthetic cache/warmup regression fixtures and build instructions",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
+      }
     },
     {
       "path": "tests/nv2a_shader_lookup/CMakeLists.txt",
@@ -4179,7 +4249,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "3841f1adaea19f36f06a8be803a0b0988449f98f",
+  "fork_tree": "b258dabe4683ebb2a346ae1ffa75a074673952f9",
   "coverage": {
     "tracked_files": 622,
     "tracked_src_files": 153,

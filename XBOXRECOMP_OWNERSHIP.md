@@ -1220,3 +1220,26 @@ source area, final cumulative runtime checks and repository/publication inventor
   Complete inventory now covers 622 tracked files, including all 153 src paths.
   Remaining ownership decisions, cumulative validation and final repository/
   publication proof remain open.
+
+### Retained observed-state shader cache and warmup mechanisms
+
+- Reviewed the full portable shader-key/hash and Windows bytecode cache headers,
+  bounded PS manifest format, and standalone cache/warmup fixtures. Retain these
+  generic mechanisms: no captured shader assets or title-specific preload list
+  is embedded. Manifest families derive from shared shader source, specialization
+  layout, variants, compiler flags and schema. The D3D11 integration review covers
+  this family/import/worker boundary only, not the whole renderer.
+- Windows bytecode-cache checks pass 2/2; Windows warmup checks pass 11/11,
+  including malformed metadata, worker scheduling/persistence, bypass/fallback,
+  synthetic GPU comparisons and dynamic constants. Linux portable key/hash checks
+  pass 1/1. Evidence: ownership-shader-cache-tests.log,
+  ownership-shader-cache-linux.log and ownership-ps-prewarm-tests.log. These do
+  not establish Linux file-cache/warmup execution, all-device compatibility or
+  original-game rendering fidelity.
+- Moved the old game-checkout/environment-script build paragraph into
+  tools/reference/legacy_ps_prewarm_integration.md and verified its original text.
+  The fork now documents commands from its own root with native CMake/CTest and
+  the Windows SDK/MSVC environment. No production code changed in this checkpoint.
+- Refreshed the complete 622-file committed-tree/blob/hash inventory with ten
+  scoped decisions. Remaining fork ownership decisions, cumulative validation
+  and final repository/publication proof remain open.
