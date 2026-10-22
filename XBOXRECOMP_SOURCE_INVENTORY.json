@@ -29,7 +29,14 @@
     },
     {
       "path": "src/apu/apu_dsp.c",
-      "sha256": "f586f82dc156d46571ad53c2a384a7a3d4c2cae1ebb3ed4181e83b176497525a"
+      "sha256": "f586f82dc156d46571ad53c2a384a7a3d4c2cae1ebb3ed4181e83b176497525a",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "2048adff4eed1b0a4486d8e801c01ec6e6a49120",
+        "scope": "GP/EP MMIO/FIFO/frame glue and capture/bootstrap/program-export paths inspected",
+        "evidence": "Synthetic program export executes on Windows and Linux; Windows DSP suite passes 21 cases",
+        "limit": "Remaining ISA/provenance and full audio fidelity are not established by this scoped review"
+      }
     },
     {
       "path": "src/apu/apu_mmio_hook.c",
@@ -89,7 +96,14 @@
     },
     {
       "path": "src/apu/dsp/dsp.c",
-      "sha256": "86bd8ef257829b984067de39b3abf6c6029a8fdbe91dd30633b1e74333171fae"
+      "sha256": "86bd8ef257829b984067de39b3abf6c6029a8fdbe91dd30633b1e74333171fae",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "2048adff4eed1b0a4486d8e801c01ec6e6a49120",
+        "scope": "GP/EP MMIO/FIFO/frame glue and capture/bootstrap/program-export paths inspected",
+        "evidence": "Synthetic program export executes on Windows and Linux; Windows DSP suite passes 21 cases",
+        "limit": "Remaining ISA/provenance and full audio fidelity are not established by this scoped review"
+      }
     },
     {
       "path": "src/apu/dsp/dsp.h",

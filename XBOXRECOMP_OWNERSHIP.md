@@ -793,3 +793,28 @@ source area, final cumulative runtime checks and repository/publication inventor
   external reference comparison was run. Evidence: ownership-dsp-audit-*.log.
   The remaining DSP/runtime code, provenance inventory, all tracked artifacts
   and final cumulative/repository proof still require the broader audit.
+
+
+### Retained area: DSP runtime capture and program export (2026-10-22)
+
+- Reviewed GP/EP register/memory-window, FIFO/PCM/frame flow and capture,
+  bootstrap, program-export and execution scheduling paths in apu_dsp.c and
+  dsp/dsp.c. Retain those generic hardware/diagnostic mechanisms. Capture
+  prefixes and program output directories come from the caller; exported words
+  come from guest program memory, not an embedded title image or name selector.
+- Added an actual runtime export check with a synthetic NOP/jump loop, run
+  separately for GP and EP. Interpreted execution triggers automatic program
+  collection; the exported fixed-size image contains the executed loop, omits
+  an untouched nonzero data word, and leaves guest memory intact. Each test
+  removes only its exact private build-directory output and refuses stale data
+  if removal fails. Frame capture is disabled for that fixture.
+- All 21 current Windows DSP cases pass, including both export checks. Both
+  new export checks also compile and pass under WSL Linux. Evidence:
+  ownership-dsp-export-{build,tests}.log and ownership-dsp-export-linux.log.
+  The Linux run covers these two cases only; no external xemu reference was
+  configured for the Windows suite.
+- Inventory source hashes match the previously recorded runtime files; the
+  scoped retain decisions are now attached to those entries. No runtime
+  implementation or title policy changed in this pass. Remaining ISA/source
+  provenance review, complete audio fidelity and whole-fork artifact/final
+  inventory acceptance remain distinct and unproven.
