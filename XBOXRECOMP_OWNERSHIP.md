@@ -1114,3 +1114,27 @@ source area, final cumulative runtime checks and repository/publication inventor
 - New synthetic regression is tracked: the complete fork inventory now covers
   625 files (153 src, 218 tools); tree/blob/hash coverage was refreshed while
   preserving prior scoped decisions.
+
+### SVOD extraction boundary and captured corpus vectors
+
+- Inspected block mapping, directory parsing, sector-base derivation and hints,
+  caller-selected package/base/output interfaces and XBE diagnostics. Retain
+  these generic mechanisms: candidate bases are checked against actual root
+  and XBE data, not selected by title identity. Format stride/default-sector
+  constants remain shared format rules; no captured game package is shipped.
+- Moved the original corpus layout/base measurements, derivation/header-hint
+  and corrupt-XBE observations, and two original observed-value test snippets
+  into tools/reference/legacy_svod_observations.md with source commit/context.
+  Replaced the active tests' observed directory/TLS numbers with synthetic
+  values while preserving the parser/decoy/corruption cases.
+- Production AST is unchanged excluding docstrings. Test AST is unchanged
+  except seven explicit integer substitutions; the original observation text
+  remains in the archive. All 41 Fusion tests pass. Evidence:
+  ownership-svod-source-check.log and ownership-svod-generic-tests.log.
+- Generic docs now state that sampled hashes do not authenticate the whole
+  hash tree and XBE confidence thresholds are not universal validity rules.
+  No captured-package extraction, complete format support, resource lifecycle,
+  full XBE validation or gameplay acceptance is claimed by these tests.
+- Complete 625-file committed tree/blob/hash inventory refreshed. Other Fusion
+  corpus/documentation, remaining source/tool/test ownership and cumulative/
+  final repository proof remain open.

@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "e56c331877be1b526b9e5f77fcb5b92ff20aefb3",
+  "fork_commit": "77dea704ca346a6651672323bf8c151a90366166",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -3161,8 +3161,15 @@
     {
       "path": "tools/fusion/svod.py",
       "mode": "100644",
-      "git_blob": "cc0986e7cadd10c40ecdaec3a82aa40ca60f2f28",
-      "sha256": "1c02a6ca7fd026d89d7d98dcdf4c3155b58a3972ecbf4e4c7d070c4d28b339b0"
+      "git_blob": "159246532922e0384a528206aab268ef8621a0a7",
+      "sha256": "4413fa061f74ffd57f809994f3a9f5daba4e85a2da7b263c3076d7b912cfc8eb",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "77dea704ca346a6651672323bf8c151a90366166",
+        "scope": "SVOD block/directory/base-derivation/header-hint and XBE diagnostic boundary",
+        "evidence": "41 Fusion cases pass; production AST unchanged excluding docstrings; test AST unchanged except seven synthetic integer substitutions; original corpus notes and test snippets preserved in MM3 reference archive",
+        "limit": "Not a full package/extraction/authentication/lifecycle or every-XBE validity proof; hash sampling and XBE confidence checks remain heuristic; no captured package supplied"
+      }
     },
     {
       "path": "tools/fusion/test_lifter_diff.py",
@@ -3192,8 +3199,15 @@
     {
       "path": "tools/fusion/test_svod.py",
       "mode": "100644",
-      "git_blob": "7e278ab3790ef6672670487cd9e25ffbc2101f89",
-      "sha256": "da8e2cc3c843e5f905d607dd7107f5beaaff30a91590ddbbcb7e7370c936f289"
+      "git_blob": "66404ed5f10358845605bd7b607825d5e17e5f90",
+      "sha256": "da114cd9eccee257a2e02e155b7b7b2358d63cf5577d145c428403aec15359eb",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "77dea704ca346a6651672323bf8c151a90366166",
+        "scope": "Synthetic block mapping, directory/base decoys and XBE diagnostic cases; captured numeric observations replaced",
+        "evidence": "41 Fusion cases pass; production AST unchanged excluding docstrings; test AST unchanged except seven synthetic integer substitutions; original corpus notes and test snippets preserved in MM3 reference archive",
+        "limit": "Not a full package/extraction/authentication/lifecycle or every-XBE validity proof; hash sampling and XBE confidence checks remain heuristic; no captured package supplied"
+      }
     },
     {
       "path": "tools/ghidra_naming/.gitignore",
@@ -4038,7 +4052,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "1cf8a0159a84cbb8a30f37ab966061690ef9fd8a",
+  "fork_tree": "00c9145a9d4620535224f279e4001a9869c76d75",
   "coverage": {
     "tracked_files": 625,
     "tracked_src_files": 153,
