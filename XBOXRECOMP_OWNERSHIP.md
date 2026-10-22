@@ -1262,3 +1262,28 @@ source area, final cumulative runtime checks and repository/publication inventor
 - Refreshed all 622 committed file identities/hashes; preserved prior scoped
   navigation reviews. Other documentation/runtime/artifact ownership, cumulative
   validation and final branch/submodule/worktree/publication proof remain open.
+
+
+### Runtime setup follows shared APIs; captured bring-up history moves out
+
+- Archived the full original pipeline runtime guide in
+  tools/reference/legacy_runtime_setup.md with source commit/blob provenance.
+  Its captured title addresses/import/override counts, executable path and old
+  memory/MMIO/heap claims are historical, not SDK guarantees. The original text
+  matches after line-ending normalization.
+- Replaced it with current starter/API guidance: image-derived memory/thunks,
+  explicit thread policy, shared host initialization and checked failure paths,
+  teardown lifetimes, mapping versus installed RAM, renderer selection, TLS guest
+  registers, direct/indirect hook reachability and both halves of ABI checking.
+  The Windows starter is explicitly distinguished from a cross-platform port.
+- Captured dispatch-performance and expanded-mapping observations in the starter
+  and memory header moved to the same MM3 archive. Their replacement comments
+  explain the generic contracts. Both source files are identical with block
+  comments removed. This does not certify the rest of the memory header: its
+  legacy fence description and remaining runtime ownership still need review.
+- Replacement links resolve; Windows starter rebuild and all four startup/
+  failure-path cases pass (ownership-runtime-guide-{build,tests}.log). No new
+  runtime behavior or original-game fidelity is claimed by these comment/docs
+  edits. Complete 622-file committed-tree/blob/hash inventory refreshed.
+- Broader ownership decisions, cumulative validation and final repository/
+  publication proof remain open.

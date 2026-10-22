@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "e7a7589beb9668f223527c8fedd3bdf3a7107cba",
+  "fork_commit": "f507c486bcc8e7fdd11ea10c47f293b3ad3543c1",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -251,8 +251,15 @@
     {
       "path": "docs/pipeline/05-runtime.md",
       "mode": "100644",
-      "git_blob": "0a0a7ddc3778c98ba14122305b00a5be6d3368bb",
-      "sha256": "765b193a10540714f9557b961d23c07453e38c61056cb7f3f89f1928f443190a"
+      "git_blob": "5c2155905a0e5420f78b1e35f2c26513299a062b",
+      "sha256": "2554d308199621f0fac729bbd42a53f467373d6d0e669d12c371dce3d0370b0c",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "f507c486bcc8e7fdd11ea10c47f293b3ad3543c1",
+        "scope": "Full current-API runtime integration guide replacing captured-title setup and obsolete bring-up claims",
+        "evidence": "Original runtime guide and two captured-title source comments archived in MM3 with commit/blob provenance; normalized guide text preserved; new links resolve; source code identical with comments removed; Windows starter rebuilt and 4/4 startup/failure cases pass.",
+        "limit": "Documentation and scoped comment ownership; no new gameplay/renderer/kernel fidelity claim. Legacy fence description and remaining runtime/header ownership need separate review."
+      }
     },
     {
       "path": "docs/pipeline/06-debugging.md",
@@ -1062,9 +1069,16 @@
     },
     {
       "path": "src/kernel/xbox_memory_layout.h",
-      "sha256": "5ae9219f07325beea79f42859c3cab12bdaec67e992eca899388b8120c217a8e",
+      "sha256": "4ef62ee0f85a500dc7de15e522201c0a9dcc777247a2ec080301de8dd01b2004",
       "mode": "100644",
-      "git_blob": "e4b4ee48e967271fe63514cfe65ac0a2708b9572"
+      "git_blob": "908c0ff26131066277e5326d63009d47f2fb1bc6",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "f507c486bcc8e7fdd11ea10c47f293b3ad3543c1",
+        "scope": "Expanded mapping rationale comment only; remaining declarations and legacy fence commentary not certified",
+        "evidence": "Original runtime guide and two captured-title source comments archived in MM3 with commit/blob provenance; normalized guide text preserved; new links resolve; source code identical with comments removed; Windows starter rebuilt and 4/4 startup/failure cases pass.",
+        "limit": "Documentation and scoped comment ownership; no new gameplay/renderer/kernel fidelity claim. Legacy fence description and remaining runtime/header ownership need separate review."
+      }
     },
     {
       "path": "src/net/CMakeLists.txt",
@@ -1526,8 +1540,15 @@
     {
       "path": "templates/new-game/src/main.c",
       "mode": "100644",
-      "git_blob": "2bad2cd3443ebb88c9571477266e7c14a485b64d",
-      "sha256": "b8cc1cbe28d9128828ab95041cc9c466fd3c01221fb1905ebb86e0498918de7e"
+      "git_blob": "4c5ecc4760d235b8a76ffd178f985864775fda30",
+      "sha256": "99bffaaaf1b6cb5e57252059eeb3a41f759db3f42ce6a43add3be8d7e17d4616",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "f507c486bcc8e7fdd11ea10c47f293b3ad3543c1",
+        "scope": "Dispatch initialization comment only; prior startup implementation review retained",
+        "evidence": "Original runtime guide and two captured-title source comments archived in MM3 with commit/blob provenance; normalized guide text preserved; new links resolve; source code identical with comments removed; Windows starter rebuilt and 4/4 startup/failure cases pass.",
+        "limit": "Documentation and scoped comment ownership; no new gameplay/renderer/kernel fidelity claim. Legacy fence description and remaining runtime/header ownership need separate review."
+      }
     },
     {
       "path": "templates/new-game/src/recomp_manual.c",
@@ -4270,7 +4291,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "f953b4de9181f169c9f75ab96c2c2e0290a27441",
+  "fork_tree": "16cb7bf35e4f3208325578c7fd4137886afd7411",
   "coverage": {
     "tracked_files": 622,
     "tracked_src_files": 153,
