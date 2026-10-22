@@ -255,6 +255,13 @@ int main(void)
         return 1;
     }
 
+    /* MM3 retains its inherited main-stack placement/budget as port policy.
+     * The shared runtime validates it and keeps callback slices separate. */
+    if (!xbox_ConfigureMainStack(0x00780000u, 8u * 1024u * 1024u)) {
+        fprintf(stderr, "cannot configure MM3 main stack\n");
+        free(xbe_data);
+        return 1;
+    }
     /* Keep the emulated RAM at 64 MB, but leave virtual address space above
      * it for MM3's large MEM_RESERVE requests. */
     xbox_SetMapSize(MM3_MEMORY_MAP_SIZE);

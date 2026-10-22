@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "b6977ea58650c56959261a1753e516174753e79b",
+  "fork_commit": "589ceb640d684faa8d7c0c44558b098baecd7e50",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -245,26 +245,40 @@
     {
       "path": "docs/pipeline/04-lifting.md",
       "mode": "100644",
-      "git_blob": "f68599fe57e4a6d2ba720acc8e1a1bdf2ffd1ee8",
-      "sha256": "2aae9c30be6f118e65335414da48be69378318329e4eb9a5806a5abcad76ccab"
+      "git_blob": "8add392fddbc7189d06c0c48cff1386b5c372a93",
+      "sha256": "b0808aa0f773e16e209cc7388ecd39d71164f74f01ec6ac0a44445322f1059ee",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+        "scope": "Runtime stack bounds replace a captured fixed ESP and extra capacity",
+        "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+        "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate."
+      }
     },
     {
       "path": "docs/pipeline/05-runtime.md",
       "mode": "100644",
-      "git_blob": "b9a03c6097ebed1356341b9185eec34243b2fadf",
-      "sha256": "74b7b75b53bc48cbf1514c9c9c35a5475a7f254048cf1e73d0614bedad31d3d2",
+      "git_blob": "7e21384e0f35830c9c3d00486449a706aedcebbd",
+      "sha256": "31c7edb4be245e8f852b2349815ca470b7cd550aadfb6a96c7b8c32cd3621695",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
-        "scope": "Migration guidance for removed synthetic GPU progress in the previously reviewed current-API setup guide",
-        "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
-        "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite.",
+        "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+        "scope": "Main-stack policy joins explicit pre-init port configuration",
+        "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+        "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate.",
         "prior_review": {
-          "decision": "retain_generic",
-          "reviewed_at_fork": "f507c486bcc8e7fdd11ea10c47f293b3ad3543c1",
-          "scope": "Full current-API runtime integration guide replacing captured-title setup and obsolete bring-up claims",
-          "evidence": "Original runtime guide and two captured-title source comments archived in MM3 with commit/blob provenance; normalized guide text preserved; new links resolve; source code identical with comments removed; Windows starter rebuilt and 4/4 startup/failure cases pass.",
-          "limit": "Documentation and scoped comment ownership; no new gameplay/renderer/kernel fidelity claim. Legacy fence description and remaining runtime/header ownership need separate review."
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
+          "scope": "Migration guidance for removed synthetic GPU progress in the previously reviewed current-API setup guide",
+          "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
+          "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite.",
+          "prior_review": {
+            "decision": "retain_generic",
+            "reviewed_at_fork": "f507c486bcc8e7fdd11ea10c47f293b3ad3543c1",
+            "scope": "Full current-API runtime integration guide replacing captured-title setup and obsolete bring-up claims",
+            "evidence": "Original runtime guide and two captured-title source comments archived in MM3 with commit/blob provenance; normalized guide text preserved; new links resolve; source code identical with comments removed; Windows starter rebuilt and 4/4 startup/failure cases pass.",
+            "limit": "Documentation and scoped comment ownership; no new gameplay/renderer/kernel fidelity claim. Legacy fence description and remaining runtime/header ownership need separate review."
+          }
         }
       }
     },
@@ -371,20 +385,27 @@
     {
       "path": "docs/technical/memory-layout.md",
       "mode": "100644",
-      "git_blob": "86a6a431f51b79209f80b22e2057226b96e821d0",
-      "sha256": "be31ef9a0be9b62cd7160b19e69b4d1449c6711980d96772b1e72a41ac1c8a4b",
+      "git_blob": "8493df64cae66a8a91a6fd5aea9d67e886913e1b",
+      "sha256": "7f476f1fa8f7ade486c82fbb1df890099311394e90ccfa664fc5928ae22207d9",
       "ownership_review": {
-        "decision": "retain_generic",
-        "reviewed_at_fork": "c2933c5d5cd09a1566f26d4cf4077ca1a3afacf2",
-        "scope": "Full current-API memory integration replacement; original captured/obsolete guide preserved in MM3",
-        "evidence": "Old loader fails no-fabricated-PE-offset assertion. Windows memory 7/7, Windows kernel 61/61, seven Linux memory modes and both Windows renderer game builds pass. MM3 supplies the original e_lfanew compatibility write through the runtime-owned view; archive text and new guide links checked.",
-        "limit": "Mapping/payload ownership and lifetime only, not an emulated kernel PE image or native MM3 probe correctness. Other memory stand-ins and implementation areas remain partially reviewed. Linux modes use actual fixture source with existing runtime flags/libraries.",
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+        "scope": "Main-stack policy, ownership, runtime macro and quiesced reinitialization contract",
+        "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+        "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate.",
         "prior_review": {
-          "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "215a29587cdea84d14d45f56b899d8e35d3321a8",
-          "scope": "Guest-thread/application-context section only, replacing fixed RenderWare bootstrap guidance",
-          "evidence": "Old default loader fails no-application-context assertion. Windows memory 7/7, Windows kernel 61/61 and seven Linux memory modes pass; both Windows renderer game builds pass. MM3 preserves the same two scratch writes after memory setup; original code/comments/doc blocks archived in MM3.",
-          "limit": "Application bootstrap ownership only; MM3 use of inherited scratch chain remains unaudited. Not proof of native application TLS, all kernel stand-ins, complete memory-layout behavior or gameplay fidelity. Linux modes were compiled from the actual fixture with existing runtime target flags/libraries, not a separate new CTest project."
+          "decision": "retain_generic",
+          "reviewed_at_fork": "c2933c5d5cd09a1566f26d4cf4077ca1a3afacf2",
+          "scope": "Full current-API memory integration replacement; original captured/obsolete guide preserved in MM3",
+          "evidence": "Old loader fails no-fabricated-PE-offset assertion. Windows memory 7/7, Windows kernel 61/61, seven Linux memory modes and both Windows renderer game builds pass. MM3 supplies the original e_lfanew compatibility write through the runtime-owned view; archive text and new guide links checked.",
+          "limit": "Mapping/payload ownership and lifetime only, not an emulated kernel PE image or native MM3 probe correctness. Other memory stand-ins and implementation areas remain partially reviewed. Linux modes use actual fixture source with existing runtime flags/libraries.",
+          "prior_review": {
+            "decision": "retain_generic_boundary",
+            "reviewed_at_fork": "215a29587cdea84d14d45f56b899d8e35d3321a8",
+            "scope": "Guest-thread/application-context section only, replacing fixed RenderWare bootstrap guidance",
+            "evidence": "Old default loader fails no-application-context assertion. Windows memory 7/7, Windows kernel 61/61 and seven Linux memory modes pass; both Windows renderer game builds pass. MM3 preserves the same two scratch writes after memory setup; original code/comments/doc blocks archived in MM3.",
+            "limit": "Application bootstrap ownership only; MM3 use of inherited scratch chain remains unaudited. Not proof of native application TLS, all kernel stand-ins, complete memory-layout behavior or gameplay fidelity. Linux modes were compiled from the actual fixture with existing runtime target flags/libraries, not a separate new CTest project."
+          }
         }
       }
     },
@@ -397,8 +418,15 @@
     {
       "path": "docs/technical/register-model.md",
       "mode": "100644",
-      "git_blob": "f738408501cab5ebb67b984e795ad64c4eff9c99",
-      "sha256": "7d35e1c46eb0ea1be91e6806ac14d80e340e709e0e344b2920bb8fc59091e5fd"
+      "git_blob": "f8e796bee875e027e52195c3775324afdaac470f",
+      "sha256": "c6445e62dfbaa7bdef01ab37e1228fbd1a11d4e391b54ae7c358c0885fb42dbc",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+        "scope": "Current checked stack allocation/configuration instead of fixed copied memory map",
+        "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+        "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate."
+      }
     },
     {
       "path": "docs/technical/rtti-recovery.md",
@@ -1011,9 +1039,16 @@
     },
     {
       "path": "src/kernel/kernel_thread.c",
-      "sha256": "3c8914881c15f4797ff31bb8b8b2dd3ebead000d2dd0336a01ddec16d3ac1c10",
+      "sha256": "d9c24d813e5ab8839062ae2615d42099a188b38e12de359aa7b8b45211158a18",
       "mode": "100644",
-      "git_blob": "3e09a959ddff5685a6ad8648023f2279fb6371c5"
+      "git_blob": "4958436438e030e300599b1050f247500697bdb7",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+        "scope": "No implicit callback slices before a host or loader supplies owned storage",
+        "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+        "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate."
+      }
     },
     {
       "path": "src/kernel/kernel_thunks.c",
@@ -1105,69 +1140,76 @@
     },
     {
       "path": "src/kernel/xbox_memory_layout.c",
-      "sha256": "fa60334b524b0ddde123b0518ed69927f0bb715791a8bdb22f64b84fba0bf4c3",
+      "sha256": "9521d6b793ea243472e5d0dc391ef8b5095b8e16d665b9e0fc02fc52c079e91c",
       "mode": "100644",
-      "git_blob": "8baaa0ddba431d624cb80b2063ba336a483ca621",
+      "git_blob": "419b4846111c230cb26b1cf32d14f1e80deb7d39",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "b6977ea58650c56959261a1753e516174753e79b",
-        "scope": "Eight captured/obsolete loader and device comment blocks migrated to MM3; executable tokens unchanged",
-        "evidence": "Old header produces nine unresolved C++ symbols on Windows. Fixed Windows memory suite passes 17/17; Linux actual C++ consumer links/runs and all sixteen memory fixture modes pass. Both Windows renderer game builds pass. Eight archive blocks match normalized originals; source executable tokens unchanged.",
-        "limit": "C/C++ public linkage and comment ownership only. Main-stack placement/size policy, thunk-table range/scan bounds, other source/data/docs ownership and full gameplay/device fidelity remain unverified.",
+        "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+        "scope": "Image-derived main-stack placement/commit, checked port override, disjoint callback pool and allocator ownership/cache reset at quiesced layout transitions",
+        "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+        "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate.",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "5574e2d7bd1ce87b4e4de27a034aa14ad70769b4",
-          "scope": "Used XBE header/table/name/raw/virtual-range validation and configured-backing section loading; captured truncation-run rationale moved to MM3",
-          "evidence": "Old loader drops the valid section above 64 MiB. Windows memory 16/16, kernel 62/62 and bridge 8/8 pass; Linux sixteen actual memory modes pass; both Windows renderer game builds pass. Header non-comment tokens match original; captured/stale commentary archived in MM3.",
-          "limit": "Scoped loader input/range and documentation ownership, not full XBE verification, all devkit games or gameplay fidelity. Vulkan startup marker reached with an early black capture, not scene acceptance. Main-stack defaults and late C++ linkage declarations require further ownership/correctness review.",
+          "reviewed_at_fork": "b6977ea58650c56959261a1753e516174753e79b",
+          "scope": "Eight captured/obsolete loader and device comment blocks migrated to MM3; executable tokens unchanged",
+          "evidence": "Old header produces nine unresolved C++ symbols on Windows. Fixed Windows memory suite passes 17/17; Linux actual C++ consumer links/runs and all sixteen memory fixture modes pass. Both Windows renderer game builds pass. Eight archive blocks match normalized originals; source executable tokens unchanged.",
+          "limit": "C/C++ public linkage and comment ownership only. Main-stack placement/size policy, thunk-table range/scan bounds, other source/data/docs ownership and full gameplay/device fidelity remain unverified.",
           "prior_review": {
             "decision": "retain_generic_boundary",
-            "reviewed_at_fork": "d6fa49695f29a68ab40a2e49dd7b64cfc19ae643",
-            "scope": "Defer executor startup until guest mappings/reservations are initialized",
-            "evidence": "Controlled old Windows and Linux failures reproduced. Native blocker cases now pass on both hosts; Windows kernel 62/62 and memory 11/11 pass; Linux blocker 1/1 plus all eleven actual memory modes pass, including five extra independent ext-vma startups. Both Windows game builds and inspected bounded D3D11 night Cruise pass (1.09m movement).",
-            "limit": "Scoped ownership/range/startup evidence, not full POSIX/NT VM or renderer fidelity. Backoff is a startup-only 64KiB linear search; arbitrary host layouts can still make requested addresses unavailable and now report explicit failure. Other memory ownership and final cumulative proof remain incomplete.",
+            "reviewed_at_fork": "5574e2d7bd1ce87b4e4de27a034aa14ad70769b4",
+            "scope": "Used XBE header/table/name/raw/virtual-range validation and configured-backing section loading; captured truncation-run rationale moved to MM3",
+            "evidence": "Old loader drops the valid section above 64 MiB. Windows memory 16/16, kernel 62/62 and bridge 8/8 pass; Linux sixteen actual memory modes pass; both Windows renderer game builds pass. Header non-comment tokens match original; captured/stale commentary archived in MM3.",
+            "limit": "Scoped loader input/range and documentation ownership, not full XBE verification, all devkit games or gameplay fidelity. Vulkan startup marker reached with an early black capture, not scene acceptance. Main-stack defaults and late C++ linkage declarations require further ownership/correctness review.",
             "prior_review": {
               "decision": "retain_generic_boundary",
-              "reviewed_at_fork": "4f2c203da8d0e19031f681d6daa069a3316ff01f",
-              "scope": "Main-thread TLS loading only: owned image-safe nonoverlapping storage, bounded directory/template arithmetic and initialization failure cleanup",
-              "evidence": "Old fixed buffers fail four storage/template assertions. Windows memory 11/11, kernel 61/61, Linux focused TLS 4/4 and both Windows renderer game builds pass. D3D12 bounded night Cruise passes with inspected captures, 1.5m post-teleport movement and actual 20-byte TLS allocated through heap. Old bootstrap archived in MM3.",
-              "limit": "Scoped TLS ownership and bounded gameplay, not complete loader/TLS/kernel fidelity. Full Linux memory attempt failed in ext-vma after unavailable host reservation and fixture unbacked read; that failure remains unresolved. Heap header/captured CRT rationale and other areas remain unreviewed.",
+              "reviewed_at_fork": "d6fa49695f29a68ab40a2e49dd7b64cfc19ae643",
+              "scope": "Defer executor startup until guest mappings/reservations are initialized",
+              "evidence": "Controlled old Windows and Linux failures reproduced. Native blocker cases now pass on both hosts; Windows kernel 62/62 and memory 11/11 pass; Linux blocker 1/1 plus all eleven actual memory modes pass, including five extra independent ext-vma startups. Both Windows game builds and inspected bounded D3D11 night Cruise pass (1.09m movement).",
+              "limit": "Scoped ownership/range/startup evidence, not full POSIX/NT VM or renderer fidelity. Backoff is a startup-only 64KiB linear search; arbitrary host layouts can still make requested addresses unavailable and now report explicit failure. Other memory ownership and final cumulative proof remain incomplete.",
               "prior_review": {
                 "decision": "retain_generic_boundary",
-                "reviewed_at_fork": "e046797aa44ef2ffb033231c26dfcceb3e09f01e",
-                "scope": "Main/worker Prcb pointer initialization only: remove captured scratch page and reference each KPCR inline PrcbData",
-                "evidence": "Both worker cases fail on old copied pointer. Windows memory 7/7 and kernel 61/61 pass; Linux worker-state 2/2 and seven memory modes pass; both Windows renderer game builds pass. Old captured scratch bootstrap archived; Cxbx Xbox KPCR/KPRCB declarations corroborate inline field offsets.",
-                "limit": "Pointer/state consistency in the existing host-thread guest model, not full processor/scheduler/KPRCB emulation or game fidelity. Other memory/runtime ownership remains scoped and incomplete.",
+                "reviewed_at_fork": "4f2c203da8d0e19031f681d6daa069a3316ff01f",
+                "scope": "Main-thread TLS loading only: owned image-safe nonoverlapping storage, bounded directory/template arithmetic and initialization failure cleanup",
+                "evidence": "Old fixed buffers fail four storage/template assertions. Windows memory 11/11, kernel 61/61, Linux focused TLS 4/4 and both Windows renderer game builds pass. D3D12 bounded night Cruise passes with inspected captures, 1.5m post-teleport movement and actual 20-byte TLS allocated through heap. Old bootstrap archived in MM3.",
+                "limit": "Scoped TLS ownership and bounded gameplay, not complete loader/TLS/kernel fidelity. Full Linux memory attempt failed in ext-vma after unavailable host reservation and fixture unbacked read; that failure remains unresolved. Heap header/captured CRT rationale and other areas remain unreviewed.",
                 "prior_review": {
                   "decision": "retain_generic_boundary",
-                  "reviewed_at_fork": "c2933c5d5cd09a1566f26d4cf4077ca1a3afacf2",
-                  "scope": "Kernel probe mapping/accessor boundary: retain zeroed owned view and fallback allocation; remove application-steering PE field",
-                  "evidence": "Old loader fails no-fabricated-PE-offset assertion. Windows memory 7/7, Windows kernel 61/61, seven Linux memory modes and both Windows renderer game builds pass. MM3 supplies the original e_lfanew compatibility write through the runtime-owned view; archive text and new guide links checked.",
-                  "limit": "Mapping/payload ownership and lifetime only, not an emulated kernel PE image or native MM3 probe correctness. Other memory stand-ins and implementation areas remain partially reviewed. Linux modes use actual fixture source with existing runtime flags/libraries.",
+                  "reviewed_at_fork": "e046797aa44ef2ffb033231c26dfcceb3e09f01e",
+                  "scope": "Main/worker Prcb pointer initialization only: remove captured scratch page and reference each KPCR inline PrcbData",
+                  "evidence": "Both worker cases fail on old copied pointer. Windows memory 7/7 and kernel 61/61 pass; Linux worker-state 2/2 and seven memory modes pass; both Windows renderer game builds pass. Old captured scratch bootstrap archived; Cxbx Xbox KPCR/KPRCB declarations corroborate inline field offsets.",
+                  "limit": "Pointer/state consistency in the existing host-thread guest model, not full processor/scheduler/KPRCB emulation or game fidelity. Other memory/runtime ownership remains scoped and incomplete.",
                   "prior_review": {
                     "decision": "retain_generic_boundary",
-                    "reviewed_at_fork": "215a29587cdea84d14d45f56b899d8e35d3321a8",
-                    "scope": "Removed fixed application context chain; retained XBE TLS/guest thread setup; migrated captured code/TLS comments. Other memory implementation remains only partially reviewed",
-                    "evidence": "Old default loader fails no-application-context assertion. Windows memory 7/7, Windows kernel 61/61 and seven Linux memory modes pass; both Windows renderer game builds pass. MM3 preserves the same two scratch writes after memory setup; original code/comments/doc blocks archived in MM3.",
-                    "limit": "Application bootstrap ownership only; MM3 use of inherited scratch chain remains unaudited. Not proof of native application TLS, all kernel stand-ins, complete memory-layout behavior or gameplay fidelity. Linux modes were compiled from the actual fixture with existing runtime target flags/libraries, not a separate new CTest project.",
+                    "reviewed_at_fork": "c2933c5d5cd09a1566f26d4cf4077ca1a3afacf2",
+                    "scope": "Kernel probe mapping/accessor boundary: retain zeroed owned view and fallback allocation; remove application-steering PE field",
+                    "evidence": "Old loader fails no-fabricated-PE-offset assertion. Windows memory 7/7, Windows kernel 61/61, seven Linux memory modes and both Windows renderer game builds pass. MM3 supplies the original e_lfanew compatibility write through the runtime-owned view; archive text and new guide links checked.",
+                    "limit": "Mapping/payload ownership and lifetime only, not an emulated kernel PE image or native MM3 probe correctness. Other memory stand-ins and implementation areas remain partially reviewed. Linux modes use actual fixture source with existing runtime flags/libraries.",
                     "prior_review": {
                       "decision": "retain_generic_boundary",
-                      "reviewed_at_fork": "1f528671a08809c653bfea4e2a9be2c9b5d5fc0c",
-                      "scope": "Optional framebuffer checksum probe only: reuse decoded display height/pitch and shared mapped-range checks rather than 480-line/base-RAM assumptions",
-                      "evidence": "Old probe fails final-PAL-row/contiguous-window regression. With existing mode/range APIs, Windows kernel checks 61/61, Linux focused case 1/1 and both Windows renderer game builds pass. No title-specific address or new configuration is added.",
-                      "limit": "Diagnostic checksum correctness for decoded modes, not framebuffer presentation or full memory/video fidelity. Existing display-mode decoder format/HD limits are unchanged.",
+                      "reviewed_at_fork": "215a29587cdea84d14d45f56b899d8e35d3321a8",
+                      "scope": "Removed fixed application context chain; retained XBE TLS/guest thread setup; migrated captured code/TLS comments. Other memory implementation remains only partially reviewed",
+                      "evidence": "Old default loader fails no-application-context assertion. Windows memory 7/7, Windows kernel 61/61 and seven Linux memory modes pass; both Windows renderer game builds pass. MM3 preserves the same two scratch writes after memory setup; original code/comments/doc blocks archived in MM3.",
+                      "limit": "Application bootstrap ownership only; MM3 use of inherited scratch chain remains unaudited. Not proof of native application TLS, all kernel stand-ins, complete memory-layout behavior or gameplay fidelity. Linux modes were compiled from the actual fixture with existing runtime target flags/libraries, not a separate new CTest project.",
                       "prior_review": {
                         "decision": "retain_generic_boundary",
-                        "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
-                        "scope": "Caller-configured diagnostic channel/PFIFO/ring layout; version-2 snapshot capture boundary only",
-                        "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
-                        "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity.",
+                        "reviewed_at_fork": "1f528671a08809c653bfea4e2a9be2c9b5d5fc0c",
+                        "scope": "Optional framebuffer checksum probe only: reuse decoded display height/pitch and shared mapped-range checks rather than 480-line/base-RAM assumptions",
+                        "evidence": "Old probe fails final-PAL-row/contiguous-window regression. With existing mode/range APIs, Windows kernel checks 61/61, Linux focused case 1/1 and both Windows renderer game builds pass. No title-specific address or new configuration is added.",
+                        "limit": "Diagnostic checksum correctness for decoded modes, not framebuffer presentation or full memory/video fidelity. Existing display-mode decoder format/HD limits are unchanged.",
                         "prior_review": {
                           "decision": "retain_generic_boundary",
-                          "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
-                          "scope": "Registered counters/fence completion boundary: removed submitted-counter mirroring, wall-clock frame synthesis and snapshot-derived fences; retain executed flips and command releases only",
-                          "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
-                          "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite."
+                          "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
+                          "scope": "Caller-configured diagnostic channel/PFIFO/ring layout; version-2 snapshot capture boundary only",
+                          "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
+                          "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity.",
+                          "prior_review": {
+                            "decision": "retain_generic_boundary",
+                            "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
+                            "scope": "Registered counters/fence completion boundary: removed submitted-counter mirroring, wall-clock frame synthesis and snapshot-derived fences; retain executed flips and command releases only",
+                            "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
+                            "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite."
+                          }
                         }
                       }
                     }
@@ -1181,51 +1223,58 @@
     },
     {
       "path": "src/kernel/xbox_memory_layout.h",
-      "sha256": "e59fb622ff262607289814f46e051c1804141d26f4138ed11ed8c769aebf9b81",
+      "sha256": "bdf121cf4fc50bcb288a7f294af4b2e08051218c3a3a0ce35ba287e46ce35b42",
       "mode": "100644",
-      "git_blob": "bb18fb6eb3cc2e7f722a68f5a2e53465b3fecebb",
+      "git_blob": "c5aa3e2c301190e0880fcf1aaaf58aae581f5f23",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "b6977ea58650c56959261a1753e516174753e79b",
-        "scope": "C linkage now covers all late thread and worker declarations; declarations and numeric constants unchanged",
-        "evidence": "Old header produces nine unresolved C++ symbols on Windows. Fixed Windows memory suite passes 17/17; Linux actual C++ consumer links/runs and all sixteen memory fixture modes pass. Both Windows renderer game builds pass. Eight archive blocks match normalized originals; source executable tokens unchanged.",
-        "limit": "C/C++ public linkage and comment ownership only. Main-stack placement/size policy, thunk-table range/scan bounds, other source/data/docs ownership and full gameplay/device fidelity remain unverified.",
+        "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+        "scope": "Generic checked pre-init main-stack configuration and active runtime bounds; inherited fixed placement/extra budget removed",
+        "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+        "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate.",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "5574e2d7bd1ce87b4e4de27a034aa14ad70769b4",
-          "scope": "Memory/RAM/map/heap/thread API commentary only; declarations and numeric macro tokens unchanged",
-          "evidence": "Old loader drops the valid section above 64 MiB. Windows memory 16/16, kernel 62/62 and bridge 8/8 pass; Linux sixteen actual memory modes pass; both Windows renderer game builds pass. Header non-comment tokens match original; captured/stale commentary archived in MM3.",
-          "limit": "Scoped loader input/range and documentation ownership, not full XBE verification, all devkit games or gameplay fidelity. Vulkan startup marker reached with an early black capture, not scene acceptance. Main-stack defaults and late C++ linkage declarations require further ownership/correctness review.",
+          "reviewed_at_fork": "b6977ea58650c56959261a1753e516174753e79b",
+          "scope": "C linkage now covers all late thread and worker declarations; declarations and numeric constants unchanged",
+          "evidence": "Old header produces nine unresolved C++ symbols on Windows. Fixed Windows memory suite passes 17/17; Linux actual C++ consumer links/runs and all sixteen memory fixture modes pass. Both Windows renderer game builds pass. Eight archive blocks match normalized originals; source executable tokens unchanged.",
+          "limit": "C/C++ public linkage and comment ownership only. Main-stack placement/size policy, thunk-table range/scan bounds, other source/data/docs ownership and full gameplay/device fidelity remain unverified.",
           "prior_review": {
             "decision": "retain_generic_boundary",
-            "reviewed_at_fork": "e046797aa44ef2ffb033231c26dfcceb3e09f01e",
-            "scope": "Shared inline PrcbData offset constant alongside existing KPCR/DPC layout constants",
-            "evidence": "Both worker cases fail on old copied pointer. Windows memory 7/7 and kernel 61/61 pass; Linux worker-state 2/2 and seven memory modes pass; both Windows renderer game builds pass. Old captured scratch bootstrap archived; Cxbx Xbox KPCR/KPRCB declarations corroborate inline field offsets.",
-            "limit": "Pointer/state consistency in the existing host-thread guest model, not full processor/scheduler/KPRCB emulation or game fidelity. Other memory/runtime ownership remains scoped and incomplete.",
+            "reviewed_at_fork": "5574e2d7bd1ce87b4e4de27a034aa14ad70769b4",
+            "scope": "Memory/RAM/map/heap/thread API commentary only; declarations and numeric macro tokens unchanged",
+            "evidence": "Old loader drops the valid section above 64 MiB. Windows memory 16/16, kernel 62/62 and bridge 8/8 pass; Linux sixteen actual memory modes pass; both Windows renderer game builds pass. Header non-comment tokens match original; captured/stale commentary archived in MM3.",
+            "limit": "Scoped loader input/range and documentation ownership, not full XBE verification, all devkit games or gameplay fidelity. Vulkan startup marker reached with an early black capture, not scene acceptance. Main-stack defaults and late C++ linkage declarations require further ownership/correctness review.",
             "prior_review": {
               "decision": "retain_generic_boundary",
-              "reviewed_at_fork": "c2933c5d5cd09a1566f26d4cf4077ca1a3afacf2",
-              "scope": "Kernel probe view accessor and lifetime contract only; prior scoped declarations retained",
-              "evidence": "Old loader fails no-fabricated-PE-offset assertion. Windows memory 7/7, Windows kernel 61/61, seven Linux memory modes and both Windows renderer game builds pass. MM3 supplies the original e_lfanew compatibility write through the runtime-owned view; archive text and new guide links checked.",
-              "limit": "Mapping/payload ownership and lifetime only, not an emulated kernel PE image or native MM3 probe correctness. Other memory stand-ins and implementation areas remain partially reviewed. Linux modes use actual fixture source with existing runtime flags/libraries.",
+              "reviewed_at_fork": "e046797aa44ef2ffb033231c26dfcceb3e09f01e",
+              "scope": "Shared inline PrcbData offset constant alongside existing KPCR/DPC layout constants",
+              "evidence": "Both worker cases fail on old copied pointer. Windows memory 7/7 and kernel 61/61 pass; Linux worker-state 2/2 and seven memory modes pass; both Windows renderer game builds pass. Old captured scratch bootstrap archived; Cxbx Xbox KPCR/KPRCB declarations corroborate inline field offsets.",
+              "limit": "Pointer/state consistency in the existing host-thread guest model, not full processor/scheduler/KPRCB emulation or game fidelity. Other memory/runtime ownership remains scoped and incomplete.",
               "prior_review": {
                 "decision": "retain_generic_boundary",
-                "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
-                "scope": "Capture layout registration and version-2 snapshot metadata declarations",
-                "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
-                "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity.",
+                "reviewed_at_fork": "c2933c5d5cd09a1566f26d4cf4077ca1a3afacf2",
+                "scope": "Kernel probe view accessor and lifetime contract only; prior scoped declarations retained",
+                "evidence": "Old loader fails no-fabricated-PE-offset assertion. Windows memory 7/7, Windows kernel 61/61, seven Linux memory modes and both Windows renderer game builds pass. MM3 supplies the original e_lfanew compatibility write through the runtime-owned view; archive text and new guide links checked.",
+                "limit": "Mapping/payload ownership and lifetime only, not an emulated kernel PE image or native MM3 probe correctness. Other memory stand-ins and implementation areas remain partially reviewed. Linux modes use actual fixture source with existing runtime flags/libraries.",
                 "prior_review": {
                   "decision": "retain_generic_boundary",
-                  "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
-                  "scope": "Counter/fence API declarations and documentation for the removed policies; other header areas retain only their prior scoped reviews",
-                  "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
-                  "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite.",
+                  "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
+                  "scope": "Capture layout registration and version-2 snapshot metadata declarations",
+                  "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
+                  "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity.",
                   "prior_review": {
                     "decision": "retain_generic_boundary",
-                    "reviewed_at_fork": "f507c486bcc8e7fdd11ea10c47f293b3ad3543c1",
-                    "scope": "Expanded mapping rationale comment only; remaining declarations and legacy fence commentary not certified",
-                    "evidence": "Original runtime guide and two captured-title source comments archived in MM3 with commit/blob provenance; normalized guide text preserved; new links resolve; source code identical with comments removed; Windows starter rebuilt and 4/4 startup/failure cases pass.",
-                    "limit": "Documentation and scoped comment ownership; no new gameplay/renderer/kernel fidelity claim. Legacy fence description and remaining runtime/header ownership need separate review."
+                    "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
+                    "scope": "Counter/fence API declarations and documentation for the removed policies; other header areas retain only their prior scoped reviews",
+                    "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
+                    "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite.",
+                    "prior_review": {
+                      "decision": "retain_generic_boundary",
+                      "reviewed_at_fork": "f507c486bcc8e7fdd11ea10c47f293b3ad3543c1",
+                      "scope": "Expanded mapping rationale comment only; remaining declarations and legacy fence commentary not certified",
+                      "evidence": "Original runtime guide and two captured-title source comments archived in MM3 with commit/blob provenance; normalized guide text preserved; new links resolve; source code identical with comments removed; Windows starter rebuilt and 4/4 startup/failure cases pass.",
+                      "limit": "Documentation and scoped comment ownership; no new gameplay/renderer/kernel fidelity claim. Legacy fence description and remaining runtime/header ownership need separate review."
+                    }
                   }
                 }
               }
@@ -2053,14 +2102,21 @@
     {
       "path": "tests/kernel_bridge/test_main.c",
       "mode": "100644",
-      "git_blob": "b532a5a62f57a19e909a3b6756767b12f73904fb",
-      "sha256": "7cf00bdba05b6c8d29cd92e10d59848ac4abcae8e222e6f6a80a435c65bc6a6e",
+      "git_blob": "0145734c20a1b6fa0e7f9f79fc9e60f0dbd70cdc",
+      "sha256": "2c1aa5292b7fcc29dc359e92dba33cc60a229041836539466fccc973855eab69",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "5574e2d7bd1ce87b4e4de27a034aa14ad70769b4",
-        "scope": "Valid synthetic XBE signature and safe early exit on failed mapping initialization",
-        "evidence": "Old loader drops the valid section above 64 MiB. Windows memory 16/16, kernel 62/62 and bridge 8/8 pass; Linux sixteen actual memory modes pass; both Windows renderer game builds pass. Header non-comment tokens match original; captured/stale commentary archived in MM3.",
-        "limit": "Scoped loader input/range and documentation ownership, not full XBE verification, all devkit games or gameplay fidelity. Vulkan startup marker reached with an early black capture, not scene acceptance. Main-stack defaults and late C++ linkage declarations require further ownership/correctness review."
+        "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+        "scope": "Require main-stack space and disjoint callback placement while preserving high-image and allocation-boundary checks",
+        "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+        "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "5574e2d7bd1ce87b4e4de27a034aa14ad70769b4",
+          "scope": "Valid synthetic XBE signature and safe early exit on failed mapping initialization",
+          "evidence": "Old loader drops the valid section above 64 MiB. Windows memory 16/16, kernel 62/62 and bridge 8/8 pass; Linux sixteen actual memory modes pass; both Windows renderer game builds pass. Header non-comment tokens match original; captured/stale commentary archived in MM3.",
+          "limit": "Scoped loader input/range and documentation ownership, not full XBE verification, all devkit games or gameplay fidelity. Vulkan startup marker reached with an early black capture, not scene acceptance. Main-stack defaults and late C++ linkage declarations require further ownership/correctness review."
+        }
       }
     },
     {
@@ -2135,8 +2191,15 @@
     {
       "path": "tests/kernel_dispatch/contig_heap_ownership_test.c",
       "mode": "100644",
-      "git_blob": "d95d50d7409133f2996509c413b3cbf9017297dc",
-      "sha256": "d43fb314628cc6f0144e1c941248527f20578716a9d1cde25b865eb7b692588f"
+      "git_blob": "5814a54e8cd48c91babb93f5e4b9abc2ef8443bc",
+      "sha256": "ca8ab1543811bb1a1e0f2c3b32c87180e25f7111a39c3dde0ddaad2abb0c6a64",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+        "scope": "Explicit synthetic main-stack geometry preserves deliberate 64 KiB heap-gap topology",
+        "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+        "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate."
+      }
     },
     {
       "path": "tests/kernel_dispatch/contig_range_cache_test.c",
@@ -2184,8 +2247,15 @@
     {
       "path": "tests/kernel_dispatch/kernel_dpc_lower_test.c",
       "mode": "100644",
-      "git_blob": "874224e58069e48dabca5e9e3ab1fa9664a945a8",
-      "sha256": "b4bc335831034e183170868d7501599f7473820828b909b788ff729329217375"
+      "git_blob": "27bf02e7a766ecfbf523c0771f48667fbef9ebb9",
+      "sha256": "b7ae9dfea07045d4c9bf1c69ec3ecce3c5110f59897d747a423682a39ea0c04b",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+        "scope": "Standalone fixture supplies/retires its own callback slices within its private arena",
+        "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+        "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate."
+      }
     },
     {
       "path": "tests/kernel_dispatch/kernel_dpc_queue_test.c",
@@ -2196,8 +2266,15 @@
     {
       "path": "tests/kernel_dispatch/kernel_file_sharing_test.c",
       "mode": "100644",
-      "git_blob": "8799273f172cddcb69d42c228b8c83fdf42625a4",
-      "sha256": "805d928ee52fa8e459e86dbf28e915babc5249457baa268731d725c2a5fdc600"
+      "git_blob": "d682a05375c7e34cb894b80d86266611dcad8ffd",
+      "sha256": "c89eccec942dc1f9a49774242f86114d111a981b64e9a2bf59e1ccb43e4e1fbf",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+        "scope": "Portable observer filename assertion removes an unnecessary Windows-only wide-string copy",
+        "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+        "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate."
+      }
     },
     {
       "path": "tests/kernel_dispatch/kernel_handle_thread_test.c",
@@ -2501,26 +2578,33 @@
     {
       "path": "tests/memory_regressions/CMakeLists.txt",
       "mode": "100644",
-      "git_blob": "08e47b699b6499ab1c1269bf520266f9032150e6",
-      "sha256": "8284b060f0bf7b214fc4b9764bb61363137ef8e6195db76d7f1d302695c58533",
+      "git_blob": "ba43678c63ad4d9903b1db3e11f29550ee1ee7c8",
+      "sha256": "d27a4a8b120711226b20ce53d4c8bb3a82b2d54e9e9db702e20cfbaab3025da2",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "b6977ea58650c56959261a1753e516174753e79b",
-        "scope": "Real C++ consumer test registered with the existing memory regression project",
-        "evidence": "Old header produces nine unresolved C++ symbols on Windows. Fixed Windows memory suite passes 17/17; Linux actual C++ consumer links/runs and all sixteen memory fixture modes pass. Both Windows renderer game builds pass. Eight archive blocks match normalized originals; source executable tokens unchanged.",
-        "limit": "C/C++ public linkage and comment ownership only. Main-stack placement/size policy, thunk-table range/scan bounds, other source/data/docs ownership and full gameplay/device fidelity remain unverified.",
+        "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+        "scope": "Five stack layout/configuration/failure mode registrations",
+        "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+        "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate.",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "5574e2d7bd1ce87b4e4de27a034aa14ad70769b4",
-          "scope": "Five portable image-range case registrations",
-          "evidence": "Old loader drops the valid section above 64 MiB. Windows memory 16/16, kernel 62/62 and bridge 8/8 pass; Linux sixteen actual memory modes pass; both Windows renderer game builds pass. Header non-comment tokens match original; captured/stale commentary archived in MM3.",
-          "limit": "Scoped loader input/range and documentation ownership, not full XBE verification, all devkit games or gameplay fidelity. Vulkan startup marker reached with an early black capture, not scene acceptance. Main-stack defaults and late C++ linkage declarations require further ownership/correctness review.",
+          "reviewed_at_fork": "b6977ea58650c56959261a1753e516174753e79b",
+          "scope": "Real C++ consumer test registered with the existing memory regression project",
+          "evidence": "Old header produces nine unresolved C++ symbols on Windows. Fixed Windows memory suite passes 17/17; Linux actual C++ consumer links/runs and all sixteen memory fixture modes pass. Both Windows renderer game builds pass. Eight archive blocks match normalized originals; source executable tokens unchanged.",
+          "limit": "C/C++ public linkage and comment ownership only. Main-stack placement/size policy, thunk-table range/scan bounds, other source/data/docs ownership and full gameplay/device fidelity remain unverified.",
           "prior_review": {
             "decision": "retain_generic_boundary",
-            "reviewed_at_fork": "4f2c203da8d0e19031f681d6daa069a3316ff01f",
-            "scope": "Four new portable TLS case registrations in the existing memory fixture",
-            "evidence": "Old fixed buffers fail four storage/template assertions. Windows memory 11/11, kernel 61/61, Linux focused TLS 4/4 and both Windows renderer game builds pass. D3D12 bounded night Cruise passes with inspected captures, 1.5m post-teleport movement and actual 20-byte TLS allocated through heap. Old bootstrap archived in MM3.",
-            "limit": "Scoped TLS ownership and bounded gameplay, not complete loader/TLS/kernel fidelity. Full Linux memory attempt failed in ext-vma after unavailable host reservation and fixture unbacked read; that failure remains unresolved. Heap header/captured CRT rationale and other areas remain unreviewed."
+            "reviewed_at_fork": "5574e2d7bd1ce87b4e4de27a034aa14ad70769b4",
+            "scope": "Five portable image-range case registrations",
+            "evidence": "Old loader drops the valid section above 64 MiB. Windows memory 16/16, kernel 62/62 and bridge 8/8 pass; Linux sixteen actual memory modes pass; both Windows renderer game builds pass. Header non-comment tokens match original; captured/stale commentary archived in MM3.",
+            "limit": "Scoped loader input/range and documentation ownership, not full XBE verification, all devkit games or gameplay fidelity. Vulkan startup marker reached with an early black capture, not scene acceptance. Main-stack defaults and late C++ linkage declarations require further ownership/correctness review.",
+            "prior_review": {
+              "decision": "retain_generic_boundary",
+              "reviewed_at_fork": "4f2c203da8d0e19031f681d6daa069a3316ff01f",
+              "scope": "Four new portable TLS case registrations in the existing memory fixture",
+              "evidence": "Old fixed buffers fail four storage/template assertions. Windows memory 11/11, kernel 61/61, Linux focused TLS 4/4 and both Windows renderer game builds pass. D3D12 bounded night Cruise passes with inspected captures, 1.5m post-teleport movement and actual 20-byte TLS allocated through heap. Old bootstrap archived in MM3.",
+              "limit": "Scoped TLS ownership and bounded gameplay, not complete loader/TLS/kernel fidelity. Full Linux memory attempt failed in ext-vma after unavailable host reservation and fixture unbacked read; that failure remains unresolved. Heap header/captured CRT rationale and other areas remain unreviewed."
+            }
           }
         }
       }
@@ -2528,26 +2612,33 @@
     {
       "path": "tests/memory_regressions/README.md",
       "mode": "100644",
-      "git_blob": "c1000a35d7d17cdf15877696896e27d1c1b3fe99",
-      "sha256": "bb3bb1fe1506b028fba1232c08924777d82834ada174088ccd8adba5c5561359",
+      "git_blob": "742c3f32d6785e2ae5321c30f8d931b60d3cc878",
+      "sha256": "aeee9a38f78227f5ea06efc33a3335a78d79558d8b36a2e8c8ce05c272af783b",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "b6977ea58650c56959261a1753e516174753e79b",
-        "scope": "Scoped public ABI link-regression description",
-        "evidence": "Old header produces nine unresolved C++ symbols on Windows. Fixed Windows memory suite passes 17/17; Linux actual C++ consumer links/runs and all sixteen memory fixture modes pass. Both Windows renderer game builds pass. Eight archive blocks match normalized originals; source executable tokens unchanged.",
-        "limit": "C/C++ public linkage and comment ownership only. Main-stack placement/size policy, thunk-table range/scan bounds, other source/data/docs ownership and full gameplay/device fidelity remain unverified.",
+        "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+        "scope": "Scope of stack configuration and lifetime coverage",
+        "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+        "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate.",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "5574e2d7bd1ce87b4e4de27a034aa14ad70769b4",
-          "scope": "Image-range and malformed-input coverage explanation only",
-          "evidence": "Old loader drops the valid section above 64 MiB. Windows memory 16/16, kernel 62/62 and bridge 8/8 pass; Linux sixteen actual memory modes pass; both Windows renderer game builds pass. Header non-comment tokens match original; captured/stale commentary archived in MM3.",
-          "limit": "Scoped loader input/range and documentation ownership, not full XBE verification, all devkit games or gameplay fidelity. Vulkan startup marker reached with an early black capture, not scene acceptance. Main-stack defaults and late C++ linkage declarations require further ownership/correctness review.",
+          "reviewed_at_fork": "b6977ea58650c56959261a1753e516174753e79b",
+          "scope": "Scoped public ABI link-regression description",
+          "evidence": "Old header produces nine unresolved C++ symbols on Windows. Fixed Windows memory suite passes 17/17; Linux actual C++ consumer links/runs and all sixteen memory fixture modes pass. Both Windows renderer game builds pass. Eight archive blocks match normalized originals; source executable tokens unchanged.",
+          "limit": "C/C++ public linkage and comment ownership only. Main-stack placement/size policy, thunk-table range/scan bounds, other source/data/docs ownership and full gameplay/device fidelity remain unverified.",
           "prior_review": {
             "decision": "retain_generic_boundary",
-            "reviewed_at_fork": "4f2c203da8d0e19031f681d6daa069a3316ff01f",
-            "scope": "TLS input/storage coverage description only",
-            "evidence": "Old fixed buffers fail four storage/template assertions. Windows memory 11/11, kernel 61/61, Linux focused TLS 4/4 and both Windows renderer game builds pass. D3D12 bounded night Cruise passes with inspected captures, 1.5m post-teleport movement and actual 20-byte TLS allocated through heap. Old bootstrap archived in MM3.",
-            "limit": "Scoped TLS ownership and bounded gameplay, not complete loader/TLS/kernel fidelity. Full Linux memory attempt failed in ext-vma after unavailable host reservation and fixture unbacked read; that failure remains unresolved. Heap header/captured CRT rationale and other areas remain unreviewed."
+            "reviewed_at_fork": "5574e2d7bd1ce87b4e4de27a034aa14ad70769b4",
+            "scope": "Image-range and malformed-input coverage explanation only",
+            "evidence": "Old loader drops the valid section above 64 MiB. Windows memory 16/16, kernel 62/62 and bridge 8/8 pass; Linux sixteen actual memory modes pass; both Windows renderer game builds pass. Header non-comment tokens match original; captured/stale commentary archived in MM3.",
+            "limit": "Scoped loader input/range and documentation ownership, not full XBE verification, all devkit games or gameplay fidelity. Vulkan startup marker reached with an early black capture, not scene acceptance. Main-stack defaults and late C++ linkage declarations require further ownership/correctness review.",
+            "prior_review": {
+              "decision": "retain_generic_boundary",
+              "reviewed_at_fork": "4f2c203da8d0e19031f681d6daa069a3316ff01f",
+              "scope": "TLS input/storage coverage description only",
+              "evidence": "Old fixed buffers fail four storage/template assertions. Windows memory 11/11, kernel 61/61, Linux focused TLS 4/4 and both Windows renderer game builds pass. D3D12 bounded night Cruise passes with inspected captures, 1.5m post-teleport movement and actual 20-byte TLS allocated through heap. Old bootstrap archived in MM3.",
+              "limit": "Scoped TLS ownership and bounded gameplay, not complete loader/TLS/kernel fidelity. Full Linux memory attempt failed in ext-vma after unavailable host reservation and fixture unbacked read; that failure remains unresolved. Heap header/captured CRT rationale and other areas remain unreviewed."
+            }
           }
         }
       }
@@ -2555,57 +2646,71 @@
     {
       "path": "tests/memory_regressions/cpp_linkage.cpp",
       "mode": "100644",
-      "git_blob": "012327a9b2189c2e0e2ad71daae14f8cbff296be",
-      "sha256": "bd4651e16901404bcdec81644f919d1a3a3a4913fae0a9ed960c8cb46934c40d",
+      "git_blob": "08db4329cc0e5894cce6a6b60db3c89938a407a2",
+      "sha256": "dc0d3a1af136c4c93b91fb86a8763c408ce6f13cfb871168fb0fa67da4d4da6f",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "b6977ea58650c56959261a1753e516174753e79b",
-        "scope": "Generic C++ consumer links all nine late thread/worker API references to production C definitions",
-        "evidence": "Old header produces nine unresolved C++ symbols on Windows. Fixed Windows memory suite passes 17/17; Linux actual C++ consumer links/runs and all sixteen memory fixture modes pass. Both Windows renderer game builds pass. Eight archive blocks match normalized originals; source executable tokens unchanged.",
-        "limit": "C/C++ public linkage and comment ownership only. Main-stack placement/size policy, thunk-table range/scan bounds, other source/data/docs ownership and full gameplay/device fidelity remain unverified."
+        "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+        "scope": "New generic main-stack configuration also links from a real C++ consumer",
+        "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+        "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "b6977ea58650c56959261a1753e516174753e79b",
+          "scope": "Generic C++ consumer links all nine late thread/worker API references to production C definitions",
+          "evidence": "Old header produces nine unresolved C++ symbols on Windows. Fixed Windows memory suite passes 17/17; Linux actual C++ consumer links/runs and all sixteen memory fixture modes pass. Both Windows renderer game builds pass. Eight archive blocks match normalized originals; source executable tokens unchanged.",
+          "limit": "C/C++ public linkage and comment ownership only. Main-stack placement/size policy, thunk-table range/scan bounds, other source/data/docs ownership and full gameplay/device fidelity remain unverified."
+        }
       }
     },
     {
       "path": "tests/memory_regressions/test_main.c",
       "mode": "100644",
-      "git_blob": "ba0a2ee3e9e5f824735c434021bb01e893a91c35",
-      "sha256": "a6995ba31e2fc27ff6b3d01a17915a422cad7583f2d534b081f424fdcf1a2c87",
+      "git_blob": "d7b5b61bbc798d79313a8805c66ac4d8476dbf84",
+      "sha256": "d3986a73e71b7345c06ab8115459b05fc0bd382e1d2f85954ad7b2da03abd3fc",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "5574e2d7bd1ce87b4e4de27a034aa14ad70769b4",
-        "scope": "Devkit high-section and malformed virtual/raw/table/header input cases in existing real loader fixture",
-        "evidence": "Old loader drops the valid section above 64 MiB. Windows memory 16/16, kernel 62/62 and bridge 8/8 pass; Linux sixteen actual memory modes pass; both Windows renderer game builds pass. Header non-comment tokens match original; captured/stale commentary archived in MM3.",
-        "limit": "Scoped loader input/range and documentation ownership, not full XBE verification, all devkit games or gameplay fidelity. Vulkan startup marker reached with an early black capture, not scene acceptance. Main-stack defaults and late C++ linkage declarations require further ownership/correctness review.",
+        "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+        "scope": "Former-stack image sentinel, rounded commit, separate ranges, checked override, insufficient backing, above-RAM exclusion and reinitialization/cache invalidation",
+        "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+        "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate.",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "d6fa49695f29a68ab40a2e49dd7b64cfc19ae643",
-          "scope": "Retain reserve/commit failure assertions and stop before dereferencing unbacked addresses",
-          "evidence": "Controlled old Windows and Linux failures reproduced. Native blocker cases now pass on both hosts; Windows kernel 62/62 and memory 11/11 pass; Linux blocker 1/1 plus all eleven actual memory modes pass, including five extra independent ext-vma startups. Both Windows game builds and inspected bounded D3D11 night Cruise pass (1.09m movement).",
-          "limit": "Scoped ownership/range/startup evidence, not full POSIX/NT VM or renderer fidelity. Backoff is a startup-only 64KiB linear search; arbitrary host layouts can still make requested addresses unavailable and now report explicit failure. Other memory ownership and final cumulative proof remain incomplete.",
+          "reviewed_at_fork": "5574e2d7bd1ce87b4e4de27a034aa14ad70769b4",
+          "scope": "Devkit high-section and malformed virtual/raw/table/header input cases in existing real loader fixture",
+          "evidence": "Old loader drops the valid section above 64 MiB. Windows memory 16/16, kernel 62/62 and bridge 8/8 pass; Linux sixteen actual memory modes pass; both Windows renderer game builds pass. Header non-comment tokens match original; captured/stale commentary archived in MM3.",
+          "limit": "Scoped loader input/range and documentation ownership, not full XBE verification, all devkit games or gameplay fidelity. Vulkan startup marker reached with an early black capture, not scene acceptance. Main-stack defaults and late C++ linkage declarations require further ownership/correctness review.",
           "prior_review": {
             "decision": "retain_generic_boundary",
-            "reviewed_at_fork": "4f2c203da8d0e19031f681d6daa069a3316ff01f",
-            "scope": "Synthetic TLS section/template over former scratch storage plus invalid directory/range/size cases",
-            "evidence": "Old fixed buffers fail four storage/template assertions. Windows memory 11/11, kernel 61/61, Linux focused TLS 4/4 and both Windows renderer game builds pass. D3D12 bounded night Cruise passes with inspected captures, 1.5m post-teleport movement and actual 20-byte TLS allocated through heap. Old bootstrap archived in MM3.",
-            "limit": "Scoped TLS ownership and bounded gameplay, not complete loader/TLS/kernel fidelity. Full Linux memory attempt failed in ext-vma after unavailable host reservation and fixture unbacked read; that failure remains unresolved. Heap header/captured CRT rationale and other areas remain unreviewed.",
+            "reviewed_at_fork": "d6fa49695f29a68ab40a2e49dd7b64cfc19ae643",
+            "scope": "Retain reserve/commit failure assertions and stop before dereferencing unbacked addresses",
+            "evidence": "Controlled old Windows and Linux failures reproduced. Native blocker cases now pass on both hosts; Windows kernel 62/62 and memory 11/11 pass; Linux blocker 1/1 plus all eleven actual memory modes pass, including five extra independent ext-vma startups. Both Windows game builds and inspected bounded D3D11 night Cruise pass (1.09m movement).",
+            "limit": "Scoped ownership/range/startup evidence, not full POSIX/NT VM or renderer fidelity. Backoff is a startup-only 64KiB linear search; arbitrary host layouts can still make requested addresses unavailable and now report explicit failure. Other memory ownership and final cumulative proof remain incomplete.",
             "prior_review": {
               "decision": "retain_generic_boundary",
-              "reviewed_at_fork": "e046797aa44ef2ffb033231c26dfcceb3e09f01e",
-              "scope": "Main KPCR inline Prcb pointer within existing real mapping fixture",
-              "evidence": "Both worker cases fail on old copied pointer. Windows memory 7/7 and kernel 61/61 pass; Linux worker-state 2/2 and seven memory modes pass; both Windows renderer game builds pass. Old captured scratch bootstrap archived; Cxbx Xbox KPCR/KPRCB declarations corroborate inline field offsets.",
-              "limit": "Pointer/state consistency in the existing host-thread guest model, not full processor/scheduler/KPRCB emulation or game fidelity. Other memory/runtime ownership remains scoped and incomplete.",
+              "reviewed_at_fork": "4f2c203da8d0e19031f681d6daa069a3316ff01f",
+              "scope": "Synthetic TLS section/template over former scratch storage plus invalid directory/range/size cases",
+              "evidence": "Old fixed buffers fail four storage/template assertions. Windows memory 11/11, kernel 61/61, Linux focused TLS 4/4 and both Windows renderer game builds pass. D3D12 bounded night Cruise passes with inspected captures, 1.5m post-teleport movement and actual 20-byte TLS allocated through heap. Old bootstrap archived in MM3.",
+              "limit": "Scoped TLS ownership and bounded gameplay, not complete loader/TLS/kernel fidelity. Full Linux memory attempt failed in ext-vma after unavailable host reservation and fixture unbacked read; that failure remains unresolved. Heap header/captured CRT rationale and other areas remain unreviewed.",
               "prior_review": {
                 "decision": "retain_generic_boundary",
-                "reviewed_at_fork": "c2933c5d5cd09a1566f26d4cf4077ca1a3afacf2",
-                "scope": "Real mapping fixture: unpopulated kernel probe, mapped-storage accessor and shutdown retirement",
-                "evidence": "Old loader fails no-fabricated-PE-offset assertion. Windows memory 7/7, Windows kernel 61/61, seven Linux memory modes and both Windows renderer game builds pass. MM3 supplies the original e_lfanew compatibility write through the runtime-owned view; archive text and new guide links checked.",
-                "limit": "Mapping/payload ownership and lifetime only, not an emulated kernel PE image or native MM3 probe correctness. Other memory stand-ins and implementation areas remain partially reviewed. Linux modes use actual fixture source with existing runtime flags/libraries.",
+                "reviewed_at_fork": "e046797aa44ef2ffb033231c26dfcceb3e09f01e",
+                "scope": "Main KPCR inline Prcb pointer within existing real mapping fixture",
+                "evidence": "Both worker cases fail on old copied pointer. Windows memory 7/7 and kernel 61/61 pass; Linux worker-state 2/2 and seven memory modes pass; both Windows renderer game builds pass. Old captured scratch bootstrap archived; Cxbx Xbox KPCR/KPRCB declarations corroborate inline field offsets.",
+                "limit": "Pointer/state consistency in the existing host-thread guest model, not full processor/scheduler/KPRCB emulation or game fidelity. Other memory/runtime ownership remains scoped and incomplete.",
                 "prior_review": {
                   "decision": "retain_generic_boundary",
-                  "reviewed_at_fork": "215a29587cdea84d14d45f56b899d8e35d3321a8",
-                  "scope": "Existing real memory fixture plus assertion that a synthetic image receives no application context chain",
-                  "evidence": "Old default loader fails no-application-context assertion. Windows memory 7/7, Windows kernel 61/61 and seven Linux memory modes pass; both Windows renderer game builds pass. MM3 preserves the same two scratch writes after memory setup; original code/comments/doc blocks archived in MM3.",
-                  "limit": "Application bootstrap ownership only; MM3 use of inherited scratch chain remains unaudited. Not proof of native application TLS, all kernel stand-ins, complete memory-layout behavior or gameplay fidelity. Linux modes were compiled from the actual fixture with existing runtime target flags/libraries, not a separate new CTest project."
+                  "reviewed_at_fork": "c2933c5d5cd09a1566f26d4cf4077ca1a3afacf2",
+                  "scope": "Real mapping fixture: unpopulated kernel probe, mapped-storage accessor and shutdown retirement",
+                  "evidence": "Old loader fails no-fabricated-PE-offset assertion. Windows memory 7/7, Windows kernel 61/61, seven Linux memory modes and both Windows renderer game builds pass. MM3 supplies the original e_lfanew compatibility write through the runtime-owned view; archive text and new guide links checked.",
+                  "limit": "Mapping/payload ownership and lifetime only, not an emulated kernel PE image or native MM3 probe correctness. Other memory stand-ins and implementation areas remain partially reviewed. Linux modes use actual fixture source with existing runtime flags/libraries.",
+                  "prior_review": {
+                    "decision": "retain_generic_boundary",
+                    "reviewed_at_fork": "215a29587cdea84d14d45f56b899d8e35d3321a8",
+                    "scope": "Existing real memory fixture plus assertion that a synthetic image receives no application context chain",
+                    "evidence": "Old default loader fails no-application-context assertion. Windows memory 7/7, Windows kernel 61/61 and seven Linux memory modes pass; both Windows renderer game builds pass. MM3 preserves the same two scratch writes after memory setup; original code/comments/doc blocks archived in MM3.",
+                    "limit": "Application bootstrap ownership only; MM3 use of inherited scratch chain remains unaudited. Not proof of native application TLS, all kernel stand-ins, complete memory-layout behavior or gameplay fidelity. Linux modes were compiled from the actual fixture with existing runtime target flags/libraries, not a separate new CTest project."
+                  }
                 }
               }
             }
@@ -4625,7 +4730,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "7476bef2870523d8d6db3990eaabd10a0cf95353",
+  "fork_tree": "c80d3acc1470484f5edbfec94b1d2682c71ba533",
   "coverage": {
     "tracked_files": 624,
     "tracked_src_files": 153,

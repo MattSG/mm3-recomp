@@ -1582,3 +1582,53 @@ source area, final cumulative runtime checks and repository/publication inventor
   and 197 test files. Main-stack fixed placement/size, the remaining fixed
   thunk-table range and scan bounds, broader source/data/docs/artifact ownership,
   cumulative validation and final repository/publication proof remain open.
+
+
+### Main-stack placement belongs to the image and port, not a captured map
+
+- The inherited main stack began at `0x780000` with an 8 MiB budget. Callback
+  slices began at the same base, so those two stack owners overlapped. A
+  synthetic image carrying data at that address also covered the main stack.
+  The new `stack-layout` case fails three assertions on the old loader.
+- Generic initialization now places the main stack after the loaded image and
+  kernel data. It uses page-rounded XBE stack commit with a one-page minimum
+  for missing/zero metadata. The field offset `0x130` is corroborated by
+  [Cxbx's XBE header](https://github.com/Cxbx-Reloaded/Cxbx-Reloaded/blob/master/src/common/xbe/Xbe.h#L118).
+  This is a static-recomp bootstrap allocation, not complete kernel stack
+  reserve/commit, guard-page or growth emulation.
+- `xbox_ConfigureMainStack(base,size)` supports checked pre-init port policy.
+  Invalid/active-layout changes are refused; image/kernel overlap and backing
+  limits fail initialization with cleanup. MM3 now selects its inherited
+  `0x780000` / 8 MiB explicitly in `src/main.c`. `XBOX_STACK_*` and the heap
+  floor are runtime values, not integer constant expressions.
+- Callback slices follow the entire main stack. Standalone hosts get no
+  implicit unowned pool and must supply their own range. Heap and above-RAM
+  reservations exclude both permanent stack ranges. Quiesced shutdown/reinit
+  retires prior allocations; generation checks invalidate each host thread's
+  positive contiguous/reservation hints when it next uses a new layout.
+- Updated bridge boundary fixture retains successful initialization with
+  exactly one page of main-stack space and disabled callbacks, and separately
+  rejects an image leaving no stack room. Standalone DPC fixtures explicitly
+  own their slices; the contiguous-gap fixture declares its synthetic 64 KiB
+  alignment. A broader Linux build exposed a Windows-only observer string copy
+  in another fixture; a direct host-character filename assertion removes it.
+- Ten old fixed-map source/header/document blocks are preserved unchanged as
+  normalized text in `tools/reference/legacy_main_stack_policy.md`. Public
+  docs now describe configuration, runtime bounds and lifetime contracts.
+- Windows memory 22/22, kernel 62/62 and bridge 8/8 pass. Linux kernel 61/61,
+  the actual C++ consumer link/run and all 21 actual memory fixture modes pass.
+  Both Windows renderer game builds pass. Evidence:
+  `conformance_tmp/ownership-stack-baseline.log`, `ownership-stack-{build,tests}.log`,
+  `ownership-stack-{kernel,bridge}-{build,tests}.log`, `ownership-stack-linux.log`
+  and `ownership-stack-{sdl,d3d11}-build.log`.
+- Bounded SDL3/D3D12 night Cruise passes menus/loading and moving gameplay
+  (`ownership-stack-cruise.log`, `conformance_tmp/game_test/run-i3f43p_q`).
+  Capture 004 was inspected; post-teleport movement is 1.563m. Logs retain the
+  MM3 entry ESP `0x00F7FFF0`; the real 20-byte TLS block is now at `0x01380000`,
+  beyond the disjoint callback pool. This is bounded gameplay evidence, not
+  all renderer/thread/device fidelity.
+- Fork checkpoint `589ceb6`; complete committed inventory stays at 624 files
+  (153 src, 197 tests). Fixed kernel-data placement, worker sizing/caps,
+  per-thread unwind bounds, thunk-table range/scan bounds, broader source/data/
+  docs/artifact ownership, cumulative checks and final publication proof remain
+  open. The full goal is not complete. Nothing pushed in this batch.
