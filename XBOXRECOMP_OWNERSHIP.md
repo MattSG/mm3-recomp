@@ -1480,3 +1480,39 @@ source area, final cumulative runtime checks and repository/publication inventor
   remaining ownership and cumulative/final repository proof also remain open.
 - Complete 622-file committed identities/hashes refreshed; scope remains the
   full ownership goal, with no claim of complete loader/TLS/kernel emulation.
+
+
+### Resolve upper-VMA reservation failure with generic ownership handling
+
+- Investigated the Linux failure retained in ownership-tls-linux.log. The POSIX
+  path attempted the whole upper range once; a later host mapping disabled even
+  its free prefix. Executor graphics allocation could also begin before guest
+  upper reservations. An inactive tracker then declined an explicit fixed
+  request, permitting heap substitution; the fixture dereferenced the requested
+  address despite its failed checks.
+- Retain the reservable prefix with startup-only 64 KiB non-replacing backoff.
+  Explicitly enabled unavailable ranges now reject fixed allocation/free requests
+  and report reserved query state. Disabled opt-in still uses the ordinary path.
+  Move executor startup after mapping/reservation initialization. The fixture
+  preserves its checks and exits on failure before accessing unbacked memory.
+- Added a standalone platform-only real native blocker fixture: partial prefixes
+  remain usable, blocked requests keep their address and fail, and shutdown
+  preserves foreign mappings. It fails on both old Windows/Linux paths and passes
+  with the fix. Its independent Linux link also exposed the platform library's
+  undeclared math dependency, now supplied transitively by that generic target.
+- Windows kernel checks pass 62/62 and memory cases 11/11. Linux native blocker
+  passes 1/1, all eleven actual memory fixture modes pass with existing runtime
+  flags/libraries, and five additional independent ext-vma startups pass. The
+  prior Linux gap is addressed by these controlled and integration checks; its
+  original failure log remains intact. Evidence:
+  ownership-vma-{prefix-baseline,prefix-linux-baseline,prefix-tests,
+  prefix-linux-final,kernel-tests,memory-tests,linux,repeat}.log.
+- Both Windows renderer game builds pass. Bounded D3D11 night Cruise passes
+  through menus/loading with inspected captures and 1.09m post-teleport driving
+  movement. Evidence: ownership-vma-{sdl-build,d3d11-build,cruise}.log and
+  conformance_tmp/game_test/run-ht_15qf6. Host fragmentation can still make an
+  address unavailable; this proves truthful handling, not universal availability
+  or full NT VM/graphics fidelity.
+- New generic fixture increases complete tracked inventory to 623 files (153 src).
+  Remaining source/header/docs/artifact ownership, cumulative validation and
+  final repository/publication proof remain open. No whole-goal completion claim.
