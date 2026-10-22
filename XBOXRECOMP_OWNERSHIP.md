@@ -1422,3 +1422,27 @@ source area, final cumulative runtime checks and repository/publication inventor
 - Complete 622-file committed tree/blob/hash inventory refreshed. Remaining
   stand-in ownership, other source/docs/artifacts, cumulative validation and
   final repository/publication proof remain open; no new gameplay fidelity claim.
+
+
+### Generic KPCR consistency replaces captured Prcb scratch storage
+
+- Removed the fixed 0x761000 zeroed scratch page and its cache-probe workaround
+  from shared initialization. The main KPCR's Prcb pointer now references its
+  own inline PrcbData. Each allocated worker rebases its pointer after copying
+  the creator's prefix, instead of sharing that creator's processor-state view.
+- This matches the existing inline DPC/IRQL state layout and is corroborated by
+  the Cxbx Xbox KPCR/KPRCB declarations (linked in the reference archive).
+  The old captured bootstrap is preserved as normalized text in
+  tools/reference/legacy_prcb_standin.md. No application selection or callback
+  was needed: this is a generic pointer/state consistency defect.
+- Both worker layout/state cases fail against the old code. New checks verify
+  own-worker pointers, main inline storage, pointer/inline DpcRoutineActive
+  agreement and cross-worker isolation. Windows memory cases pass 7/7 and kernel
+  cases 61/61. Linux worker cases pass 2/2 and seven actual memory fixture modes
+  pass using existing runtime flags/libraries. Both Windows renderer game builds
+  pass. Evidence: ownership-prcb-{baseline,memory-build,memory-tests,kernel-build,
+  kernel-tests,linux,sdl-build,d3d11-build}.log.
+- Complete 622-file committed identities/hashes refreshed. Evidence covers
+  consistency in the existing per-host-thread guest model, not full processor/
+  scheduler/KPRCB emulation or gameplay fidelity. Remaining ownership decisions,
+  cumulative validation and final repository/publication proof remain open.

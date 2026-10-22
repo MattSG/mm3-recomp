@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "c2933c5d5cd09a1566f26d4cf4077ca1a3afacf2",
+  "fork_commit": "e046797aa44ef2ffb033231c26dfcceb3e09f01e",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1091,39 +1091,46 @@
     },
     {
       "path": "src/kernel/xbox_memory_layout.c",
-      "sha256": "4e1cf4c044743efd921c6f1df20e3a33e1a751848b8b67af5bc97256a698cc22",
+      "sha256": "0d9cbce8c0acced12c235ad51ba16cee9cf21c0d411bd36e6cb11a55c9149b1a",
       "mode": "100644",
-      "git_blob": "162963921e7ff4d8f4afa723237016d95eab4e2b",
+      "git_blob": "f4a06276a1cd6e4c405cfa64bea95c2c8e578463",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "c2933c5d5cd09a1566f26d4cf4077ca1a3afacf2",
-        "scope": "Kernel probe mapping/accessor boundary: retain zeroed owned view and fallback allocation; remove application-steering PE field",
-        "evidence": "Old loader fails no-fabricated-PE-offset assertion. Windows memory 7/7, Windows kernel 61/61, seven Linux memory modes and both Windows renderer game builds pass. MM3 supplies the original e_lfanew compatibility write through the runtime-owned view; archive text and new guide links checked.",
-        "limit": "Mapping/payload ownership and lifetime only, not an emulated kernel PE image or native MM3 probe correctness. Other memory stand-ins and implementation areas remain partially reviewed. Linux modes use actual fixture source with existing runtime flags/libraries.",
+        "reviewed_at_fork": "e046797aa44ef2ffb033231c26dfcceb3e09f01e",
+        "scope": "Main/worker Prcb pointer initialization only: remove captured scratch page and reference each KPCR inline PrcbData",
+        "evidence": "Both worker cases fail on old copied pointer. Windows memory 7/7 and kernel 61/61 pass; Linux worker-state 2/2 and seven memory modes pass; both Windows renderer game builds pass. Old captured scratch bootstrap archived; Cxbx Xbox KPCR/KPRCB declarations corroborate inline field offsets.",
+        "limit": "Pointer/state consistency in the existing host-thread guest model, not full processor/scheduler/KPRCB emulation or game fidelity. Other memory/runtime ownership remains scoped and incomplete.",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "215a29587cdea84d14d45f56b899d8e35d3321a8",
-          "scope": "Removed fixed application context chain; retained XBE TLS/guest thread setup; migrated captured code/TLS comments. Other memory implementation remains only partially reviewed",
-          "evidence": "Old default loader fails no-application-context assertion. Windows memory 7/7, Windows kernel 61/61 and seven Linux memory modes pass; both Windows renderer game builds pass. MM3 preserves the same two scratch writes after memory setup; original code/comments/doc blocks archived in MM3.",
-          "limit": "Application bootstrap ownership only; MM3 use of inherited scratch chain remains unaudited. Not proof of native application TLS, all kernel stand-ins, complete memory-layout behavior or gameplay fidelity. Linux modes were compiled from the actual fixture with existing runtime target flags/libraries, not a separate new CTest project.",
+          "reviewed_at_fork": "c2933c5d5cd09a1566f26d4cf4077ca1a3afacf2",
+          "scope": "Kernel probe mapping/accessor boundary: retain zeroed owned view and fallback allocation; remove application-steering PE field",
+          "evidence": "Old loader fails no-fabricated-PE-offset assertion. Windows memory 7/7, Windows kernel 61/61, seven Linux memory modes and both Windows renderer game builds pass. MM3 supplies the original e_lfanew compatibility write through the runtime-owned view; archive text and new guide links checked.",
+          "limit": "Mapping/payload ownership and lifetime only, not an emulated kernel PE image or native MM3 probe correctness. Other memory stand-ins and implementation areas remain partially reviewed. Linux modes use actual fixture source with existing runtime flags/libraries.",
           "prior_review": {
             "decision": "retain_generic_boundary",
-            "reviewed_at_fork": "1f528671a08809c653bfea4e2a9be2c9b5d5fc0c",
-            "scope": "Optional framebuffer checksum probe only: reuse decoded display height/pitch and shared mapped-range checks rather than 480-line/base-RAM assumptions",
-            "evidence": "Old probe fails final-PAL-row/contiguous-window regression. With existing mode/range APIs, Windows kernel checks 61/61, Linux focused case 1/1 and both Windows renderer game builds pass. No title-specific address or new configuration is added.",
-            "limit": "Diagnostic checksum correctness for decoded modes, not framebuffer presentation or full memory/video fidelity. Existing display-mode decoder format/HD limits are unchanged.",
+            "reviewed_at_fork": "215a29587cdea84d14d45f56b899d8e35d3321a8",
+            "scope": "Removed fixed application context chain; retained XBE TLS/guest thread setup; migrated captured code/TLS comments. Other memory implementation remains only partially reviewed",
+            "evidence": "Old default loader fails no-application-context assertion. Windows memory 7/7, Windows kernel 61/61 and seven Linux memory modes pass; both Windows renderer game builds pass. MM3 preserves the same two scratch writes after memory setup; original code/comments/doc blocks archived in MM3.",
+            "limit": "Application bootstrap ownership only; MM3 use of inherited scratch chain remains unaudited. Not proof of native application TLS, all kernel stand-ins, complete memory-layout behavior or gameplay fidelity. Linux modes were compiled from the actual fixture with existing runtime target flags/libraries, not a separate new CTest project.",
             "prior_review": {
               "decision": "retain_generic_boundary",
-              "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
-              "scope": "Caller-configured diagnostic channel/PFIFO/ring layout; version-2 snapshot capture boundary only",
-              "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
-              "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity.",
+              "reviewed_at_fork": "1f528671a08809c653bfea4e2a9be2c9b5d5fc0c",
+              "scope": "Optional framebuffer checksum probe only: reuse decoded display height/pitch and shared mapped-range checks rather than 480-line/base-RAM assumptions",
+              "evidence": "Old probe fails final-PAL-row/contiguous-window regression. With existing mode/range APIs, Windows kernel checks 61/61, Linux focused case 1/1 and both Windows renderer game builds pass. No title-specific address or new configuration is added.",
+              "limit": "Diagnostic checksum correctness for decoded modes, not framebuffer presentation or full memory/video fidelity. Existing display-mode decoder format/HD limits are unchanged.",
               "prior_review": {
                 "decision": "retain_generic_boundary",
-                "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
-                "scope": "Registered counters/fence completion boundary: removed submitted-counter mirroring, wall-clock frame synthesis and snapshot-derived fences; retain executed flips and command releases only",
-                "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
-                "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite."
+                "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
+                "scope": "Caller-configured diagnostic channel/PFIFO/ring layout; version-2 snapshot capture boundary only",
+                "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
+                "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity.",
+                "prior_review": {
+                  "decision": "retain_generic_boundary",
+                  "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
+                  "scope": "Registered counters/fence completion boundary: removed submitted-counter mirroring, wall-clock frame synthesis and snapshot-derived fences; retain executed flips and command releases only",
+                  "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
+                  "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite."
+                }
               }
             }
           }
@@ -1132,33 +1139,40 @@
     },
     {
       "path": "src/kernel/xbox_memory_layout.h",
-      "sha256": "4c7479d3913229975566c53e34832e2910c389e52f8c748e7c1b7816049b6b38",
+      "sha256": "758b3618233a262d13b411b41a66ebd00a8b6ee7e208c2faaafff7c89e0697f9",
       "mode": "100644",
-      "git_blob": "54f91c68876884ac6a94419d401f32c39980b865",
+      "git_blob": "25731bd80bdbedc5a5f66a60075151b35346476d",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "c2933c5d5cd09a1566f26d4cf4077ca1a3afacf2",
-        "scope": "Kernel probe view accessor and lifetime contract only; prior scoped declarations retained",
-        "evidence": "Old loader fails no-fabricated-PE-offset assertion. Windows memory 7/7, Windows kernel 61/61, seven Linux memory modes and both Windows renderer game builds pass. MM3 supplies the original e_lfanew compatibility write through the runtime-owned view; archive text and new guide links checked.",
-        "limit": "Mapping/payload ownership and lifetime only, not an emulated kernel PE image or native MM3 probe correctness. Other memory stand-ins and implementation areas remain partially reviewed. Linux modes use actual fixture source with existing runtime flags/libraries.",
+        "reviewed_at_fork": "e046797aa44ef2ffb033231c26dfcceb3e09f01e",
+        "scope": "Shared inline PrcbData offset constant alongside existing KPCR/DPC layout constants",
+        "evidence": "Both worker cases fail on old copied pointer. Windows memory 7/7 and kernel 61/61 pass; Linux worker-state 2/2 and seven memory modes pass; both Windows renderer game builds pass. Old captured scratch bootstrap archived; Cxbx Xbox KPCR/KPRCB declarations corroborate inline field offsets.",
+        "limit": "Pointer/state consistency in the existing host-thread guest model, not full processor/scheduler/KPRCB emulation or game fidelity. Other memory/runtime ownership remains scoped and incomplete.",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
-          "scope": "Capture layout registration and version-2 snapshot metadata declarations",
-          "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
-          "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity.",
+          "reviewed_at_fork": "c2933c5d5cd09a1566f26d4cf4077ca1a3afacf2",
+          "scope": "Kernel probe view accessor and lifetime contract only; prior scoped declarations retained",
+          "evidence": "Old loader fails no-fabricated-PE-offset assertion. Windows memory 7/7, Windows kernel 61/61, seven Linux memory modes and both Windows renderer game builds pass. MM3 supplies the original e_lfanew compatibility write through the runtime-owned view; archive text and new guide links checked.",
+          "limit": "Mapping/payload ownership and lifetime only, not an emulated kernel PE image or native MM3 probe correctness. Other memory stand-ins and implementation areas remain partially reviewed. Linux modes use actual fixture source with existing runtime flags/libraries.",
           "prior_review": {
             "decision": "retain_generic_boundary",
-            "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
-            "scope": "Counter/fence API declarations and documentation for the removed policies; other header areas retain only their prior scoped reviews",
-            "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
-            "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite.",
+            "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
+            "scope": "Capture layout registration and version-2 snapshot metadata declarations",
+            "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
+            "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity.",
             "prior_review": {
               "decision": "retain_generic_boundary",
-              "reviewed_at_fork": "f507c486bcc8e7fdd11ea10c47f293b3ad3543c1",
-              "scope": "Expanded mapping rationale comment only; remaining declarations and legacy fence commentary not certified",
-              "evidence": "Original runtime guide and two captured-title source comments archived in MM3 with commit/blob provenance; normalized guide text preserved; new links resolve; source code identical with comments removed; Windows starter rebuilt and 4/4 startup/failure cases pass.",
-              "limit": "Documentation and scoped comment ownership; no new gameplay/renderer/kernel fidelity claim. Legacy fence description and remaining runtime/header ownership need separate review."
+              "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
+              "scope": "Counter/fence API declarations and documentation for the removed policies; other header areas retain only their prior scoped reviews",
+              "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
+              "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite.",
+              "prior_review": {
+                "decision": "retain_generic_boundary",
+                "reviewed_at_fork": "f507c486bcc8e7fdd11ea10c47f293b3ad3543c1",
+                "scope": "Expanded mapping rationale comment only; remaining declarations and legacy fence commentary not certified",
+                "evidence": "Original runtime guide and two captured-title source comments archived in MM3 with commit/blob provenance; normalized guide text preserved; new links resolve; source code identical with comments removed; Windows starter rebuilt and 4/4 startup/failure cases pass.",
+                "limit": "Documentation and scoped comment ownership; no new gameplay/renderer/kernel fidelity claim. Legacy fence description and remaining runtime/header ownership need separate review."
+              }
             }
           }
         }
@@ -2115,8 +2129,15 @@
     {
       "path": "tests/kernel_dispatch/kernel_thread_tib_test.c",
       "mode": "100644",
-      "git_blob": "8e366ea95d891856fcf1334eef89b45557e50845",
-      "sha256": "8b0b2a29013880e317bfd6e54bd3ad1957fba3f2399395cafef0593d3b577180"
+      "git_blob": "654ce7c30eed80e1c8b6cae655a0ef17d1a36763",
+      "sha256": "ba34ef3510e91ccde570cab52055cc99e9147e5dab02669356f79e2452f3324f",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "e046797aa44ef2ffb033231c26dfcceb3e09f01e",
+        "scope": "Own-worker Prcb pointers, pointer/inline DPC-active alias and cross-worker isolation",
+        "evidence": "Both worker cases fail on old copied pointer. Windows memory 7/7 and kernel 61/61 pass; Linux worker-state 2/2 and seven memory modes pass; both Windows renderer game builds pass. Old captured scratch bootstrap archived; Cxbx Xbox KPCR/KPRCB declarations corroborate inline field offsets.",
+        "limit": "Pointer/state consistency in the existing host-thread guest model, not full processor/scheduler/KPRCB emulation or game fidelity. Other memory/runtime ownership remains scoped and incomplete."
+      }
     },
     {
       "path": "tests/kernel_dispatch/kernel_timer_lifecycle_test.c",
@@ -2395,20 +2416,27 @@
     {
       "path": "tests/memory_regressions/test_main.c",
       "mode": "100644",
-      "git_blob": "f455d2b09b2d6ca03e10ff7f0a51ce78f6e9bb90",
-      "sha256": "7d2627632f2e14ae431b82cac6ae712b8d5a2edb9b54694ac0eec43a3ad0772b",
+      "git_blob": "dea67740548de7e0e3044f49cf13ab04b845c300",
+      "sha256": "202303b61ca193ad12071376c462dbc41b92254559ce59d0e35164ba6a46f20c",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "c2933c5d5cd09a1566f26d4cf4077ca1a3afacf2",
-        "scope": "Real mapping fixture: unpopulated kernel probe, mapped-storage accessor and shutdown retirement",
-        "evidence": "Old loader fails no-fabricated-PE-offset assertion. Windows memory 7/7, Windows kernel 61/61, seven Linux memory modes and both Windows renderer game builds pass. MM3 supplies the original e_lfanew compatibility write through the runtime-owned view; archive text and new guide links checked.",
-        "limit": "Mapping/payload ownership and lifetime only, not an emulated kernel PE image or native MM3 probe correctness. Other memory stand-ins and implementation areas remain partially reviewed. Linux modes use actual fixture source with existing runtime flags/libraries.",
+        "reviewed_at_fork": "e046797aa44ef2ffb033231c26dfcceb3e09f01e",
+        "scope": "Main KPCR inline Prcb pointer within existing real mapping fixture",
+        "evidence": "Both worker cases fail on old copied pointer. Windows memory 7/7 and kernel 61/61 pass; Linux worker-state 2/2 and seven memory modes pass; both Windows renderer game builds pass. Old captured scratch bootstrap archived; Cxbx Xbox KPCR/KPRCB declarations corroborate inline field offsets.",
+        "limit": "Pointer/state consistency in the existing host-thread guest model, not full processor/scheduler/KPRCB emulation or game fidelity. Other memory/runtime ownership remains scoped and incomplete.",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "215a29587cdea84d14d45f56b899d8e35d3321a8",
-          "scope": "Existing real memory fixture plus assertion that a synthetic image receives no application context chain",
-          "evidence": "Old default loader fails no-application-context assertion. Windows memory 7/7, Windows kernel 61/61 and seven Linux memory modes pass; both Windows renderer game builds pass. MM3 preserves the same two scratch writes after memory setup; original code/comments/doc blocks archived in MM3.",
-          "limit": "Application bootstrap ownership only; MM3 use of inherited scratch chain remains unaudited. Not proof of native application TLS, all kernel stand-ins, complete memory-layout behavior or gameplay fidelity. Linux modes were compiled from the actual fixture with existing runtime target flags/libraries, not a separate new CTest project."
+          "reviewed_at_fork": "c2933c5d5cd09a1566f26d4cf4077ca1a3afacf2",
+          "scope": "Real mapping fixture: unpopulated kernel probe, mapped-storage accessor and shutdown retirement",
+          "evidence": "Old loader fails no-fabricated-PE-offset assertion. Windows memory 7/7, Windows kernel 61/61, seven Linux memory modes and both Windows renderer game builds pass. MM3 supplies the original e_lfanew compatibility write through the runtime-owned view; archive text and new guide links checked.",
+          "limit": "Mapping/payload ownership and lifetime only, not an emulated kernel PE image or native MM3 probe correctness. Other memory stand-ins and implementation areas remain partially reviewed. Linux modes use actual fixture source with existing runtime flags/libraries.",
+          "prior_review": {
+            "decision": "retain_generic_boundary",
+            "reviewed_at_fork": "215a29587cdea84d14d45f56b899d8e35d3321a8",
+            "scope": "Existing real memory fixture plus assertion that a synthetic image receives no application context chain",
+            "evidence": "Old default loader fails no-application-context assertion. Windows memory 7/7, Windows kernel 61/61 and seven Linux memory modes pass; both Windows renderer game builds pass. MM3 preserves the same two scratch writes after memory setup; original code/comments/doc blocks archived in MM3.",
+            "limit": "Application bootstrap ownership only; MM3 use of inherited scratch chain remains unaudited. Not proof of native application TLS, all kernel stand-ins, complete memory-layout behavior or gameplay fidelity. Linux modes were compiled from the actual fixture with existing runtime target flags/libraries, not a separate new CTest project."
+          }
         }
       }
     },
@@ -4424,7 +4452,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "c10ae3b53011a99a8ebe7e597ef10c81ecd5c68c",
+  "fork_tree": "9f1ecf0279f8d2a32d50691088b2477f25db676f",
   "coverage": {
     "tracked_files": 622,
     "tracked_src_files": 153,
