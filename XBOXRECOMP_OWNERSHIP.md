@@ -1314,3 +1314,34 @@ source area, final cumulative runtime checks and repository/publication inventor
   at 0x17C0 and 0x4F8; that image-layout boundary needs a separate caller-configured
   migration. Other ownership, cumulative validation and final repository/
   publication proof remain open.
+
+
+### Capture layouts and device decoding belong to the port
+
+- Replaced implicit device/channel/ring offsets with optional caller-supplied
+  XBOX_NV2A_CAPTURE_LAYOUT registration on a fence root. No layout means no
+  decoded channel/PFIFO/ring fields; raw device and hardware state remain
+  available. Capture reads retain their bounds/overflow checks. MM3 supplies
+  its linked-library offsets during startup; they no longer select shared
+  capture behavior by default.
+- The scanner now uses decoded ring bounds rather than interpreting fixed raw
+  device offsets. Full-ring capture, including the possible boundary JUMP word,
+  is preserved. Version-2 snapshots add three words per mirror (35,320 bytes);
+  generic producer JSON includes these bounds. The SDK format notes explicitly
+  require version/size checks rather than silently accepting old readers.
+- Removed the shared JSON decoder's cursor/flags/fence-table layout assumptions.
+  MM3 owns tools/scripts/decode_mm3_pb_capture.py with the original named fields
+  and offsets. It accepts historical version-1 and current version-2 binary
+  snapshots, validates sizes/counts, and marks unavailable bytes as null.
+  A standard-library regression checks both layouts and malformed inputs.
+- Preserved the original device-layout-dependent source blocks as normalized
+  text in tools/reference/legacy_capture_layout.md. The old implicit-layout
+  baseline fails as expected. Windows kernel/capture checks pass 61/61, including
+  actual fixture binary/JSON outputs and full-ring/pre-callback word preservation;
+  Linux focused command-fence/hitch checks pass 3/3. Both Windows renderer game
+  builds pass. Evidence: ownership-capture-layout-{baseline,build,tests,linux,
+  sdl-build,d3d11-build}.log; root test_mm3_pb_capture.py also passes.
+- Complete 622-file tree/blob/hash inventory refreshed. This is scoped capture
+  ownership/schema evidence, not atomic snapshot, full scanner/runtime or
+  original-game fidelity proof. Remaining ownership decisions, cumulative
+  validation and final repository/publication proof remain open.

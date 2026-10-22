@@ -296,6 +296,17 @@ int main(void)
         free(xbe_data);
         return 1;
     }
+    /* MM3's statically linked D3D device/channel layout, for diagnostics only. */
+    const XBOX_NV2A_CAPTURE_LAYOUT capture_layout = {
+        0x17C0u, 0x40u, 0x44u, 0x4F8u, 0x24u, 0x28u
+    };
+    if (xbox_Nv2aCaptureLayout(0x00351F48u, &capture_layout) != 0) {
+        fprintf(stderr, "NV2A capture layout registration failed\n");
+        xbox_kernel_shutdown();
+        xbox_MemoryLayoutShutdown();
+        free(xbe_data);
+        return 1;
+    }
     /* D3D's GPU-notify KEVENT (device+0x196C, waited on in 0x344640),
      * raised by the NOP(5) it patches into the push buffer */
     xbox_Nv2aNotifyEvent(0x00351F48u, 0x196Cu, 5u);

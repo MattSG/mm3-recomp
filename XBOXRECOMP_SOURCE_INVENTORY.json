@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "494beb888bca0f4487fe14838645046d19fb41d5",
+  "fork_commit": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1032,9 +1032,16 @@
     },
     {
       "path": "src/kernel/nv2a_pb_scan.c",
-      "sha256": "23eb7cf9c89044941e6637cfac4a711e5ae689148661235bdedce6a7bc79ad99",
+      "sha256": "3acadcb22bee1bb89fc5f055648fb0292a6c46c394304940c8dc343bb1ccbf22",
       "mode": "100644",
-      "git_blob": "ccb254da6974e13a36b9ba5efb3884d1d74a565e"
+      "git_blob": "92659cbb06955f057b99f13ff3b01055e86f9106",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
+        "scope": "Pre-execution full-ring capture and generic producer JSON; other scanner behavior retains only prior scoped reviews",
+        "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
+        "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity."
+      }
     },
     {
       "path": "src/kernel/nv2a_vsh_interp.c",
@@ -1070,34 +1077,48 @@
     },
     {
       "path": "src/kernel/xbox_memory_layout.c",
-      "sha256": "ce0b5af3a8dbdab53af8992187edff9281a1cbc9fb88ce0742965d863721d009",
+      "sha256": "a600f826cbc37843801e115fb6c69126bc203ff69156e0dbc61169edd26ce519",
       "mode": "100644",
-      "git_blob": "5392556db76d8251d985089bd7f955468436b44b",
+      "git_blob": "158a2b55228fd19a61397401df5100ce53d85aea",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
-        "scope": "Registered counters/fence completion boundary: removed submitted-counter mirroring, wall-clock frame synthesis and snapshot-derived fences; retain executed flips and command releases only",
-        "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
-        "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite."
+        "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
+        "scope": "Caller-configured diagnostic channel/PFIFO/ring layout; version-2 snapshot capture boundary only",
+        "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
+        "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
+          "scope": "Registered counters/fence completion boundary: removed submitted-counter mirroring, wall-clock frame synthesis and snapshot-derived fences; retain executed flips and command releases only",
+          "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
+          "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite."
+        }
       }
     },
     {
       "path": "src/kernel/xbox_memory_layout.h",
-      "sha256": "e3324f32457b4184cc7b6fc4cb16ee32678141d008e4244e7c959baf99ada886",
+      "sha256": "4c9c3a45900acd01704f7461b93e1a05d2c1ab603f944831f28e8fc25802ceb1",
       "mode": "100644",
-      "git_blob": "24ab9de0a14b36b44602ea23d2ee7b3a243d8c99",
+      "git_blob": "789748e23dd8df28ed49b6778f2583ce8bfcf872",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
-        "scope": "Counter/fence API declarations and documentation for the removed policies; other header areas retain only their prior scoped reviews",
-        "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
-        "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite.",
+        "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
+        "scope": "Capture layout registration and version-2 snapshot metadata declarations",
+        "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
+        "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity.",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "f507c486bcc8e7fdd11ea10c47f293b3ad3543c1",
-          "scope": "Expanded mapping rationale comment only; remaining declarations and legacy fence commentary not certified",
-          "evidence": "Original runtime guide and two captured-title source comments archived in MM3 with commit/blob provenance; normalized guide text preserved; new links resolve; source code identical with comments removed; Windows starter rebuilt and 4/4 startup/failure cases pass.",
-          "limit": "Documentation and scoped comment ownership; no new gameplay/renderer/kernel fidelity claim. Legacy fence description and remaining runtime/header ownership need separate review."
+          "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
+          "scope": "Counter/fence API declarations and documentation for the removed policies; other header areas retain only their prior scoped reviews",
+          "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
+          "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite.",
+          "prior_review": {
+            "decision": "retain_generic_boundary",
+            "reviewed_at_fork": "f507c486bcc8e7fdd11ea10c47f293b3ad3543c1",
+            "scope": "Expanded mapping rationale comment only; remaining declarations and legacy fence commentary not certified",
+            "evidence": "Original runtime guide and two captured-title source comments archived in MM3 with commit/blob provenance; normalized guide text preserved; new links resolve; source code identical with comments removed; Windows starter rebuilt and 4/4 startup/failure cases pass.",
+            "limit": "Documentation and scoped comment ownership; no new gameplay/renderer/kernel fidelity claim. Legacy fence description and remaining runtime/header ownership need separate review."
+          }
         }
       }
     },
@@ -1961,8 +1982,15 @@
     {
       "path": "tests/kernel_dispatch/README.md",
       "mode": "100644",
-      "git_blob": "4a9069e57f27626cfe0b3876b73d21881895adfa",
-      "sha256": "8620ecbfcbc3ebf2961ecce323064f365d56a4310f4d590dc8bbd04f77b3a609"
+      "git_blob": "d1a0b15263c5343fa6ecfea98bfcb15230b3359a",
+      "sha256": "bc62b83ecb4a082e361118ba0f98bade934195f267cf78afde935df5e36fa946",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
+        "scope": "Capture snapshot version-2 format and caller configuration documentation only",
+        "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
+        "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity."
+      }
     },
     {
       "path": "tests/kernel_dispatch/contig_heap_ownership_test.c",
@@ -2057,14 +2085,21 @@
     {
       "path": "tests/kernel_dispatch/nv2a_command_fence_test.c",
       "mode": "100644",
-      "git_blob": "16eb7a306c136d559cc13b17fbaf7cbc6779d6cb",
-      "sha256": "2a3ff2f281026b5c18e66489c1a78a99baac347f039296f21c4c16f34ead0444",
+      "git_blob": "0b5febffe26eddaf291a4db5c3cf96c9af87ffed",
+      "sha256": "299c4073961960bebae82fda336dfd4abb5bf44171f9bb722060fe1d1ed03871",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
-        "scope": "Synthetic executed semaphore/flip counters, invalid chains, wrap, unconfigured registration, ordering and read-only diagnostics",
-        "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
-        "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite."
+        "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
+        "scope": "Synthetic alternate capture layout, unconfigured roots, MMIO, overflow and disable checks within real completion fixture",
+        "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
+        "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "494beb888bca0f4487fe14838645046d19fb41d5",
+          "scope": "Synthetic executed semaphore/flip counters, invalid chains, wrap, unconfigured registration, ordering and read-only diagnostics",
+          "evidence": "Removed legacy policies archived in MM3 with exact normalized source/header text. Windows kernel suite 61/61 and both renderer game builds pass. MM3 selects command-driven completion and has no removed-policy registrations. Linux focused command-fence case passes 1/1.",
+          "limit": "Scoped completion/counter ownership, not a full memory-layout implementation audit, original-game fidelity or exhaustive scheduling/device proof. Linux evidence covers this one focused case, not the full kernel suite."
+        }
       }
     },
     {
@@ -2088,8 +2123,15 @@
     {
       "path": "tests/kernel_dispatch/nv2a_pb_hitch_test.c",
       "mode": "100644",
-      "git_blob": "1f4a6307d5894da6618c47a5f98bcc926d566b14",
-      "sha256": "1b997308465deae58855b659682259ee5c84e2f868b0af2f8db419fac471baec"
+      "git_blob": "f48a8a8b311de8fd92cecf46545ec7a58ae81613",
+      "sha256": "a537902eadd6dd49241318107d0736815b6426b97dc1344cb7942dc5b73b0645",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
+        "scope": "Version-2 snapshot/ring metadata fixture and captured-word/full-ring preservation",
+        "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
+        "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity."
+      }
     },
     {
       "path": "tests/kernel_dispatch/nv2a_texaddr_test.c",
@@ -4319,7 +4361,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "d4706b6067ed682c39963c61de184aa24e4bbfa0",
+  "fork_tree": "d2928bf2a21992b6296c9b51c2ab4d5157d76d46",
   "coverage": {
     "tracked_files": 622,
     "tracked_src_files": 153,
