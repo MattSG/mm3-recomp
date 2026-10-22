@@ -172,6 +172,7 @@ static void route_contract(float aspect) {
     assert(!memcmp(copy, "\0\0\0\0", 4)); /* Required even in 4:3. */
 }
 int main(void) {
+    assert(mm3_hud_hooks.vertex_alignment == mm3_render_vertex_alignment);
     static const float aspects[] = {1.6f, 16.0f/9.0f, 21.0f/9.0f};
     unsigned i;
     for (i = 0; i < sizeof aspects/sizeof aspects[0]; ++i) {

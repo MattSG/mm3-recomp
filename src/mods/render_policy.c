@@ -89,3 +89,13 @@ int mm3_render_idle(uint32_t now_ms, uint32_t idle_ms, int movie)
         ? 1.f + (float)(now_ms % 1000) / 1000.f : 0.f;
     return loading_phase > 0;
 }
+
+/* The authored display passes need position and texture interpolation shifted
+ * together; offscreen ripple targets keep pixel-zero edge snapping. */
+void mm3_render_vertex_alignment(uint32_t width, uint32_t height, float *snap, float *offset)
+{
+    if (width == 640 && height == 480) {
+        *snap = 0.0f;
+        *offset = 0.53125f;
+    }
+}

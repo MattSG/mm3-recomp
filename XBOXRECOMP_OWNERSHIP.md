@@ -684,3 +684,33 @@ No new executable behavior was changed by this inventory pass. The prior scoped
 runtime tests remain scoped to their corresponding boundaries. Remaining work
 includes whole-fork tracked-artifact coverage, the rest of each partially reviewed
 source area, final cumulative runtime checks and repository/publication inventory.
+
+
+### Twenty-third boundary: authored vertex-alignment selection
+
+- Both renderers selected a special 0.53125 vertex offset solely for 640x480
+  targets, while other sizes used pixel-zero edge snapping. Moved that fixed
+  target-size classifier into MM3 render_policy.c. Its hook is installed with
+  the existing MM3 overlay hooks, preserving the original choice in both
+  backends and with widescreen disabled.
+- XboxRecomp retains the shared shader coordinate operations and an optional
+  vertex_alignment callback. Both backends use one shared parameter helper;
+  without a hook there is no display-size selector. Default snapping and zero
+  offset apply at every target size. No authored shader/texture identity was
+  added to the runtime.
+- The GPU placement fixture now explicitly exercises default and caller-hooked
+  behavior at display and offscreen sizes, rather than retaining the old size
+  classifier in its expected behavior. All 13 graphics-quality and 19 binding
+  cases pass. Both complete Windows game targets build. MM3 policy and actual
+  hook-wiring/overlay contracts pass on Windows; the policy contract also passes
+  under WSL Linux. Logs: ownership-alignment-{quality,bindings}-tests.log,
+  ownership-alignment-{sdlgpu,d3d11}-build.log and alignment-root-tests.log.
+- The first Linux policy check exposed the fixture's pre-existing empty-env
+  mismatch with Windows _putenv_s. Its POSIX shim now unsets empty values and
+  declares POSIX APIs correctly; the runtime's spinner logic was not changed.
+- Fresh owned Night Cruise checks passed all 49 actions on Vulkan run-i08uu7t6
+  (123.797 seconds) and D3D12 run-l5g4rqc0 (123.375 seconds). Backend logs,
+  movement telemetry and final captures were inspected. Both show rear lamps,
+  road lighting, sky, scene geometry and HUD. These are bounded preservation
+  checks, not full temporal/visual fidelity or all-menu-flow acceptance.
+  The broader source/artifact and final inventory audits remain open.
