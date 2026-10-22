@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "77dea704ca346a6651672323bf8c151a90366166",
+  "fork_commit": "babce61170c030315a00f04aee362f48cba8e902",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -3124,20 +3124,41 @@
     {
       "path": "tools/fusion/__init__.py",
       "mode": "100644",
-      "git_blob": "cbc5784493223fcf25fee595caf041d8925e926c",
-      "sha256": "1ec76ab8261925910c4690acae660be6a42e8ca1a98e91f58adbe2701ad14b21"
+      "git_blob": "490a316b889017f70a0d9fac0f60f0cfe43289a2",
+      "sha256": "36b504f4120ada82790889eb5f9456134cec7c2f0e0a6a0e6884c949473c6ab3",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "babce61170c030315a00f04aee362f48cba8e902",
+        "scope": "Full analysis-package description and data ownership boundary",
+        "evidence": "Later-operand mask regression fails before instruction offset fix and passes after; all 42 Fusion cases pass; comparator executable ASTs unchanged; captured notes/global example moved to MM3",
+        "limit": "Heuristic candidate naming and manual reference analysis, not semantic equivalence, complete private-format support or cross-title precision proof; saved signature databases need regeneration after masker fixes"
+      }
     },
     {
       "path": "tools/fusion/coverage_oracle.py",
       "mode": "100644",
-      "git_blob": "14a28ce5a0a0553e918f44e34ad574724b2df5be",
-      "sha256": "a5d33a2b2d01ec8a2bb12be7acac2b2843e7a870c64c47e19807f346d2bf07f6"
+      "git_blob": "b4efdcaaae9e505e260b87ebed0917bfdddbaa18",
+      "sha256": "3b5c2a2373daed2758134e0b8399d628af485298b0ddef2862deb6e0aac63dab",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "babce61170c030315a00f04aee362f48cba8e902",
+        "scope": "Full supplied named-reference start versus detected-function comparison",
+        "evidence": "Later-operand mask regression fails before instruction offset fix and passes after; all 42 Fusion cases pass; comparator executable ASTs unchanged; captured notes/global example moved to MM3",
+        "limit": "Heuristic candidate naming and manual reference analysis, not semantic equivalence, complete private-format support or cross-title precision proof; saved signature databases need regeneration after masker fixes"
+      }
     },
     {
       "path": "tools/fusion/lifter_diff.py",
       "mode": "100644",
-      "git_blob": "8e27e877057e5a62407783898fecdb5bb9b67eff",
-      "sha256": "090f1c33ca7439584f184c3ea1d55f049ec5f4136c6d80efa1c30c240ba512b9"
+      "git_blob": "e4468f31f4c5e2ace6e03b8d7cf995f6c0c91e16",
+      "sha256": "1ed7160204ac0dc172b287a48e4595eec12eda7ae2c57c74c50d3e14a832a4d1",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "babce61170c030315a00f04aee362f48cba8e902",
+        "scope": "Full caller-supplied reference-listing/generated-C comparison aid under its explicit host-register model",
+        "evidence": "Later-operand mask regression fails before instruction offset fix and passes after; all 42 Fusion cases pass; comparator executable ASTs unchanged; captured notes/global example moved to MM3",
+        "limit": "Heuristic candidate naming and manual reference analysis, not semantic equivalence, complete private-format support or cross-title precision proof; saved signature databases need regeneration after masker fixes"
+      }
     },
     {
       "path": "tools/fusion/module.py",
@@ -3155,8 +3176,15 @@
     {
       "path": "tools/fusion/signatures.py",
       "mode": "100644",
-      "git_blob": "27d85b8dfa482f410a42924e43fddd4a385e3a7b",
-      "sha256": "ae8183f564c2e62ebc55f26dc0ec0b6a2e0ee5d6cb7090d1df670adeb4b06178"
+      "git_blob": "b4ca216cc4a1977a3aafe405c18e5373090e64f9",
+      "sha256": "40e3279d8a1890bf5fff7f2c9daca20b88625d0e83a87ada5ca69c68b6381c51",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "babce61170c030315a00f04aee362f48cba8e902",
+        "scope": "Full caller-XBE section reader, shared masked pattern, build/match/merge/selftest flow; title-derived output remains caller-owned",
+        "evidence": "Later-operand mask regression fails before instruction offset fix and passes after; all 42 Fusion cases pass; comparator executable ASTs unchanged; captured notes/global example moved to MM3",
+        "limit": "Heuristic candidate naming and manual reference analysis, not semantic equivalence, complete private-format support or cross-title precision proof; saved signature databases need regeneration after masker fixes"
+      }
     },
     {
       "path": "tools/fusion/svod.py",
@@ -3174,8 +3202,15 @@
     {
       "path": "tools/fusion/test_lifter_diff.py",
       "mode": "100644",
-      "git_blob": "10794bdf4d37704ac5c19cb8344c39d79aea6485",
-      "sha256": "18a57a6d8f5e91e172b37c31981df46b17d1814821e2cbc03775af031d2c5df7"
+      "git_blob": "fb9b1203a4ce5f9b3607ea6c875c00268e07c521",
+      "sha256": "789f211407e84755a390db24db01b1f0a52f14b034545104dbb2a1784034355b",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "babce61170c030315a00f04aee362f48cba8e902",
+        "scope": "Full synthetic guest-field/global/scratch operand cases; captured global value replaced",
+        "evidence": "Later-operand mask regression fails before instruction offset fix and passes after; all 42 Fusion cases pass; comparator executable ASTs unchanged; captured notes/global example moved to MM3",
+        "limit": "Heuristic candidate naming and manual reference analysis, not semantic equivalence, complete private-format support or cross-title precision proof; saved signature databases need regeneration after masker fixes"
+      }
     },
     {
       "path": "tools/fusion/test_module.py",
@@ -3193,8 +3228,15 @@
     {
       "path": "tools/fusion/test_signatures.py",
       "mode": "100644",
-      "git_blob": "f55d42aee077ca0997ebe4c17acdd9c2885662bf",
-      "sha256": "51696800ecc8e0bae2a0659f4830f7ca807b3c459af8b991b40b3e394132cd24"
+      "git_blob": "930335934ba656f12a438ac992c8c2acb4728a97",
+      "sha256": "2727fd5998f93d51a6c6dc7a0463d6499a254ef4b2eae82708972b4c307fe790",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "babce61170c030315a00f04aee362f48cba8e902",
+        "scope": "Full synthetic opcode/operand pattern regression, including address fields after a prologue",
+        "evidence": "Later-operand mask regression fails before instruction offset fix and passes after; all 42 Fusion cases pass; comparator executable ASTs unchanged; captured notes/global example moved to MM3",
+        "limit": "Heuristic candidate naming and manual reference analysis, not semantic equivalence, complete private-format support or cross-title precision proof; saved signature databases need regeneration after masker fixes"
+      }
     },
     {
       "path": "tools/fusion/test_svod.py",
@@ -4052,7 +4094,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "00c9145a9d4620535224f279e4001a9869c76d75",
+  "fork_tree": "027b43a29e61f9df2394aa2811c1840254fba50a",
   "coverage": {
     "tracked_files": 625,
     "tracked_src_files": 153,

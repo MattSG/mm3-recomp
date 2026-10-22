@@ -1138,3 +1138,32 @@ source area, final cumulative runtime checks and repository/publication inventor
 - Complete 625-file committed tree/blob/hash inventory refreshed. Other Fusion
   corpus/documentation, remaining source/tool/test ownership and cumulative/
   final repository proof remain open.
+
+### Generic Fusion signatures and comparison aids
+
+- Reviewed signature construction/matching: image bounds come from supplied XBE
+  sections; the donor module supplies symbol metadata, not a built-in title
+  layout or bundled database. Retain the reusable reader/mask/matcher mechanisms
+  and keep generated signature data owned by its caller/port.
+- Found and fixed an instruction-offset bug in the shared masker used by both
+  build and match. Capstone encoding offsets are instruction-relative; applying
+  them at pattern offset zero masked earlier opcodes and left later address
+  bytes fixed. Added the instruction's position for immediate/displacement
+  fields while preserving the selected-operand masking rules.
+- Regression with a prologue followed by rel32 call, absolute load and image
+  immediate checks the exact preserved opcode and wildcard operand bytes. It
+  fails on the old implementation (six existing cases passed); all 42 Fusion
+  cases pass after the fix. Evidence: ownership-signatures-{baseline,tests}.log.
+  Regenerate saved signature databases after masker changes; none are bundled.
+- Reviewed caller-supplied reference listing/function-start comparison aids.
+  Moved captured donor-build/global examples and earlier overbroad oracle claims
+  into tools/reference/legacy_fusion_comparison_notes.md. The remaining observed
+  global instruction fixture now uses a synthetic address with the same operand
+  semantics. Comparator executable ASTs are unchanged; signature code changes
+  are confined to masked_pattern. Evidence:
+  ownership-fusion-comparison-source-check.log.
+- Docs describe candidate naming/manual analysis rather than semantic equivalence
+  or exhaustive function coverage. No real donor database, cross-title naming
+  precision, private compiler convention coverage or gameplay proof is claimed.
+  Complete 625-file inventory refreshed. Remaining corpus/docs/runtime/artifact
+  ownership, cumulative validation and final repository proof remain open.
