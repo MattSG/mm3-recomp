@@ -764,3 +764,32 @@ source area, final cumulative runtime checks and repository/publication inventor
   sizes, rather than the stale indexed title-sized description. Retain those
   allocator contracts; discovery-index hits alone cannot establish current
   artifact content. Full source/artifact and final inventory audits stay open.
+
+
+### Retained area: console settings and DSP capture/replay (2026-10-22)
+
+- Completed the ownership pass of kernel_xbox.c: console identity/version
+  exports, eager-section reference counters, 96-byte user settings with
+  checksum/locked replacement, MAC selection and virtual PHY entry points.
+  Retain these generic HLE mechanisms. Save-root choice is caller-owned;
+  host video/network overrides are generic configuration. No title selector
+  or game-specific address dispatch was found. Existing HLE limitations are
+  not a reason to claim complete hardware fidelity.
+- The current source hash matches the recorded inventory snapshot; that file
+  now carries an explicit retain decision and review scope. No implementation
+  changed. kernel_settings passes on Windows and WSL Linux, with fresh private
+  roots: restart persistence, independent roots, concurrent updates/readers,
+  aggregate/scalar fields, host override isolation and corrupt-image rejection.
+  Evidence: ownership-settings-windows-{build,tests}.log and
+  ownership-settings-linux.log. These tests do not use the user's saved settings.
+- Inspected DSP capture-program extraction, frame replay, clipped-capture
+  fixture and their CMake pipeline, plus the APU fixture's generated-program
+  setup. Retain the generic capture/replay tools: inputs are caller paths and
+  tests build synthetic opcode programs/captures rather than embedding a game
+  program. Byte comparison checks replay state/transfers; it does not imply
+  full original-console audio equivalence.
+- The existing Windows DSP build and all 19 cases pass, including generated
+  recompiler replay. DSP_XEMU_REFERENCE_DIR is empty in this build; no pinned
+  external reference comparison was run. Evidence: ownership-dsp-audit-*.log.
+  The remaining DSP/runtime code, provenance inventory, all tracked artifacts
+  and final cumulative/repository proof still require the broader audit.

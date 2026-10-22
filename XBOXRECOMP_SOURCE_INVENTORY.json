@@ -333,7 +333,14 @@
     },
     {
       "path": "src/kernel/kernel_xbox.c",
-      "sha256": "199244ff9a7e1b6274ffa80f75a2ce8100668daaa822165ebfd6ae59877826e8"
+      "sha256": "199244ff9a7e1b6274ffa80f75a2ce8100668daaa822165ebfd6ae59877826e8",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "ec8ca5d181c2c57ddd4cf28e1c02fae15cdb471e",
+        "scope": "Console identity exports, eager-section references, settings persistence and virtual PHY entry points",
+        "evidence": "Complete source review plus kernel_settings tests on Windows and Linux",
+        "limit": "Ownership decision and bounded settings proof; not complete hardware/EEPROM/PHY fidelity"
+      }
     },
     {
       "path": "src/kernel/nv2a_combiner.c",
