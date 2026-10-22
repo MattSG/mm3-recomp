@@ -189,6 +189,21 @@ void sub_000F4AC3(void)
     sub_000F4AC3_original();
 }
 
+/* Extended visibility can exhaust the native 256-entry flare queue before
+ * vehicle lamps are submitted: sub_001A831B rejects records at count >= capacity
+ * (+0x218 / +0x214). Scale the constructor input, not just that limit, so the
+ * native allocator also grows the records and all three vertex buffers. */
+extern void sub_00248518_original(void);
+void sub_00248518(void)
+{
+    if (MEM32(g_esp) == 0x0022C89Eu && g_eax == 256u &&
+        mm3_mod_on(MM3_MOD_DRAW_DISTANCE)) {
+        g_eax = (uint32_t)(256.f * fmaxf(distance_scale(), view_scale()));
+        fprintf(stderr, "[MM3_DISTANCE] flare capacity %u\n", g_eax);
+    }
+    sub_00248518_original();
+}
+
 extern void sub_002256C7_original(void);
 static unsigned particle_budget(void)
 {
