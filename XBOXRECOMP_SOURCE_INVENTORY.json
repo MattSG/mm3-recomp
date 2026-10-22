@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "3ccf1b295483c3226313ed44fa50755f232de80e",
+  "fork_commit": "a35977bda89c49c107ac3d30aff88a6c45249057",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -66,8 +66,15 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "git_blob": "7a790a8c61ddb120437e2c54c52a56facf87eb76",
-      "sha256": "b4e76b04f95a5835cc30cb05c2d6d5ddf80c930b555e22aa614f092b56cc47e5"
+      "git_blob": "1984435a8ee7e1be9a7850497d5702332c9ed8d5",
+      "sha256": "1cf5bf2ac417327718f3750bdb78ed2b81d27e8cf9ceaa02579ad69166f01a7b",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "a35977bda89c49c107ac3d30aff88a6c45249057",
+        "scope": "Introduction and target/project sections only; other README sections not certified",
+        "evidence": "Introduced local links resolve; original guide/README sections preserved in MM3; documented parser command passes with synthetic conformance XBE",
+        "limit": "Documentation ownership and CLI check; not compatibility, game difficulty or gameplay acceptance"
+      }
     },
     {
       "path": "cmake/Dxc.cmake",
@@ -126,8 +133,15 @@
     {
       "path": "docs/INDEX.md",
       "mode": "100644",
-      "git_blob": "49427e86c86cd9603305f1e4fc81e467a6c1f9b4",
-      "sha256": "ceefd7a63e8c1f7b1b0a22474093a492df64b14a1b1ed41c19fb5deb87a268b2"
+      "git_blob": "9fcfbb49e78e6650108d5c254033d3003b3ce16f",
+      "sha256": "339065ed6114ed459bb02dadd53af3eec8c48a945a05f247609266b5db28aa57",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "a35977bda89c49c107ac3d30aff88a6c45249057",
+        "scope": "Target-evaluation link label only; other index entries not certified",
+        "evidence": "Introduced local links resolve; original guide/README sections preserved in MM3; documented parser command passes with synthetic conformance XBE",
+        "limit": "Documentation ownership and CLI check; not compatibility, game difficulty or gameplay acceptance"
+      }
     },
     {
       "path": "docs/formats/disc-image.md",
@@ -192,8 +206,15 @@
     {
       "path": "docs/technical/candidate-games.md",
       "mode": "100644",
-      "git_blob": "5eeac9d19851ad67ed927ab67ed2ae081ea4b311",
-      "sha256": "7f7f51f7b1d16c023f74205f9966f4cf98a664c4c513d2a47cce9e36f5467091"
+      "git_blob": "650eed07422d925b35aa705bc3d7851befae24b6",
+      "sha256": "7614713618e03a66f5684ca4e474aaad79a05f361089e5aa848ce3ff5b253dea",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "a35977bda89c49c107ac3d30aff88a6c45249057",
+        "scope": "Full target-evaluation guide; title rankings and compatibility claims archived in MM3",
+        "evidence": "Introduced local links resolve; original guide/README sections preserved in MM3; documented parser command passes with synthetic conformance XBE",
+        "limit": "Documentation ownership and CLI check; not compatibility, game difficulty or gameplay acceptance"
+      }
     },
     {
       "path": "docs/technical/conformance-testing.md",
@@ -3836,7 +3857,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "57618620f5d206ebe50d4325685f9ef09949d0c7",
+  "fork_tree": "f4581888e18ad12c23c1629d768c02d96133e332",
   "coverage": {
     "tracked_files": 624,
     "tracked_src_files": 153,

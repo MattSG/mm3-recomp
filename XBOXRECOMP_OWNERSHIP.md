@@ -962,3 +962,27 @@ source area, final cumulative runtime checks and repository/publication inventor
   and final branch/submodule/worktree/publication proof remain open. Earlier
   ledger statements about discovery incompleteness describe their snapshots;
   the canonical coverage check above supersedes that inventory limitation.
+
+### Generic target evaluation replaces title rankings and project-status claims
+
+- Moved the original candidate-game guide and README target/project sections
+  into tools/reference/legacy_candidate_games.md, with source commit and an
+  explicit historical/unverified status. This preserves the original text,
+  including contradictory reference-title playability claims, without treating
+  it as current toolkit compatibility evidence.
+- The fork guide now asks for actual XBE sections/imports/library stamps,
+  recovered functions, reached runtime requirements and separate acceptance
+  evidence. Removed named-game difficulty tiers, fixed bytes-per-function
+  estimates and unsupported assumptions that engine or release date predicts
+  port difficulty. The existing guide path remains stable.
+- README introduction/target sections describe the generic mechanism/port
+  policy boundary. Removed its named-project status roster and updated the
+  index label. Other README/index content is not certified by this scoped edit.
+- Verified original guide and README excerpts are preserved in the archive,
+  introduced relative links exist, and the documented parser/JSON command
+  succeeds on the synthetic conformance XBE. Evidence:
+  ownership-candidate-{cli,doc-check}.log and ownership-candidate-analysis.json.
+  No runtime code changed; this is not new game compatibility or gameplay proof.
+- Refreshed the complete 624-file tree/blob/hash inventory and recorded the
+  scoped decisions. Other documentation, remaining source/tool/test ownership,
+  cumulative validation and final repository/publication proof remain open.
