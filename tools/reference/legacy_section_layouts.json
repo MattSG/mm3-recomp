@@ -346,5 +346,17 @@
     },
     "purpose": "Reference-title header namespace and metrics history. Toolkit headers use XBOXRECOMP guards; declarations/layouts are retained.",
     "d3d8_origin_description": "Header described statically linked RenderWare Xbox driver/game-RW code; declarations remain in the generic adapter."
+  },
+  "fusion_module_map_calibration": {
+    "source": "XboxRecomp c6d08bebc4ae909341426b04d5301c8d36e97bd0 tools/fusion/module.py",
+    "reference_title": "Crimson Skies",
+    "symbol_table_version": 1,
+    "symbol_records": 3106,
+    "string_blob_size": "0x1FAEB",
+    "old_guest_map_range": [
+      "0x1000",
+      "0x400000"
+    ],
+    "purpose": "Captured corpus calibration history, not a reusable guest image size limit. Shared map detection now pairs full 32-bit guest values with their following host words; large-run confidence heuristic remains explicit."
   }
 }

@@ -40,7 +40,7 @@ such as g_mm3 are architectural state, not title coupling.
 | Overlay placement | Existing NvOverlayHooks already delegates HUD/sanitization to MM3 | Verify remaining renderer assumptions and tests |
 | Runtime / platform | Audit all fork-vs-upstream runtime changes for hidden guest addresses/defaults and title-only behavior | In progress |
 | Tools / templates / tests / docs | Review tracked artifacts and build dependencies, including captured game-specific fixtures | In progress |
-| Inventory coverage | Complete fork commit tree captured: 624 tracked files, including all 153 src paths; modes/blob IDs and working-tree hashes checked | Covered; ownership decisions remain scoped |
+| Inventory coverage | Complete fork commit tree captured: 625 tracked files, including all 153 src paths; modes/blob IDs and working-tree hashes checked | Covered; ownership decisions remain scoped |
 | Build / runtime proof | Same behavior after each ownership boundary; D3D11 and SDL GPU builds, focused tests, bounded gameplay | In progress |
 | Final inventory | Both main branches, root submodule pin, clean intended source state, worktrees, no unresolved ownership entries | Not yet satisfied |
 
@@ -1087,3 +1087,30 @@ source area, final cumulative runtime checks and repository/publication inventor
 - Complete 624-file tree/blob/hash inventory refreshed with these scoped retain
   decisions. Remaining ownership review, cumulative validation and final
   repository/publication proof stay open.
+
+### Generic Fusion address-map scan: remove captured image bounds
+
+- Inspected the shared module parser/map helpers and their caller sites. The
+  map scan had a fixed 0x1000..0x400000 guest range, excluding higher-address
+  images. Pair lookup and entry-point enumeration duplicated that assumption.
+  Moved the captured Crimson symbol-table calibration metrics and old range
+  into MM3 reference data; the exported version-1 structure description stays.
+- Synthetic maps reproduced the ceiling and a second defect: a guest-first
+  pair table beginning one DWORD into .rdata was matched to preceding host
+  words. Shared scanning now keeps each nonzero 32-bit guest value with its
+  following host word and drops an incomplete trailing record. Entry-point
+  enumeration delegates to map_pairs, preserving its max_delta argument.
+- The initial six-case regression failed five cases on the old implementation.
+  Expanded cases cover low/6-MiB/high-32-bit guest bases, both DWORD phases,
+  complete/incomplete tails, exact lookup/miss and max_delta propagation.
+  All 41 Fusion cases pass, including the 12 map cases. Evidence:
+  ownership-fusion-map-{baseline,tests}.log. Dependencies were installed in an
+  isolated build/ownership-fusion-venv, not the user's existing environment.
+- This remains a large-monotonic-run analysis heuristic with its existing
+  confidence threshold. It does not recover exact table bounds, certify a
+  private compiler format or prove foreign-code equivalence. No captured module
+  regression or gameplay claim is made; other Fusion corpus/tool areas and
+  cumulative/final proof remain open.
+- New synthetic regression is tracked: the complete fork inventory now covers
+  625 files (153 src, 218 tools); tree/blob/hash coverage was refreshed while
+  preserving prior scoped decisions.

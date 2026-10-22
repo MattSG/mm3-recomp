@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "c6d08bebc4ae909341426b04d5301c8d36e97bd0",
+  "fork_commit": "e56c331877be1b526b9e5f77fcb5b92ff20aefb3",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -3142,8 +3142,15 @@
     {
       "path": "tools/fusion/module.py",
       "mode": "100644",
-      "git_blob": "995ed7920811e5d51b013522d3dc4207ba10d90f",
-      "sha256": "70fbe1647a44ee3c3ad6bf32fb4a10280e679b2b53eaccdb7e364f30532ce8ae"
+      "git_blob": "64f44977453756e4d4d524364b5a97aad03ce02d",
+      "sha256": "db6b66b4307231390b16dea88e23fe57f33a5b558caa679e381f9e7fd0e8f4e1",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "e56c331877be1b526b9e5f77fcb5b92ff20aefb3",
+        "scope": "Shared address-map scan, aligned guest/host pairs, lookup and entry-point delegation",
+        "evidence": "Initial regression reproduces fixed 4-MiB ceiling and preceding-word mismatch; 41 Fusion cases pass after shared-path fix, including 12 synthetic map cases; corpus calibration observation moved to MM3 reference data",
+        "limit": "Large-run heuristic remains; no exact table bounds, real captured-module regression, complete private-format parser or foreign-translation correctness claim"
+      }
     },
     {
       "path": "tools/fusion/signatures.py",
@@ -3162,6 +3169,19 @@
       "mode": "100644",
       "git_blob": "10794bdf4d37704ac5c19cb8344c39d79aea6485",
       "sha256": "18a57a6d8f5e91e172b37c31981df46b17d1814821e2cbc03775af031d2c5df7"
+    },
+    {
+      "path": "tools/fusion/test_module.py",
+      "mode": "100644",
+      "git_blob": "26d9d080feee4bd68f7a59ad92ce645c4880dc48",
+      "sha256": "da81c91ea423abbb40aa6698e5e4c2d84c485f735f013254d17972c8cd43a6f6",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "e56c331877be1b526b9e5f77fcb5b92ff20aefb3",
+        "scope": "Full synthetic map regression with 32-bit address ranges, alignments and incomplete records",
+        "evidence": "Initial regression reproduces fixed 4-MiB ceiling and preceding-word mismatch; 41 Fusion cases pass after shared-path fix, including 12 synthetic map cases; corpus calibration observation moved to MM3 reference data",
+        "limit": "Large-run heuristic remains; no exact table bounds, real captured-module regression, complete private-format parser or foreign-translation correctness claim"
+      }
     },
     {
       "path": "tools/fusion/test_signatures.py",
@@ -4018,9 +4038,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "f3dde27b1819bcaea7bd48f0bc012bb2cad113c5",
+  "fork_tree": "1cf8a0159a84cbb8a30f37ab966061690ef9fd8a",
   "coverage": {
-    "tracked_files": 624,
+    "tracked_files": 625,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -4039,13 +4059,14 @@
       "src": 153,
       "templates": 7,
       "tests": 194,
-      "tools": 217
+      "tools": 218
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
     "tracked_paths_missing_from_fff": [
       "tests/dsp/dsp_program_dump_test.c",
       "tests/new_game_template/CMakeLists.txt",
-      "tests/new_game_template/test_main.c"
+      "tests/new_game_template/test_main.c",
+      "tools/fusion/test_module.py"
     ],
     "stale_fff_paths": [
       "docs/technical/burnout3-reunification.md",
