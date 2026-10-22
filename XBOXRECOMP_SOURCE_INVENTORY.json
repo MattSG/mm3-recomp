@@ -1,6 +1,6 @@
 {
   "scope": "FFF-discovered src files verified present in the ownership worktree; whole-fork completeness is not established",
-  "fork_commit": "887b74706b42007e1941bf5b7af590d47fb3b008",
+  "fork_commit": "603567ecaf2b2df997e77d017d154dcf678bce4e",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -413,11 +413,25 @@
     },
     {
       "path": "src/net/net.h",
-      "sha256": "2bc6be11b037cb42ce0f1a30a291fb31217560d99192761011a2d361a6e50cf3"
+      "sha256": "2bc6be11b037cb42ce0f1a30a291fb31217560d99192761011a2d361a6e50cf3",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "603567ecaf2b2df997e77d017d154dcf678bce4e",
+        "scope": "Backend packet queue, ARP/DHCP/UDP NAT, peer tunnel, DNS alias input and public adapter/backend boundary",
+        "evidence": "Current source has no installed aliases; Windows and Linux loopback transport plus NIC ring cases pass",
+        "limit": "Not a full NIC, online-service, peer address uniqueness or shutdown-lifecycle proof"
+      }
     },
     {
       "path": "src/net/net_backend.c",
-      "sha256": "b4c1cabf28607efcdb8b363fee7f1a0555dd1dfd5ca00e03017e96b4e8031cad"
+      "sha256": "c7965279f8e5bb742c791ba3cc2d47981e789a773db8724fd9299a772bcb471f",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "603567ecaf2b2df997e77d017d154dcf678bce4e",
+        "scope": "Backend packet queue, ARP/DHCP/UDP NAT, peer tunnel, DNS alias input and public adapter/backend boundary",
+        "evidence": "Current source has no installed aliases; Windows and Linux loopback transport plus NIC ring cases pass",
+        "limit": "Not a full NIC, online-service, peer address uniqueness or shutdown-lifecycle proof"
+      }
     },
     {
       "path": "src/net/net_platform.h",
@@ -533,11 +547,11 @@
     },
     {
       "path": "src/video/nv2a_d3d11.c",
-      "sha256": "46a639de4828a35180a34ddfb347587f8ac0d39e1e692650d46e520aeaddb885"
+      "sha256": "1327edceec92598c83bce6bc5931d787d8138c74aeaa2feba1922d236288a842"
     },
     {
       "path": "src/video/nv2a_d3d11.h",
-      "sha256": "0a9c88f055f90c76821730f10024b17693c4dcde71d2171410260fa0f42c5534"
+      "sha256": "900de109c2f99e7f7ea4317c9cb01c32204cfe313c8d741ad72b10b5b3aec294"
     },
     {
       "path": "src/video/nv2a_pacing.h",
@@ -549,7 +563,7 @@
     },
     {
       "path": "src/video/nv2a_render_common.h",
-      "sha256": "d3490bdc98084ba4e8cda9596d11465305af795ad885e4fc0770c6cef708b089"
+      "sha256": "b2280fa8c88a1d99120e057dbfc750ea12339c89a48ac277967d736f942f36f6"
     },
     {
       "path": "src/video/nv2a_sampler_cache.h",
@@ -557,7 +571,7 @@
     },
     {
       "path": "src/video/nv2a_sdlgpu.c",
-      "sha256": "633f9bd1d0dd760a13d723934f1638f5ebcb793acbd90baa2a2af02d5a6af019"
+      "sha256": "7a7d94b8b1cb7b2289d115f4940e3549ed3e3504c1602ff686397a06a0409a99"
     },
     {
       "path": "src/video/nv2a_shader_cache.h",

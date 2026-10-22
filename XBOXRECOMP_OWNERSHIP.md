@@ -843,3 +843,29 @@ source area, final cumulative runtime checks and repository/publication inventor
 - Recorded the compiler review and the unchanged APU CMake source hash in the
   inventory. Other tooling, remaining runtime/source-provenance areas and the
   whole-fork artifact/final repository proof remain open.
+
+
+### Retained area: generic network transport and caller routing policy
+
+- Reviewed backend queue/checksum/packet assembly, ARP, DHCP, UDP socket NAT,
+  peer framing/receive loop and startup, plus its public adapter/backend header.
+  Retain those generic virtual-network mechanisms. No title identity selects
+  these paths. Ordinary virtual subnet/router MAC/tunnel defaults are transport
+  configuration; service-provider names remain caller-owned policy in MM3.
+- The FFF service-name hits refer to an old source snapshot. Current source
+  has only an optional caller-owned alias table, empty by default. Tests use
+  name.test and numeric loopback, and verify default/clear, unrelated/truncated
+  query and non-A cases. No online DNS/service dependency is needed by the test.
+- Both network tests pass on Windows and WSL Linux, under a 20-second per-test
+  bound. They check DHCP/checksums, ARP, loopback UDP echo, peer Ethernet frames,
+  synthetic DNS alias answers and NIC descriptor-ring behavior. Evidence:
+  ownership-network-audit-windows-{build,tests}.log and
+  ownership-network-audit-linux.log. This is bounded transport/descriptor proof,
+  not multiplayer-service acceptance or complete NIC/lifecycle correctness.
+- Corrected source comments claiming MAC-derived addresses can never collide:
+  the mapping has 200 choices and does not guarantee uniqueness across peers.
+  Runtime behavior did not change; no new protocol/configuration was added.
+- Refreshed the known 153-source hash snapshot at the current fork head and
+  recorded these scoped retain decisions. Discovery completeness is still not
+  established for the whole tracked fork. NIC/platform internals beyond the
+  inspected boundary, other source/tool artifacts and final proof remain open.
