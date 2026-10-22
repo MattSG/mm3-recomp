@@ -40,7 +40,7 @@ such as g_mm3 are architectural state, not title coupling.
 | Overlay placement | Existing NvOverlayHooks already delegates HUD/sanitization to MM3 | Verify remaining renderer assumptions and tests |
 | Runtime / platform | Audit all fork-vs-upstream runtime changes for hidden guest addresses/defaults and title-only behavior | In progress |
 | Tools / templates / tests / docs | Review tracked artifacts and build dependencies, including captured game-specific fixtures | In progress |
-| Inventory coverage | Complete fork commit tree captured: 621 tracked files, including all 153 src paths; modes/blob IDs and working-tree hashes checked | Covered; ownership decisions remain scoped |
+| Inventory coverage | Complete fork commit tree captured: 622 tracked files, including all 153 src paths; modes/blob IDs and working-tree hashes checked | Covered; ownership decisions remain scoped |
 | Build / runtime proof | Same behavior after each ownership boundary; D3D11 and SDL GPU builds, focused tests, bounded gameplay | In progress |
 | Final inventory | Both main branches, root submodule pin, clean intended source state, worktrees, no unresolved ownership entries | Not yet satisfied |
 
@@ -1192,3 +1192,31 @@ source area, final cumulative runtime checks and repository/publication inventor
 - Five fork pages were removed and one generic guide added: complete tree/blob/
   hash inventory now covers 621 files, including all 153 src paths. Historical
   624/625-file snapshot records above retain their original scope and counts.
+
+### Retained generic build helpers: independent SDL and shader-compiler setup
+
+- Reviewed all seven CMake/toolchain/patch artifacts: compiler override/pinned
+  dependency setup, generic renderer shader units/variants, HLSL embedding,
+  explicit MinGW roots and SDL's descriptor heap reservation patch. Retain the
+  reusable build mechanisms. No title paths, captured shaders or guest-address
+  selectors are supplied by these helpers. DXC overrides are already honored.
+- Found a real generic integration gap in xbr_nv2a_sdlgpu_target: supplying SDL
+  from a parent project skipped DXC initialization as well. Removed the shared
+  conditional and rely on the two dependencies' own existing guards, so either
+  can be provided independently. No new configuration or abstraction was added.
+- A standalone parent-provided SDL target/no-DXC fixture fails configure on the
+  old helper and builds with the fix. It runs real DXC: Windows produced 12
+  SPIR-V + 12 DXIL headers; Linux produced 12 SPIR-V headers. Used existing
+  compiler packages through FetchContent source overrides, without downloading
+  or modifying SDL for the fixture. The dummy SDL target proves the build graph,
+  not GPU execution. Evidence: ownership-sdl-helper-{baseline,configure,build}.log,
+  ownership-sdl-helper-linux.log and ownership-sdl-helper-headers-check.log.
+- Normal SDL game build and all 19 binding cases pass. Evidence:
+  ownership-sdl-helper-runtime-build.log and
+  ownership-sdl-helper-bindings-{build,tests}.log. This is not isolated proof of
+  the vendor descriptor patch, every embed encoding, MinGW cross-builds or new
+  rendering/gameplay fidelity.
+- The new build-only regression is one CMake project with runnable commands.
+  Complete inventory now covers 622 tracked files, including all 153 src paths.
+  Remaining ownership decisions, cumulative validation and final repository/
+  publication proof remain open.

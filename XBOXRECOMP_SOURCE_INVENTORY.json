@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
+  "fork_commit": "6ee217d95a50e48182f5275f7f78f7ab00ed7ef9",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -80,43 +80,92 @@
       "path": "cmake/Dxc.cmake",
       "mode": "100644",
       "git_blob": "732423ba1e3fd1e7e2c3184bf375ff226f00736a",
-      "sha256": "eb4e72c3fa485683aadba5dfd829dcedb0b8b8a7d8808ded090116260307e4f4"
+      "sha256": "eb4e72c3fa485683aadba5dfd829dcedb0b8b8a7d8808ded090116260307e4f4",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "6ee217d95a50e48182f5275f7f78f7ab00ed7ef9",
+        "scope": "Full caller-override/pinned host compiler setup",
+        "evidence": "Caller-independent build/format/dependency inspection; existing-SDL fixture fails before independent DXC setup and passes after with real Windows 24 SPIR-V/DXIL and Linux 12 SPIR-V headers; normal SDL runtime build and 19 binding cases pass",
+        "limit": "Build dependency/shader-generation proof, not GPU execution or isolated descriptor-patch fidelity; MinGW cross-build and exhaustive embed encodings are not established by these checks"
+      }
     },
     {
       "path": "cmake/EmbedText.cmake",
       "mode": "100644",
       "git_blob": "1fd90844c23e10875bb7fb8b956d411abbbb926e",
-      "sha256": "64e8af04eafcae5f6dc023ec127b5fad0379d38e3a4825191a4396f98378bdb8"
+      "sha256": "64e8af04eafcae5f6dc023ec127b5fad0379d38e3a4825191a4396f98378bdb8",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "6ee217d95a50e48182f5275f7f78f7ab00ed7ef9",
+        "scope": "Full source concatenation/escaping/copy-if-different embedding script",
+        "evidence": "Caller-independent build/format/dependency inspection; existing-SDL fixture fails before independent DXC setup and passes after with real Windows 24 SPIR-V/DXIL and Linux 12 SPIR-V headers; normal SDL runtime build and 19 binding cases pass",
+        "limit": "Build dependency/shader-generation proof, not GPU execution or isolated descriptor-patch fidelity; MinGW cross-build and exhaustive embed encodings are not established by these checks"
+      }
     },
     {
       "path": "cmake/Nv2aHlsl.cmake",
       "mode": "100644",
       "git_blob": "c45fdddd4254460324f64eeab392712bf5047471",
-      "sha256": "2113ccffac8726023a68ddefc220ef7f4ba5c3a0411f9e23f5147716d7865f0c"
+      "sha256": "2113ccffac8726023a68ddefc220ef7f4ba5c3a0411f9e23f5147716d7865f0c",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "6ee217d95a50e48182f5275f7f78f7ab00ed7ef9",
+        "scope": "Full generic HLSL input list and target embedding rule",
+        "evidence": "Caller-independent build/format/dependency inspection; existing-SDL fixture fails before independent DXC setup and passes after with real Windows 24 SPIR-V/DXIL and Linux 12 SPIR-V headers; normal SDL runtime build and 19 binding cases pass",
+        "limit": "Build dependency/shader-generation proof, not GPU execution or isolated descriptor-patch fidelity; MinGW cross-build and exhaustive embed encodings are not established by these checks"
+      }
     },
     {
       "path": "cmake/Nv2aSdlgpu.cmake",
       "mode": "100644",
-      "git_blob": "6ee46f62d4123587c3d36bb65420d83efe74e8b1",
-      "sha256": "8ca366334babfcfa43b6f75cd9034224b321fc5551bdd4a90f2a687f79114a81"
+      "git_blob": "859595175eb134f5cfbeb1c6896af151d3a14886",
+      "sha256": "795012cc734737abf123b98866bc7a1a4f97d1635d4343735caf5ef79dbfc590",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "6ee217d95a50e48182f5275f7f78f7ab00ed7ef9",
+        "scope": "Full reusable target/dependency and generic shader-variant build helpers",
+        "evidence": "Caller-independent build/format/dependency inspection; existing-SDL fixture fails before independent DXC setup and passes after with real Windows 24 SPIR-V/DXIL and Linux 12 SPIR-V headers; normal SDL runtime build and 19 binding cases pass",
+        "limit": "Build dependency/shader-generation proof, not GPU execution or isolated descriptor-patch fidelity; MinGW cross-build and exhaustive embed encodings are not established by these checks"
+      }
     },
     {
       "path": "cmake/Sdl3.cmake",
       "mode": "100644",
       "git_blob": "0efd58cf9e1fa1ab98a1c46dadc1b7423bbebe8f",
-      "sha256": "d3731243a4a9135756275f5f067b3f2afe58b3e27b260c6176b34b47b0754a4c"
+      "sha256": "d3731243a4a9135756275f5f067b3f2afe58b3e27b260c6176b34b47b0754a4c",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "6ee217d95a50e48182f5275f7f78f7ab00ed7ef9",
+        "scope": "Full existing-target/installed-package/pinned-source dependency setup",
+        "evidence": "Caller-independent build/format/dependency inspection; existing-SDL fixture fails before independent DXC setup and passes after with real Windows 24 SPIR-V/DXIL and Linux 12 SPIR-V headers; normal SDL runtime build and 19 binding cases pass",
+        "limit": "Build dependency/shader-generation proof, not GPU execution or isolated descriptor-patch fidelity; MinGW cross-build and exhaustive embed encodings are not established by these checks"
+      }
     },
     {
       "path": "cmake/mingw-w64-x86_64.cmake",
       "mode": "100644",
       "git_blob": "f0dc847f5b0fe39b1ac6d560c397a37803703fb8",
-      "sha256": "5400234b174f10d66550fa1cc03df475d0b72a3166158d4342e4d127e69aac89"
+      "sha256": "5400234b174f10d66550fa1cc03df475d0b72a3166158d4342e4d127e69aac89",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "6ee217d95a50e48182f5275f7f78f7ab00ed7ef9",
+        "scope": "Full explicit cross-compiler/sysroot toolchain setup",
+        "evidence": "Caller-independent build/format/dependency inspection; existing-SDL fixture fails before independent DXC setup and passes after with real Windows 24 SPIR-V/DXIL and Linux 12 SPIR-V headers; normal SDL runtime build and 19 binding cases pass",
+        "limit": "Build dependency/shader-generation proof, not GPU execution or isolated descriptor-patch fidelity; MinGW cross-build and exhaustive embed encodings are not established by these checks"
+      }
     },
     {
       "path": "cmake/sdl3-d3d12-descriptors.patch",
       "mode": "100644",
       "git_blob": "8e12d8262f5dfea0023c0ccfc1df30d91617e4be",
-      "sha256": "ae4f9cd8d2979403857ad0f99eabc56285b6f2f31e65d8db54430263168e5d4e"
+      "sha256": "ae4f9cd8d2979403857ad0f99eabc56285b6f2f31e65d8db54430263168e5d4e",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "6ee217d95a50e48182f5275f7f78f7ab00ed7ef9",
+        "scope": "Generic SDL D3D12 complete-draw descriptor reservation/rebinding patch",
+        "evidence": "Caller-independent build/format/dependency inspection; existing-SDL fixture fails before independent DXC setup and passes after with real Windows 24 SPIR-V/DXIL and Linux 12 SPIR-V headers; normal SDL runtime build and 19 binding cases pass",
+        "limit": "Build dependency/shader-generation proof, not GPU execution or isolated descriptor-patch fidelity; MinGW cross-build and exhaustive embed encodings are not established by these checks"
+      }
     },
     {
       "path": "docs/DECOMP.md",
@@ -1522,6 +1571,19 @@
         "scope": "Full synthetic adapter/mixer sample, cursor, lifecycle and storage-path regression",
         "evidence": "Preallocated Lock-path mono/stereo playback regression fails before storage binding and passes after; complete extracted mixer/adapter case passes on WSL GCC and MSVC; both Windows renderer builds pass",
         "limit": "Synthetic sample/state proof with wakeup target absent; not audio-device output, thread safety, complete DirectSound SDK ABI or game-audio fidelity"
+      }
+    },
+    {
+      "path": "tests/cmake_sdlgpu/CMakeLists.txt",
+      "mode": "100644",
+      "git_blob": "03eaefa557c239a4c89e245313145e6c9eb582b1",
+      "sha256": "16362a63a5a8e08926011cec5d71321380d551a609dd1ae792d0c7d8e6087fa1",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "6ee217d95a50e48182f5275f7f78f7ab00ed7ef9",
+        "scope": "Full parent-provided SDL/no-DXC build-graph regression fixture",
+        "evidence": "Caller-independent build/format/dependency inspection; existing-SDL fixture fails before independent DXC setup and passes after with real Windows 24 SPIR-V/DXIL and Linux 12 SPIR-V headers; normal SDL runtime build and 19 binding cases pass",
+        "limit": "Build dependency/shader-generation proof, not GPU execution or isolated descriptor-patch fidelity; MinGW cross-build and exhaustive embed encodings are not established by these checks"
       }
     },
     {
@@ -4117,9 +4179,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "37aa5ee293f769bf9c2e0d1dbd941bb6286c74c5",
+  "fork_tree": "3841f1adaea19f36f06a8be803a0b0988449f98f",
   "coverage": {
-    "tracked_files": 621,
+    "tracked_files": 622,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -4137,12 +4199,13 @@
       "include": 2,
       "src": 153,
       "templates": 7,
-      "tests": 194,
+      "tests": 195,
       "tools": 218
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
     "tracked_paths_missing_from_fff": [
       "docs/technical/fusion-analysis.md",
+      "tests/cmake_sdlgpu/CMakeLists.txt",
       "tests/dsp/dsp_program_dump_test.c",
       "tests/new_game_template/CMakeLists.txt",
       "tests/new_game_template/test_main.c",
