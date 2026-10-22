@@ -1683,3 +1683,28 @@ source area, final cumulative runtime checks and repository/publication inventor
   fork first and MM3's matching submodule pointer second.
 
 Fork checkpoint for this batch: `364d9d1`.
+
+
+### Share explicit ordinal mapping across initialization paths
+
+- Source-to-canonical policy now lives beside canonical resolution. Both native
+  pointer initialization and bridge initialization apply it exactly once.
+  Direct canonical lookup remains unmapped. Borrowed maps require quiesced
+  configuration and valid lifetime; NULL, nonpositive count, zero entries and
+  out-of-range source IDs select identity. Port policy persists until replaced.
+- The old compiled Linux runtime fails the native-pointer regression for source
+  511 mapped to implemented canonical 151. Function and data cases now pass for
+  both paths; a second mapping catches accidental recursive translation.
+- Captured title/XDK narratives from the bridge, API and generator/tests move
+  verbatim as normalized text to `tools/reference/legacy_ordinal_remap_notes.md`.
+  All four blocks match fork 364d9d1. The generator remains generic explicit
+  name-based policy, reports unresolved imports without claiming ABI agreement,
+  and reads/writes UTF-8. Matching parser labels do not certify actual imports.
+- Windows memory 35/35, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++
+  consumer, 21 existing memory modes and 13 thunk modes pass. Generator checks
+  pass 5/5 on both systems; bridge ordinal audit and both Windows renderer builds
+  pass. Logs are `conformance_tmp/ownership-ordinal-*`. No new gameplay/fidelity
+  claim is made for this shared identity-preserving initialization change.
+- A first fixture exposed missing native export 103 despite bridge support;
+  that separate coverage gap remains open. Fixed kernel-data placement, worker
+  stack policy, broader export coverage and whole-fork ownership remain open.

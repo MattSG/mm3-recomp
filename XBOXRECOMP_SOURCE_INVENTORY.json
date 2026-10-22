@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
+  "fork_commit": "3d1d24313e4156517d323caaece5b0fed280adc7",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -385,32 +385,39 @@
     {
       "path": "docs/technical/memory-layout.md",
       "mode": "100644",
-      "git_blob": "ca322efece2514e070e744f59494061a6e9458be",
-      "sha256": "5f0ddf9d542899a289815e3ca5ad1a8b67c20e8eec9ec717fe232f99e1979a0b",
+      "git_blob": "04f03dc9bfca0c9c2771d6863d096dc29a4d054e",
+      "sha256": "38865ce1e1f846c9465009db4f8b2d2d97bc318c44ecf94eaa23f89aca166bec",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
-        "scope": "Import validation, selection, clearing and bridge-remap scope",
-        "evidence": "Old bridge corrupts the undeclared sentinel; old loader fails valid high-address registration and clearing assertions. Windows memory 34/34, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++ consumer, 21 existing memory modes and 12 synthetic thunk modes pass. Both Windows renderer builds pass. SDL3/Vulkan bounded night Cruise passes with inspected capture and 1.985m movement; all 151 MM3 header imports register.",
-        "limit": "Explicit import ownership and scoped loader/bridge validation only. Supported slot capacity remains bounded. Not full XBE validation, all native-pointer/dispatcher remap paths, kernel-data placement, thread/device fidelity or whole-fork ownership completion.",
+        "reviewed_at_fork": "3d1d24313e4156517d323caaece5b0fed280adc7",
+        "scope": "Native/bridge mapping contract and persistence of explicit port policy",
+        "evidence": "Old compiled Linux runtime fails native-pointer assertion for source511 to implemented canonical151. Windows memory35, kernel62, bridge8 pass; Linux kernel61, C++ consumer,21 memory modes,13 thunk modes pass; generator5 checks pass on Windows/Linux; bridge ordinal audit and both Windows renderer builds pass.",
+        "limit": "Shared explicit remapping and synthetic/tool regression coverage only; native ordinal103 remains absent. Not complete export coverage, title ABI certification, kernel-data placement or whole-fork ownership completion.",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
-          "scope": "Main-stack policy, ownership, runtime macro and quiesced reinitialization contract",
-          "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
-          "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate.",
+          "reviewed_at_fork": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
+          "scope": "Import validation, selection, clearing and bridge-remap scope",
+          "evidence": "Old bridge corrupts the undeclared sentinel; old loader fails valid high-address registration and clearing assertions. Windows memory 34/34, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++ consumer, 21 existing memory modes and 12 synthetic thunk modes pass. Both Windows renderer builds pass. SDL3/Vulkan bounded night Cruise passes with inspected capture and 1.985m movement; all 151 MM3 header imports register.",
+          "limit": "Explicit import ownership and scoped loader/bridge validation only. Supported slot capacity remains bounded. Not full XBE validation, all native-pointer/dispatcher remap paths, kernel-data placement, thread/device fidelity or whole-fork ownership completion.",
           "prior_review": {
-            "decision": "retain_generic",
-            "reviewed_at_fork": "c2933c5d5cd09a1566f26d4cf4077ca1a3afacf2",
-            "scope": "Full current-API memory integration replacement; original captured/obsolete guide preserved in MM3",
-            "evidence": "Old loader fails no-fabricated-PE-offset assertion. Windows memory 7/7, Windows kernel 61/61, seven Linux memory modes and both Windows renderer game builds pass. MM3 supplies the original e_lfanew compatibility write through the runtime-owned view; archive text and new guide links checked.",
-            "limit": "Mapping/payload ownership and lifetime only, not an emulated kernel PE image or native MM3 probe correctness. Other memory stand-ins and implementation areas remain partially reviewed. Linux modes use actual fixture source with existing runtime flags/libraries.",
+            "decision": "retain_generic_boundary",
+            "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+            "scope": "Main-stack policy, ownership, runtime macro and quiesced reinitialization contract",
+            "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+            "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate.",
             "prior_review": {
-              "decision": "retain_generic_boundary",
-              "reviewed_at_fork": "215a29587cdea84d14d45f56b899d8e35d3321a8",
-              "scope": "Guest-thread/application-context section only, replacing fixed RenderWare bootstrap guidance",
-              "evidence": "Old default loader fails no-application-context assertion. Windows memory 7/7, Windows kernel 61/61 and seven Linux memory modes pass; both Windows renderer game builds pass. MM3 preserves the same two scratch writes after memory setup; original code/comments/doc blocks archived in MM3.",
-              "limit": "Application bootstrap ownership only; MM3 use of inherited scratch chain remains unaudited. Not proof of native application TLS, all kernel stand-ins, complete memory-layout behavior or gameplay fidelity. Linux modes were compiled from the actual fixture with existing runtime target flags/libraries, not a separate new CTest project."
+              "decision": "retain_generic",
+              "reviewed_at_fork": "c2933c5d5cd09a1566f26d4cf4077ca1a3afacf2",
+              "scope": "Full current-API memory integration replacement; original captured/obsolete guide preserved in MM3",
+              "evidence": "Old loader fails no-fabricated-PE-offset assertion. Windows memory 7/7, Windows kernel 61/61, seven Linux memory modes and both Windows renderer game builds pass. MM3 supplies the original e_lfanew compatibility write through the runtime-owned view; archive text and new guide links checked.",
+              "limit": "Mapping/payload ownership and lifetime only, not an emulated kernel PE image or native MM3 probe correctness. Other memory stand-ins and implementation areas remain partially reviewed. Linux modes use actual fixture source with existing runtime flags/libraries.",
+              "prior_review": {
+                "decision": "retain_generic_boundary",
+                "reviewed_at_fork": "215a29587cdea84d14d45f56b899d8e35d3321a8",
+                "scope": "Guest-thread/application-context section only, replacing fixed RenderWare bootstrap guidance",
+                "evidence": "Old default loader fails no-application-context assertion. Windows memory 7/7, Windows kernel 61/61 and seven Linux memory modes pass; both Windows renderer game builds pass. MM3 preserves the same two scratch writes after memory setup; original code/comments/doc blocks archived in MM3.",
+                "limit": "Application bootstrap ownership only; MM3 use of inherited scratch chain remains unaudited. Not proof of native application TLS, all kernel stand-ins, complete memory-layout behavior or gameplay fidelity. Linux modes were compiled from the actual fixture with existing runtime target flags/libraries, not a separate new CTest project."
+              }
             }
           }
         }
@@ -968,28 +975,42 @@
     },
     {
       "path": "src/kernel/kernel.h",
-      "sha256": "445c86e1070533951c03a7f09e5426047f6e398077406013308d05704c108303",
+      "sha256": "f302b64607bac5e5b8e5e7ea80ed06faa0e6e16bb4032c9ac0ffb0f7bdb2ac59",
       "mode": "100644",
-      "git_blob": "e25c3c67c05fb861d74e20a15ae7d443fbf9dcbb",
+      "git_blob": "314ec865b6dae210affc403a1e8882bfa0df3c0a",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
-        "scope": "Checked explicit import selection/clearing and caller-owned standalone mapping contract",
-        "evidence": "Old bridge corrupts the undeclared sentinel; old loader fails valid high-address registration and clearing assertions. Windows memory 34/34, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++ consumer, 21 existing memory modes and 12 synthetic thunk modes pass. Both Windows renderer builds pass. SDL3/Vulkan bounded night Cruise passes with inspected capture and 1.985m movement; all 151 MM3 header imports register.",
-        "limit": "Explicit import ownership and scoped loader/bridge validation only. Supported slot capacity remains bounded. Not full XBE validation, all native-pointer/dispatcher remap paths, kernel-data placement, thread/device fidelity or whole-fork ownership completion."
+        "reviewed_at_fork": "3d1d24313e4156517d323caaece5b0fed280adc7",
+        "scope": "Borrowed map lifetime, quiesced configuration, identity bounds and single-translation contract",
+        "evidence": "Old compiled Linux runtime fails native-pointer assertion for source511 to implemented canonical151. Windows memory35, kernel62, bridge8 pass; Linux kernel61, C++ consumer,21 memory modes,13 thunk modes pass; generator5 checks pass on Windows/Linux; bridge ordinal audit and both Windows renderer builds pass.",
+        "limit": "Shared explicit remapping and synthetic/tool regression coverage only; native ordinal103 remains absent. Not complete export coverage, title ABI certification, kernel-data placement or whole-fork ownership completion.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
+          "scope": "Checked explicit import selection/clearing and caller-owned standalone mapping contract",
+          "evidence": "Old bridge corrupts the undeclared sentinel; old loader fails valid high-address registration and clearing assertions. Windows memory 34/34, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++ consumer, 21 existing memory modes and 12 synthetic thunk modes pass. Both Windows renderer builds pass. SDL3/Vulkan bounded night Cruise passes with inspected capture and 1.985m movement; all 151 MM3 header imports register.",
+          "limit": "Explicit import ownership and scoped loader/bridge validation only. Supported slot capacity remains bounded. Not full XBE validation, all native-pointer/dispatcher remap paths, kernel-data placement, thread/device fidelity or whole-fork ownership completion."
+        }
       }
     },
     {
       "path": "src/kernel/kernel_bridge.c",
-      "sha256": "448e3f749137aa2212a1b9b52870ebb2eaa4f56d9536f79fdbb325d57a34d39c",
+      "sha256": "300007f950b0e0a683ba3c7b49e2c40325583f3c0aef7b732e2aeb0db004467d",
       "mode": "100644",
-      "git_blob": "4fdf5d42cd309c4e2af5711085a17feb2dec19e2",
+      "git_blob": "cb4123a9c19033d29b19efa51232a767a94bdded",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
-        "scope": "Exact checked import-span selection replaces guessed counts and title-derived pre-table patching; check write protection before patching",
-        "evidence": "Old bridge corrupts the undeclared sentinel; old loader fails valid high-address registration and clearing assertions. Windows memory 34/34, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++ consumer, 21 existing memory modes and 12 synthetic thunk modes pass. Both Windows renderer builds pass. SDL3/Vulkan bounded night Cruise passes with inspected capture and 1.985m movement; all 151 MM3 header imports register.",
-        "limit": "Explicit import ownership and scoped loader/bridge validation only. Supported slot capacity remains bounded. Not full XBE validation, all native-pointer/dispatcher remap paths, kernel-data placement, thread/device fidelity or whole-fork ownership completion."
+        "reviewed_at_fork": "3d1d24313e4156517d323caaece5b0fed280adc7",
+        "scope": "Use the shared mapping exactly once before bridge routing",
+        "evidence": "Old compiled Linux runtime fails native-pointer assertion for source511 to implemented canonical151. Windows memory35, kernel62, bridge8 pass; Linux kernel61, C++ consumer,21 memory modes,13 thunk modes pass; generator5 checks pass on Windows/Linux; bridge ordinal audit and both Windows renderer builds pass.",
+        "limit": "Shared explicit remapping and synthetic/tool regression coverage only; native ordinal103 remains absent. Not complete export coverage, title ABI certification, kernel-data placement or whole-fork ownership completion.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
+          "scope": "Exact checked import-span selection replaces guessed counts and title-derived pre-table patching; check write protection before patching",
+          "evidence": "Old bridge corrupts the undeclared sentinel; old loader fails valid high-address registration and clearing assertions. Windows memory 34/34, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++ consumer, 21 existing memory modes and 12 synthetic thunk modes pass. Both Windows renderer builds pass. SDL3/Vulkan bounded night Cruise passes with inspected capture and 1.985m movement; all 151 MM3 header imports register.",
+          "limit": "Explicit import ownership and scoped loader/bridge validation only. Supported slot capacity remains bounded. Not full XBE validation, all native-pointer/dispatcher remap paths, kernel-data placement, thread/device fidelity or whole-fork ownership completion."
+        }
       }
     },
     {
@@ -1073,15 +1094,22 @@
     },
     {
       "path": "src/kernel/kernel_thunks.c",
-      "sha256": "57a51ac6c4d91b80ee5f219e43f10a60886d8770cef959e8e3945720d2dbfd39",
+      "sha256": "f33d1c1d5f01e27a077e93b5ef1a22653dbf3068b983811ae1466cb130807667",
       "mode": "100644",
-      "git_blob": "7fde56b8cfdc06275fee51d96eb45cd55d8f7f1c",
+      "git_blob": "8570a0af74fdc3a5b51e55486b2afce76d8daec8",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
-        "scope": "Resolve selected import spans past explicit NULL gaps without scanning outside their count",
-        "evidence": "Old bridge corrupts the undeclared sentinel; old loader fails valid high-address registration and clearing assertions. Windows memory 34/34, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++ consumer, 21 existing memory modes and 12 synthetic thunk modes pass. Both Windows renderer builds pass. SDL3/Vulkan bounded night Cruise passes with inspected capture and 1.985m movement; all 151 MM3 header imports register.",
-        "limit": "Explicit import ownership and scoped loader/bridge validation only. Supported slot capacity remains bounded. Not full XBE validation, all native-pointer/dispatcher remap paths, kernel-data placement, thread/device fidelity or whole-fork ownership completion."
+        "reviewed_at_fork": "3d1d24313e4156517d323caaece5b0fed280adc7",
+        "scope": "Share explicit source-to-canonical mapping with native pointer initialization; canonical resolver remains unmapped",
+        "evidence": "Old compiled Linux runtime fails native-pointer assertion for source511 to implemented canonical151. Windows memory35, kernel62, bridge8 pass; Linux kernel61, C++ consumer,21 memory modes,13 thunk modes pass; generator5 checks pass on Windows/Linux; bridge ordinal audit and both Windows renderer builds pass.",
+        "limit": "Shared explicit remapping and synthetic/tool regression coverage only; native ordinal103 remains absent. Not complete export coverage, title ABI certification, kernel-data placement or whole-fork ownership completion.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
+          "scope": "Resolve selected import spans past explicit NULL gaps without scanning outside their count",
+          "evidence": "Old bridge corrupts the undeclared sentinel; old loader fails valid high-address registration and clearing assertions. Windows memory 34/34, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++ consumer, 21 existing memory modes and 12 synthetic thunk modes pass. Both Windows renderer builds pass. SDL3/Vulkan bounded night Cruise passes with inspected capture and 1.985m movement; all 151 MM3 header imports register.",
+          "limit": "Explicit import ownership and scoped loader/bridge validation only. Supported slot capacity remains bounded. Not full XBE validation, all native-pointer/dispatcher remap paths, kernel-data placement, thread/device fidelity or whole-fork ownership completion."
+        }
       }
     },
     {
@@ -2627,38 +2655,45 @@
     {
       "path": "tests/memory_regressions/CMakeLists.txt",
       "mode": "100644",
-      "git_blob": "89031a10c4e19ea6cdd5e477ce3848426d42af3f",
-      "sha256": "bf108eb3c4ea2eeeac444ff96c7693815f55fbefe7e9a14af673d89f2b2c283f",
+      "git_blob": "c695bbcb4f234d9904d57cd98955200179bfbe15",
+      "sha256": "2d8360a7cd58c21ac2dae6e4ba4035dee8f8ab5341c7f86af8a871c77890cb21",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
-        "scope": "Twelve asset-free synthetic thunk cases added to the existing memory project",
-        "evidence": "Old bridge corrupts the undeclared sentinel; old loader fails valid high-address registration and clearing assertions. Windows memory 34/34, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++ consumer, 21 existing memory modes and 12 synthetic thunk modes pass. Both Windows renderer builds pass. SDL3/Vulkan bounded night Cruise passes with inspected capture and 1.985m movement; all 151 MM3 header imports register.",
-        "limit": "Explicit import ownership and scoped loader/bridge validation only. Supported slot capacity remains bounded. Not full XBE validation, all native-pointer/dispatcher remap paths, kernel-data placement, thread/device fidelity or whole-fork ownership completion.",
+        "reviewed_at_fork": "3d1d24313e4156517d323caaece5b0fed280adc7",
+        "scope": "Register thirteenth synthetic thunk case",
+        "evidence": "Old compiled Linux runtime fails native-pointer assertion for source511 to implemented canonical151. Windows memory35, kernel62, bridge8 pass; Linux kernel61, C++ consumer,21 memory modes,13 thunk modes pass; generator5 checks pass on Windows/Linux; bridge ordinal audit and both Windows renderer builds pass.",
+        "limit": "Shared explicit remapping and synthetic/tool regression coverage only; native ordinal103 remains absent. Not complete export coverage, title ABI certification, kernel-data placement or whole-fork ownership completion.",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
-          "scope": "Five stack layout/configuration/failure mode registrations",
-          "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
-          "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate.",
+          "reviewed_at_fork": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
+          "scope": "Twelve asset-free synthetic thunk cases added to the existing memory project",
+          "evidence": "Old bridge corrupts the undeclared sentinel; old loader fails valid high-address registration and clearing assertions. Windows memory 34/34, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++ consumer, 21 existing memory modes and 12 synthetic thunk modes pass. Both Windows renderer builds pass. SDL3/Vulkan bounded night Cruise passes with inspected capture and 1.985m movement; all 151 MM3 header imports register.",
+          "limit": "Explicit import ownership and scoped loader/bridge validation only. Supported slot capacity remains bounded. Not full XBE validation, all native-pointer/dispatcher remap paths, kernel-data placement, thread/device fidelity or whole-fork ownership completion.",
           "prior_review": {
             "decision": "retain_generic_boundary",
-            "reviewed_at_fork": "b6977ea58650c56959261a1753e516174753e79b",
-            "scope": "Real C++ consumer test registered with the existing memory regression project",
-            "evidence": "Old header produces nine unresolved C++ symbols on Windows. Fixed Windows memory suite passes 17/17; Linux actual C++ consumer links/runs and all sixteen memory fixture modes pass. Both Windows renderer game builds pass. Eight archive blocks match normalized originals; source executable tokens unchanged.",
-            "limit": "C/C++ public linkage and comment ownership only. Main-stack placement/size policy, thunk-table range/scan bounds, other source/data/docs ownership and full gameplay/device fidelity remain unverified.",
+            "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+            "scope": "Five stack layout/configuration/failure mode registrations",
+            "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+            "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate.",
             "prior_review": {
               "decision": "retain_generic_boundary",
-              "reviewed_at_fork": "5574e2d7bd1ce87b4e4de27a034aa14ad70769b4",
-              "scope": "Five portable image-range case registrations",
-              "evidence": "Old loader drops the valid section above 64 MiB. Windows memory 16/16, kernel 62/62 and bridge 8/8 pass; Linux sixteen actual memory modes pass; both Windows renderer game builds pass. Header non-comment tokens match original; captured/stale commentary archived in MM3.",
-              "limit": "Scoped loader input/range and documentation ownership, not full XBE verification, all devkit games or gameplay fidelity. Vulkan startup marker reached with an early black capture, not scene acceptance. Main-stack defaults and late C++ linkage declarations require further ownership/correctness review.",
+              "reviewed_at_fork": "b6977ea58650c56959261a1753e516174753e79b",
+              "scope": "Real C++ consumer test registered with the existing memory regression project",
+              "evidence": "Old header produces nine unresolved C++ symbols on Windows. Fixed Windows memory suite passes 17/17; Linux actual C++ consumer links/runs and all sixteen memory fixture modes pass. Both Windows renderer game builds pass. Eight archive blocks match normalized originals; source executable tokens unchanged.",
+              "limit": "C/C++ public linkage and comment ownership only. Main-stack placement/size policy, thunk-table range/scan bounds, other source/data/docs ownership and full gameplay/device fidelity remain unverified.",
               "prior_review": {
                 "decision": "retain_generic_boundary",
-                "reviewed_at_fork": "4f2c203da8d0e19031f681d6daa069a3316ff01f",
-                "scope": "Four new portable TLS case registrations in the existing memory fixture",
-                "evidence": "Old fixed buffers fail four storage/template assertions. Windows memory 11/11, kernel 61/61, Linux focused TLS 4/4 and both Windows renderer game builds pass. D3D12 bounded night Cruise passes with inspected captures, 1.5m post-teleport movement and actual 20-byte TLS allocated through heap. Old bootstrap archived in MM3.",
-                "limit": "Scoped TLS ownership and bounded gameplay, not complete loader/TLS/kernel fidelity. Full Linux memory attempt failed in ext-vma after unavailable host reservation and fixture unbacked read; that failure remains unresolved. Heap header/captured CRT rationale and other areas remain unreviewed."
+                "reviewed_at_fork": "5574e2d7bd1ce87b4e4de27a034aa14ad70769b4",
+                "scope": "Five portable image-range case registrations",
+                "evidence": "Old loader drops the valid section above 64 MiB. Windows memory 16/16, kernel 62/62 and bridge 8/8 pass; Linux sixteen actual memory modes pass; both Windows renderer game builds pass. Header non-comment tokens match original; captured/stale commentary archived in MM3.",
+                "limit": "Scoped loader input/range and documentation ownership, not full XBE verification, all devkit games or gameplay fidelity. Vulkan startup marker reached with an early black capture, not scene acceptance. Main-stack defaults and late C++ linkage declarations require further ownership/correctness review.",
+                "prior_review": {
+                  "decision": "retain_generic_boundary",
+                  "reviewed_at_fork": "4f2c203da8d0e19031f681d6daa069a3316ff01f",
+                  "scope": "Four new portable TLS case registrations in the existing memory fixture",
+                  "evidence": "Old fixed buffers fail four storage/template assertions. Windows memory 11/11, kernel 61/61, Linux focused TLS 4/4 and both Windows renderer game builds pass. D3D12 bounded night Cruise passes with inspected captures, 1.5m post-teleport movement and actual 20-byte TLS allocated through heap. Old bootstrap archived in MM3.",
+                  "limit": "Scoped TLS ownership and bounded gameplay, not complete loader/TLS/kernel fidelity. Full Linux memory attempt failed in ext-vma after unavailable host reservation and fixture unbacked read; that failure remains unresolved. Heap header/captured CRT rationale and other areas remain unreviewed."
+                }
               }
             }
           }
@@ -2668,38 +2703,45 @@
     {
       "path": "tests/memory_regressions/README.md",
       "mode": "100644",
-      "git_blob": "4757b54450499d57a1b664b9f1a0d0884afd98f3",
-      "sha256": "79c9b52b78cbdef220c9e10612479d6710b79121487a46cca556a5ecaa36c730",
+      "git_blob": "4a37450af0cc858f86aafb4eb1ec37c5a30c3e3e",
+      "sha256": "3f37a7a39228e94a7aec1064e0b73e460094d72b9cf20c65024a853e6087f87a",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
-        "scope": "Synthetic import-range coverage and proof limits",
-        "evidence": "Old bridge corrupts the undeclared sentinel; old loader fails valid high-address registration and clearing assertions. Windows memory 34/34, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++ consumer, 21 existing memory modes and 12 synthetic thunk modes pass. Both Windows renderer builds pass. SDL3/Vulkan bounded night Cruise passes with inspected capture and 1.985m movement; all 151 MM3 header imports register.",
-        "limit": "Explicit import ownership and scoped loader/bridge validation only. Supported slot capacity remains bounded. Not full XBE validation, all native-pointer/dispatcher remap paths, kernel-data placement, thread/device fidelity or whole-fork ownership completion.",
+        "reviewed_at_fork": "3d1d24313e4156517d323caaece5b0fed280adc7",
+        "scope": "Scoped remap coverage and native export limits",
+        "evidence": "Old compiled Linux runtime fails native-pointer assertion for source511 to implemented canonical151. Windows memory35, kernel62, bridge8 pass; Linux kernel61, C++ consumer,21 memory modes,13 thunk modes pass; generator5 checks pass on Windows/Linux; bridge ordinal audit and both Windows renderer builds pass.",
+        "limit": "Shared explicit remapping and synthetic/tool regression coverage only; native ordinal103 remains absent. Not complete export coverage, title ABI certification, kernel-data placement or whole-fork ownership completion.",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
-          "scope": "Scope of stack configuration and lifetime coverage",
-          "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
-          "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate.",
+          "reviewed_at_fork": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
+          "scope": "Synthetic import-range coverage and proof limits",
+          "evidence": "Old bridge corrupts the undeclared sentinel; old loader fails valid high-address registration and clearing assertions. Windows memory 34/34, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++ consumer, 21 existing memory modes and 12 synthetic thunk modes pass. Both Windows renderer builds pass. SDL3/Vulkan bounded night Cruise passes with inspected capture and 1.985m movement; all 151 MM3 header imports register.",
+          "limit": "Explicit import ownership and scoped loader/bridge validation only. Supported slot capacity remains bounded. Not full XBE validation, all native-pointer/dispatcher remap paths, kernel-data placement, thread/device fidelity or whole-fork ownership completion.",
           "prior_review": {
             "decision": "retain_generic_boundary",
-            "reviewed_at_fork": "b6977ea58650c56959261a1753e516174753e79b",
-            "scope": "Scoped public ABI link-regression description",
-            "evidence": "Old header produces nine unresolved C++ symbols on Windows. Fixed Windows memory suite passes 17/17; Linux actual C++ consumer links/runs and all sixteen memory fixture modes pass. Both Windows renderer game builds pass. Eight archive blocks match normalized originals; source executable tokens unchanged.",
-            "limit": "C/C++ public linkage and comment ownership only. Main-stack placement/size policy, thunk-table range/scan bounds, other source/data/docs ownership and full gameplay/device fidelity remain unverified.",
+            "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+            "scope": "Scope of stack configuration and lifetime coverage",
+            "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+            "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate.",
             "prior_review": {
               "decision": "retain_generic_boundary",
-              "reviewed_at_fork": "5574e2d7bd1ce87b4e4de27a034aa14ad70769b4",
-              "scope": "Image-range and malformed-input coverage explanation only",
-              "evidence": "Old loader drops the valid section above 64 MiB. Windows memory 16/16, kernel 62/62 and bridge 8/8 pass; Linux sixteen actual memory modes pass; both Windows renderer game builds pass. Header non-comment tokens match original; captured/stale commentary archived in MM3.",
-              "limit": "Scoped loader input/range and documentation ownership, not full XBE verification, all devkit games or gameplay fidelity. Vulkan startup marker reached with an early black capture, not scene acceptance. Main-stack defaults and late C++ linkage declarations require further ownership/correctness review.",
+              "reviewed_at_fork": "b6977ea58650c56959261a1753e516174753e79b",
+              "scope": "Scoped public ABI link-regression description",
+              "evidence": "Old header produces nine unresolved C++ symbols on Windows. Fixed Windows memory suite passes 17/17; Linux actual C++ consumer links/runs and all sixteen memory fixture modes pass. Both Windows renderer game builds pass. Eight archive blocks match normalized originals; source executable tokens unchanged.",
+              "limit": "C/C++ public linkage and comment ownership only. Main-stack placement/size policy, thunk-table range/scan bounds, other source/data/docs ownership and full gameplay/device fidelity remain unverified.",
               "prior_review": {
                 "decision": "retain_generic_boundary",
-                "reviewed_at_fork": "4f2c203da8d0e19031f681d6daa069a3316ff01f",
-                "scope": "TLS input/storage coverage description only",
-                "evidence": "Old fixed buffers fail four storage/template assertions. Windows memory 11/11, kernel 61/61, Linux focused TLS 4/4 and both Windows renderer game builds pass. D3D12 bounded night Cruise passes with inspected captures, 1.5m post-teleport movement and actual 20-byte TLS allocated through heap. Old bootstrap archived in MM3.",
-                "limit": "Scoped TLS ownership and bounded gameplay, not complete loader/TLS/kernel fidelity. Full Linux memory attempt failed in ext-vma after unavailable host reservation and fixture unbacked read; that failure remains unresolved. Heap header/captured CRT rationale and other areas remain unreviewed."
+                "reviewed_at_fork": "5574e2d7bd1ce87b4e4de27a034aa14ad70769b4",
+                "scope": "Image-range and malformed-input coverage explanation only",
+                "evidence": "Old loader drops the valid section above 64 MiB. Windows memory 16/16, kernel 62/62 and bridge 8/8 pass; Linux sixteen actual memory modes pass; both Windows renderer game builds pass. Header non-comment tokens match original; captured/stale commentary archived in MM3.",
+                "limit": "Scoped loader input/range and documentation ownership, not full XBE verification, all devkit games or gameplay fidelity. Vulkan startup marker reached with an early black capture, not scene acceptance. Main-stack defaults and late C++ linkage declarations require further ownership/correctness review.",
+                "prior_review": {
+                  "decision": "retain_generic_boundary",
+                  "reviewed_at_fork": "4f2c203da8d0e19031f681d6daa069a3316ff01f",
+                  "scope": "TLS input/storage coverage description only",
+                  "evidence": "Old fixed buffers fail four storage/template assertions. Windows memory 11/11, kernel 61/61, Linux focused TLS 4/4 and both Windows renderer game builds pass. D3D12 bounded night Cruise passes with inspected captures, 1.5m post-teleport movement and actual 20-byte TLS allocated through heap. Old bootstrap archived in MM3.",
+                  "limit": "Scoped TLS ownership and bounded gameplay, not complete loader/TLS/kernel fidelity. Full Linux memory attempt failed in ext-vma after unavailable host reservation and fixture unbacked read; that failure remains unresolved. Heap header/captured CRT rationale and other areas remain unreviewed."
+                }
               }
             }
           }
@@ -2784,14 +2826,21 @@
     {
       "path": "tests/memory_regressions/thunk_table.c",
       "mode": "100644",
-      "git_blob": "465fc8c2c7491e1e283d7d07057b4c3fa91fadff",
-      "sha256": "c09313a610dc38391a107595068e8f4ee1cb52799980ca7d41cf634309d2e5ac",
+      "git_blob": "023e56a976aaf8f6ce71e60e6c1903120a3cb983",
+      "sha256": "cc107e5772d6d9e220a5a1b75f46e3fe16140c04095eabd3136b42b373ec34b5",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
-        "scope": "Retail/debug high-address imports, no/empty tables, bounds/markers/terminators/capacity, explicit sparse spans, bridge remapping and stale-metadata rejection",
-        "evidence": "Old bridge corrupts the undeclared sentinel; old loader fails valid high-address registration and clearing assertions. Windows memory 34/34, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++ consumer, 21 existing memory modes and 12 synthetic thunk modes pass. Both Windows renderer builds pass. SDL3/Vulkan bounded night Cruise passes with inspected capture and 1.985m movement; all 151 MM3 header imports register.",
-        "limit": "Explicit import ownership and scoped loader/bridge validation only. Supported slot capacity remains bounded. Not full XBE validation, all native-pointer/dispatcher remap paths, kernel-data placement, thread/device fidelity or whole-fork ownership completion."
+        "reviewed_at_fork": "3d1d24313e4156517d323caaece5b0fed280adc7",
+        "scope": "Native and bridge function/data remaps, nonrecursive mapping and disabled-map bounds",
+        "evidence": "Old compiled Linux runtime fails native-pointer assertion for source511 to implemented canonical151. Windows memory35, kernel62, bridge8 pass; Linux kernel61, C++ consumer,21 memory modes,13 thunk modes pass; generator5 checks pass on Windows/Linux; bridge ordinal audit and both Windows renderer builds pass.",
+        "limit": "Shared explicit remapping and synthetic/tool regression coverage only; native ordinal103 remains absent. Not complete export coverage, title ABI certification, kernel-data placement or whole-fork ownership completion.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
+          "scope": "Retail/debug high-address imports, no/empty tables, bounds/markers/terminators/capacity, explicit sparse spans, bridge remapping and stale-metadata rejection",
+          "evidence": "Old bridge corrupts the undeclared sentinel; old loader fails valid high-address registration and clearing assertions. Windows memory 34/34, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++ consumer, 21 existing memory modes and 12 synthetic thunk modes pass. Both Windows renderer builds pass. SDL3/Vulkan bounded night Cruise passes with inspected capture and 1.985m movement; all 151 MM3 header imports register.",
+          "limit": "Explicit import ownership and scoped loader/bridge validation only. Supported slot capacity remains bounded. Not full XBE validation, all native-pointer/dispatcher remap paths, kernel-data placement, thread/device fidelity or whole-fork ownership completion."
+        }
       }
     },
     {
@@ -4048,8 +4097,15 @@
     {
       "path": "tools/kernel_audit/gen_ordinal_remap.py",
       "mode": "100644",
-      "git_blob": "d7feacf89b1ccd979973de7599e95e730e2d4a3c",
-      "sha256": "09a00c4438164f4334a097d0dde630cc0cd1ad23a7a669adba6aab5f0a61865c"
+      "git_blob": "4e6d740086b71df3c0a8d398e6c7694de788e42a",
+      "sha256": "48264fffbefaf94e2e9ef4eb7fd99e8c7717a16305eeb3439095d13967c1d9a9",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "3d1d24313e4156517d323caaece5b0fed280adc7",
+        "scope": "Generic explicit name-based mapping policy; archive captured title/XDK claims and fix UTF-8 I/O",
+        "evidence": "Old compiled Linux runtime fails native-pointer assertion for source511 to implemented canonical151. Windows memory35, kernel62, bridge8 pass; Linux kernel61, C++ consumer,21 memory modes,13 thunk modes pass; generator5 checks pass on Windows/Linux; bridge ordinal audit and both Windows renderer builds pass.",
+        "limit": "Shared explicit remapping and synthetic/tool regression coverage only; native ordinal103 remains absent. Not complete export coverage, title ABI certification, kernel-data placement or whole-fork ownership completion."
+      }
     },
     {
       "path": "tools/kernel_audit/test_bridge_ordinals.py",
@@ -4060,8 +4116,15 @@
     {
       "path": "tools/kernel_audit/test_gen_ordinal_remap.py",
       "mode": "100644",
-      "git_blob": "89b8af8f9f097384b0fe78f1cd77ba3db4bc1bd3",
-      "sha256": "3babe08eb6e1b354b90d6516a194cb2e63ddb2ad34084c34579f0896d33ed3c9"
+      "git_blob": "73ac446db9fb5642f97b24ce5ef742511d1a815e",
+      "sha256": "e1a447b7e0f63b7e416e859a554f398e41d3d7e82cc7312bf451716576bfb74d",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "3d1d24313e4156517d323caaece5b0fed280adc7",
+        "scope": "Synthetic mapping and UTF-8 unresolved-import CLI evidence without title ABI claims",
+        "evidence": "Old compiled Linux runtime fails native-pointer assertion for source511 to implemented canonical151. Windows memory35, kernel62, bridge8 pass; Linux kernel61, C++ consumer,21 memory modes,13 thunk modes pass; generator5 checks pass on Windows/Linux; bridge ordinal audit and both Windows renderer builds pass.",
+        "limit": "Shared explicit remapping and synthetic/tool regression coverage only; native ordinal103 remains absent. Not complete export coverage, title ABI certification, kernel-data placement or whole-fork ownership completion."
+      }
     },
     {
       "path": "tools/linux/install_deps.sh",
@@ -4806,7 +4869,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "6369d47146e215b4769323300ac76e184a055b33",
+  "fork_tree": "c26d2d869e46f5e2df060d7a554b65ebcfd5e85d",
   "coverage": {
     "tracked_files": 625,
     "tracked_src_files": 153,
