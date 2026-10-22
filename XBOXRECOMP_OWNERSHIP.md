@@ -1516,3 +1516,39 @@ source area, final cumulative runtime checks and repository/publication inventor
 - New generic fixture increases complete tracked inventory to 623 files (153 src).
   Remaining source/header/docs/artifact ownership, cumulative validation and
   final repository/publication proof remain open. No whole-goal completion claim.
+
+
+### Honor actual image backing; reject malformed section metadata
+
+- The section loader still used a fixed 64 MiB ceiling even for configured
+  128 MiB runs. A synthetic image retaining its text and adding initialized
+  data above 64 MiB fails on the old loader. Sections now use the actual backed
+  span with widened end arithmetic; wrapped/out-of-range virtual extents fail
+  before section writes.
+- Used header, section-table and raw-copy bounds are checked with wide sums.
+  Invalid/truncated inputs fail with mapping cleanup instead of partially
+  initialized images. Diagnostic section names are bounded and certificate
+  title reads use widened bounds. The table is bounded by the supplied image
+  rather than silently truncated at an arbitrary 64-entry count.
+- The stricter header check exposed a bridge fixture lacking the XBE signature;
+  it now supplies valid metadata and stops before accessing guest memory if
+  initialization fails. Its reserve/ABI assertions remain intact.
+- Captured title sizing/CRT stories and obsolete heap/thread/bootstrap claims in
+  the memory header moved to tools/reference/legacy_memory_header_notes.md,
+  together with the old truncated-section handling. Replacement comments match
+  the current mapped-span/image/allocation distinction. Header declarations and
+  numeric macro tokens are unchanged with comments/whitespace removed; this
+  does not certify the remaining numeric main-stack defaults or late C++ linkage.
+- Windows memory cases pass 16/16, kernel cases 62/62 and bridge cases 8/8.
+  Sixteen actual Linux memory fixture modes pass with existing runtime flags/
+  libraries. Both Windows renderer game builds pass. Evidence:
+  ownership-image-range-{baseline,build,tests,linux}.log,
+  ownership-image-{kernel,bridge}-{build,tests}.log and
+  ownership-image-{sdl,d3d11}-build.log.
+- Latest SDL3/Vulkan startup reaches the intro marker and captures a frame
+  (ownership-image-boot.log, conformance_tmp/game_test/run-zs43m4op). The early
+  capture is black: it is startup-only evidence, not scene or gameplay proof.
+  Prior bounded Cruise evidence keeps its recorded earlier revision scope.
+- Complete 623-file committed identities/hashes refreshed. Full XBE verification,
+  remaining memory/header/source/docs/artifact ownership, cumulative validation
+  and final repository/publication proof remain open.
