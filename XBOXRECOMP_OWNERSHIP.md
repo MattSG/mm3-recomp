@@ -1552,3 +1552,33 @@ source area, final cumulative runtime checks and repository/publication inventor
 - Complete 623-file committed identities/hashes refreshed. Full XBE verification,
   remaining memory/header/source/docs/artifact ownership, cumulative validation
   and final repository/publication proof remain open.
+
+
+### Restore public C++ memory API linkage; archive captured loader notes
+
+- The memory header closed its `extern "C"` block before nine thread/worker
+  declarations. A real C++ consumer linked against the production C runtime
+  failed with nine unresolved mangled symbols on the old header. Closing the
+  block after all declarations fixes their public ABI without changing the
+  declarations, constants or C implementation. Fork checkpoint: `b6977ea`.
+- The new `tests/memory_regressions/cpp_linkage.cpp` retains references to all
+  nine APIs; its CTest registration makes future C-linkage regressions a build
+  failure. Only this test project now requires a C++ compiler. It does not
+  claim to verify thread scheduling or allocation behavior.
+- Eight captured loader/device comment blocks moved unchanged as normalized
+  text to `tools/reference/legacy_loader_device_notes.md`. These include image
+  section addresses, debug-thunk observations, title-specific physical/device
+  failure stories, obsolete audio readiness explanations and old aliasing
+  observations. Replacement comments describe the current mechanism and its
+  limits. Executable tokens in `xbox_memory_layout.c` are unchanged.
+- Windows memory suite passes 17/17. The actual Linux C++ consumer links/runs
+  against the existing runtime libraries and all sixteen Linux memory fixture
+  modes pass. Both Windows renderer game builds pass. Evidence:
+  `conformance_tmp/ownership-memory-cpp-baseline.log`,
+  `ownership-memory-api-{build,tests,linux}.log` and
+  `ownership-memory-api-{sdl,d3d11}-build.log`. This batch adds no gameplay or
+  device-fidelity acceptance claim.
+- Complete committed inventory refreshed to 624 files, including 153 source
+  and 197 test files. Main-stack fixed placement/size, the remaining fixed
+  thunk-table range and scan bounds, broader source/data/docs/artifact ownership,
+  cumulative validation and final repository/publication proof remain open.
