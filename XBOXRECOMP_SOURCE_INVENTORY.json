@@ -9,7 +9,14 @@
     },
     {
       "path": "src/apu/CMakeLists.txt",
-      "sha256": "d0f6f277ea777f4eb08b2fd47fc7fdfab358abc2ef99e67e25a50bce5c0f6db1"
+      "sha256": "d0f6f277ea777f4eb08b2fd47fc7fdfab358abc2ef99e67e25a50bce5c0f6db1",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "fe49204bb7a60f9dd917a5b792fcaca48da955c6",
+        "scope": "APU target wiring and optional caller-supplied DSP program directory",
+        "evidence": "MM3 supplies game_files/dsp in parent CMake; toolkit generates into build output",
+        "limit": "Build/data ownership review, not complete audio correctness"
+      }
     },
     {
       "path": "src/apu/README.md",
@@ -654,5 +661,16 @@
     "tools/xboxrecomp/src/nv2a/nv2a_pgraph_d3d11.h",
     "tools/xboxrecomp/src/video/nv2a_distance_fog.h",
     "tools/xboxrecomp/src/video/shaders/sdlgpu/fog.hlsl"
+  ],
+  "tool_reviews": [
+    {
+      "path": "tools/dsp_recomp/dsp_recomp_gen.c",
+      "sha256": "8f881f82a1339541f54e17e2542b5b601ae28c885573e0c02f3d314bc3736ee5",
+      "reviewed_at_fork": "fe49204bb7a60f9dd917a5b792fcaca48da955c6",
+      "decision": "retain_generic",
+      "scope": "Full generator: caller interpreter/program/output paths, opcode-table-derived dispatch and per-word guards",
+      "evidence": "Generated synthetic frame replay passes on Windows and Linux, including mismatched opcode rejection without state mutation",
+      "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
+    }
   ]
 }

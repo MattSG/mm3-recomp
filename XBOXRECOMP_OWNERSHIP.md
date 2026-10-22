@@ -818,3 +818,28 @@ source area, final cumulative runtime checks and repository/publication inventor
   implementation or title policy changed in this pass. Remaining ISA/source
   provenance review, complete audio fidelity and whole-fork artifact/final
   inventory acceptance remain distinct and unproven.
+
+
+### Retained area: supplied DSP programs and guarded translation
+
+- Reviewed the DSP generator and APU build wiring. The compiler reads caller
+  interpreter sources/program directories and emits into the build tree. Its
+  dispatch comes from the interpreter opcode tables; each generated word is
+  guarded against current program memory. There is no embedded title program
+  or game-name/identity selector in this path.
+- MM3 CMake already supplies game_files/dsp, and MM3 main chooses its runtime
+  capture directory. Retain that per-title path policy in MM3. The toolkit's
+  optional XBOXRECOMP_DSP_PROGRAM_DIR remains a generic input, not a default
+  reference-image path. Missing supplied programs emit fallback stubs.
+- Extended the existing generated-frame replay probe: a modified current opcode
+  returns zero without changing the copied DSP state, then the matching program
+  still executes generated code. Actual frame replay retains its state/transfer
+  comparison. This proves the inspected guard path rather than merely relying
+  on the generator comment.
+- All 21 Windows DSP cases pass. The generated-replay target also builds and its
+  case passes on WSL Linux. Evidence: ownership-dsp-guard-{build,tests}.log and
+  ownership-dsp-guard-linux.log. The Linux run is that single case; no external
+  xemu reference, full audio or new MM3 gameplay claim is made.
+- Recorded the compiler review and the unchanged APU CMake source hash in the
+  inventory. Other tooling, remaining runtime/source-provenance areas and the
+  whole-fork artifact/final repository proof remain open.
