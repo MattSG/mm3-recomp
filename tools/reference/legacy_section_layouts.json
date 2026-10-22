@@ -292,5 +292,16 @@
     "physical_ring": "0x0047F000",
     "overlapping_image_section": "BINKDATA",
     "purpose": "Historical title observation motivating allocated contiguous DMA precedence. The generic NIC retains allocation-based precedence without matching this address or section."
+  },
+  "ohci_legacy_dma_observations": {
+    "source": "XboxRecomp 47079fc src/usb/ohci.c and ohci.h comments",
+    "dds9_control_transfer_window": "0x80408940",
+    "burnout3_descriptor_window": "0x825B50C0",
+    "burnout3_descriptor_physical": "0x025B50C0",
+    "burnout3_get_descriptor_static": "0x0041A904",
+    "static_section": ".data",
+    "legacy_private_arena_end": "0x80001000",
+    "half_life2_usb_aperture": "0xFED00000",
+    "purpose": "Historical driver observations, not runtime address selectors. Shared physical resolution covers backed contiguous pages and runtime RAM IDs; loaded-image precedence preserves legacy static buffers."
   }
 }

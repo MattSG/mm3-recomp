@@ -892,3 +892,26 @@ source area, final cumulative runtime checks and repository/publication inventor
 - This is scoped ownership/DMA proof, not complete NIC hardware fidelity,
   interrupt/lifecycle correctness or online gameplay acceptance. Whole-fork
   inventory, remaining source/tool artifacts and cumulative final proof stay open.
+
+### USB DMA boundary: shared resolution replaces the private-arena fallback
+
+- Reviewed OHCI guest-pointer validation and all three DMA access callers
+  (descriptor reads, descriptor writes and payload pointers), plus the public
+  header. Retain the generic runtime RAM-ID and loaded-image precedence rules.
+  This is a boundary review, not a full OHCI implementation ownership decision.
+- Removed the private first-page DMA fallback. The shared physical resolver
+  already maps every backed contiguous page, including unallocated page zero.
+  The fallback additionally returned a contiguous VA after memory shutdown,
+  when the backing no longer existed. The new regression fails on that old
+  branch and passes with it removed; backed first-page and page-edge mappings
+  still pass through the real memory layout.
+- Moved the DDS9/Burnout 3 DMA addresses and Half-Life 2 bring-up observation
+  into MM3 reference data. Updated the stale header that claimed transfer
+  descriptor walking was absent; this does not claim complete OHCI fidelity.
+- Windows kernel_io_mapping passes, and both MM3 renderer builds pass.
+  Evidence: ownership-usb-dma-{baseline-tests,tests,sdlgpu-build,d3d11-build}.log.
+  WSL Linux kernel_io_mapping also passes (ownership-usb-dma-linux.log).
+  Its first configure required a Git discovery ceiling to avoid interpreting
+  the Windows parent worktree metadata while applying the SDL source patch.
+- Remaining OHCI transfer/scheduler/IRQ internals, other runtime/tool artifacts,
+  whole-fork inventory and cumulative final proof remain open.

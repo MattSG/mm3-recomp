@@ -1,6 +1,6 @@
 {
   "scope": "FFF-discovered src files verified present in the ownership worktree; whole-fork completeness is not established",
-  "fork_commit": "47079fc28768dc878fb5bd1a9e55b7b78cdb9f5d",
+  "fork_commit": "9c71042c2c25182372dd576a9c423c3001390788",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -517,11 +517,25 @@
     },
     {
       "path": "src/usb/ohci.c",
-      "sha256": "c23fdf3581ab3979a0ec83b71adc1917327711e2778754ca530a1eb85fff973d"
+      "sha256": "2333c19b02cd0966e816a4df4e241116023e2406939461804538d04b4ab0ea41",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "9c71042c2c25182372dd576a9c423c3001390788",
+        "scope": "Guest DMA resolver and rd32/wr32/guest_ptr callers",
+        "evidence": "Real Windows kernel_io_mapping regression fails before fallback removal and passes after; backed page zero/edge and runtime RAM IDs retained; both MM3 backends build; WSL Linux real memory-mapping case also passes",
+        "limit": "Remaining OHCI internals not reviewed; not complete USB fidelity or shutdown lifecycle proof"
+      }
     },
     {
       "path": "src/usb/ohci.h",
-      "sha256": "f74f807a5db4bda5e8c093cf2b3c1adab0c8a002bc64201fcfcd8518d199394d"
+      "sha256": "0b6df005387a6ad466d09c5a63f1143eb1f815ad3c92dfb270e2ba40aa1fbb59",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "9c71042c2c25182372dd576a9c423c3001390788",
+        "scope": "Full public header; corrected stale capability description",
+        "evidence": "Real Windows kernel_io_mapping regression fails before fallback removal and passes after; backed page zero/edge and runtime RAM IDs retained; both MM3 backends build; WSL Linux real memory-mapping case also passes",
+        "limit": "Remaining OHCI internals not reviewed; not complete USB fidelity or shutdown lifecycle proof"
+      }
     },
     {
       "path": "src/usb/usb_gamepad.c",
