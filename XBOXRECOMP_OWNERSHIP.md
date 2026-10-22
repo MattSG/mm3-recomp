@@ -659,3 +659,28 @@ this goal complete from the spinner migration or a clean name search alone.
   0x780000 callback placement as before (ownership-callback-mm3-layout.json).
   No fresh gameplay or Linux callback-runtime acceptance is claimed here.
 - Full artifact/runtime and final inventory audits remain incomplete.
+
+
+### Current source inventory and retained mechanisms (2026-10-22)
+
+- XBOXRECOMP_SOURCE_INVENTORY.json records 153 current src paths returned by
+  FFF, with working-tree SHA256 values at fork 887b747. Sixteen stale indexed
+  paths are explicitly excluded. Each recorded path exists and its hash was
+  rechecked. This is a discovery snapshot, not a claim that FFF covers every
+  tracked artifact or that every line in these files has been audited.
+- Source groups in this snapshot: video 35, kernel 32, APU 32, D3D 16,
+  NV2A 8, platform 6, audio 6, network 5, USB 5, input 4, host 3 and the
+  source README. Build rules, documentation and license files are included.
+
+| Reviewed area | Current ownership decision and evidence | Remaining proof |
+| --- | --- | --- |
+| Host startup | Retain hardware fault routing and graphics/device initialization; caller supplies the title. host.c, xbox_host.h and CMake target inspected. | Final build/platform inventory |
+| Frame replay/interpolation | Retain generic GPU method/state/vertex recording and replay. MM3 framerate.c actively calls repeat/interp APIs; its ticks, queue counters and opt-in policy remain in MM3. | Full recorder/lifetime ownership pass beyond the inspected recording/replay sections |
+| Kernel audit tools | Retain import/bridge coverage and name-based ordinal-remap generation: inputs are caller analyses and runtime export data. Tool bodies inspected; no title activation/default data found in those inputs. | Remaining tooling and fixture inventory; coverage is not kernel implementation proof |
+| Shader metadata/cache | Inspected PS manifest format/checksum/family validation and texture-hash implementation entry; these are cache mechanisms, not authored title selection. | Remaining cache paths and usage/test cross-check |
+| NV2A library target | CMake now builds register/MMIO core only; retired captured menu/prototype renderer is outside the fork. | Final tracked-artifact check against index and build graph |
+
+No new executable behavior was changed by this inventory pass. The prior scoped
+runtime tests remain scoped to their corresponding boundaries. Remaining work
+includes whole-fork tracked-artifact coverage, the rest of each partially reviewed
+source area, final cumulative runtime checks and repository/publication inventory.

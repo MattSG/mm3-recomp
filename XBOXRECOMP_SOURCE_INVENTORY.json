@@ -1,0 +1,637 @@
+{
+  "scope": "FFF-discovered src files verified present in the ownership worktree; whole-fork completeness is not established",
+  "fork_commit": "887b74706b42007e1941bf5b7af590d47fb3b008",
+  "hash_basis": "working-tree file bytes",
+  "files": [
+    {
+      "path": "src/README.md",
+      "sha256": "26c9bfbb85fd4570c66fcfd76d7df8dbaa791dc7ba99522bdf5bb565ebdf2f23"
+    },
+    {
+      "path": "src/apu/CMakeLists.txt",
+      "sha256": "d0f6f277ea777f4eb08b2fd47fc7fdfab358abc2ef99e67e25a50bce5c0f6db1"
+    },
+    {
+      "path": "src/apu/README.md",
+      "sha256": "ae1b32fee76b53fc358665dc9909b6decbc212ae7e5c8636af29f3b0b41a88ca"
+    },
+    {
+      "path": "src/apu/apu.h",
+      "sha256": "cd9efac05accac123226b09a0c98b03bb3fcb2e78cd03d55e9e86d652da90e29"
+    },
+    {
+      "path": "src/apu/apu_core.c",
+      "sha256": "4163a17d92db58a0582dec307eed311d29aae7b402b1731499b1a531eeb3f951"
+    },
+    {
+      "path": "src/apu/apu_debug.h",
+      "sha256": "66b2d71143b9f3a4d4d7bd7ed54a5b83bcb0667e424a4b9ec44c9ee353454110"
+    },
+    {
+      "path": "src/apu/apu_dsp.c",
+      "sha256": "f586f82dc156d46571ad53c2a384a7a3d4c2cae1ebb3ed4181e83b176497525a"
+    },
+    {
+      "path": "src/apu/apu_mmio_hook.c",
+      "sha256": "9ce9c95724d3582d7c53eeb2f57a71c0cb11ebb46ad8fa13392e2150fab65d7e"
+    },
+    {
+      "path": "src/apu/apu_regs.h",
+      "sha256": "389bbac71b64b8d0b91466840ff0992e05b5a442b8dc5de9d2bc8b03964e97a9"
+    },
+    {
+      "path": "src/apu/apu_shim.h",
+      "sha256": "0e9365b9713ac5a434e9561b6473c63ec6681047cf3e8548653c97dd310232ca"
+    },
+    {
+      "path": "src/apu/apu_state.h",
+      "sha256": "54149478834b2a2663a3b816b07becccdfaf217efe28caf1acecef5c80f1fe26"
+    },
+    {
+      "path": "src/apu/apu_vp.c",
+      "sha256": "97c7a6bbae2e28683f9f930f0287bed0f54d98c991b377c313efd3507e6b294a"
+    },
+    {
+      "path": "src/apu/apu_xaudio2.c",
+      "sha256": "b9ba0e0f2eed2606596b94593b98b0a32c2229d70b22a9b3a5cd01c734c914ed"
+    },
+    {
+      "path": "src/apu/apu_xaudio2.h",
+      "sha256": "bc4f180f5c2204dea6e78c58a39707b602535edaf79344816c514425ad194e69"
+    },
+    {
+      "path": "src/apu/dsp/COPYING.GPL-2",
+      "sha256": "e39d469640e0efcbdfff77b4a37b3992400f58dcac17225ebd3f46dcefba9b8d"
+    },
+    {
+      "path": "src/apu/dsp/COPYING.LGPL-2.1",
+      "sha256": "e5f99d9374f77e8e0931ddea20c7c375185a3a78514cb0ce74e2bf6b4cbecf62"
+    },
+    {
+      "path": "src/apu/dsp/PROVENANCE.md",
+      "sha256": "fad3c3315b511602ebfe38e231face666d9d90cbc26a83e2fee6f94a57a1c059"
+    },
+    {
+      "path": "src/apu/dsp/SA_ARITHMETIC_FRONTIER.md",
+      "sha256": "4ad8a91e7cc4ade615b4693c2591a4374a8c5a55e8139db611f8c9b7e127cb36"
+    },
+    {
+      "path": "src/apu/dsp/SOURCE_INVENTORY.md",
+      "sha256": "9c1621c4377825c3aa3b3016304eac3d941ecd98ed47ce67f320cf20072d9710"
+    },
+    {
+      "path": "src/apu/dsp/STACK_EXTENSION.md",
+      "sha256": "b9e1652ffc3ce9df51a23cc2f221ce440a6c3e0a687b3b05c14e2d39d8c8a710"
+    },
+    {
+      "path": "src/apu/dsp/debug.h",
+      "sha256": "202cfd1d68c6102df7ba0e09153da9a78d817ccf2f3798c298b8bab7df85b141"
+    },
+    {
+      "path": "src/apu/dsp/dsp.c",
+      "sha256": "86bd8ef257829b984067de39b3abf6c6029a8fdbe91dd30633b1e74333171fae"
+    },
+    {
+      "path": "src/apu/dsp/dsp.h",
+      "sha256": "21b8477ad2eb881aa81e1b15d048c86a761358fcfc1edbe3b9721546451a1005"
+    },
+    {
+      "path": "src/apu/dsp/dsp_dma.c",
+      "sha256": "94d049cc2c66de7dba51aad3b3b5e67bd21968d2b2250bf673063fa72d81d2d7"
+    },
+    {
+      "path": "src/apu/dsp/dsp_dma.h",
+      "sha256": "95cb1bc4194299719072f7229b1cf12009065d0c890b14179da9a3cd598b5815"
+    },
+    {
+      "path": "src/apu/dsp/dsp_dma_regs.h",
+      "sha256": "1998173651e49a50bd9aac04a71e361f951241a88480b93d057d33306f5edb8e"
+    },
+    {
+      "path": "src/apu/dsp/dsp_port.h",
+      "sha256": "b20277243bbc039821986855766a0d3511aa9a2ff9ba556dcca991a6750be068"
+    },
+    {
+      "path": "src/apu/dsp/interp/dsp_cpu.c",
+      "sha256": "4b13ce9a9d319b8d173d1fac72cac0305de7dc6de1de8633ba21b273a3d16b13"
+    },
+    {
+      "path": "src/apu/dsp/interp/dsp_cpu.h",
+      "sha256": "79cb31db7ecede148d0d52e9b0a8d2b88cf7d5cd745898fadfd71712af6087cd"
+    },
+    {
+      "path": "src/apu/dsp/interp/dsp_cpu_regs.h",
+      "sha256": "559f2906f2f0223e2c293e118ef262004a218fc4142605b3e748c35977cfcaac"
+    },
+    {
+      "path": "src/apu/dsp/interp/dsp_dis.c.inc",
+      "sha256": "bf8859dda8662469cbcd065bf28f45402064dd928578aae51be58e5e29188ef2"
+    },
+    {
+      "path": "src/apu/dsp/interp/dsp_emu.c.inc",
+      "sha256": "eff1c8e6040cd7731348f7a80e342688119ad9aa01d3445a4d594bcadf64d7d9"
+    },
+    {
+      "path": "src/apu/fpconv.h",
+      "sha256": "7bea5069da542c4b3270afb74d3ee5bc6a5be4fdca6c4e1b47c46e399db4581e"
+    },
+    {
+      "path": "src/audio/CMakeLists.txt",
+      "sha256": "2de59d2dc60427245f7089503d67c6445ee57747bc473d6767280deae0cf81fc"
+    },
+    {
+      "path": "src/audio/README.md",
+      "sha256": "00eb6d2af1bd31171bb06bb8a6044103d626a24569ca85963f08a4450ba2d5b6"
+    },
+    {
+      "path": "src/audio/dsound_device.c",
+      "sha256": "41d7cede540577389cbfad01295e862ac6e06057233844223d1962d87d2684a1"
+    },
+    {
+      "path": "src/audio/dsound_xbox.h",
+      "sha256": "f9e9fcec64790143b2c149fdbaa54c756bdcbb324de6f2b21aa42b9d02fc91cf"
+    },
+    {
+      "path": "src/audio/wma_decoder.c",
+      "sha256": "5a2e6055f57e0b5505df85c7d5fb83b09ec2d797dbc513aac11a7ba18b348b75"
+    },
+    {
+      "path": "src/audio/wma_decoder.h",
+      "sha256": "350fa49597c037e782dbeaaa5b35fbe47af28e8d523c92c8e1cdd4d222d800c4"
+    },
+    {
+      "path": "src/d3d/CMakeLists.txt",
+      "sha256": "d9b161d62e6516aaf45f67bee063fd7d969fc2ff39c18df11bf03d55da0c8975"
+    },
+    {
+      "path": "src/d3d/README.md",
+      "sha256": "bad75ad47e1211a14b6050a4b7f45f279838b964a8a6383201483baf1f2ccd49"
+    },
+    {
+      "path": "src/d3d/d3d8_combiners.c",
+      "sha256": "eab6b860ae68fb0e61fad2b415c8406b5de9e1a4e369951c674af87b0bba13bb"
+    },
+    {
+      "path": "src/d3d/d3d8_combiners.h",
+      "sha256": "04ecbb2cab25836f17b74b4a4614da4b024a875a5b6abffa9ce1df6e631ea3a3"
+    },
+    {
+      "path": "src/d3d/d3d8_device.c",
+      "sha256": "91f2c4ad49412112d7847c233ad0e03755c60a566a6de1adfef24975b0b70705"
+    },
+    {
+      "path": "src/d3d/d3d8_fvf.h",
+      "sha256": "9bb81511b0f3a8903dcd2d623a08161c6f0f71941e923e8005bef8d22caf9afe"
+    },
+    {
+      "path": "src/d3d/d3d8_gamma.c",
+      "sha256": "0582bbbe29236492224e6ea43ff4544c813fe3e15481f14140cbbecbc6586f13"
+    },
+    {
+      "path": "src/d3d/d3d8_gl.c",
+      "sha256": "049b85ba934a1dc8cbd2f9ab0ebc5806ceb409d8bc743f030cb5cd966940ca38"
+    },
+    {
+      "path": "src/d3d/d3d8_internal.h",
+      "sha256": "9101861be876ce95ca0bc26e6e07741794fdf179a8ccb6afef726c8e27f6d9f6"
+    },
+    {
+      "path": "src/d3d/d3d8_resources.c",
+      "sha256": "c4a33f27f6a8218b10f452ef34c9f030d1dafa79203aa7e5a85f9646dec2a93f"
+    },
+    {
+      "path": "src/d3d/d3d8_shaders.c",
+      "sha256": "a36434dbc6531d547b316054158456d2f1f3d7514ab94ad2d829f5dfc52ccf20"
+    },
+    {
+      "path": "src/d3d/d3d8_states.c",
+      "sha256": "5c93b3957e094bd38b6b59002b1201b1260e716e416b07bb4223577a811c7adc"
+    },
+    {
+      "path": "src/d3d/d3d8_swizzle.h",
+      "sha256": "a67066c262bbf363937945d420de895f65645aeab0a2d0ef5657a7fd33981b69"
+    },
+    {
+      "path": "src/d3d/d3d8_vsh.c",
+      "sha256": "04387a21d4fbbc4e0b7f8c083e9db41f26c9cf9dab54c9c328505989eb227066"
+    },
+    {
+      "path": "src/d3d/d3d8_vsh.h",
+      "sha256": "d54763114d8ad931b4c8cb668a22df96a63267b3845bbf66f4cf4bce51c8b2c8"
+    },
+    {
+      "path": "src/d3d/d3d8_xbox.h",
+      "sha256": "8ec48ecf3f99b49d72858b3a8b96c04da3d937bad76346f315c18002c1a31b81"
+    },
+    {
+      "path": "src/host/CMakeLists.txt",
+      "sha256": "2a9eba70d091dd1912824e54f14771c857df035f0a72c5d200b0e3314fb5fc3f"
+    },
+    {
+      "path": "src/host/host.c",
+      "sha256": "80f563cc899f0ceb5653b8c6da4c3e07fc4f3c7eecc77437f198575c9a4f6c71"
+    },
+    {
+      "path": "src/host/xbox_host.h",
+      "sha256": "83ffdc661072e3cdd43050aef00bfea0f432005931815ad30ec68bde86277641"
+    },
+    {
+      "path": "src/input/CMakeLists.txt",
+      "sha256": "84073fc2eee86989859d728ae7c7849bef8d07e45656897a62d0f6aa6ba49188"
+    },
+    {
+      "path": "src/input/README.md",
+      "sha256": "262e8432a5ccf987736a53ac0703d74125e003230773d31014046fac6f596593"
+    },
+    {
+      "path": "src/input/xinput_device.c",
+      "sha256": "24d17f7af6e27022908c603fcd222e9b3fd33e87af6470bb33620c69dc4ccf25"
+    },
+    {
+      "path": "src/input/xinput_xbox.h",
+      "sha256": "c98bc1245abcb27ab0187d18b53ef9674d06f250cc68ae792491fd08fb3e25b2"
+    },
+    {
+      "path": "src/kernel/CMakeLists.txt",
+      "sha256": "751ca2413e8355b768d1759beeebfd32271997d737284c497b8f63532260801b"
+    },
+    {
+      "path": "src/kernel/README.md",
+      "sha256": "2f308fc392c1bb81fc1600a004fce8cfedfc6fe2e45689002f1f3763d4eeb9ca"
+    },
+    {
+      "path": "src/kernel/guest_vmem.c",
+      "sha256": "64018fe81c9f150db37a1a6aa57d6e67a6eb9cd2f0885caeb3ae73c97b1bea04"
+    },
+    {
+      "path": "src/kernel/guest_vmem.h",
+      "sha256": "146def6254c0913fd8b53b29312c0b3e48fb3d0010eb1fed3cb6db0842da5262"
+    },
+    {
+      "path": "src/kernel/icall_feedback.c",
+      "sha256": "b3bf513bf1dd63d1064e5d077c63064c3041bc13d850b67949c4f8253bd18209"
+    },
+    {
+      "path": "src/kernel/kernel.h",
+      "sha256": "ee4afbe9bdd70d96f25d67072c13c53dc28f9fdfb158708d7fa489a611d2fd2e"
+    },
+    {
+      "path": "src/kernel/kernel_bridge.c",
+      "sha256": "dfb3425f4ec04b049974b44369fc7fb7a3cdd2ecf86448b47fddd8b8e0f0fd77"
+    },
+    {
+      "path": "src/kernel/kernel_crypto.c",
+      "sha256": "f018e1d76dd46268659ae9b15686bada9c4f17d95ca58f4c87046d8db85d3c37"
+    },
+    {
+      "path": "src/kernel/kernel_file.c",
+      "sha256": "c5fc4c7151b5c7db0b8505af01621dc6fb88bd5f75a2ade7815f33e724b53230"
+    },
+    {
+      "path": "src/kernel/kernel_guest_io.h",
+      "sha256": "f094b42aeac6f4df6035f396740b063dd1ee065730e4e6a4fdc22adf7040ab7b"
+    },
+    {
+      "path": "src/kernel/kernel_hal.c",
+      "sha256": "fab56d9ea5cd179d3f8a7adfa9cd71d62c1f3dcba21bd0b49d3ea7a614bf5a2b"
+    },
+    {
+      "path": "src/kernel/kernel_io.c",
+      "sha256": "5ded3a70750415a490846ef78a40653bc3fc39548dced1b590c124d446761721"
+    },
+    {
+      "path": "src/kernel/kernel_memory.c",
+      "sha256": "5ecafc6c3d973a26303fb543a5bfdc1757f65342a481f61d7ca9d5623c81f50a"
+    },
+    {
+      "path": "src/kernel/kernel_ob.c",
+      "sha256": "82ede62218f878df0fea8e082c6e2b8c5f8d4d9934eddaa2eed2e0c9c7665fd8"
+    },
+    {
+      "path": "src/kernel/kernel_path.c",
+      "sha256": "ed6f0493ed32732fbc9db90ff05242b25f76c7c56f346420817a101ecdddcc78"
+    },
+    {
+      "path": "src/kernel/kernel_pool.c",
+      "sha256": "da09ce9ca9520bd08982f36ad0f831b6f6ca0c425ab6287cfceb69715c2bcc10"
+    },
+    {
+      "path": "src/kernel/kernel_rtl.c",
+      "sha256": "d88f189a09349eebd9a52fb72ffd84e6c875b7c31c43f7810d1a799401927d2f"
+    },
+    {
+      "path": "src/kernel/kernel_sync.c",
+      "sha256": "9a7998397fa7e86ba295728c3df679afeb6f669d92910502348e60769ee019bb"
+    },
+    {
+      "path": "src/kernel/kernel_thread.c",
+      "sha256": "3c8914881c15f4797ff31bb8b8b2dd3ebead000d2dd0336a01ddec16d3ac1c10"
+    },
+    {
+      "path": "src/kernel/kernel_thunks.c",
+      "sha256": "86a3fd7ecd3c5957bc7232af48f91355c6460e499e0f10edddf5ee529b2c71f7"
+    },
+    {
+      "path": "src/kernel/kernel_xbox.c",
+      "sha256": "199244ff9a7e1b6274ffa80f75a2ce8100668daaa822165ebfd6ae59877826e8"
+    },
+    {
+      "path": "src/kernel/nv2a_combiner.c",
+      "sha256": "126ac0c3ccbc18fca1baa5779c0b721f017eaa9193a66aeefb0675b650a9f081"
+    },
+    {
+      "path": "src/kernel/nv2a_combiner.h",
+      "sha256": "a374412a230e78e9b5289951fc5094f657a4f0915d40063e608171f39d789d70"
+    },
+    {
+      "path": "src/kernel/nv2a_notify_wait.h",
+      "sha256": "48a1f95a1075c700e3247df3f9ba46d639a46c12c21b40f4d47981f66851e1d0"
+    },
+    {
+      "path": "src/kernel/nv2a_pb_exec.c",
+      "sha256": "72ec22b40a8112a5745fd77182deb64ad6879907a6109aeb7efba76df5d18283"
+    },
+    {
+      "path": "src/kernel/nv2a_pb_scan.c",
+      "sha256": "23eb7cf9c89044941e6637cfac4a711e5ae689148661235bdedce6a7bc79ad99"
+    },
+    {
+      "path": "src/kernel/nv2a_vsh_interp.c",
+      "sha256": "9053c0cc8e86d04ed1cc4f065afdb5ca188eec3ac1903c39f2fb6811e437dee4"
+    },
+    {
+      "path": "src/kernel/nv2a_vsh_interp.h",
+      "sha256": "f4449b1918157132f1a68ce0776e22554f1232a10e92af04b40c803921a35688"
+    },
+    {
+      "path": "src/kernel/recomp_icall_feedback.h",
+      "sha256": "23220606da9b4c7a63d0d27fd72f6c8c9abbbdf74085ee7615499e22f036822e"
+    },
+    {
+      "path": "src/kernel/recomp_trace.c",
+      "sha256": "acfa81b9826f4d775c20c87e7b5dd08caae7623cf6ac7ac78fd18fa4f45b8cff"
+    },
+    {
+      "path": "src/kernel/xbox_memory_layout.c",
+      "sha256": "0779d3e61891245e6359edcecc185520e600c026bd1a202789fd80de31fa16f8"
+    },
+    {
+      "path": "src/kernel/xbox_memory_layout.h",
+      "sha256": "5ae9219f07325beea79f42859c3cab12bdaec67e992eca899388b8120c217a8e"
+    },
+    {
+      "path": "src/net/CMakeLists.txt",
+      "sha256": "bcc84e333bc3b00972038e62f73debb7e89845a2b41fef00ba107c28e28d0c9a"
+    },
+    {
+      "path": "src/net/net.h",
+      "sha256": "2bc6be11b037cb42ce0f1a30a291fb31217560d99192761011a2d361a6e50cf3"
+    },
+    {
+      "path": "src/net/net_backend.c",
+      "sha256": "b4c1cabf28607efcdb8b363fee7f1a0555dd1dfd5ca00e03017e96b4e8031cad"
+    },
+    {
+      "path": "src/net/net_platform.h",
+      "sha256": "f5f6bea2ea06729c9771ad693d6ac44e472510b25b6b14437ffd8a5350ad2b88"
+    },
+    {
+      "path": "src/net/nvnet.c",
+      "sha256": "f2f29ea4f5a252ebf1b12ba39841ffadce2177c7040064bd45b785066ffe3b6d"
+    },
+    {
+      "path": "src/nv2a/CMakeLists.txt",
+      "sha256": "cb594a76816b004b9fa98ec481abb1f81ade93042684c87d9119fb8705ed7f53"
+    },
+    {
+      "path": "src/nv2a/README.md",
+      "sha256": "60460a67b07e7d6e32e4d87fd80ed3bfd26e914c05a712ce16427391c510acc9"
+    },
+    {
+      "path": "src/nv2a/nv2a_core.c",
+      "sha256": "d7d7e6be57a8a500c3eac4ab6ca95fdfc8041c1e3629cc8b376957df97d9cbf5"
+    },
+    {
+      "path": "src/nv2a/nv2a_mmio_hook.c",
+      "sha256": "8683c3710eaabd10ea993f32d04442c8719e98bdd6c1d8a1e2da8abb12fd558b"
+    },
+    {
+      "path": "src/nv2a/nv2a_mmio_hook.h",
+      "sha256": "d820c97c89ffc7a536ca28e6146bbaa2efd8c6c5361d459f853b4daf80cb8a58"
+    },
+    {
+      "path": "src/nv2a/nv2a_regs.h",
+      "sha256": "c999725f7fad35881b31ba35e63f65e38975fdea1fb6777a01c98703b683055d"
+    },
+    {
+      "path": "src/nv2a/nv2a_state.h",
+      "sha256": "cd70a0752576df1bb180edd2c9971413cbf5aa13445dcc291c624d96adf90856"
+    },
+    {
+      "path": "src/nv2a/qemu_shim.h",
+      "sha256": "577575b08257f6e81ae1a24ba83350980be9f6205b79c9322c2a4c5f37f89cc8"
+    },
+    {
+      "path": "src/platform/CMakeLists.txt",
+      "sha256": "ddc4e96be986289fcc594d564adf009c69907fed5c1e21ebb6e39b6d80795165"
+    },
+    {
+      "path": "src/platform/mmio_decode.h",
+      "sha256": "9c270cc14cb14aa4cb7a24c238da8f0a53a23d583333b1292d179b6724fc356d"
+    },
+    {
+      "path": "src/platform/recomp_profile.h",
+      "sha256": "3b7563c2d8902ee2641f626cfcbe865485df12d227ca7dce0a96051fdb768e0e"
+    },
+    {
+      "path": "src/platform/win32_compat.c",
+      "sha256": "9f42b5f973be074d25f2da178a24c7ed93e627cd4f7b0e673c1f712945bd1d5e"
+    },
+    {
+      "path": "src/platform/win32_compat.h",
+      "sha256": "0e62d6b16ea5706b61c7384546b77549d75af5886f8e73594128af9b3e0dd117"
+    },
+    {
+      "path": "src/platform/xbox_winnt.h",
+      "sha256": "608ce6d463487ac9e83a17fd07b8da57e281750817808175754836be7cb9d1c4"
+    },
+    {
+      "path": "src/usb/CMakeLists.txt",
+      "sha256": "31c29c8f58ab1648c85dcc6d7726c0c640aff3cec91a261028d2b5d7f423cf0d"
+    },
+    {
+      "path": "src/usb/ohci.c",
+      "sha256": "c23fdf3581ab3979a0ec83b71adc1917327711e2778754ca530a1eb85fff973d"
+    },
+    {
+      "path": "src/usb/ohci.h",
+      "sha256": "f74f807a5db4bda5e8c093cf2b3c1adab0c8a002bc64201fcfcd8518d199394d"
+    },
+    {
+      "path": "src/usb/usb_gamepad.c",
+      "sha256": "cd44cce2467140d3f40438044c5e2f535f1ff27c754473f482b47c7e4d0ab647"
+    },
+    {
+      "path": "src/usb/usb_gamepad.h",
+      "sha256": "b759a92c444094a3d3080bef92aa5df260d0fc186090eff7741ea5e6a14b173c"
+    },
+    {
+      "path": "src/video/CMakeLists.txt",
+      "sha256": "61fdea206dacb1dbf5bc6885361d1f4c96b62d4808482d9e98d57090743e82d3"
+    },
+    {
+      "path": "src/video/fb_present.c",
+      "sha256": "7d8dd58f67462d9a483febc02094e79facc4ad6d6593b7ec69dd026f1caedc3b"
+    },
+    {
+      "path": "src/video/fb_present.h",
+      "sha256": "a584f371a89b5041afc5cfbbb17b4b17893f6201b16b8b5c782d47f0e0ab58c4"
+    },
+    {
+      "path": "src/video/fb_window.h",
+      "sha256": "7b2995d5abe40233b59651e118cfd4f6f81c09294329c8524a0dcb174d59a54f"
+    },
+    {
+      "path": "src/video/fb_window_sdl.c",
+      "sha256": "79dd6e54589e29378e354f4499d4de5c15bc8ee1465c580524fa1b210cd83e95"
+    },
+    {
+      "path": "src/video/fb_window_sdl.h",
+      "sha256": "152cf3c4aa45c8d3ff5c166cfa1c5fbf8fd3222935968a9b6cd38451ed226cee"
+    },
+    {
+      "path": "src/video/fb_window_win32.c",
+      "sha256": "d22d090100171dfc231bf2c92238c48b625c2f3ff72f98cbb71770af417d9ad2"
+    },
+    {
+      "path": "src/video/nv2a_d3d11.c",
+      "sha256": "46a639de4828a35180a34ddfb347587f8ac0d39e1e692650d46e520aeaddb885"
+    },
+    {
+      "path": "src/video/nv2a_d3d11.h",
+      "sha256": "0a9c88f055f90c76821730f10024b17693c4dcde71d2171410260fa0f42c5534"
+    },
+    {
+      "path": "src/video/nv2a_pacing.h",
+      "sha256": "17381f4b1eca880c0995a0fccdaba9f9c29c40d1c21ae8a713ab39c3152b2130"
+    },
+    {
+      "path": "src/video/nv2a_ps_manifest.h",
+      "sha256": "5d82461218446d30e108eee5960c2a6aa34f5a1f18bfc74452610a7184e311eb"
+    },
+    {
+      "path": "src/video/nv2a_render_common.h",
+      "sha256": "d3490bdc98084ba4e8cda9596d11465305af795ad885e4fc0770c6cef708b089"
+    },
+    {
+      "path": "src/video/nv2a_sampler_cache.h",
+      "sha256": "fc854c21d790cf70d35aa2a3e085d3529d57629f2e1a43773d7761426bc7bc6e"
+    },
+    {
+      "path": "src/video/nv2a_sdlgpu.c",
+      "sha256": "633f9bd1d0dd760a13d723934f1638f5ebcb793acbd90baa2a2af02d5a6af019"
+    },
+    {
+      "path": "src/video/nv2a_shader_cache.h",
+      "sha256": "f62f9407e018145c62381fc07b6eddea386488729ec8a7de41e8df49d6ca08ff"
+    },
+    {
+      "path": "src/video/nv2a_texture_hash.h",
+      "sha256": "cb760f8e2edc1dfaa60b2d7880e83d83d5402ec020ab8d0cdb9d50ab2cc52d92"
+    },
+    {
+      "path": "src/video/pvideo_scanout.h",
+      "sha256": "45af1a35c158bbb8b07b7eab8bf5fde1f86cc19e7898848e83304f8399dc0b66"
+    },
+    {
+      "path": "src/video/shaders/nv2a_bindings.hlsli",
+      "sha256": "42eaec34a97395abb895c94f0d34ea73f0671248220be614a5cdd0c3a494cd81"
+    },
+    {
+      "path": "src/video/shaders/nv2a_clear.hlsl",
+      "sha256": "1038e4f76ad92c9eafa82531dc83595c266c808e7987301d8bfca3dbaccac22f"
+    },
+    {
+      "path": "src/video/shaders/nv2a_combiner.hlsl",
+      "sha256": "8c944ea090bd4a9642c69bd4543eaeb84ba166e309bec9553fb68836f75a86d6"
+    },
+    {
+      "path": "src/video/shaders/nv2a_present.hlsl",
+      "sha256": "8c5e2ab239891d42c8deb7bb5eade0e830bde3726a3231633a6bfefc78594d11"
+    },
+    {
+      "path": "src/video/shaders/nv2a_varyings.hlsli",
+      "sha256": "4b81746391c7b9ddde9336282b85b901002cc146ae5031e1fd04cb58602a1045"
+    },
+    {
+      "path": "src/video/shaders/nv2a_vertex.hlsl",
+      "sha256": "182102b33cf1fc44c5a67cf3936cec2f9a62efa2df5d617083da8ac07ca49d0a"
+    },
+    {
+      "path": "src/video/shaders/nv2a_y16.hlsl",
+      "sha256": "93ceb59da3c8ab21693a63201fe579903d0bd5d55f8ab6da7f91f077ca3b65e1"
+    },
+    {
+      "path": "src/video/shaders/nv2a_y16d.hlsl",
+      "sha256": "902da1a4072fac0b9800efd0c7e7697267b1dd44a9dfd15c67234f37d44c93fd"
+    },
+    {
+      "path": "src/video/shaders/sdlgpu/clear.hlsl",
+      "sha256": "41b27b9bcee84b8b3d9f36024ec30e15cace56d3545fc29077aa12a16d95d957"
+    },
+    {
+      "path": "src/video/shaders/sdlgpu/combiner.hlsl",
+      "sha256": "5d1329dd8e531fd2485416b19b2e7f4b0c55a80d97ce8c564b1e4ad690e35a63"
+    },
+    {
+      "path": "src/video/shaders/sdlgpu/present.hlsl",
+      "sha256": "51b24e23c0d6d4469235b67b658ceeb251bbe95c8d042e2a0853f9c47a51d439"
+    },
+    {
+      "path": "src/video/shaders/sdlgpu/ub.hlsl",
+      "sha256": "95b56b23d6a5d810bcdae56f105e19a36351b1cfa361ab17b97e0db6f7784637"
+    },
+    {
+      "path": "src/video/shaders/sdlgpu/y16.hlsl",
+      "sha256": "441661a7f08bdb4c31518b17c8990307d43ccf16dd6f309b0aa4736ebd390604"
+    },
+    {
+      "path": "src/video/shaders/sdlgpu/y16d.hlsl",
+      "sha256": "f0f0b4a0abeb6a3082ddaa9f39b2bbdd2350624279a80898dfa432081131a31f"
+    },
+    {
+      "path": "src/video/spike_sampler.c",
+      "sha256": "78e0c782487221dc62a85ada108d78e4807ff64547ac37dd021d69160713bfe4"
+    },
+    {
+      "path": "src/video/video_player.c",
+      "sha256": "34838e89fcedfacf1b534f36cfa8463abf6e836f1d94c73cbb2cd2ea284a144d"
+    },
+    {
+      "path": "src/video/video_player.h",
+      "sha256": "672a30f2a55ca53c28832075e299ac9399bf8beee32801a4f6b1a5add23ece49"
+    },
+    {
+      "path": "src/video/video_pump.c",
+      "sha256": "e1544894b2cd27d7a742da29f496bb4294c18b8ee4a58c7b1671b43aa247768c"
+    }
+  ],
+  "stale_index_paths_excluded": [
+    "tools/xboxrecomp/src/nv2a/font_atlas_data.h",
+    "tools/xboxrecomp/src/nv2a/menu_pb_crash_select.h",
+    "tools/xboxrecomp/src/nv2a/menu_pb_driver_details.h",
+    "tools/xboxrecomp/src/nv2a/menu_pb_main_menu.h",
+    "tools/xboxrecomp/src/nv2a/menu_pb_race_setup.h",
+    "tools/xboxrecomp/src/nv2a/menu_pb_road_rage.h",
+    "tools/xboxrecomp/src/nv2a/menu_pb_single_event.h",
+    "tools/xboxrecomp/src/nv2a/menu_pb_time_attack.h",
+    "tools/xboxrecomp/src/nv2a/menu_pb_world_tour.h",
+    "tools/xboxrecomp/src/nv2a/menu_pushbuffer_data.h",
+    "tools/xboxrecomp/src/nv2a/nv2a_pb_replay.c",
+    "tools/xboxrecomp/src/nv2a/nv2a_pb_test.c",
+    "tools/xboxrecomp/src/nv2a/nv2a_pgraph_d3d11.c",
+    "tools/xboxrecomp/src/nv2a/nv2a_pgraph_d3d11.h",
+    "tools/xboxrecomp/src/video/nv2a_distance_fog.h",
+    "tools/xboxrecomp/src/video/shaders/sdlgpu/fog.hlsl"
+  ]
+}
