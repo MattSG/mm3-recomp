@@ -869,3 +869,26 @@ source area, final cumulative runtime checks and repository/publication inventor
   recorded these scoped retain decisions. Discovery completeness is still not
   established for the whole tracked fork. NIC/platform internals beyond the
   inspected boundary, other source/tool artifacts and final proof remain open.
+
+### Retained area: NIC device and socket platform layer
+
+- Reviewed the NIC register/PHY model, descriptor rings, guest DMA resolver,
+  transmit/receive, interrupt dispatch/thread and initialization/reporting;
+  also the full socket/DNS platform header. Retain generic hardware/transport
+  behavior. No title address or section name selects the production paths.
+- Moved the captured physical-ring/BINKDATA observation into MM3 reference data.
+  Allocation-based contiguous-memory precedence stays in the NIC; the old
+  assertion about every driver never using statics is no longer claimed.
+- Fixed a real generic integration gap: runtime physical IDs for ordinary RAM
+  now resolve before legacy contiguous/guest-VA handling. Both descriptor and
+  payload accesses share this path. Existing bounds and allocation precedence
+  remain in place; no title identity or new configuration was introduced.
+- Windows and WSL Linux network suites pass 2/2, including synthetic RAM-ID
+  RX payload, descriptor writeback, ring advancement, TX payload and invalid
+  range checks. Both MM3 renderer builds pass. Evidence:
+  ownership-nic-physical-windows-{build,tests}.log,
+  ownership-nic-physical-linux.log and
+  ownership-nic-physical-{sdlgpu,d3d11}-build.log.
+- This is scoped ownership/DMA proof, not complete NIC hardware fidelity,
+  interrupt/lifecycle correctness or online gameplay acceptance. Whole-fork
+  inventory, remaining source/tool artifacts and cumulative final proof stay open.

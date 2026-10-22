@@ -286,5 +286,11 @@
     "dead_vtable": "0x00362910",
     "return_pc": "0x0035FBD3",
     "purpose": "Historical observed markers; runtime regression now uses synthetic identities while retaining queue lifetime and caller-stack alias conditions."
+  },
+  "nic_contiguous_dma_observation": {
+    "source": "XboxRecomp 603567e src/net/nvnet.c bus_ptr comment",
+    "physical_ring": "0x0047F000",
+    "overlapping_image_section": "BINKDATA",
+    "purpose": "Historical title observation motivating allocated contiguous DMA precedence. The generic NIC retains allocation-based precedence without matching this address or section."
   }
 }

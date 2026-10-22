@@ -1,6 +1,6 @@
 {
   "scope": "FFF-discovered src files verified present in the ownership worktree; whole-fork completeness is not established",
-  "fork_commit": "603567ecaf2b2df997e77d017d154dcf678bce4e",
+  "fork_commit": "47079fc28768dc878fb5bd1a9e55b7b78cdb9f5d",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -435,11 +435,25 @@
     },
     {
       "path": "src/net/net_platform.h",
-      "sha256": "f5f6bea2ea06729c9771ad693d6ac44e472510b25b6b14437ffd8a5350ad2b88"
+      "sha256": "f5f6bea2ea06729c9771ad693d6ac44e472510b25b6b14437ffd8a5350ad2b88",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "47079fc28768dc878fb5bd1a9e55b7b78cdb9f5d",
+        "scope": "Full socket and DNS platform wrapper header",
+        "evidence": "Windows and WSL Linux network suite 2/2; runtime RAM-ID RX/TX transfers and descriptor writeback checked; both MM3 backends build",
+        "limit": "Scoped ownership and DMA regression proof; not complete hardware fidelity, shutdown lifecycle or multiplayer acceptance"
+      }
     },
     {
       "path": "src/net/nvnet.c",
-      "sha256": "f2f29ea4f5a252ebf1b12ba39841ffadce2177c7040064bd45b785066ffe3b6d"
+      "sha256": "2ca38f2eb5083f4a8cd025ebb16364a2a4c7a1e051982132e360727b6d4b4153",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "47079fc28768dc878fb5bd1a9e55b7b78cdb9f5d",
+        "scope": "NIC MMIO, rings, DMA, IRQ delivery and initialization",
+        "evidence": "Windows and WSL Linux network suite 2/2; runtime RAM-ID RX/TX transfers and descriptor writeback checked; both MM3 backends build",
+        "limit": "Scoped ownership and DMA regression proof; not complete hardware fidelity, shutdown lifecycle or multiplayer acceptance"
+      }
     },
     {
       "path": "src/nv2a/CMakeLists.txt",
