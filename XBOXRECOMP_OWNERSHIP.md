@@ -1062,3 +1062,28 @@ source area, final cumulative runtime checks and repository/publication inventor
   fidelity claim follows from synthetic PCM samples. No new audio hardware or
   deferred API feature was implemented. The full 624-file inventory is refreshed;
   other ownership areas and cumulative/final proof remain open.
+
+### Retained WMA host decoder and synthetic fixture
+
+- Reviewed the complete caller-path decoder/API, buffer growth, negotiated PCM
+  metadata/format-change handling, COM/Media Foundation cleanup and unsupported
+  host branch, plus audio link wiring and the standalone test/fixture records.
+  Retain these reusable mechanisms: no title asset name/path, guest address or
+  title activation selects the decoder.
+- The fixture is documented as generated CC0 tone data with its FFmpeg command.
+  Independent inspection confirms WMA v2, 44.1-kHz stereo and 0.25-s container
+  duration; decoded samples have 66 positive crossings in 0.15 seconds (440 Hz).
+  This supports the documented synthetic content, without claiming historical
+  authorship forensics. Evidence: ownership-wma-fixture-analysis.json.
+- Windows standalone regression passes real MF decoding/PCM metadata and an
+  injected read-error flag after partial output, requiring cleanup. Linux passes
+  only failure/cleared-output/idempotent-free checks; it does not decode WMA.
+  Evidence: ownership-wma-windows-{configure,build,tests}.log and
+  ownership-wma-linux.log. No audio device or game content was used.
+- Clarified the header's platform and result-ownership rules: free prior output
+  before reuse; failure clears a non-NULL result. No decoder implementation or
+  runtime behavior changed. This is a Windows host-codec helper, not proof of
+  Xbox compressed-packet emulation or game-audio fidelity.
+- Complete 624-file tree/blob/hash inventory refreshed with these scoped retain
+  decisions. Remaining ownership review, cumulative validation and final
+  repository/publication proof stay open.

@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "33bf2a9c9e085ed12814ee2e2bcd1bfe6b271a3b",
+  "fork_commit": "c6d08bebc4ae909341426b04d5301c8d36e97bd0",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -565,7 +565,14 @@
       "path": "src/audio/CMakeLists.txt",
       "sha256": "2de59d2dc60427245f7089503d67c6445ee57747bc473d6767280deae0cf81fc",
       "mode": "100644",
-      "git_blob": "166f2fdf6fc79ce1fc160825a232706bdd968d85"
+      "git_blob": "166f2fdf6fc79ce1fc160825a232706bdd968d85",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "c6d08bebc4ae909341426b04d5301c8d36e97bd0",
+        "scope": "Full generic audio library dependency/link wiring",
+        "evidence": "Windows real decoder and injected-error cleanup case passes; Linux failure/cleared-output case passes; fixture wmav2/44100/stereo/0.25s metadata and 440-Hz signal checked independently with FFmpeg",
+        "limit": "Windows host codec adapter, not Xbox compressed-packet emulation or game-audio fidelity; Linux has no decode implementation; signal analysis supports documented synthetic content, not historical authorship forensics"
+      }
     },
     {
       "path": "src/audio/README.md",
@@ -610,13 +617,27 @@
       "path": "src/audio/wma_decoder.c",
       "sha256": "5a2e6055f57e0b5505df85c7d5fb83b09ec2d797dbc513aac11a7ba18b348b75",
       "mode": "100644",
-      "git_blob": "016e83ffd8bab4f1f63b11c56f22b861c08a5145"
+      "git_blob": "016e83ffd8bab4f1f63b11c56f22b861c08a5145",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "c6d08bebc4ae909341426b04d5301c8d36e97bd0",
+        "scope": "Full caller-path host decoder, buffer growth, PCM metadata/format changes, COM/MF cleanup and non-Windows failure implementation",
+        "evidence": "Windows real decoder and injected-error cleanup case passes; Linux failure/cleared-output case passes; fixture wmav2/44100/stereo/0.25s metadata and 440-Hz signal checked independently with FFmpeg",
+        "limit": "Windows host codec adapter, not Xbox compressed-packet emulation or game-audio fidelity; Linux has no decode implementation; signal analysis supports documented synthetic content, not historical authorship forensics"
+      }
     },
     {
       "path": "src/audio/wma_decoder.h",
-      "sha256": "350fa49597c037e782dbeaaa5b35fbe47af28e8d523c92c8e1cdd4d222d800c4",
+      "sha256": "b306db27504cefbc4b40af8bfb40020ce98c371a648c37e010feab9dec1bb032",
       "mode": "100644",
-      "git_blob": "106f2904a157588a39287a7123e451ba6db8181a"
+      "git_blob": "72333eb090a40751f5a686e6a86c8fd8e675def9",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "c6d08bebc4ae909341426b04d5301c8d36e97bd0",
+        "scope": "Full decoder and output ownership/platform contract",
+        "evidence": "Windows real decoder and injected-error cleanup case passes; Linux failure/cleared-output case passes; fixture wmav2/44100/stereo/0.25s metadata and 440-Hz signal checked independently with FFmpeg",
+        "limit": "Windows host codec adapter, not Xbox compressed-packet emulation or game-audio fidelity; Linux has no decode implementation; signal analysis supports documented synthetic content, not historical authorship forensics"
+      }
     },
     {
       "path": "src/d3d/CMakeLists.txt",
@@ -2569,25 +2590,53 @@
       "path": "tests/wma_decoder/CMakeLists.txt",
       "mode": "100644",
       "git_blob": "c6a3d7642eeb670756548f0f0a4f40df725a0ed0",
-      "sha256": "cfee2a37e44f9df5f4c608b7f72b108998cd64aefb37bf2835de47fa0d5f6d7f"
+      "sha256": "cfee2a37e44f9df5f4c608b7f72b108998cd64aefb37bf2835de47fa0d5f6d7f",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "c6d08bebc4ae909341426b04d5301c8d36e97bd0",
+        "scope": "Full standalone decoder fixture test wiring",
+        "evidence": "Windows real decoder and injected-error cleanup case passes; Linux failure/cleared-output case passes; fixture wmav2/44100/stereo/0.25s metadata and 440-Hz signal checked independently with FFmpeg",
+        "limit": "Windows host codec adapter, not Xbox compressed-packet emulation or game-audio fidelity; Linux has no decode implementation; signal analysis supports documented synthetic content, not historical authorship forensics"
+      }
     },
     {
       "path": "tests/wma_decoder/fixtures/README.md",
       "mode": "100644",
       "git_blob": "905de1353ec0616221106f4162b654d7d47bc54b",
-      "sha256": "87aeddbc9c21870c1bd654bcc0d574ae03049eeba9b9ea9e58bf2c5ded175176"
+      "sha256": "87aeddbc9c21870c1bd654bcc0d574ae03049eeba9b9ea9e58bf2c5ded175176",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "c6d08bebc4ae909341426b04d5301c8d36e97bd0",
+        "scope": "Full synthetic fixture generation and declared CC0 provenance",
+        "evidence": "Windows real decoder and injected-error cleanup case passes; Linux failure/cleared-output case passes; fixture wmav2/44100/stereo/0.25s metadata and 440-Hz signal checked independently with FFmpeg",
+        "limit": "Windows host codec adapter, not Xbox compressed-packet emulation or game-audio fidelity; Linux has no decode implementation; signal analysis supports documented synthetic content, not historical authorship forensics"
+      }
     },
     {
       "path": "tests/wma_decoder/fixtures/sine.wma",
       "mode": "100644",
       "git_blob": "f9d0435cb532c3e314ed8107c6ce569ff3ab2193",
-      "sha256": "c26924b8b61f328be2143c643df6b98228fa05bdb9eb155b73a844780884cd0d"
+      "sha256": "c26924b8b61f328be2143c643df6b98228fa05bdb9eb155b73a844780884cd0d",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "c6d08bebc4ae909341426b04d5301c8d36e97bd0",
+        "scope": "Synthetic WMA test asset, not a title capture",
+        "evidence": "Windows real decoder and injected-error cleanup case passes; Linux failure/cleared-output case passes; fixture wmav2/44100/stereo/0.25s metadata and 440-Hz signal checked independently with FFmpeg",
+        "limit": "Windows host codec adapter, not Xbox compressed-packet emulation or game-audio fidelity; Linux has no decode implementation; signal analysis supports documented synthetic content, not historical authorship forensics"
+      }
     },
     {
       "path": "tests/wma_decoder/test_main.c",
       "mode": "100644",
       "git_blob": "7de26c66983be42773e68065b4985ba8d034929a",
-      "sha256": "4df28c31b9024d066bce607dbcbe0d1068b07f65f223f864cbe67a470844f229"
+      "sha256": "4df28c31b9024d066bce607dbcbe0d1068b07f65f223f864cbe67a470844f229",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "c6d08bebc4ae909341426b04d5301c8d36e97bd0",
+        "scope": "Full real MF decode and injected read-error/partial-output cleanup regression; unsupported-host contract",
+        "evidence": "Windows real decoder and injected-error cleanup case passes; Linux failure/cleared-output case passes; fixture wmav2/44100/stereo/0.25s metadata and 440-Hz signal checked independently with FFmpeg",
+        "limit": "Windows host codec adapter, not Xbox compressed-packet emulation or game-audio fidelity; Linux has no decode implementation; signal analysis supports documented synthetic content, not historical authorship forensics"
+      }
     },
     {
       "path": "tests/xaudio2/CMakeLists.txt",
@@ -3969,7 +4018,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "deceacb896b2e587db4fefffc782b99ac9ac4d7f",
+  "fork_tree": "f3dde27b1819bcaea7bd48f0bc012bb2cad113c5",
   "coverage": {
     "tracked_files": 624,
     "tracked_src_files": 153,
