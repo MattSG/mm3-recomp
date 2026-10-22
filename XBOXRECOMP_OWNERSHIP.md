@@ -1010,3 +1010,27 @@ source area, final cumulative runtime checks and repository/publication inventor
 - Refreshed all 624 committed tree/blob/hash entries, retaining prior scoped
   reviews. Broader loader/tool documentation, other artifact/runtime ownership,
   cumulative validation and final repository/publication proof remain open.
+
+### Reference-title header namespaces and DirectSound capability descriptions
+
+- Replaced six active BURNOUT3 include guards in DirectSound, D3D8 and NV2A
+  headers with XBOXRECOMP names. Search results had also named input/video
+  headers, but current source already used generic guards; those were left
+  unchanged. No consumer of the old guard names was found outside the guards.
+- Preserved old guard names, the 40-entry/68-call reference-title audio metrics
+  and the RenderWare adapter origin description in MM3 reference data. Those
+  historical metrics are not generic API implementation coverage.
+- Inspected DirectSound buffer delegation to the shared APU mixer. Replaced
+  stale comments claiming every method is a silent no-op and output is wholly
+  deferred. Stream/listener/spatial methods remain partial compatibility stubs;
+  the startup log now describes the interface without claiming no audio output.
+- Verified each header body is identical after guard normalization and comment
+  exclusion; the audio body differs only in its startup message. Six standalone
+  MSVC double-inclusion checks pass with the new guards defined. Both Windows
+  renderer builds pass; WSL Linux runtime build and kernel_io_mapping pass.
+  Evidence: ownership-header-namespace-check.log,
+  ownership-header-{sdlgpu,d3d11}-build.log and ownership-header-linux.log.
+- This preserves declarations/layouts and buildability, not proof that every
+  exposed host adapter matches every guest SDK ABI. No new playback or full
+  graphics/USB/audio fidelity is claimed. Complete 624-file inventory refreshed;
+  remaining ownership decisions and cumulative/final repository proof stay open.

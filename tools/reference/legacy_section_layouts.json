@@ -316,5 +316,35 @@
     },
     "burnout3_stick_input": "Steering and map location selection use stick directions independently of d-pad input",
     "purpose": "Captured title debugging context is owned here; generic USB protocol mechanisms and independent scripted input remain in XboxRecomp."
+  },
+  "runtime_header_title_namespaces": {
+    "source": "XboxRecomp c21aa15b074a8ee5bffdc53553055aa3b6ef6cab",
+    "guard_renames": {
+      "src/audio/dsound_xbox.h": {
+        "BURNOUT3_DSOUND_XBOX_H": "XBOXRECOMP_DSOUND_XBOX_H"
+      },
+      "src/d3d/d3d8_xbox.h": {
+        "BURNOUT3_D3D8_XBOX_H": "XBOXRECOMP_D3D8_XBOX_H"
+      },
+      "src/d3d/d3d8_internal.h": {
+        "BURNOUT3_D3D8_INTERNAL_H": "XBOXRECOMP_D3D8_INTERNAL_H"
+      },
+      "src/nv2a/nv2a_state.h": {
+        "BURNOUT3_NV2A_STATE_H": "XBOXRECOMP_NV2A_STATE_H"
+      },
+      "src/nv2a/nv2a_mmio_hook.h": {
+        "BURNOUT3_NV2A_MMIO_HOOK_H": "XBOXRECOMP_NV2A_MMIO_HOOK_H"
+      },
+      "src/nv2a/qemu_shim.h": {
+        "BURNOUT3_QEMU_SHIM_H": "XBOXRECOMP_QEMU_SHIM_H"
+      }
+    },
+    "directsound_title_metrics": {
+      "entry_points": 40,
+      "total_calls": 68,
+      "status": "Historical reference-title header claim, not shared API coverage evidence"
+    },
+    "purpose": "Reference-title header namespace and metrics history. Toolkit headers use XBOXRECOMP guards; declarations/layouts are retained.",
+    "d3d8_origin_description": "Header described statically linked RenderWare Xbox driver/game-RW code; declarations remain in the generic adapter."
   }
 }

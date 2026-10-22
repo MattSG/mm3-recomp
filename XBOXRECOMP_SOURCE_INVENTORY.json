@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "c21aa15b074a8ee5bffdc53553055aa3b6ef6cab",
+  "fork_commit": "1988028bb7655f7796af5dda1479c92feb2e5847",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -575,15 +575,29 @@
     },
     {
       "path": "src/audio/dsound_device.c",
-      "sha256": "41d7cede540577389cbfad01295e862ac6e06057233844223d1962d87d2684a1",
+      "sha256": "e26fc4b6128feca4d372a17af9ebbdbcbcbc85033afdbd852df193d2b1373e31",
       "mode": "100644",
-      "git_blob": "f467511d636b8f68923e07f228e5de31570c6290"
+      "git_blob": "2c3f7d3f3019772d5ad33a27f6aa5002ea1ce309",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1988028bb7655f7796af5dda1479c92feb2e5847",
+        "scope": "PCM buffer adapter delegation and corrected capability/startup descriptions",
+        "evidence": "Six header bodies identical after guard normalization and comment exclusion; standalone MSVC double-inclusion checks pass; audio executable body identical except startup log; both Windows renderer builds and Linux runtime/mapping check pass",
+        "limit": "No new playback, full SDK ABI, graphics/USB fidelity or lifecycle acceptance; unsupported DirectSound stream/spatial methods remain partial stubs"
+      }
     },
     {
       "path": "src/audio/dsound_xbox.h",
-      "sha256": "f9e9fcec64790143b2c149fdbaa54c756bdcbb324de6f2b21aa42b9d02fc91cf",
+      "sha256": "bb1857573ecea4b6b4f6c99064a3281030fabaf98a71a3873117c31fdfeca780",
       "mode": "100644",
-      "git_blob": "eea5c80eac650329f1894306c05ccab5f97aa4ae"
+      "git_blob": "5dfd096fade423eec8d314f056ecac1a3f2dffd0",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1988028bb7655f7796af5dda1479c92feb2e5847",
+        "scope": "Include-guard namespace and introductory API comments only",
+        "evidence": "Six header bodies identical after guard normalization and comment exclusion; standalone MSVC double-inclusion checks pass; audio executable body identical except startup log; both Windows renderer builds and Linux runtime/mapping check pass",
+        "limit": "No new playback, full SDK ABI, graphics/USB fidelity or lifecycle acceptance; unsupported DirectSound stream/spatial methods remain partial stubs"
+      }
     },
     {
       "path": "src/audio/wma_decoder.c",
@@ -647,9 +661,16 @@
     },
     {
       "path": "src/d3d/d3d8_internal.h",
-      "sha256": "9101861be876ce95ca0bc26e6e07741794fdf179a8ccb6afef726c8e27f6d9f6",
+      "sha256": "2b1597527de00c24d268fac9389ef97404032f76ca664157151c6ec57769b31e",
       "mode": "100644",
-      "git_blob": "8db61926b007a809d08614ed77f5ab1b3078f7b2"
+      "git_blob": "482caec41114fccfeb42f5675031ebf99db6a20a",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1988028bb7655f7796af5dda1479c92feb2e5847",
+        "scope": "Include-guard namespace and introductory API comments only",
+        "evidence": "Six header bodies identical after guard normalization and comment exclusion; standalone MSVC double-inclusion checks pass; audio executable body identical except startup log; both Windows renderer builds and Linux runtime/mapping check pass",
+        "limit": "No new playback, full SDK ABI, graphics/USB fidelity or lifecycle acceptance; unsupported DirectSound stream/spatial methods remain partial stubs"
+      }
     },
     {
       "path": "src/d3d/d3d8_resources.c",
@@ -689,9 +710,16 @@
     },
     {
       "path": "src/d3d/d3d8_xbox.h",
-      "sha256": "8ec48ecf3f99b49d72858b3a8b96c04da3d937bad76346f315c18002c1a31b81",
+      "sha256": "fe024385e6f9e9092c11b084915789ffcde50d9d9292c090ff5f2c05971ceb0b",
       "mode": "100644",
-      "git_blob": "3972bc4bc08c748b6efac78222340b05862ccced"
+      "git_blob": "b8ac40f4a22bcac3891fede21d2b6199d741d4af",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1988028bb7655f7796af5dda1479c92feb2e5847",
+        "scope": "Include-guard namespace and introductory API comments only",
+        "evidence": "Six header bodies identical after guard normalization and comment exclusion; standalone MSVC double-inclusion checks pass; audio executable body identical except startup log; both Windows renderer builds and Linux runtime/mapping check pass",
+        "limit": "No new playback, full SDK ABI, graphics/USB fidelity or lifecycle acceptance; unsupported DirectSound stream/spatial methods remain partial stubs"
+      }
     },
     {
       "path": "src/host/CMakeLists.txt",
@@ -1018,9 +1046,16 @@
     },
     {
       "path": "src/nv2a/nv2a_mmio_hook.h",
-      "sha256": "d820c97c89ffc7a536ca28e6146bbaa2efd8c6c5361d459f853b4daf80cb8a58",
+      "sha256": "5f76ee12cffb786c2ff317e48bfa7f97d78a39bb173c63067e32c22b7e3d78cd",
       "mode": "100644",
-      "git_blob": "5c1e74277096c41d3fe943153397b5a7b0c21bf8"
+      "git_blob": "093f18652a8216fa80ddd622bb6b7d5d7917b4fd",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1988028bb7655f7796af5dda1479c92feb2e5847",
+        "scope": "Include-guard namespace and introductory API comments only",
+        "evidence": "Six header bodies identical after guard normalization and comment exclusion; standalone MSVC double-inclusion checks pass; audio executable body identical except startup log; both Windows renderer builds and Linux runtime/mapping check pass",
+        "limit": "No new playback, full SDK ABI, graphics/USB fidelity or lifecycle acceptance; unsupported DirectSound stream/spatial methods remain partial stubs"
+      }
     },
     {
       "path": "src/nv2a/nv2a_regs.h",
@@ -1030,15 +1065,29 @@
     },
     {
       "path": "src/nv2a/nv2a_state.h",
-      "sha256": "cd70a0752576df1bb180edd2c9971413cbf5aa13445dcc291c624d96adf90856",
+      "sha256": "c2690b9fefbb5158abdcb71d43cd18499f01382c7c8c06306af534af21f40f4f",
       "mode": "100644",
-      "git_blob": "b2a86befd32abff4e8b4794b65c307aa7b298ace"
+      "git_blob": "16f0c81de80bcc8eedce3eca3bc6b6b67123f6f2",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1988028bb7655f7796af5dda1479c92feb2e5847",
+        "scope": "Include-guard namespace and introductory API comments only",
+        "evidence": "Six header bodies identical after guard normalization and comment exclusion; standalone MSVC double-inclusion checks pass; audio executable body identical except startup log; both Windows renderer builds and Linux runtime/mapping check pass",
+        "limit": "No new playback, full SDK ABI, graphics/USB fidelity or lifecycle acceptance; unsupported DirectSound stream/spatial methods remain partial stubs"
+      }
     },
     {
       "path": "src/nv2a/qemu_shim.h",
-      "sha256": "577575b08257f6e81ae1a24ba83350980be9f6205b79c9322c2a4c5f37f89cc8",
+      "sha256": "5254219917998d77d29ebca0497b83295f513fba8c5fc39220189cf7882a1c1a",
       "mode": "100644",
-      "git_blob": "e70fe051b21baeee1ec04097ef13f81274212f72"
+      "git_blob": "49dca411917ad20437a8bd88e101522479f4d6be",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1988028bb7655f7796af5dda1479c92feb2e5847",
+        "scope": "Include-guard namespace and introductory API comments only",
+        "evidence": "Six header bodies identical after guard normalization and comment exclusion; standalone MSVC double-inclusion checks pass; audio executable body identical except startup log; both Windows renderer builds and Linux runtime/mapping check pass",
+        "limit": "No new playback, full SDK ABI, graphics/USB fidelity or lifecycle acceptance; unsupported DirectSound stream/spatial methods remain partial stubs"
+      }
     },
     {
       "path": "src/platform/CMakeLists.txt",
@@ -3899,7 +3948,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "a595974939a9f6eb94222bcb79f4fae802dd66e0",
+  "fork_tree": "e4b87a9379a0eef84b32dfdff651e9ca5d29ad85",
   "coverage": {
     "tracked_files": 624,
     "tracked_src_files": 153,
