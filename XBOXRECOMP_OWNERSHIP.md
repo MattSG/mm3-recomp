@@ -1394,3 +1394,31 @@ source area, final cumulative runtime checks and repository/publication inventor
 - Complete 622-file committed identities/hashes refreshed. Other kernel stand-ins,
   memory/source/docs/artifact ownership, cumulative validation and final
   repository/publication proof remain open; no new gameplay fidelity claim.
+
+
+### Kernel probe mapping is generic; fabricated header bytes belong to MM3
+
+- Removed the fabricated e_lfanew field used to steer library feature probing
+  from shared memory initialization. Retained the zeroed kernel probe mapping,
+  including the separate fallback allocation and owned teardown. Added the
+  small xbox_GetKernelMemoryBase accessor so the port can populate compatibility
+  bytes without reimplementing mapping/lifetime ownership.
+- MM3 startup writes the inherited e_lfanew value through that view when it is
+  available, preserving the former unavailable-page behavior as well. The
+  compatibility response is explicitly port-owned; this does not claim a real
+  kernel PE implementation or native MM3 feature-probe correctness.
+- Archived the full original memory guide and kernel initialization block in
+  tools/reference/legacy_memory_layout_guide.md. The replacement guide describes
+  current image/RAM/VA/physical-ID APIs, guest/application state boundaries,
+  owned probe storage, diagnostics and teardown. Original guide text matches
+  after line-ending normalization; replacement local links resolve.
+- Old default loader fails the new no-fabricated-offset check. Real mapping
+  regressions verify the accessor and its retirement on shutdown. Windows
+  memory cases pass 7/7, kernel cases 61/61, and seven Linux memory modes pass
+  using actual fixture source with existing runtime flags/libraries. Both
+  Windows renderer game builds pass. Evidence:
+  ownership-kernel-probe-{baseline,memory-build,memory-tests,kernel-build,
+  kernel-tests,linux,sdl-build,d3d11-build}.log.
+- Complete 622-file committed tree/blob/hash inventory refreshed. Remaining
+  stand-in ownership, other source/docs/artifacts, cumulative validation and
+  final repository/publication proof remain open; no new gameplay fidelity claim.

@@ -270,6 +270,11 @@ int main(void)
     *(uint32_t *)((uintptr_t)g_xbox_mem_offset + XBOX_FS_BASE + 0x28u) = 0x00760000u;
     *(uint32_t *)((uintptr_t)g_xbox_mem_offset + 0x00760028u) = 0x00700000u;
 
+    /* Preserve the inherited empty-section PE probe response in MM3 only. */
+    void *kernel_probe = xbox_GetKernelMemoryBase();
+    if (kernel_probe)
+        *(uint32_t *)((uint8_t *)kernel_probe + 0x3Cu) = 0x80u;
+
     mm3_mods_init();
     /* XPP submits stack-backed USB requests whose callback signals an inline
      * KEVENT. Its explicit wait treats an invalid handle as completion, so
