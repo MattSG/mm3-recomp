@@ -986,3 +986,27 @@ source area, final cumulative runtime checks and repository/publication inventor
 - Refreshed the complete 624-file tree/blob/hash inventory and recorded the
   scoped decisions. Other documentation, remaining source/tool/test ownership,
   cumulative validation and final repository/publication proof remain open.
+
+### Retained generic diagnostics and tool-documentation boundary
+
+- Reviewed full frame CSV summarizer, guest-stack word scanner, MSVC map
+  symbolizer and PowerShell PVIDEO register checker. Retain them: each accepts
+  caller-supplied data/source or tests runtime register semantics, with no
+  built-in game path, menu sequence, title identity or asset fixture.
+- Verified frame-summary selftest and inclusive CSV time window; guest-stack
+  in-body hit plus entry/end/gap rejection; map CLI/stdin lookup at a non-default
+  host image base; and MSVC compilation/execution of actual PVIDEO register
+  function bodies for stop/read-zero/restart. Evidence:
+  ownership-diagnostic-tools-check.log and ownership-pvideo-tools-check.log.
+- These are bounded diagnostic contracts. Stack-word scans are candidate
+  return-site hints, map lookups are nearest public symbols, frame CSVs are
+  internal diagnostics and the PVIDEO fixture does not prove presentation.
+- Moved the old reference-title regeneration notes/loader filename example into
+  tools/reference/legacy_tool_regeneration_notes.md. The generic documentation
+  now describes source-owned overrides, lifter fixes and regeneration proof.
+  Loader executable AST is unchanged excluding its edited function docstring;
+  original notes are preserved and the new guide link resolves. Evidence:
+  ownership-diagnostic-docs-check.log. No runtime behavior changed.
+- Refreshed all 624 committed tree/blob/hash entries, retaining prior scoped
+  reviews. Broader loader/tool documentation, other artifact/runtime ownership,
+  cumulative validation and final repository/publication proof remain open.

@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "a35977bda89c49c107ac3d30aff88a6c45249057",
+  "fork_commit": "c21aa15b074a8ee5bffdc53553055aa3b6ef6cab",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -2546,8 +2546,15 @@
     {
       "path": "tools/README.md",
       "mode": "100644",
-      "git_blob": "8b482840305bb0c4b7420d84702ad86e3cb2dbc9",
-      "sha256": "b4b6c735da2c3a60955a830ded7a78730ff4606bd11704a4e5f74fb7f904abc7"
+      "git_blob": "667028ddab666c5fa24b46cd86d14a7559cc0525",
+      "sha256": "546d4e19c0acafeb471359c9caeef6da327ef6638342450e5e2862199fddb466",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "c21aa15b074a8ee5bffdc53553055aa3b6ef6cab",
+        "scope": "Regeneration subsection only",
+        "evidence": "Original subsection preserved in MM3 reference notes; runtime-guide link exists",
+        "limit": "Other tool-reference sections remain outside this scoped decision"
+      }
     },
     {
       "path": "tools/__init__.py",
@@ -2583,7 +2590,14 @@
       "path": "tools/bench/frames.py",
       "mode": "100644",
       "git_blob": "7d4202b96177414f5dceafea43ea84e3a9cadb42",
-      "sha256": "1302dc980f53b30b992fa50b64931b25561eed8267a640c95c920f5ce68a039a"
+      "sha256": "1302dc980f53b30b992fa50b64931b25561eed8267a640c95c920f5ce68a039a",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "c21aa15b074a8ee5bffdc53553055aa3b6ef6cab",
+        "scope": "Full CSV timing summary utility",
+        "evidence": "Built-in synthetic selftest and CLI inclusive time-window/frame-count check pass",
+        "limit": "Internal frame CSV diagnostics, not external performance or gameplay proof"
+      }
     },
     {
       "path": "tools/conformance/__init__.py",
@@ -2822,8 +2836,15 @@
     {
       "path": "tools/disasm/loader.py",
       "mode": "100644",
-      "git_blob": "6c09e100cb6babb61a7728ae0aeed905633fcb92",
-      "sha256": "0167a3cdda8acdd66c3a4bc821836fda3de3dd63383c9dbbd867902ceb9397c8"
+      "git_blob": "73a3e56c3276db6195fd76ebec1f9204df874204",
+      "sha256": "9deec42a4dd5d5dc211b4a2d6e60ab9f95dd00b2520843b8a581c3e47916c99e",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "c21aa15b074a8ee5bffdc53553055aa3b6ef6cab",
+        "scope": "load_image argument docstring only",
+        "evidence": "Reference-title filename replaced; executable AST unchanged with function docstrings excluded",
+        "limit": "Other loader behavior is not certified by this documentation edit"
+      }
     },
     {
       "path": "tools/disasm/output.py",
@@ -3165,7 +3186,14 @@
       "path": "tools/powershell/check_pvideo_registers.ps1",
       "mode": "100644",
       "git_blob": "20c9a70d04236d45da0a8fb6bdd3e34db0d051de",
-      "sha256": "4cf2d10a7fa816a06b48d0bafd7167ad4bde9895e5fc6d7961bb34b02376319e"
+      "sha256": "4cf2d10a7fa816a06b48d0bafd7167ad4bde9895e5fc6d7961bb34b02376319e",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "c21aa15b074a8ee5bffdc53553055aa3b6ef6cab",
+        "scope": "Full actual-body extraction/compile PVIDEO register check",
+        "evidence": "MSVC-compiled real pvideo read/write bodies pass stop/read-zero/restart checks",
+        "limit": "Synthetic register fixture, not scanout/presentation fidelity"
+      }
     },
     {
       "path": "tools/recomp/__init__.py",
@@ -3729,13 +3757,27 @@
       "path": "tools/stackwalk.py",
       "mode": "100644",
       "git_blob": "2749963aff5dcd93398fd23497b8c7c941d4b824",
-      "sha256": "40e92b491fb86ec390c83e0f1eb79475f1a103f5af47dc7278cc9a638d64d931"
+      "sha256": "40e92b491fb86ec390c83e0f1eb79475f1a103f5af47dc7278cc9a638d64d931",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "c21aa15b074a8ee5bffdc53553055aa3b6ef6cab",
+        "scope": "Full caller-supplied function-table/guest-stack scan utility",
+        "evidence": "Synthetic CLI checks in-body return-site hit and rejection of function entry/end/gap values",
+        "limit": "Scans possible return addresses; does not prove an unwound call chain"
+      }
     },
     {
       "path": "tools/symbolize.py",
       "mode": "100644",
       "git_blob": "d8674eaad116dde25e734178056de7e366f09e76",
-      "sha256": "48ab8970a426d163a74552c3845e76e53a7cd8c1fc4e779d300d9c3db708dd2c"
+      "sha256": "48ab8970a426d163a74552c3845e76e53a7cd8c1fc4e779d300d9c3db708dd2c",
+      "ownership_review": {
+        "decision": "retain_generic",
+        "reviewed_at_fork": "c21aa15b074a8ee5bffdc53553055aa3b6ef6cab",
+        "scope": "Full caller-supplied MSVC linker-map symbolizer",
+        "evidence": "Synthetic CLI and stdin checks pass at non-default host image base, including address before all symbols",
+        "limit": "Nearest public-symbol lookup, not guest control-flow or full symbol extent proof"
+      }
     },
     {
       "path": "tools/symbols/__init__.py",
@@ -3857,7 +3899,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "f4581888e18ad12c23c1629d768c02d96133e332",
+  "fork_tree": "a595974939a9f6eb94222bcb79f4fae802dd66e0",
   "coverage": {
     "tracked_files": 624,
     "tracked_src_files": 153,
