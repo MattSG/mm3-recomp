@@ -1345,3 +1345,25 @@ source area, final cumulative runtime checks and repository/publication inventor
   ownership/schema evidence, not atomic snapshot, full scanner/runtime or
   original-game fidelity proof. Remaining ownership decisions, cumulative
   validation and final repository/publication proof remain open.
+
+
+### Retained framebuffer probe: fix generic mapped-span and mode handling
+
+- Traced the optional framebuffer checksum diagnostic through its setter in the
+  display-mode bridge and existing mode/range APIs. It has no captured image
+  address to migrate, but its base-RAM size check rejected the resolved contiguous
+  framebuffer window and its constant 480-line span ignored PAL's final rows.
+- Reused xbox_GetDisplayMode for height and matching pitch, and fence_readable
+  for either mapped RAM window. The byte product is widened and bounded before
+  converting it to the range-check/count types. Unknown/mismatched modes are
+  skipped rather than guessed. No new configuration or title selector was added.
+- A marker in the final PAL row of a synthetic contiguous framebuffer fails on
+  the old probe and produces the expected complete-span checksum with the fix.
+  Windows kernel checks pass 61/61, Linux focused regression 1/1, and both Windows
+  renderer game builds pass. Evidence:
+  ownership-framebuffer-probe-{baseline,build,tests,linux,sdl-build,d3d11-build}.log.
+- This is useful generic diagnostic behavior, not presentation/gameplay proof.
+  The existing display-mode decoder's accepted formats and HD-mode limitations
+  are unchanged. Complete 622-file committed identities/hashes refreshed;
+  remaining source/docs/artifact ownership, cumulative validation and final
+  repository/publication proof remain open.
