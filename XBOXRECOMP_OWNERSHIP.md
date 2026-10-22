@@ -1367,3 +1367,30 @@ source area, final cumulative runtime checks and repository/publication inventor
   are unchanged. Complete 622-file committed identities/hashes refreshed;
   remaining source/docs/artifact ownership, cumulative validation and final
   repository/publication proof remain open.
+
+
+### Move inherited application context bootstrap out of the generic loader
+
+- Found two unconditional writes that installed a fixed RenderWare scratch
+  pointer chain for every loaded image. Removed those writes/constants from
+  xbox_MemoryLayoutInit. Image-derived TLS and guest KPCR/TIB initialization
+  remain in the shared implementation; the synthetic image now receives no
+  application context chain.
+- MM3 startup preserves the exact two inherited writes immediately after memory
+  initialization and before mod/kernel/guest execution. They are explicitly
+  port-owned compatibility policy; their actual MM3 use remains unaudited, so
+  this is not claimed as native application TLS correctness. No generic feature
+  was needed: the port already owns access to its mapped guest memory.
+- Preserved original bootstrap/log/comment/documentation blocks in
+  tools/reference/legacy_application_context.md, including captured executable
+  bounds and Wreckless TLS observations. The focused thread-state guide now
+  separates image/kernel state from application-owned contexts; the rest of
+  that historical memory guide is not certified by this edit.
+- Old loader fails the new assertion. Windows memory cases pass 7/7 and kernel
+  cases 61/61; seven Linux memory modes pass using the actual fixture compiled
+  with existing runtime target flags/link libraries. Both Windows renderer game
+  builds pass. Evidence: ownership-context-chain-{baseline,memory-build,
+  memory-tests,kernel-build,kernel-tests,linux,sdl-build,d3d11-build}.log.
+- Complete 622-file committed identities/hashes refreshed. Other kernel stand-ins,
+  memory/source/docs/artifact ownership, cumulative validation and final
+  repository/publication proof remain open; no new gameplay fidelity claim.
