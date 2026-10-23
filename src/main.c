@@ -323,6 +323,11 @@ int main(void)
         free(xbe_data);
         return 1;
     }
+    /* Preserve MM3's inherited worker headroom as an explicit minimum. */
+    if (!xbox_ConfigureThreadStack(512u*1024u)) {
+        fprintf(stderr,"cannot configure MM3 worker stack minimum\n");
+        free(xbe_data); return 1;
+    }
     /* MM3 retains its inherited main-stack placement/budget as port policy.
      * The shared runtime validates it and keeps callback slices separate. */
     if (!xbox_ConfigureMainStack(0x00780000u, 8u * 1024u * 1024u)) {

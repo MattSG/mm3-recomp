@@ -1903,3 +1903,46 @@ Fork checkpoint for this batch: `364d9d1`.
   the native IDE channel is a scalar placeholder while the bridge supplies a
   partial empty queue. These are incomplete generic kernel mechanisms, not
   verified object/thread/driver semantics. Whole-fork ownership remains open.
+
+
+### Own request-sized worker stacks and expose resource failures
+
+- The old allocator fixes every worker at 512 KiB, stops at 8 and frees by
+  subtracting that size from any supplied top. The previous compiled Linux
+  runtime fails allocations 9-12 and frees a normal heap block from a fabricated
+  top. New owned records associate each actual guest heap base/top. Allocation
+  and retirement metadata are serialized with the allocator lock; unowned,
+  interior, duplicate or zero tops cannot release another heap block.
+- `xbox_AllocThreadStackSized` page-rounds explicit requests. Zero/default uses
+  XBE StackCommit (minimum one page), with an optional checked pre-init
+  `xbox_ConfigureThreadStack` minimum. MM3 explicitly retains 512 KiB minimum
+  headroom; this application choice no longer applies to every port. There is
+  no separate eight-worker ceiling: guest heap and metadata/resource capacity
+  bound allocation. Existing no-argument callers use the same implementation.
+- Ex forwards KernelStackSize; the five-argument simple API uses the selected
+  default. Exhausted/invalid worker stacks produce STATUS_NO_MEMORY, clear the
+  handle output and do not silently execute inline. Explicit inline entry and
+  diagnostics remain caller-selected. Failed host start-metadata/CreateThread
+  setup returns the owned guest stack and reports INSUFFICIENT_RESOURCES.
+  That host failure cleanup is reviewed but has no injected-failure test.
+- Quiesced reset retires the host ownership records and active default while
+  port minimum policy persists until changed. Stale addresses are invalid
+  after shutdown; caller synchronization is still required before reset.
+- Tests cover 12 simultaneously live allocations, 12 parallel allocating/freeing
+  host threads, forged/interior/duplicate values, minimum and restored image
+  default, explicit larger sizes/page rounding, overflowing requests and
+  unbacked default policy. Bridge cases exhaust the heap for both APIs and
+  verify no inline/spawned execution, plus a multi-megabyte Ex request and an
+  overflowing request. The actual C++ consumer links both new APIs.
+- Seven normalized original allocator/API/bridge blocks move to
+  `tools/reference/legacy_worker_stack_policy.md`, verified against fork 3cabda4.
+  Windows memory 54/54, kernel 62/62 and bridge 12/12 pass. Linux kernel 61/61, all 32 actual thunk
+  modes, all 8 bridge thread modes and actual C++ consumer pass. Both renderer
+  builds and ordinal audit pass. Evidence: `conformance_tmp/ownership-worker-*`.
+- D3D12 night Cruise `run-3y9ez78l` passes in 123.875 seconds, with
+  inspected gameplay capture and 1.11986 metres of movement. This proves
+  bounded menu/loading/driving with MM3's explicit policy, not full thread
+  concurrency/teardown fidelity.
+- Main-stack-only RtlUnwind bounds, native thread export ABI/coverage, optional
+  thread flags/IDs/system routine, object-reference/thread-object stand-ins and
+  whole-tree ownership remain open.
