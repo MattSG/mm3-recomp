@@ -2466,3 +2466,22 @@ Fork checkpoint for this batch: `364d9d1`.
   tools/reference/mm3_function_keywords.md. No game runtime files changed.
   Scope is this policy boundary, not complete function-identification accuracy
   or full-file ownership certification. Inventory: 630 paths / 153 src paths.
+
+
+### Review generic ABI analysis and correct output-path handling
+
+- Read the ABI package CLI, analyzer, minimal section reader and package entry
+  files. Inputs supply image sections, functions and classifications; no title
+  addresses or captured datasets drive these mechanisms. Retain these helpers
+  with their heuristic/partial-parser limits, not an accuracy certification.
+- The CLI rejected --output abi.json because dirname returned an empty string.
+  It now resolves the parent through abspath before mkdir. A synthetic end-to-end
+  test fails the basename case on old code and passes basename/nested outputs
+  with the fix, checking all five output addresses. No game runtime changed.
+- Full tools regression passes under vcvars64 with isolated Unicorn 2.1.4:
+  655 passed, 15 skipped, 79 subtests, 34.15s. Initial runs without compiler
+  headers and then without Unicorn failed setup-dependent compile checks;
+  those limits were resolved in the test environment, not masked in tests.
+  Evidence: conformance_tmp/ownership-python-{current,msvc,complete}.log/xml.
+  Dependency install is isolated in build/ownership-python-deps; user venv
+  was not modified. Inventory: 631 paths / 153 src paths. Audit remains open.

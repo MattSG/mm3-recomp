@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "ca81d2f82f9e64efec6e46452654ed976c2cfe05",
+  "fork_commit": "ba19bda12d26279c7d570ef6180a699b091685e3",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -4598,25 +4598,66 @@
       "path": "tools/abi_analysis/__init__.py",
       "mode": "100644",
       "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "ba19bda12d26279c7d570ef6180a699b091685e3",
+        "scope": "Caller-image ABI heuristics, minimal XBE section reader, CLI and synthetic path regression; no captured title layout drives these helpers",
+        "evidence": "ABI package sources read; basename output case fails old code and passes one-line fix; nested output passes. Full configured Windows Python suite: 655 passed, 15 skipped, 79 subtests",
+        "limit": "Ownership and output-path contract, not accurate ABI inference for every function, complete XBE validation or real-title gameplay. Unreviewed adjacent tools remain outside this decision."
+      }
     },
     {
       "path": "tools/abi_analysis/__main__.py",
       "mode": "100644",
-      "git_blob": "9471baa69ac067d5e28d5740f810528050bbf0d2",
-      "sha256": "a77709f00b0101d60e50ef4be5fd2ef480a4d239f72ef7ac6838c23dabba9736"
+      "git_blob": "91825bb52817a4677368993ed96ca57941ebcd2e",
+      "sha256": "00aca4153f47ba6df5642d774a70132a77209bf4075853b9c8f77f3d0e590368",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "ba19bda12d26279c7d570ef6180a699b091685e3",
+        "scope": "Caller-image ABI heuristics, minimal XBE section reader, CLI and synthetic path regression; no captured title layout drives these helpers",
+        "evidence": "ABI package sources read; basename output case fails old code and passes one-line fix; nested output passes. Full configured Windows Python suite: 655 passed, 15 skipped, 79 subtests",
+        "limit": "Ownership and output-path contract, not accurate ABI inference for every function, complete XBE validation or real-title gameplay. Unreviewed adjacent tools remain outside this decision."
+      }
     },
     {
       "path": "tools/abi_analysis/analyzer.py",
       "mode": "100644",
       "git_blob": "9c266c5e89f7af3f34659464f031aa1e1b1a45e6",
-      "sha256": "929468d5607e3eb63a88f7ed1c88f7ec8cd2235176d10f867f47a98ee85f28a9"
+      "sha256": "929468d5607e3eb63a88f7ed1c88f7ec8cd2235176d10f867f47a98ee85f28a9",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "ba19bda12d26279c7d570ef6180a699b091685e3",
+        "scope": "Caller-image ABI heuristics, minimal XBE section reader, CLI and synthetic path regression; no captured title layout drives these helpers",
+        "evidence": "ABI package sources read; basename output case fails old code and passes one-line fix; nested output passes. Full configured Windows Python suite: 655 passed, 15 skipped, 79 subtests",
+        "limit": "Ownership and output-path contract, not accurate ABI inference for every function, complete XBE validation or real-title gameplay. Unreviewed adjacent tools remain outside this decision."
+      }
+    },
+    {
+      "path": "tools/abi_analysis/test_cli.py",
+      "mode": "100644",
+      "git_blob": "ac907c2f45653eec0adb4c55632c6f48e3eb37f1",
+      "sha256": "b92e3b4f930b4d52f73376a695a6bc425a940a81e7795b977cad86423e57bbf2",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "ba19bda12d26279c7d570ef6180a699b091685e3",
+        "scope": "Caller-image ABI heuristics, minimal XBE section reader, CLI and synthetic path regression; no captured title layout drives these helpers",
+        "evidence": "ABI package sources read; basename output case fails old code and passes one-line fix; nested output passes. Full configured Windows Python suite: 655 passed, 15 skipped, 79 subtests",
+        "limit": "Ownership and output-path contract, not accurate ABI inference for every function, complete XBE validation or real-title gameplay. Unreviewed adjacent tools remain outside this decision."
+      }
     },
     {
       "path": "tools/abi_analysis/xbe_min.py",
       "mode": "100644",
       "git_blob": "3601d5a2995eb8e0f0933fb5ccf716d18c8a23d8",
-      "sha256": "795078c1c1fdeb32e0598bf7ce97272875e2f47461307c4a8df72e801dffd48f"
+      "sha256": "795078c1c1fdeb32e0598bf7ce97272875e2f47461307c4a8df72e801dffd48f",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "ba19bda12d26279c7d570ef6180a699b091685e3",
+        "scope": "Caller-image ABI heuristics, minimal XBE section reader, CLI and synthetic path regression; no captured title layout drives these helpers",
+        "evidence": "ABI package sources read; basename output case fails old code and passes one-line fix; nested output passes. Full configured Windows Python suite: 655 passed, 15 skipped, 79 subtests",
+        "limit": "Ownership and output-path contract, not accurate ABI inference for every function, complete XBE validation or real-title gameplay. Unreviewed adjacent tools remain outside this decision."
+      }
     },
     {
       "path": "tools/bench/frames.py",
@@ -6134,9 +6175,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "264742e861ab0af93d2e2f7975a8e2a9c92e3c11",
+  "fork_tree": "2e7d880412c78cbfaa704184b63ef93dd659831c",
   "coverage": {
-    "tracked_files": 630,
+    "tracked_files": 631,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -6155,7 +6196,7 @@
       "src": 153,
       "templates": 7,
       "tests": 200,
-      "tools": 220
+      "tools": 221
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
     "tracked_paths_missing_from_fff": [
@@ -6171,6 +6212,7 @@
       "tests/memory_regressions/thunk_table.c",
       "tests/new_game_template/CMakeLists.txt",
       "tests/new_game_template/test_main.c",
+      "tools/abi_analysis/test_cli.py",
       "tools/conformance/test_mkxbe.py",
       "tools/func_id/test_keywords.py",
       "tools/fusion/test_module.py"
