@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "0f75ac0cd6e69466cd052be0f05c0e46baff9573",
+  "fork_commit": "3cabda4d487b5ff626bfe393b82d775a78b1b8e9",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1051,45 +1051,52 @@
     },
     {
       "path": "src/kernel/kernel_bridge.c",
-      "sha256": "19fc1b2bd13354abf10a6bce5548692845867e565514ad548f6d0d1b2859bfe1",
+      "sha256": "d1e9461acf0b9eb719e1418bfbe956564bdfa46372b700398d1ac5afe76fc8e4",
       "mode": "100644",
-      "git_blob": "d66ac7f22b68bcc2354002a1b42fea23c2fbed94",
+      "git_blob": "417d95ecaa13facea35949700c0cf1ba7daa55ce",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "0f75ac0cd6e69466cd052be0f05c0e46baff9573",
-        "scope": "Marshal caller-supplied counted disk/image strings and partition count, with owned guest capacity, invalid-input checks and empty-on-OOM behavior",
-        "evidence": "Old Linux runtime ignores configured strings and topology. Windows memory50/kernel62/bridge8; Linux kernel61/thunk28; both renderer builds, bridge ordinal audit and actual MM3 path/disk/identity helper checks pass. D3D12 night Cruise run-x67u2_e5: inspected capture, 1.06960m movement in 123.578s.",
-        "limit": "Counted-string/topology policy and guest storage only; not host-pointer probing, live synchronization, full disk behavior, native export coverage or whole-fork ownership.",
+        "reviewed_at_fork": "3cabda4d487b5ff626bfe393b82d775a78b1b8e9",
+        "scope": "Correct ordinal 254 five-argument decoding/cleanup; distinguish one/two-context guest thread entries and restore caller ESP after translated returns",
+        "evidence": "Corrected fixtures fail on old runtime in254 default/inline and 255 inline modes. Windows memory 50/50, kernel 62/62 and bridge 8/8 and Linux kernel 61/61 plus4 actual bridge thread modes pass; both renderer builds and ordinal route audit pass. Vulkan night Cruise run-lbjegf8e: inspected captures, 1.16132m movement in 123.812s.",
+        "limit": "Thread argument/context/return-stack seam only; not complete thread creation/teardown, worker sizing, object reference fidelity, native exports or whole-fork ownership.",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "0f55435cee9442b891e95be38d9e75f65e38cf74",
-          "scope": "Copy port-owned hardware/version and credential exports instead of bridge constants, environment parsing and unconditional zero replacement",
-          "evidence": "Old Linux runtime fails all seven identity/credential guest-copy comparisons. Windows memory45/kernel62/bridge8; Linux kernel61/thunk23; both renderer builds, bridge ordinal audit and actual MM3 helper identity/key validation pass. Vulkan night Cruise run-sw1kzk8d: inspected capture, 1.92740m movement in 123.672s.",
-          "limit": "Identity/credential policy and byte-copy consistency only; not crypto/network correctness, hardware fidelity, full native export coverage or whole-fork ownership.",
+          "reviewed_at_fork": "0f75ac0cd6e69466cd052be0f05c0e46baff9573",
+          "scope": "Marshal caller-supplied counted disk/image strings and partition count, with owned guest capacity, invalid-input checks and empty-on-OOM behavior",
+          "evidence": "Old Linux runtime ignores configured strings and topology. Windows memory50/kernel62/bridge8; Linux kernel61/thunk28; both renderer builds, bridge ordinal audit and actual MM3 path/disk/identity helper checks pass. D3D12 night Cruise run-x67u2_e5: inspected capture, 1.06960m movement in 123.578s.",
+          "limit": "Counted-string/topology policy and guest storage only; not host-pointer probing, live synchronization, full disk behavior, native export coverage or whole-fork ownership.",
           "prior_review": {
             "decision": "retain_generic_boundary",
-            "reviewed_at_fork": "5de8b116af3b46407478b952588eb18ce2943fbd",
-            "scope": "Reject unselected standalone export storage before bridge initialization",
-            "evidence": "Old Linux runtime overwrites synthetic image sentinel at former fixed page. Windows memory43/kernel62/bridge8 pass; Linux kernel61, actual C++ consumer,21 original memory modes and21 thunk modes pass; both renderer builds and ordinal audit pass. D3D12 night Cruise run-6ad4jq_e: inspected capture,1.51153m movement in123.593s.",
-            "limit": "Export storage placement/ownership only. Existing partial identity/data payloads, native export coverage, worker policy and whole-fork ownership remain open.",
+            "reviewed_at_fork": "0f55435cee9442b891e95be38d9e75f65e38cf74",
+            "scope": "Copy port-owned hardware/version and credential exports instead of bridge constants, environment parsing and unconditional zero replacement",
+            "evidence": "Old Linux runtime fails all seven identity/credential guest-copy comparisons. Windows memory45/kernel62/bridge8; Linux kernel61/thunk23; both renderer builds, bridge ordinal audit and actual MM3 helper identity/key validation pass. Vulkan night Cruise run-sw1kzk8d: inspected capture, 1.92740m movement in 123.672s.",
+            "limit": "Identity/credential policy and byte-copy consistency only; not crypto/network correctness, hardware fidelity, full native export coverage or whole-fork ownership.",
             "prior_review": {
               "decision": "retain_generic_boundary",
-              "reviewed_at_fork": "26385963c02165c849994f381ba0bd58131d53a3",
-              "scope": "Copy caller-owned complete launch page instead of environment-driven title-specific command-line synthesis",
-              "evidence": "Old Linux runtime fails full caller-page copy and identity assertions. Windows memory37/kernel62/bridge8 and Linux kernel61/thunk15 pass; both renderer builds pass. MM3 helper certificate/bounds/truncation checks pass. Vulkan night Cruise run-y4fgm5ra passes with inspected capture, 2.14m movement and actual MM3 title ID0x4D53002A.",
-              "limit": "Launch-input ownership only. Fixed kernel-data placement, hardware payloads, broader launch/reboot emulation and whole-fork ownership remain open.",
+              "reviewed_at_fork": "5de8b116af3b46407478b952588eb18ce2943fbd",
+              "scope": "Reject unselected standalone export storage before bridge initialization",
+              "evidence": "Old Linux runtime overwrites synthetic image sentinel at former fixed page. Windows memory43/kernel62/bridge8 pass; Linux kernel61, actual C++ consumer,21 original memory modes and21 thunk modes pass; both renderer builds and ordinal audit pass. D3D12 night Cruise run-6ad4jq_e: inspected capture,1.51153m movement in123.593s.",
+              "limit": "Export storage placement/ownership only. Existing partial identity/data payloads, native export coverage, worker policy and whole-fork ownership remain open.",
               "prior_review": {
                 "decision": "retain_generic_boundary",
-                "reviewed_at_fork": "3d1d24313e4156517d323caaece5b0fed280adc7",
-                "scope": "Use the shared mapping exactly once before bridge routing",
-                "evidence": "Old compiled Linux runtime fails native-pointer assertion for source511 to implemented canonical151. Windows memory35, kernel62, bridge8 pass; Linux kernel61, C++ consumer,21 memory modes,13 thunk modes pass; generator5 checks pass on Windows/Linux; bridge ordinal audit and both Windows renderer builds pass.",
-                "limit": "Shared explicit remapping and synthetic/tool regression coverage only; native ordinal103 remains absent. Not complete export coverage, title ABI certification, kernel-data placement or whole-fork ownership completion.",
+                "reviewed_at_fork": "26385963c02165c849994f381ba0bd58131d53a3",
+                "scope": "Copy caller-owned complete launch page instead of environment-driven title-specific command-line synthesis",
+                "evidence": "Old Linux runtime fails full caller-page copy and identity assertions. Windows memory37/kernel62/bridge8 and Linux kernel61/thunk15 pass; both renderer builds pass. MM3 helper certificate/bounds/truncation checks pass. Vulkan night Cruise run-y4fgm5ra passes with inspected capture, 2.14m movement and actual MM3 title ID0x4D53002A.",
+                "limit": "Launch-input ownership only. Fixed kernel-data placement, hardware payloads, broader launch/reboot emulation and whole-fork ownership remain open.",
                 "prior_review": {
                   "decision": "retain_generic_boundary",
-                  "reviewed_at_fork": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
-                  "scope": "Exact checked import-span selection replaces guessed counts and title-derived pre-table patching; check write protection before patching",
-                  "evidence": "Old bridge corrupts the undeclared sentinel; old loader fails valid high-address registration and clearing assertions. Windows memory 34/34, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++ consumer, 21 existing memory modes and 12 synthetic thunk modes pass. Both Windows renderer builds pass. SDL3/Vulkan bounded night Cruise passes with inspected capture and 1.985m movement; all 151 MM3 header imports register.",
-                  "limit": "Explicit import ownership and scoped loader/bridge validation only. Supported slot capacity remains bounded. Not full XBE validation, all native-pointer/dispatcher remap paths, kernel-data placement, thread/device fidelity or whole-fork ownership completion."
+                  "reviewed_at_fork": "3d1d24313e4156517d323caaece5b0fed280adc7",
+                  "scope": "Use the shared mapping exactly once before bridge routing",
+                  "evidence": "Old compiled Linux runtime fails native-pointer assertion for source511 to implemented canonical151. Windows memory35, kernel62, bridge8 pass; Linux kernel61, C++ consumer,21 memory modes,13 thunk modes pass; generator5 checks pass on Windows/Linux; bridge ordinal audit and both Windows renderer builds pass.",
+                  "limit": "Shared explicit remapping and synthetic/tool regression coverage only; native ordinal103 remains absent. Not complete export coverage, title ABI certification, kernel-data placement or whole-fork ownership completion.",
+                  "prior_review": {
+                    "decision": "retain_generic_boundary",
+                    "reviewed_at_fork": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
+                    "scope": "Exact checked import-span selection replaces guessed counts and title-derived pre-table patching; check write protection before patching",
+                    "evidence": "Old bridge corrupts the undeclared sentinel; old loader fails valid high-address registration and clearing assertions. Windows memory 34/34, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++ consumer, 21 existing memory modes and 12 synthetic thunk modes pass. Both Windows renderer builds pass. SDL3/Vulkan bounded night Cruise passes with inspected capture and 1.985m movement; all 151 MM3 header imports register.",
+                    "limit": "Explicit import ownership and scoped loader/bridge validation only. Supported slot capacity remains bounded. Not full XBE validation, all native-pointer/dispatcher remap paths, kernel-data placement, thread/device fidelity or whole-fork ownership completion."
+                  }
                 }
               }
             }
@@ -2292,38 +2299,52 @@
     {
       "path": "tests/kernel_bridge/README.md",
       "mode": "100644",
-      "git_blob": "8d73d557a0a1329a4a606f3c4b6a8c34b456ff05",
-      "sha256": "2028111815ecf41fc46af0500cde29fabe8978b44c0c5f2aea9e2ad972569362"
+      "git_blob": "bd6e0d2626c795b19b38eb68f5afef5842de5a94",
+      "sha256": "98dc0e559dd68bb5644de8d8903e4c33246c5e82756f06666ef3d6e5f4d9bd3c",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "3cabda4d487b5ff626bfe393b82d775a78b1b8e9",
+        "scope": "Actual synthetic mapping setup, primary thread signature evidence and bounded test guarantees",
+        "evidence": "Corrected fixtures fail on old runtime in254 default/inline and 255 inline modes. Windows memory 50/50, kernel 62/62 and bridge 8/8 and Linux kernel 61/61 plus4 actual bridge thread modes pass; both renderer builds and ordinal route audit pass. Vulkan night Cruise run-lbjegf8e: inspected captures, 1.16132m movement in 123.812s.",
+        "limit": "Thread argument/context/return-stack seam only; not complete thread creation/teardown, worker sizing, object reference fidelity, native exports or whole-fork ownership."
+      }
     },
     {
       "path": "tests/kernel_bridge/test_main.c",
       "mode": "100644",
-      "git_blob": "79a2d8fd92f606095de275512e351745eb78ec6c",
-      "sha256": "5890a5c6e994d6d7a60af666931478c0145ce066cb3d41de50257f6e0078a8f7",
+      "git_blob": "e55026b70c902c9b902773c6b92269fecb89bfb4",
+      "sha256": "58725d650f28f30df7c4037ba6607caa4733445ce9228bec68c12aa68bd24c1d",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "5de8b116af3b46407478b952588eb18ce2943fbd",
-        "scope": "Explicit synthetic fixture export-page policy or registration/documentation of kernel-data placement regressions; no general title layout default",
-        "evidence": "Old Linux runtime overwrites synthetic image sentinel at former fixed page. Windows memory43/kernel62/bridge8 pass; Linux kernel61, actual C++ consumer,21 original memory modes and21 thunk modes pass; both renderer builds and ordinal audit pass. D3D12 night Cruise run-6ad4jq_e: inspected capture,1.51153m movement in123.593s.",
-        "limit": "Export storage placement/ownership only. Existing partial identity/data payloads, native export coverage, worker policy and whole-fork ownership remain open.",
+        "reviewed_at_fork": "3cabda4d487b5ff626bfe393b82d775a78b1b8e9",
+        "scope": "Five-argument simple-API frame, poisoned out-of-contract words, one/two-context callbacks with real stdcall cleanup, exact parent ESP, spawned/inline state",
+        "evidence": "Corrected fixtures fail on old runtime in254 default/inline and 255 inline modes. Windows memory 50/50, kernel 62/62 and bridge 8/8 and Linux kernel 61/61 plus4 actual bridge thread modes pass; both renderer builds and ordinal route audit pass. Vulkan night Cruise run-lbjegf8e: inspected captures, 1.16132m movement in 123.812s.",
+        "limit": "Thread argument/context/return-stack seam only; not complete thread creation/teardown, worker sizing, object reference fidelity, native exports or whole-fork ownership.",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
-          "scope": "Synthetic XBE declares no imports rather than pointing its thunk field into its section metadata",
-          "evidence": "Old bridge corrupts the undeclared sentinel; old loader fails valid high-address registration and clearing assertions. Windows memory 34/34, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++ consumer, 21 existing memory modes and 12 synthetic thunk modes pass. Both Windows renderer builds pass. SDL3/Vulkan bounded night Cruise passes with inspected capture and 1.985m movement; all 151 MM3 header imports register.",
-          "limit": "Explicit import ownership and scoped loader/bridge validation only. Supported slot capacity remains bounded. Not full XBE validation, all native-pointer/dispatcher remap paths, kernel-data placement, thread/device fidelity or whole-fork ownership completion.",
+          "reviewed_at_fork": "5de8b116af3b46407478b952588eb18ce2943fbd",
+          "scope": "Explicit synthetic fixture export-page policy or registration/documentation of kernel-data placement regressions; no general title layout default",
+          "evidence": "Old Linux runtime overwrites synthetic image sentinel at former fixed page. Windows memory43/kernel62/bridge8 pass; Linux kernel61, actual C++ consumer,21 original memory modes and21 thunk modes pass; both renderer builds and ordinal audit pass. D3D12 night Cruise run-6ad4jq_e: inspected capture,1.51153m movement in123.593s.",
+          "limit": "Export storage placement/ownership only. Existing partial identity/data payloads, native export coverage, worker policy and whole-fork ownership remain open.",
           "prior_review": {
             "decision": "retain_generic_boundary",
-            "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
-            "scope": "Require main-stack space and disjoint callback placement while preserving high-image and allocation-boundary checks",
-            "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
-            "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate.",
+            "reviewed_at_fork": "364d9d19307cb8520c559c1a0ea7636e0f3e93bf",
+            "scope": "Synthetic XBE declares no imports rather than pointing its thunk field into its section metadata",
+            "evidence": "Old bridge corrupts the undeclared sentinel; old loader fails valid high-address registration and clearing assertions. Windows memory 34/34, kernel 62/62, bridge 8/8; Linux kernel 61/61, actual C++ consumer, 21 existing memory modes and 12 synthetic thunk modes pass. Both Windows renderer builds pass. SDL3/Vulkan bounded night Cruise passes with inspected capture and 1.985m movement; all 151 MM3 header imports register.",
+            "limit": "Explicit import ownership and scoped loader/bridge validation only. Supported slot capacity remains bounded. Not full XBE validation, all native-pointer/dispatcher remap paths, kernel-data placement, thread/device fidelity or whole-fork ownership completion.",
             "prior_review": {
               "decision": "retain_generic_boundary",
-              "reviewed_at_fork": "5574e2d7bd1ce87b4e4de27a034aa14ad70769b4",
-              "scope": "Valid synthetic XBE signature and safe early exit on failed mapping initialization",
-              "evidence": "Old loader drops the valid section above 64 MiB. Windows memory 16/16, kernel 62/62 and bridge 8/8 pass; Linux sixteen actual memory modes pass; both Windows renderer game builds pass. Header non-comment tokens match original; captured/stale commentary archived in MM3.",
-              "limit": "Scoped loader input/range and documentation ownership, not full XBE verification, all devkit games or gameplay fidelity. Vulkan startup marker reached with an early black capture, not scene acceptance. Main-stack defaults and late C++ linkage declarations require further ownership/correctness review."
+              "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+              "scope": "Require main-stack space and disjoint callback placement while preserving high-image and allocation-boundary checks",
+              "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+              "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate.",
+              "prior_review": {
+                "decision": "retain_generic_boundary",
+                "reviewed_at_fork": "5574e2d7bd1ce87b4e4de27a034aa14ad70769b4",
+                "scope": "Valid synthetic XBE signature and safe early exit on failed mapping initialization",
+                "evidence": "Old loader drops the valid section above 64 MiB. Windows memory 16/16, kernel 62/62 and bridge 8/8 pass; Linux sixteen actual memory modes pass; both Windows renderer game builds pass. Header non-comment tokens match original; captured/stale commentary archived in MM3.",
+                "limit": "Scoped loader input/range and documentation ownership, not full XBE verification, all devkit games or gameplay fidelity. Vulkan startup marker reached with an early black capture, not scene acceptance. Main-stack defaults and late C++ linkage declarations require further ownership/correctness review."
+              }
             }
           }
         }
@@ -5184,7 +5205,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "eb2cda21dec08e16fb7ff316290e601d6b09468b",
+  "fork_tree": "0bd3dcb78cad8aad18cb2cda020b886e7e600584",
   "coverage": {
     "tracked_files": 625,
     "tracked_src_files": 153,

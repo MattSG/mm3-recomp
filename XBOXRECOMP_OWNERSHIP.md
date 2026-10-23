@@ -1863,3 +1863,43 @@ Fork checkpoint for this batch: `364d9d1`.
   bounded boot/menu/loading/driving evidence, not full disk/launch fidelity.
 - Remaining object-type/channel stand-ins, native export coverage, worker-stack
   policy and whole-tree ownership still require review.
+
+
+### Correct the generic thread-entry ABI before changing worker policy
+
+- The caller audit exposed ordinal 254 decoding seven arguments, taking its
+  routine from argument 6 and using 28-byte stdcall cleanup. The primary nxdk
+  kernel header declares five arguments: output handle, optional thread ID,
+  start routine, start context and debugger-thread flag. The bridge now reads
+  routine/context from arguments 2/3 and uses 20-byte cleanup. Evidence:
+  https://github.com/XboxDev/nxdk/blob/master/lib/xboxkrnl/xboxkrnl.h#L2322
+- The shared entry helper distinguishes the simple API's one context from
+  ordinal 255's two-argument system-routine call. Spawn metadata preserves this
+  distinction. On a normal translated return, the helper restores the saved
+  caller ESP rather than adding another 12 bytes after callee stdcall cleanup.
+  First-call inline entry reuses this helper instead of duplicating frame setup.
+- The old runtime fails corrected fixtures for 254 default/inline and 255 inline.
+  Fixtures place poison beyond the five simple-API arguments, perform actual
+  stdcall-style return cleanup, and check exact parent ESP, delivered contexts
+  and independent spawned registers/stack/TIB. The prior fixture mirrored the
+  incorrect seven-argument assumption and never adjusted ESP on guest return.
+- Four normalized original source blocks (entry helpers, Ex/simple bridges and
+  old cleanup metadata) move to `tools/reference/legacy_thread_create_abi.md`,
+  verified against fork 0f75ac0. The active bridge loses the captured worker
+  recovery narrative in favor of the generic register/stack contract.
+- Windows memory 50/50, kernel 62/62 and bridge 8/8 pass. Linux kernel 61/61 and all four actual
+  bridge thread modes pass, using the existing runtime flags/libraries. Both
+  renderer builds and ordinal route audit pass. Logs are
+  `conformance_tmp/ownership-thread-abi-*`; the route audit checks ordinal names,
+  while the runtime fixtures establish these argument/cleanup contracts.
+- Vulkan night Cruise `run-lbjegf8e` passes in 123.812 seconds, with
+  inspected gameplay captures and 1.16132 metres of movement. This is
+  bounded boot/menu/loading/driving evidence, not complete concurrency fidelity.
+- Further review remains necessary: fixed 512 KiB/eight-worker stack policy,
+  allocation-failure inline fallback, native thread ABI/export coverage, optional
+  thread-ID/suspended/debugger behavior and optional Ex system-routine handling.
+  RtlUnwind still checks main-stack bounds for worker frames. Object references
+  ignore requested types and currently manufacture a shared exited-thread object;
+  the native IDE channel is a scalar placeholder while the bridge supplies a
+  partial empty queue. These are incomplete generic kernel mechanisms, not
+  verified object/thread/driver semantics. Whole-fork ownership remains open.
