@@ -282,6 +282,12 @@ int main(void)
         return 1;
     }
 
+    /* MM3 keeps its inherited export-page address as explicit port policy. */
+    if (!xbox_ConfigureKernelData(0x00740000u)) {
+        fprintf(stderr, "cannot configure MM3 kernel data\n");
+        free(xbe_data);
+        return 1;
+    }
     /* MM3 retains its inherited main-stack placement/budget as port policy.
      * The shared runtime validates it and keeps callback slices separate. */
     if (!xbox_ConfigureMainStack(0x00780000u, 8u * 1024u * 1024u)) {

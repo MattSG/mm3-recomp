@@ -1749,3 +1749,44 @@ Fork checkpoint for this batch: `364d9d1`.
   bounded boot/menu/loading/movement, not complete launch/reboot semantics.
 - Fixed kernel-data placement and remaining hardware/identity stand-ins still
   require review, alongside worker-stack policy and whole-tree ownership.
+
+
+### Own kernel export storage instead of imposing an application address
+
+- The previous runtime fixes every port's export page at 0x00740000. The old
+  compiled Linux runtime overwrites a synthetic loaded-image sentinel there.
+  Runtime default placement now follows copied XBE headers and all sections;
+  MM3 selects its inherited 0x00740000 explicitly before memory initialization.
+- `xbox_ConfigureKernelData` reuses the existing memory-layout configuration
+  layer. Page-aligned explicit policy is checked before initialization; invalid
+  arguments or active changes preserve policy. Full initialization rejects
+  copied-header/section overlap and unbacked storage. A valid image gap remains
+  usable for an explicit page. Stack/callback/heap ownership follows the image
+  and export page; no generic allocation can consume the selected page.
+- Runtime address publication retires on shutdown/failed startup, while policy
+  persists for a quiesced retry until explicitly changed. New pages are zeroed.
+  Standalone bridge hosts must select/map their page; an unselected bridge
+  returns before patching. A configured address alone cannot prove backing for
+  a host that bypasses memory-layout initialization.
+- Older synthetic fixtures declare their fixed export/scratch geometry rather
+  than inheriting it as production policy. New cases cover former-address image
+  preservation and relocated data pointers, valid overrides, rejected alignment/
+  low/wrapping/active changes, section/header/backing rejection, an image with
+  no sections, failed-start retry, policy reset and fresh zeroed storage. The
+  C++ consumer links the new configuration API.
+- The old shared-header literal and stale README address/offset example are
+  archived verbatim as normalized text in
+  `tools/reference/legacy_kernel_data_placement.md`; both blocks were checked
+  against fork 2638596. The template already includes the canonical runtime
+  header, so no duplicated generated-layout policy was added.
+- Windows memory 43/43, kernel 62/62 and bridge 8/8 pass. Linux kernel 61/61,
+  actual C++ consumer, all 21 existing memory modes and all 21 thunk modes pass.
+  Both Windows renderer builds and bridge ordinal audit pass. Evidence:
+  `conformance_tmp/ownership-kdata-*` (baseline records old sentinel corruption).
+- D3D12 night Cruise `run-6ad4jq_e` passes in 123.593 seconds, with inspected
+  capture 004 and movement from 1450.21997,-308.053009 to 1448.75,-307.592
+  (1.51153 metres). The final early-failure address-clearing check was added
+  after this run; all final suites and both renderer builds pass afterward.
+- Kernel-data payloads and hardware/identity stand-ins still need review.
+  Broader native export coverage, worker-stack policy and whole-tree ownership
+  remain open; this checkpoint establishes storage ownership, not full fidelity.
