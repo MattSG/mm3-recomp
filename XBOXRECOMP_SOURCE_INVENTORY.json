@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "72f7e88a0a06901d8789bfcbf3d06dfedca90446",
+  "fork_commit": "e3bd6bdb4f0376d30edbe643664a72de0dbc08c7",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -481,14 +481,21 @@
     {
       "path": "docs/technical/register-model.md",
       "mode": "100644",
-      "git_blob": "f8e796bee875e027e52195c3775324afdaac470f",
-      "sha256": "c6445e62dfbaa7bdef01ab37e1228fbd1a11d4e391b54ae7c358c0885fb42dbc",
+      "git_blob": "b3eb5d58c70bc51802fad9cff6aeeedb789b42d2",
+      "sha256": "d2409c13694c8184c8e249c9a93443067039fa08f7bd06283c05a7f3297a8dd4",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
-        "scope": "Current checked stack allocation/configuration instead of fixed copied memory map",
-        "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
-        "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate."
+        "reviewed_at_fork": "e3bd6bdb4f0376d30edbe643664a72de0dbc08c7",
+        "scope": "Replace captured title register/SEH/stack examples and obsolete flag/call descriptions with current generic integration model",
+        "evidence": "Six local links and normalized archive match; six EBP/frame unit tests and nine return-address checks pass using uv isolated Capstone environment",
+        "limit": "Guide-only correction; full EBP/flag/SEH behavior and runtime template commentary remain separate review work",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "589ceb640d684faa8d7c0c44558b098baecd7e50",
+          "scope": "Current checked stack allocation/configuration instead of fixed copied memory map",
+          "evidence": "Old loader fails three stack-layout assertions. Windows memory 22/22, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61, actual C++ link/run and all 21 memory modes pass. Both Windows renderer game builds pass. Bounded SDL3/D3D12 night Cruise passes with inspected gameplay capture and 1.56m movement; MM3 stack ESP retained and TLS now follows the separate callback pool.",
+          "limit": "Scoped startup stack policy and allocation lifetime. Not full stack guards/growth, thread/kernel/TLS/device fidelity or all-title acceptance. Kernel-data placement, worker sizing/caps, per-thread unwind bounds, thunk validation and broader ownership remain separate."
+        }
       }
     },
     {
@@ -5443,7 +5450,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "431e47a653868fffa6b82f5aea2d5771390deceb",
+  "fork_tree": "d7313cb7cc1d6340a4d070f9377d5f3c308ac934",
   "coverage": {
     "tracked_files": 625,
     "tracked_src_files": 153,

@@ -2077,3 +2077,21 @@ Fork checkpoint for this batch: `364d9d1`.
   Evidence: conformance_tmp/ownership-kernel-guide-validation.json.
   Register-model/template commentary and broader source ownership still need
   review; this checkpoint does not certify the entire fork.
+
+
+### Generic register-model guide
+
+- Captured title function/SEH/global addresses and function-count/performance
+  claims are archived from fork 72f7e88 in tools/reference/legacy_register_model.md.
+  The snapshot matches the original after newline normalization.
+- The shared guide now describes per-thread register state, local EBP and
+  selected shared frame inheritance, runtime stack placement, real guest return
+  slots, indirect target capture and operand/flag/FP preservation boundaries.
+  It references the actual runtime template and focused generator checks rather
+  than recommending a dummy return address or process-wide guest registers.
+- All six local links resolve. Six EBP/frame tests and nine return-address checks
+  pass using uv with Capstone; the default Python lacks that dependency. Logs:
+  conformance_tmp/ownership-register-checks.log, ownership-register-return-checks.log
+  and ownership-register-validation.json. Documentation only; no new runtime
+  behavior or full CPU fidelity claim. Template commentary and remaining source
+  ownership still need review.
