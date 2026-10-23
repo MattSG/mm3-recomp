@@ -1,8 +1,8 @@
 # Path mount ownership frontier
 
 Inspected fork 9613aea src/kernel/kernel_path.c in full, its public declarations,
-and the production-backend save-path fixture. This is an unresolved ownership
-finding, not a completed path migration or full filesystem audit.
+and the production-backend save-path fixture. This records the initial ownership
+finding and subsequent mount-policy migration, not a full filesystem audit.
 
 ## Confirmed policy
 
@@ -53,3 +53,32 @@ establish safe arbitrary-input translation or full disk/filesystem conformance.
 Historical title comments include DSTEAL_JP, Wreckless, Burnout and Halo traces;
 those belong in the consuming repository when the executable policy migration
 is complete. No path behavior changed in this checkpoint.
+
+## Implemented separation
+
+The shared API now accepts a borrowed, startup/quiesced XboxPathMount table:
+case-insensitive guest prefix to UTF-8 host root, longest prefix first, with
+validated structural input and explicit clearing. Guest-created drive links
+resolve before mounts; custom device targets are supported. Bare partition
+devices retain their images, including trailing-separator opens. Translation
+checks output capacity and keeps a mounted volume root intact.
+
+The generic fallback routes C:/Partition2 files to save_dir/SystemData and Y:
+to save_dir/Cache. Applications select extracted dashboard layout explicitly;
+legacy_path_layout_notes.md preserves the former title commentary and an
+application-owned example table. MM3 has not enabled unused dashboard aliases.
+Full path containment, disk geometry/image policy and platform fallback-root
+differences remain separate audit items; this does not close those questions.
+
+Verification: Windows kernel suite 62/62 and focused mount/save fixture 1/1;
+Linux kernel suite 61/61 plus focused mount/save fixture. Tests cover explicit
+legacy layout, system/cache defaults, longest-prefix boundaries, guest remount
+precedence including a custom device, invalid table rejection without mutation,
+clearing, small output rejection, bare devices and volume-root preservation.
+The Windows volume-root check failed before its fix (C: instead of C:\).
+Both final game builds pass. Final owned Vulkan run-7008on3d passes 49 steps
+in 123.422 seconds, with 1.33619 metres of movement from teleport and inspected
+night-driving capture-004.bmp. Evidence logs are conformance_tmp/ownership-mount-*
+and conformance_tmp/game_test/run-7008on3d. Earlier run-nsz1qhft also passed,
+but predates the volume-root preservation correction; final proof uses the
+rebuilt executable. These checks do not prove a dashboard or arbitrary game.

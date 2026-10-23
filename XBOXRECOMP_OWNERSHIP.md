@@ -2656,3 +2656,22 @@ Fork checkpoint for this batch: `364d9d1`.
 - Marked this source needs_port_policy. No path behavior changed; this is not
   a completed migration or filesystem-conformance claim. The broader audit
   and the newly identified mount-policy work remain active.
+
+
+### Replace dashboard path defaults with explicit host mounts
+
+- Fork 365656b adds a borrowed, quiesced XboxPathMount table with structural
+  validation, longest-prefix matching and explicit clearing. Guest drive links
+  take precedence and may target mounted custom devices; bare partition devices
+  retain image handling. Default C/Partition2 files use SystemData and Y uses
+  Cache. Extracted dashboard layout is now an explicit application selection.
+- Moved eight historical title/path comment blocks and the legacy layout example
+  to tools/reference/legacy_path_layout_notes.md. MM3 does not opt into unused
+  dashboard aliases. Join capacity checks reject truncation; Windows preserves
+  a selected volume root instead of turning C:\ into drive-relative C:.
+- Final Windows kernel 62/62 plus mount/save 1/1, Linux kernel 61/61 plus
+  mount/save fixture pass. Both final game builds pass. Owned final Vulkan
+  run-7008on3d passes 49 steps in 123.422 seconds, with 1.33619m movement and
+  inspected night-driving capture-004.bmp. Frontier document records coverage
+  and limits. Broader namespace/containment, disk policy and ownership remain
+  open; no dashboard runtime or full fidelity claim.
