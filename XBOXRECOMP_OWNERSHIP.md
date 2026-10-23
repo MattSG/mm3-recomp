@@ -3308,3 +3308,13 @@ Fork checkpoint for this batch: `364d9d1`.
 - Old lengths 0-23 fail; final Windows/Linux short/exact/canary checks pass.
   Windows bridge suite passes 46/46; both game builds pass. Scoped file-volume
   review and remaining gaps: ownership_file_volume_frontier.md.
+
+
+### Move multi-instance shared-read policy into MM3
+
+- Fork 95a3ec5 defaults to caller ShareAccess on both hosts and exposes
+  startup-only xbox_SetReadOnlyFileSharing. MM3 main explicitly enables its
+  existing read-only sharing compatibility; writers remain protected.
+- Old default exclusivity regression fails. Final Windows sharing/diagnostics
+  2/2 and Linux sharing 1/1 pass; both game builds pass. Migration and proof
+  limits: tools/reference/ownership_file_shared_read_policy.md.

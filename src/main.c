@@ -276,6 +276,8 @@ int main(void)
     SetUnhandledExceptionFilter(mm3_crash_report);
     xbox_FramebufferSetCloseHandler(mm3_close_game);
     SetConsoleCtrlHandler(mm3_console_control, TRUE);
+    /* MM3 instances share read-only assets for system-link testing. */
+    xbox_SetReadOnlyFileSharing(TRUE);
     puts("MM3 static recompilation");
     /* Profiles seed settings before the launcher; saved choices, including
      * Auto resolution and window aspect, take precedence when Play exports them. */
