@@ -1790,3 +1790,37 @@ Fork checkpoint for this batch: `364d9d1`.
 - Kernel-data payloads and hardware/identity stand-ins still need review.
   Broader native export coverage, worker-stack policy and whole-tree ownership
   remain open; this checkpoint establishes storage ownership, not full fidelity.
+
+
+### Share port-owned kernel identity across export paths
+
+- The existing hardware/version setter and credential exports reached native
+  lookup, but the bridge replaced them with different hardware constants,
+  fixed version 1.0.5849.0, environment-derived keys or unconditional zero bytes.
+  The old compiled Linux runtime fails all seven configured guest-copy checks.
+  Bridge initialization now copies existing caller-owned exports; no extra
+  configuration API is required. Unconfigured identity is zero and explicitly
+  does not certify a console model or an implemented kernel version.
+- MM3 owns its inherited guest compatibility values (flags 0, GPU 0xA1, MCP
+  0xB1 and reported version 1.0.5849.0). It retains the three credential
+  environment interfaces, validates exactly 32 hexadecimal digits, and keeps
+  absent/invalid values zero. Invalid-input diagnostics print only the variable
+  name, never credential contents. Actual helper checks cover absence, mixed
+  case, independent keys, empty/short/long/nonhex/whitespace input.
+- All 8 hardware/version bytes, three 16-byte keys, 256 alternate-key bytes and
+  284 public-key bytes are compared with native exports by synthetic cases.
+  Environment variables alone cannot override generic runtime input. Native
+  symbol addresses and the hardware data-import guest pointer are checked.
+- Four original normalized source/document blocks are archived at
+  `tools/reference/legacy_kernel_identity_policy.md`, checked against fork
+  5de8b11. The generic data-export guide no longer carries a captured import
+  slot, fixed page or SDK-derived identity example; its event ordinal is 16.
+- Windows memory 45/45, kernel 62/62 and bridge 8/8 pass. Linux kernel 61/61
+  and all 23 actual thunk modes pass. Both Windows renderer builds, bridge
+  ordinal audit and actual MM3 helper checks pass. Evidence:
+  `conformance_tmp/ownership-identity-*`.
+- Vulkan night Cruise `run-sw1kzk8d` passes in 123.672 seconds, with
+  inspected captures 003/004 (004 partly occluded by an NPC) and 1.92740 metres of movement. This is bounded
+  menu/loading/driving evidence, not identity, crypto or network fidelity.
+- Remaining disk/image-name policy, object-type stand-ins, native export
+  coverage, worker-stack policy and whole-tree ownership still require review.

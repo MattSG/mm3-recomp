@@ -25,6 +25,34 @@
 #define MM3_KERNEL_THUNK_COUNT 151u
 #define MM3_MEMORY_MAP_SIZE (128u * 1024u * 1024u)
 
+/* Inherited MM3 guest identity is compatibility policy, not detected hardware.
+ * Keep credential input in the port; the shared kernel copies export bytes. */
+static void mm3_configure_kernel_identity(void)
+{
+    static const struct { const char *name; UCHAR *bytes; } keys[] = {
+        {"RECOMP_XBOX_HDKEY", xbox_HDKey},
+        {"RECOMP_XBOX_SIGKEY", xbox_SignatureKey},
+        {"RECOMP_XBOX_LANKEY", xbox_LANKey}
+    };
+    memset(&xbox_HardwareInfo,0,sizeof(xbox_HardwareInfo));
+    xbox_HardwareInfo.GpuRevision=0xA1;
+    xbox_HardwareInfo.McpRevision=0xB1;
+    xbox_kernel_set_version(1,0,5849,0);
+    for (unsigned i=0;i<sizeof(keys)/sizeof(keys[0]);i++) {
+        const char *text=getenv(keys[i].name);
+        memset(keys[i].bytes,0,16);
+        if (!text || !*text) continue;
+        if (strlen(text)!=32 || strspn(text,"0123456789abcdefABCDEF")!=32) {
+            fprintf(stderr,"ignoring invalid %s (expected 32 hex digits)\n",keys[i].name);
+            continue;
+        }
+        for (unsigned n=0;n<16;n++) {
+            unsigned byte;
+            if (sscanf(text+2*n,"%2x",&byte)==1) keys[i].bytes[n]=(UCHAR)byte;
+        }
+    }
+}
+
 /* Preserve the port's optional launch command-line interface. The identity
  * comes from this XBE's certificate, never from a different title's capture. */
 static void mm3_configure_launch_data(const void *image, size_t size)
@@ -334,6 +362,7 @@ int main(void)
     }
     xbox_kernel_set_thunk_address(MM3_KERNEL_THUNK_ADDRESS,
                                    MM3_KERNEL_THUNK_COUNT);
+    mm3_configure_kernel_identity();
     mm3_configure_launch_data(xbe_data, xbe_size);
     xbox_kernel_init();
     xbox_path_init(MM3_GAME_DIR, getenv("MM3_SAVE_DIR"));
