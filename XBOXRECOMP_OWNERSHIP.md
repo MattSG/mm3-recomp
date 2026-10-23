@@ -2675,3 +2675,20 @@ Fork checkpoint for this batch: `364d9d1`.
   inspected night-driving capture-004.bmp. Frontier document records coverage
   and limits. Broader namespace/containment, disk policy and ownership remain
   open; no dashboard runtime or full fidelity claim.
+
+
+### Move host-video evidence-frame selection into MM3
+
+- Fork 68ad91a removes fixed frame-60/80 capture selection from the shared pump
+  and adds a quiesced presentation callback. MM3 registers its existing
+  optional environment-driven capture choice in src/mm3_host_video.c.
+- Corrected BMP evidence claims: the writer copies decoded CPU memory, not
+  presented pixels. Historical source commentary is preserved in
+  tools/reference/legacy_host_video_capture.md. Added the missing Linux
+  unsupported BMP-dump implementation so the public API links coherently.
+- Windows synthetic actual-pump callback CTest 1/1, Linux unsupported API CTest
+  1/1, MM3 policy fixtures on both platforms, and both game builds pass. These
+  are contract/build checks, not real Media Foundation, GPU or gameplay proof.
+- Read fb_present.h and pvideo_scanout.h in full as generic interfaces/helper;
+  no executable changes or fresh display-fidelity claim. Decoder internals,
+  resource lifecycle and the broader ownership audit remain open.

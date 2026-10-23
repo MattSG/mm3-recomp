@@ -5,6 +5,17 @@
 #include "kernel.h"
 #include "video/video_player.h"
 
+/* Preserve the port's optional two-frame host-player diagnostic. */
+static void mm3_video_capture_present(unsigned frame)
+{
+    const char *prefix = getenv("RECOMP_FMV_DUMP");
+    if (prefix && (frame == 60 || frame == 80)) {
+        char path[260];
+        snprintf(path, sizeof(path), "%s.%u.bmp", prefix, frame);
+        video_dump_frame_bmp(path);
+    }
+}
+
 static void opened_video(const xbox_host_char *path)
 {
 #if defined(_WIN32)
@@ -31,6 +42,7 @@ static void finish_video(ULONG routine)
 
 void mm3_host_video_init(void)
 {
+    xbox_VideoSetPresentHandler(mm3_video_capture_present);
     xbox_SetFirmwareReturnHook(finish_video);
     xbox_SetFileOpenObserver(getenv("RECOMP_FMV_HOST") ? opened_video : NULL);
 }

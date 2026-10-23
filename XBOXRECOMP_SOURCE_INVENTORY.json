@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "365656b59649e3b844f40ab60e9241e0c9a817b8",
+  "fork_commit": "68ad91aff759fca23a6bd346c8463d352120d486",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -2211,7 +2211,14 @@
       "path": "src/video/fb_present.h",
       "sha256": "a584f371a89b5041afc5cfbbb17b4b17893f6201b16b8b5c782d47f0e0ab58c4",
       "mode": "100644",
-      "git_blob": "16b125742d6c808b69ac4f71737d10c2209ba57c"
+      "git_blob": "16b125742d6c808b69ac4f71737d10c2209ba57c",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "68ad91aff759fca23a6bd346c8463d352120d486",
+        "scope": "Full source read: host window/overlay interface and register-driven YUY2 scanout helper contain generic display mechanisms, no application selector identified",
+        "evidence": "Source interfaces and complete helper read; unchanged executable source",
+        "limit": "Ownership/source review only. No fresh scanout execution, register conformance, bounds fuzzing or full display fidelity claim."
+      }
     },
     {
       "path": "src/video/fb_window.h",
@@ -2421,7 +2428,14 @@
       "path": "src/video/pvideo_scanout.h",
       "sha256": "45af1a35c158bbb8b07b7eab8bf5fde1f86cc19e7898848e83304f8399dc0b66",
       "mode": "100644",
-      "git_blob": "79acaaf8390c3909613ebb6bd17335fb6b46e948"
+      "git_blob": "79acaaf8390c3909613ebb6bd17335fb6b46e948",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "68ad91aff759fca23a6bd346c8463d352120d486",
+        "scope": "Full source read: host window/overlay interface and register-driven YUY2 scanout helper contain generic display mechanisms, no application selector identified",
+        "evidence": "Source interfaces and complete helper read; unchanged executable source",
+        "limit": "Ownership/source review only. No fresh scanout execution, register conformance, bounds fuzzing or full display fidelity claim."
+      }
     },
     {
       "path": "src/video/shaders/nv2a_bindings.hlsli",
@@ -2607,21 +2621,42 @@
     },
     {
       "path": "src/video/video_player.c",
-      "sha256": "34838e89fcedfacf1b534f36cfa8463abf6e836f1d94c73cbb2cd2ea284a144d",
+      "sha256": "9915201a3389ca306b4b1acd4b58e219bf7404fb3c7a1da86b8524c5d810b54a",
       "mode": "100644",
-      "git_blob": "18d26338c210c9ad2e9bd84649b0eec937b3e147"
+      "git_blob": "86fb35c7190d4065203d3a1807fabbf130444584",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "68ad91aff759fca23a6bd346c8463d352120d486",
+        "scope": "Host pump presentation callback and explicit caller capture selection; BMP CPU-source evidence clarification and non-Windows unsupported stub; synthetic pump contract tests",
+        "evidence": "Windows actual pump with mocked decoder/device 1/1 CTest; Linux unsupported API link/run 1/1 CTest; actual MM3 host-video policy fixture passes Windows/Linux; both game builds pass",
+        "limit": "Not real Media Foundation decoding/rendering or a movie playback check. video_player.c review covers changed documentation/stub only; decoder allocation, failure cleanup, playback timing and general resource lifetime remain open."
+      }
     },
     {
       "path": "src/video/video_player.h",
-      "sha256": "672a30f2a55ca53c28832075e299ac9399bf8beee32801a4f6b1a5add23ece49",
+      "sha256": "f15520e33263dba2c50e2f6f52eefc7e560ae081aa4d051bc3655e90d73dc43b",
       "mode": "100644",
-      "git_blob": "2c91e92edb79ea3488357d1a5c25335e0e63e130"
+      "git_blob": "5ebdb66a90db9e55473221e07842c016cc96624f",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "68ad91aff759fca23a6bd346c8463d352120d486",
+        "scope": "Host pump presentation callback and explicit caller capture selection; BMP CPU-source evidence clarification and non-Windows unsupported stub; synthetic pump contract tests",
+        "evidence": "Windows actual pump with mocked decoder/device 1/1 CTest; Linux unsupported API link/run 1/1 CTest; actual MM3 host-video policy fixture passes Windows/Linux; both game builds pass",
+        "limit": "Not real Media Foundation decoding/rendering or a movie playback check. video_player.c review covers changed documentation/stub only; decoder allocation, failure cleanup, playback timing and general resource lifetime remain open."
+      }
     },
     {
       "path": "src/video/video_pump.c",
-      "sha256": "e1544894b2cd27d7a742da29f496bb4294c18b8ee4a58c7b1671b43aa247768c",
+      "sha256": "4c688785424eebb7b95ee1c4770d8f8b6c2e676e9e65672036263fc09757b252",
       "mode": "100644",
-      "git_blob": "40789e151e6cf53e475f1b97e795b90552dfecd5"
+      "git_blob": "fae7c817d21354e02c111f17391630759a4043b3",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "68ad91aff759fca23a6bd346c8463d352120d486",
+        "scope": "Host pump presentation callback and explicit caller capture selection; BMP CPU-source evidence clarification and non-Windows unsupported stub; synthetic pump contract tests",
+        "evidence": "Windows actual pump with mocked decoder/device 1/1 CTest; Linux unsupported API link/run 1/1 CTest; actual MM3 host-video policy fixture passes Windows/Linux; both game builds pass",
+        "limit": "Not real Media Foundation decoding/rendering or a movie playback check. video_player.c review covers changed documentation/stub only; decoder allocation, failure cleanup, playback timing and general resource lifetime remain open."
+      }
     },
     {
       "path": "templates/new-game/.gitignore",
@@ -4710,6 +4745,45 @@
       "sha256": "a7585c529cacf72952400b292663ee6043ab2fe904ccf673c5a92e4bcc6302d2"
     },
     {
+      "path": "tests/video_pump/CMakeLists.txt",
+      "mode": "100644",
+      "git_blob": "d2d68bcb4a187fd8dd92ab39f970cfc575a13c4c",
+      "sha256": "4714714f6079fd6d8f3fb812a570227b53a8dc3e6ef870bcff119eb3decfd10a",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "68ad91aff759fca23a6bd346c8463d352120d486",
+        "scope": "Host pump presentation callback and explicit caller capture selection; BMP CPU-source evidence clarification and non-Windows unsupported stub; synthetic pump contract tests",
+        "evidence": "Windows actual pump with mocked decoder/device 1/1 CTest; Linux unsupported API link/run 1/1 CTest; actual MM3 host-video policy fixture passes Windows/Linux; both game builds pass",
+        "limit": "Not real Media Foundation decoding/rendering or a movie playback check. video_player.c review covers changed documentation/stub only; decoder allocation, failure cleanup, playback timing and general resource lifetime remain open."
+      }
+    },
+    {
+      "path": "tests/video_pump/test_main.c",
+      "mode": "100644",
+      "git_blob": "180143a30cae45405d756893a88428484bf22ec0",
+      "sha256": "7eb49f8c92227e1faee52869d446bca1c7c5ece28b0fd54445bc2f6059863d5a",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "68ad91aff759fca23a6bd346c8463d352120d486",
+        "scope": "Host pump presentation callback and explicit caller capture selection; BMP CPU-source evidence clarification and non-Windows unsupported stub; synthetic pump contract tests",
+        "evidence": "Windows actual pump with mocked decoder/device 1/1 CTest; Linux unsupported API link/run 1/1 CTest; actual MM3 host-video policy fixture passes Windows/Linux; both game builds pass",
+        "limit": "Not real Media Foundation decoding/rendering or a movie playback check. video_player.c review covers changed documentation/stub only; decoder allocation, failure cleanup, playback timing and general resource lifetime remain open."
+      }
+    },
+    {
+      "path": "tests/video_pump/test_stub.c",
+      "mode": "100644",
+      "git_blob": "37470fba66aa5d3eacbd1a2037e3ce291d72089e",
+      "sha256": "75873fbd758bd43bdde1be7f1b53699e138560da86bbed2c81e9728b9dc26afb",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "68ad91aff759fca23a6bd346c8463d352120d486",
+        "scope": "Host pump presentation callback and explicit caller capture selection; BMP CPU-source evidence clarification and non-Windows unsupported stub; synthetic pump contract tests",
+        "evidence": "Windows actual pump with mocked decoder/device 1/1 CTest; Linux unsupported API link/run 1/1 CTest; actual MM3 host-video policy fixture passes Windows/Linux; both game builds pass",
+        "limit": "Not real Media Foundation decoding/rendering or a movie playback check. video_player.c review covers changed documentation/stub only; decoder allocation, failure cleanup, playback timing and general resource lifetime remain open."
+      }
+    },
+    {
       "path": "tests/wma_decoder/CMakeLists.txt",
       "mode": "100644",
       "git_blob": "c6a3d7642eeb670756548f0f0a4f40df725a0ed0",
@@ -6529,9 +6603,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "c90c4c51cfc34a63b5d913ba5a44edb57cc534d7",
+  "fork_tree": "ec96ae459f701ff295a808b1533bc1ea4ecf21c6",
   "coverage": {
-    "tracked_files": 634,
+    "tracked_files": 637,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -6549,7 +6623,7 @@
       "include": 2,
       "src": 153,
       "templates": 7,
-      "tests": 200,
+      "tests": 203,
       "tools": 224
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
@@ -6572,7 +6646,10 @@
       "tools/func_id/test_rw_versions.py",
       "tools/fusion/test_module.py",
       "tools/ghidra_naming/test_extract.py",
-      "tools/rtti/test_rtti.py"
+      "tools/rtti/test_rtti.py",
+      "tests/video_pump/CMakeLists.txt",
+      "tests/video_pump/test_main.c",
+      "tests/video_pump/test_stub.c"
     ],
     "stale_fff_paths": [
       "docs/technical/burnout3-reunification.md",
