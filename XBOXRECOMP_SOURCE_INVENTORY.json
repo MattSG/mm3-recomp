@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "1ca3db460e10cf4d3f77a23e3443148e8b4bde82",
+  "fork_commit": "59f5103b9720f14a17f15f4c2b62f82d1de11ae2",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -4879,8 +4879,15 @@
     {
       "path": "tools/debug_symbols/README.md",
       "mode": "100644",
-      "git_blob": "fc0c375707acea508a5c3849fa656b87d0b4974a",
-      "sha256": "1fd619da62acc174b94911b51ec4eaa71c43c7a0c45b5f7f2aa18fd608a53e5c"
+      "git_blob": "a8e8731237c78ca5871878d614ab2b42c37daaab",
+      "sha256": "980e89ac66919d665a705a807c934b6c78ea6ea05186f77962151a6a7e504039",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "59f5103b9720f14a17f15f4c2b62f82d1de11ae2",
+        "scope": "Caller-input source attribution and CLI; captured title history archived and path fixtures made synthetic",
+        "evidence": "Recovery/CLI/test sources read; recovery executable AST unchanged excluding docstrings; all 6 tests pass; historical guide normalized archive verified; replacement link resolves",
+        "limit": "Heuristic source-path proposals and bounded tests only, not validated original symbols, ABI/call correctness, every path grammar or real-title behavior."
+      }
     },
     {
       "path": "tools/debug_symbols/__init__.py",
@@ -4892,19 +4899,40 @@
       "path": "tools/debug_symbols/__main__.py",
       "mode": "100644",
       "git_blob": "85406fd53912185941e166b874496339a99f7d9b",
-      "sha256": "5f92166030ace14b7a11dfd759ddd01ecd4f1ac8bfcdb6163e21733ef324a3f7"
+      "sha256": "5f92166030ace14b7a11dfd759ddd01ecd4f1ac8bfcdb6163e21733ef324a3f7",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "59f5103b9720f14a17f15f4c2b62f82d1de11ae2",
+        "scope": "Caller-input source attribution and CLI; captured title history archived and path fixtures made synthetic",
+        "evidence": "Recovery/CLI/test sources read; recovery executable AST unchanged excluding docstrings; all 6 tests pass; historical guide normalized archive verified; replacement link resolves",
+        "limit": "Heuristic source-path proposals and bounded tests only, not validated original symbols, ABI/call correctness, every path grammar or real-title behavior."
+      }
     },
     {
       "path": "tools/debug_symbols/recover.py",
       "mode": "100644",
-      "git_blob": "5494b2e1e252aca4f71a32ab1277736264c78149",
-      "sha256": "412a4bef4e8c6655f8cfb10f7eef2cd5edd56c7ff359073ef6286ad43e65dc74"
+      "git_blob": "d329a552552801a9b007fa8b5ebc2948dacddc08",
+      "sha256": "fdd293c9051d61472a22aa53446e00b548e4e1a133505cb73acd21d7304f7a13",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "59f5103b9720f14a17f15f4c2b62f82d1de11ae2",
+        "scope": "Caller-input source attribution and CLI; captured title history archived and path fixtures made synthetic",
+        "evidence": "Recovery/CLI/test sources read; recovery executable AST unchanged excluding docstrings; all 6 tests pass; historical guide normalized archive verified; replacement link resolves",
+        "limit": "Heuristic source-path proposals and bounded tests only, not validated original symbols, ABI/call correctness, every path grammar or real-title behavior."
+      }
     },
     {
       "path": "tools/debug_symbols/test_recover.py",
       "mode": "100644",
-      "git_blob": "7e49fea24ef5ffb28251811d9c0fb728dad0fef9",
-      "sha256": "353b65d64050ab993f3e5e7528ccef79a7bc35d1f37d668930f1fd24de35d653"
+      "git_blob": "486e3d4fc262e405ba3c175e4930448691bbbe9e",
+      "sha256": "dc1766aa93af92a232a6546b07160e88d5e2b5d56a12d61e03e779bec2bbf4dc",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "59f5103b9720f14a17f15f4c2b62f82d1de11ae2",
+        "scope": "Caller-input source attribution and CLI; captured title history archived and path fixtures made synthetic",
+        "evidence": "Recovery/CLI/test sources read; recovery executable AST unchanged excluding docstrings; all 6 tests pass; historical guide normalized archive verified; replacement link resolves",
+        "limit": "Heuristic source-path proposals and bounded tests only, not validated original symbols, ABI/call correctness, every path grammar or real-title behavior."
+      }
     },
     {
       "path": "tools/disasm/__init__.py",
@@ -6264,7 +6292,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "9f7034610a72ecb50c8b60eabb1baa4d77e0f8f3",
+  "fork_tree": "2f2f95e1259d13e6eddd5fa500196207e3b78060",
   "coverage": {
     "tracked_files": 633,
     "tracked_src_files": 153,

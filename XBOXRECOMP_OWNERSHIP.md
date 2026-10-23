@@ -2541,3 +2541,20 @@ Fork checkpoint for this batch: `364d9d1`.
   resolve. No live Ghidra analysis was run, and IMPORT=0 does not validate or
   rebase an existing program. No game runtime changed. Inventory now covers
   633 paths / 153 src paths. Broader ownership remains open.
+
+
+### Keep debug-symbol attribution generic and synthetic
+
+- Read source attribution, CLI and tests. The mechanism uses caller function
+  ranges/string references; no captured title path drives runtime behavior.
+  Archived the old Halo guide/results and source/test examples in
+  tools/reference/legacy_debug_symbol_recovery.md. Guide payload matches prior
+  text after newline/trailing-space normalization.
+- Shared documentation now describes tentative direct votes/interpolation,
+  actual JSON wrapper and application behavior. Replaced title-specific test
+  paths with neutral synthetic equivalents while retaining path grammar and
+  leading-digit cases. Recovery executable AST unchanged excluding docstrings.
+- All six self-checks and six pytest cases pass, including section boundaries,
+  output metadata, backup creation and preservation of existing names. The
+  replacement source link resolves. No original symbol/ABI/runtime fidelity
+  claim follows from these heuristic tests. Wider ownership remains open.
