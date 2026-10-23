@@ -270,9 +270,9 @@ endif()
 set(RECOMP_UNRESOLVED_STUB "${RECOMP_GEN_DIR}/recomp_stubs_unresolved.c")
 set_property(SOURCE "${RECOMP_UNRESOLVED_STUB}" APPEND PROPERTY
     COMPILE_DEFINITIONS "sub_000252AF=sub_000252AF_unresolved")
-# Log each stub that runs (src/mm3_unresolved_stubs.c).
+# Stop at the first stub that runs (recomp_unresolved_stub_stop in xboxrecomp).
 set_property(SOURCE "${RECOMP_UNRESOLVED_STUB}" APPEND PROPERTY
-    COMPILE_DEFINITIONS "RECOMP_UNRESOLVED_STUB_OBSERVE=mm3_stub_hit")
+    COMPILE_DEFINITIONS "RECOMP_UNRESOLVED_STUB_OBSERVE=recomp_unresolved_stub_stop")
 # Prototypes those two generated files use without declaring (see the header).
 if(MSVC)
     set(mm3_gen_prototypes "/FI${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_gen_prototypes.h")
@@ -391,7 +391,6 @@ add_executable(${PROJECT_NAME}
     src/mods/dvd_media.c
     src/mods/framerate.c
     src/mods/keyboard_driving.c
-    src/mm3_unresolved_stubs.c
  src/mm3_memory_tails.c
  src/mm3_runtime_entries.c
  src/mm3_asset_trace.c
@@ -475,16 +474,6 @@ if(WIN32 AND XBOXRECOMP_RENDERER STREQUAL "D3D11")
     target_link_libraries(mm3_overlay_contract PRIVATE mm3_imgui ${MM3_WIN32_LIBS})
     if(MSVC)
         target_compile_options(mm3_overlay_contract PRIVATE /UNDEBUG)
-    endif()
-endif()
-
-if(WIN32)
-    add_executable(mm3_input_capture_contract EXCLUDE_FROM_ALL tests/mm3_input_capture_contract.c)
-    target_include_directories(mm3_input_capture_contract PRIVATE src src/recomp ${RECOMP_GEN_DIR}
-        ${XBOXRECOMP_DIR}/include ${XBOXRECOMP_DIR}/src/video ${XBOXRECOMP_DIR}/src)
-    target_link_libraries(mm3_input_capture_contract PRIVATE ${MM3_WIN32_LIBS})
-    if(MSVC)
-        target_compile_options(mm3_input_capture_contract PRIVATE /UNDEBUG)
     endif()
 endif()
 

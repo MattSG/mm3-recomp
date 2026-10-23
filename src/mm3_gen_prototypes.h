@@ -11,6 +11,5 @@
 
 void sub_0009B4E7(void);
 void sub_0009B584(void);
-int mm3_stub_hit(uint32_t va);   /* src/mm3_unresolved_stubs.c */
 
 #endif

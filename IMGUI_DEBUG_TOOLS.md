@@ -86,12 +86,11 @@ teleport.c's logic against a stubbed native ground reset; the original-PAL run
 is described in DEBUG_TELEPORT.md and skips without its local fixture:
 
 ```powershell
-cmake --build build --config RelWithDebInfo --target mm3_overlay_contract mm3_dev_tools_contract mm3_teleport_contract mm3_input_capture_contract mm3_launcher_settings_contract
+cmake --build build --config RelWithDebInfo --target mm3_overlay_contract mm3_dev_tools_contract mm3_teleport_contract mm3_launcher_settings_contract
 ./build/RelWithDebInfo/mm3_overlay_contract.exe
 ./build/RelWithDebInfo/mm3_dev_tools_contract.exe
 ./build/RelWithDebInfo/mm3_teleport_contract.exe
-./build/RelWithDebInfo/mm3_input_capture_contract.exe
-./build/RelWithDebInfo/mm3_input_capture_contract.exe --pad-only
+# Input capture is the fork's CTest target: tools/xboxrecomp/tests/input_capture
 New-Item -ItemType Directory -Force out/settings-contract | Out-Null
 Push-Location out/settings-contract
 ../../build/RelWithDebInfo/mm3_launcher_settings_contract.exe --write
