@@ -2230,3 +2230,24 @@ Fork checkpoint for this batch: `364d9d1`.
   ownership-input-validation.json. No new renderer/gameplay claim is made.
   Full input capture, hotplug, concurrency, vibration, accessory behavior and
   broader source ownership remain separate incomplete work.
+
+
+### Shader ownership and unresolved depth-view policy
+
+- Eleven small shader/binding/SDL compile-unit files were inspected and retained
+  as generic resource binding, clear/presentation, varying, colour-Y16 or include
+  mechanisms. These source decisions do not claim new shader/GPU correctness.
+- A distinct unresolved policy was found in nv2a_y16d.hlsl and both renderers:
+  every output uses the high 16 depth bits and a fixed quarter-guest-pixel left
+  shift. Low packed depth/stencil words cannot be read through that path. The
+  colour-Y16 shader does select low/high words by parity. Mark these specific
+  depth-view scopes needs_port_policy instead of certifying generic emulation.
+- tools/reference/ownership_depth_view_frontier.md records inspected fork
+  2218bff0b2d482a15a300e9530b4d0297d092c06, exact source hashes/shader and current port policy seams. Existing
+  surface-sync case lists do not directly prove depth-Y16 parity or stencil.
+  Actual GPU readback with distinct high/low bytes and stencil is required for
+  a fidelity claim. Migration must preserve required MM3 compatibility
+  explicitly and establish a truthful generic view contract; no implementation
+  or new gameplay claim accompanies this evidence checkpoint.
+- Depth-view migration, remaining shader internals and whole-fork ownership
+  remain incomplete.

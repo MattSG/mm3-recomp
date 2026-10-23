@@ -1986,11 +1986,18 @@
       "mode": "100644",
       "git_blob": "aa68c3620b8d5ea3b0446e32cca9fc1dd2481aae",
       "ownership_review": {
-        "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
-        "scope": "Shader-family identity and manifest import/worker integration boundary only; rest of renderer remains unreviewed",
-        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
-        "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
+        "decision": "needs_port_policy",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Depth-Y16 high-word proxy and fixed quarter-pixel alignment only; other mechanisms retain their prior scoped reviews",
+        "evidence": "Shader always returns depth bits23:8; both depth_y16 functions hardcode 0.25 guest pixels. Source snapshot and test-gap analysis in tools/reference/ownership_depth_view_frontier.md",
+        "limit": "Migration and GPU word/stencil proof not implemented. Do not treat this finding as whole-file ownership certification.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
+          "scope": "Shader-family identity and manifest import/worker integration boundary only; rest of renderer remains unreviewed",
+          "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+          "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
+        }
       }
     },
     {
@@ -2034,7 +2041,14 @@
       "path": "src/video/nv2a_sdlgpu.c",
       "sha256": "7a7d94b8b1cb7b2289d115f4940e3549ed3e3504c1602ff686397a06a0409a99",
       "mode": "100644",
-      "git_blob": "0bff40a566a407a348fa76e6e87b899e5b2a0ffd"
+      "git_blob": "0bff40a566a407a348fa76e6e87b899e5b2a0ffd",
+      "ownership_review": {
+        "decision": "needs_port_policy",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Depth-Y16 high-word proxy and fixed quarter-pixel alignment only; other mechanisms retain their prior scoped reviews",
+        "evidence": "Shader always returns depth bits23:8; both depth_y16 functions hardcode 0.25 guest pixels. Source snapshot and test-gap analysis in tools/reference/ownership_depth_view_frontier.md",
+        "limit": "Migration and GPU word/stencil proof not implemented. Do not treat this finding as whole-file ownership certification."
+      }
     },
     {
       "path": "src/video/nv2a_shader_cache.h",
@@ -2065,13 +2079,27 @@
       "path": "src/video/shaders/nv2a_bindings.hlsli",
       "sha256": "42eaec34a97395abb895c94f0d34ea73f0671248220be614a5cdd0c3a494cd81",
       "mode": "100644",
-      "git_blob": "6ad016aac4b9f54e9d8dd0dc73f9e29ffb6becca"
+      "git_blob": "6ad016aac4b9f54e9d8dd0dc73f9e29ffb6becca",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Host resource bindings for D3D11 and SDL GPU; no application state or captured title values",
+        "evidence": "Complete listed shader/compile-unit source read against shared bindings and renderer build definitions",
+        "limit": "Ownership/source review only. No new shader compilation/GPU/readback claim; format fidelity, all host bindings and included shader internals are not certified."
+      }
     },
     {
       "path": "src/video/shaders/nv2a_clear.hlsl",
       "sha256": "1038e4f76ad92c9eafa82531dc83595c266c808e7987301d8bfca3dbaccac22f",
       "mode": "100644",
-      "git_blob": "533a4afc6e6f37d1f5d66405b0688a37463a0127"
+      "git_blob": "533a4afc6e6f37d1f5d66405b0688a37463a0127",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Caller-provided clear colour/depth and full-target geometry",
+        "evidence": "Complete listed shader/compile-unit source read against shared bindings and renderer build definitions",
+        "limit": "Ownership/source review only. No new shader compilation/GPU/readback claim; format fidelity, all host bindings and included shader internals are not certified."
+      }
     },
     {
       "path": "src/video/shaders/nv2a_combiner.hlsl",
@@ -2083,13 +2111,27 @@
       "path": "src/video/shaders/nv2a_present.hlsl",
       "sha256": "8c5e2ab239891d42c8deb7bb5eade0e830bde3726a3231633a6bfefc78594d11",
       "mode": "100644",
-      "git_blob": "af93ec9966129a9d06152f00b145e43e2b034364"
+      "git_blob": "af93ec9966129a9d06152f00b145e43e2b034364",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Caller-described rectangles, textures, overlay/keying and alpha for presentation/upload",
+        "evidence": "Complete listed shader/compile-unit source read against shared bindings and renderer build definitions",
+        "limit": "Ownership/source review only. No new shader compilation/GPU/readback claim; format fidelity, all host bindings and included shader internals are not certified."
+      }
     },
     {
       "path": "src/video/shaders/nv2a_varyings.hlsli",
       "sha256": "4b81746391c7b9ddde9336282b85b901002cc146ae5031e1fd04cb58602a1045",
       "mode": "100644",
-      "git_blob": "3a2df22ad3270b363d4872c7ff379a9d9844d1a1"
+      "git_blob": "3a2df22ad3270b363d4872c7ff379a9d9844d1a1",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Vertex/pixel varying layout, interpolation qualifiers and Vulkan point-size output",
+        "evidence": "Complete listed shader/compile-unit source read against shared bindings and renderer build definitions",
+        "limit": "Ownership/source review only. No new shader compilation/GPU/readback claim; format fidelity, all host bindings and included shader internals are not certified."
+      }
     },
     {
       "path": "src/video/shaders/nv2a_vertex.hlsl",
@@ -2101,49 +2143,105 @@
       "path": "src/video/shaders/nv2a_y16.hlsl",
       "sha256": "93ceb59da3c8ab21693a63201fe579903d0bd5d55f8ab6da7f91f077ca3b65e1",
       "mode": "100644",
-      "git_blob": "4ed60c1f0d5dde8749d36f61e1cc96e6474a408e"
+      "git_blob": "4ed60c1f0d5dde8749d36f61e1cc96e6474a408e",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Byte-lane colour-surface Y16 conversion and sample-zero handling; no captured application constants",
+        "evidence": "Complete listed shader/compile-unit source read against shared bindings and renderer build definitions",
+        "limit": "Ownership/source review only. No new shader compilation/GPU/readback claim; format fidelity, all host bindings and included shader internals are not certified."
+      }
     },
     {
       "path": "src/video/shaders/nv2a_y16d.hlsl",
       "sha256": "902da1a4072fac0b9800efd0c7e7697267b1dd44a9dfd15c67234f37d44c93fd",
       "mode": "100644",
-      "git_blob": "82eedb2a9871b3ebbc2aa633524e6c4a0b65e2cb"
+      "git_blob": "82eedb2a9871b3ebbc2aa633524e6c4a0b65e2cb",
+      "ownership_review": {
+        "decision": "needs_port_policy",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Depth-Y16 high-word proxy and fixed quarter-pixel alignment only; other mechanisms retain their prior scoped reviews",
+        "evidence": "Shader always returns depth bits23:8; both depth_y16 functions hardcode 0.25 guest pixels. Source snapshot and test-gap analysis in tools/reference/ownership_depth_view_frontier.md",
+        "limit": "Migration and GPU word/stencil proof not implemented. Do not treat this finding as whole-file ownership certification."
+      }
     },
     {
       "path": "src/video/shaders/sdlgpu/clear.hlsl",
       "sha256": "41b27b9bcee84b8b3d9f36024ec30e15cace56d3545fc29077aa12a16d95d957",
       "mode": "100644",
-      "git_blob": "9f74516ce2d633885902c1fbb22b561cde5206c6"
+      "git_blob": "9f74516ce2d633885902c1fbb22b561cde5206c6",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Compile unit includes shared bindings and clear source",
+        "evidence": "Complete listed shader/compile-unit source read against shared bindings and renderer build definitions",
+        "limit": "Ownership/source review only. No new shader compilation/GPU/readback claim; format fidelity, all host bindings and included shader internals are not certified."
+      }
     },
     {
       "path": "src/video/shaders/sdlgpu/combiner.hlsl",
       "sha256": "5d1329dd8e531fd2485416b19b2e7f4b0c55a80d97ce8c564b1e4ad690e35a63",
       "mode": "100644",
-      "git_blob": "21df7633dc1ead76c8f35172a1814a3c96b2ab88"
+      "git_blob": "21df7633dc1ead76c8f35172a1814a3c96b2ab88",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Compile unit includes shared bindings/varyings/combiner source only",
+        "evidence": "Complete listed shader/compile-unit source read against shared bindings and renderer build definitions",
+        "limit": "Ownership/source review only. No new shader compilation/GPU/readback claim; format fidelity, all host bindings and included shader internals are not certified."
+      }
     },
     {
       "path": "src/video/shaders/sdlgpu/present.hlsl",
       "sha256": "51b24e23c0d6d4469235b67b658ceeb251bbe95c8d042e2a0853f9c47a51d439",
       "mode": "100644",
-      "git_blob": "5fcf48ba00d917619c247dc82120834e9e28d301"
+      "git_blob": "5fcf48ba00d917619c247dc82120834e9e28d301",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Compile unit includes shared bindings and presentation source",
+        "evidence": "Complete listed shader/compile-unit source read against shared bindings and renderer build definitions",
+        "limit": "Ownership/source review only. No new shader compilation/GPU/readback claim; format fidelity, all host bindings and included shader internals are not certified."
+      }
     },
     {
       "path": "src/video/shaders/sdlgpu/ub.hlsl",
       "sha256": "95b56b23d6a5d810bcdae56f105e19a36351b1cfa361ab17b97e0db6f7784637",
       "mode": "100644",
-      "git_blob": "6eb7ec0e0391b61d2f2b6821197dd0a3cd91a0ee"
+      "git_blob": "6eb7ec0e0391b61d2f2b6821197dd0a3cd91a0ee",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Compile unit includes shared bindings/varyings/vertex source",
+        "evidence": "Complete listed shader/compile-unit source read against shared bindings and renderer build definitions",
+        "limit": "Ownership/source review only. No new shader compilation/GPU/readback claim; format fidelity, all host bindings and included shader internals are not certified."
+      }
     },
     {
       "path": "src/video/shaders/sdlgpu/y16.hlsl",
       "sha256": "441661a7f08bdb4c31518b17c8990307d43ccf16dd6f309b0aa4736ebd390604",
       "mode": "100644",
-      "git_blob": "6b4161786fbdae47d6a06795e969ba0191122171"
+      "git_blob": "6b4161786fbdae47d6a06795e969ba0191122171",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Compile unit includes shared bindings and colour-Y16 source",
+        "evidence": "Complete listed shader/compile-unit source read against shared bindings and renderer build definitions",
+        "limit": "Ownership/source review only. No new shader compilation/GPU/readback claim; format fidelity, all host bindings and included shader internals are not certified."
+      }
     },
     {
       "path": "src/video/shaders/sdlgpu/y16d.hlsl",
       "sha256": "f0f0b4a0abeb6a3082ddaa9f39b2bbdd2350624279a80898dfa432081131a31f",
       "mode": "100644",
-      "git_blob": "1fbeb1ad90230cf159b92d72e0765f6b9b929255"
+      "git_blob": "1fbeb1ad90230cf159b92d72e0765f6b9b929255",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Compile unit only; included depth proxy remains an unresolved separate policy finding",
+        "evidence": "Complete listed shader/compile-unit source read against shared bindings and renderer build definitions",
+        "limit": "Ownership/source review only. No new shader compilation/GPU/readback claim; format fidelity, all host bindings and included shader internals are not certified."
+      }
     },
     {
       "path": "src/video/spike_sampler.c",
