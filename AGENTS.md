@@ -80,7 +80,7 @@ from scratch.
 Install the pinned Windows profiler with:
 
 ```powershell
-python tools/scripts/install_tracy.py
+python tools/xboxrecomp/tools/tracy/install_tracy.py --root .
 ```
 
 The executable is `tools\bin\tracy-0.14.1\tracy-profiler.exe`. Tracy is useful
