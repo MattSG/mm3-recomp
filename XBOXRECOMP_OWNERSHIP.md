@@ -2600,3 +2600,18 @@ Fork checkpoint for this batch: `364d9d1`.
   build/ownership-helper-*/Testing. These contracts do not establish full
   guest-object/I/O semantics, all CPU paths, performance or gameplay fidelity.
   The wider ownership audit remains open.
+
+
+### Identify implicit mip-completion visual policy
+
+- Shared host_levels expands authored partial non-volume chains to 1x1 by
+  default. A compiled production-helper probe reports guest2/host6 for 32x32.
+  Both renderer texture_get paths use it; host format can change too.
+  Recorded source and required migration in
+  tools/reference/ownership_mip_completion_frontier.md.
+- Cache epoch/hash returns precede host-level selection, so the opt-in must be
+  startup-fixed or tracked in cache identity/invalidation. Existing generation
+  tests need explicit policy selection. These scopes now carry needs_port_policy
+  rather than an implied complete generic decision. No executable code changed
+  and no new visual/gameplay claim is made. Evidence:
+  conformance_tmp/ownership-mip-policy-probe.c/.log. Migration remains required.

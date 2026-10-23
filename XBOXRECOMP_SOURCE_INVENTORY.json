@@ -2194,29 +2194,36 @@
       "mode": "100644",
       "git_blob": "b394cacc9d46730eec82074ab80a9942b085cd10",
       "ownership_review": {
-        "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "1dce7496f2f23fbda0f3836ee147a522cfc8a247",
-        "scope": "Optional conversion plumbing, reject unsupported reads, common checked colour/depth view allocation and retry cleanup",
-        "evidence": "Windows surface63/63, default/synthetic shader CTest, same-directory disable/enable, Linux shader fixture and kernel61/61 pass. Configured and absent GPU cases pass D3D11 1x/4x, Vulkan and D3D12; actual native colour/depth texture/SRV/RTV retry checks pass. Both game builds and Vulkan run-dz0s8k2b driving pass (1.47077m).",
-        "limit": "Depth policy ownership resolved for these scopes; no full renderer/file ownership or complete generic packed depth/stencil emulation claim. MM3 approximation is explicitly caller-owned.",
+        "decision": "needs_port_policy",
+        "reviewed_at_fork": "b59fbc5558998c55223743316203d53bee8b0341",
+        "scope": "Implicit completion of partial authored mip chains changes host levels and possibly host format",
+        "evidence": "Production helper probe: 32x32 guest2 -> host6; both texture_get callers and early cache-return paths inspected; see ownership_mip_completion_frontier.md",
+        "limit": "Finding only. Default guest counts, explicit MM3 opt-in, cache-policy contract and backend/readback/driving verification remain outstanding.",
         "prior_review": {
-          "decision": "needs_port_policy",
-          "reviewed_at_fork": "05c523366dcbbb1c3372acf5873cc04889b5a8cc",
-          "scope": "Quarter-pixel alignment factor removed from depth_y16; upload host/guest source scale only",
-          "evidence": "Old default alignment test fails while shifted control passes. Surface suite61/61; actual unshifted/port-shifted readback passes D3D11 1x/4x, Vulkan and D3D12; both game builds pass. D3D12 night run-sgbh4qpa, inspected capture and 2.09215m movement in 123.719s.",
-          "limit": "Quarter-pixel policy migration only; shared high-word proxy/packed low-word/stencil support remains incomplete. Broader file/source ownership is not certified.",
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "1dce7496f2f23fbda0f3836ee147a522cfc8a247",
+          "scope": "Optional conversion plumbing, reject unsupported reads, common checked colour/depth view allocation and retry cleanup",
+          "evidence": "Windows surface63/63, default/synthetic shader CTest, same-directory disable/enable, Linux shader fixture and kernel61/61 pass. Configured and absent GPU cases pass D3D11 1x/4x, Vulkan and D3D12; actual native colour/depth texture/SRV/RTV retry checks pass. Both game builds and Vulkan run-dz0s8k2b driving pass (1.47077m).",
+          "limit": "Depth policy ownership resolved for these scopes; no full renderer/file ownership or complete generic packed depth/stencil emulation claim. MM3 approximation is explicitly caller-owned.",
           "prior_review": {
             "decision": "needs_port_policy",
-            "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
-            "scope": "Depth-Y16 high-word proxy and fixed quarter-pixel alignment only; other mechanisms retain their prior scoped reviews",
-            "evidence": "Shader always returns depth bits23:8; both depth_y16 functions hardcode 0.25 guest pixels. Source snapshot and test-gap analysis in tools/reference/ownership_depth_view_frontier.md",
-            "limit": "Migration and GPU word/stencil proof not implemented. Do not treat this finding as whole-file ownership certification.",
+            "reviewed_at_fork": "05c523366dcbbb1c3372acf5873cc04889b5a8cc",
+            "scope": "Quarter-pixel alignment factor removed from depth_y16; upload host/guest source scale only",
+            "evidence": "Old default alignment test fails while shifted control passes. Surface suite61/61; actual unshifted/port-shifted readback passes D3D11 1x/4x, Vulkan and D3D12; both game builds pass. D3D12 night run-sgbh4qpa, inspected capture and 2.09215m movement in 123.719s.",
+            "limit": "Quarter-pixel policy migration only; shared high-word proxy/packed low-word/stencil support remains incomplete. Broader file/source ownership is not certified.",
             "prior_review": {
-              "decision": "retain_generic_boundary",
-              "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
-              "scope": "Shader-family identity and manifest import/worker integration boundary only; rest of renderer remains unreviewed",
-              "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
-              "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
+              "decision": "needs_port_policy",
+              "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+              "scope": "Depth-Y16 high-word proxy and fixed quarter-pixel alignment only; other mechanisms retain their prior scoped reviews",
+              "evidence": "Shader always returns depth bits23:8; both depth_y16 functions hardcode 0.25 guest pixels. Source snapshot and test-gap analysis in tools/reference/ownership_depth_view_frontier.md",
+              "limit": "Migration and GPU word/stencil proof not implemented. Do not treat this finding as whole-file ownership certification.",
+              "prior_review": {
+                "decision": "retain_generic_boundary",
+                "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
+                "scope": "Shader-family identity and manifest import/worker integration boundary only; rest of renderer remains unreviewed",
+                "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+                "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
+              }
             }
           }
         }
@@ -2258,7 +2265,14 @@
       "path": "src/video/nv2a_render_common.h",
       "sha256": "b2280fa8c88a1d99120e057dbfc750ea12339c89a48ac277967d736f942f36f6",
       "mode": "100644",
-      "git_blob": "2b1907353bada3e94d29377978e22daf62b8693c"
+      "git_blob": "2b1907353bada3e94d29377978e22daf62b8693c",
+      "ownership_review": {
+        "decision": "needs_port_policy",
+        "reviewed_at_fork": "b59fbc5558998c55223743316203d53bee8b0341",
+        "scope": "Implicit completion of partial authored mip chains changes host levels and possibly host format",
+        "evidence": "Production helper probe: 32x32 guest2 -> host6; both texture_get callers and early cache-return paths inspected; see ownership_mip_completion_frontier.md",
+        "limit": "Finding only. Default guest counts, explicit MM3 opt-in, cache-policy contract and backend/readback/driving verification remain outstanding."
+      }
     },
     {
       "path": "src/video/nv2a_sampler_cache.h",
@@ -2279,23 +2293,30 @@
       "mode": "100644",
       "git_blob": "25280004b922eed0bae6ae126cafd0de21f67931",
       "ownership_review": {
-        "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "1dce7496f2f23fbda0f3836ee147a522cfc8a247",
-        "scope": "Conditional converter shader/includes and explicit unsupported draw without proxy allocation or RAM fallback",
-        "evidence": "Windows surface63/63, default/synthetic shader CTest, same-directory disable/enable, Linux shader fixture and kernel61/61 pass. Configured and absent GPU cases pass D3D11 1x/4x, Vulkan and D3D12; actual native colour/depth texture/SRV/RTV retry checks pass. Both game builds and Vulkan run-dz0s8k2b driving pass (1.47077m).",
-        "limit": "Depth policy ownership resolved for these scopes; no full renderer/file ownership or complete generic packed depth/stencil emulation claim. MM3 approximation is explicitly caller-owned.",
+        "decision": "needs_port_policy",
+        "reviewed_at_fork": "b59fbc5558998c55223743316203d53bee8b0341",
+        "scope": "Implicit completion of partial authored mip chains changes host levels and possibly host format",
+        "evidence": "Production helper probe: 32x32 guest2 -> host6; both texture_get callers and early cache-return paths inspected; see ownership_mip_completion_frontier.md",
+        "limit": "Finding only. Default guest counts, explicit MM3 opt-in, cache-policy contract and backend/readback/driving verification remain outstanding.",
         "prior_review": {
-          "decision": "needs_port_policy",
-          "reviewed_at_fork": "05c523366dcbbb1c3372acf5873cc04889b5a8cc",
-          "scope": "Quarter-pixel alignment factor removed from depth_y16; upload host/guest source scale only",
-          "evidence": "Old default alignment test fails while shifted control passes. Surface suite61/61; actual unshifted/port-shifted readback passes D3D11 1x/4x, Vulkan and D3D12; both game builds pass. D3D12 night run-sgbh4qpa, inspected capture and 2.09215m movement in 123.719s.",
-          "limit": "Quarter-pixel policy migration only; shared high-word proxy/packed low-word/stencil support remains incomplete. Broader file/source ownership is not certified.",
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "1dce7496f2f23fbda0f3836ee147a522cfc8a247",
+          "scope": "Conditional converter shader/includes and explicit unsupported draw without proxy allocation or RAM fallback",
+          "evidence": "Windows surface63/63, default/synthetic shader CTest, same-directory disable/enable, Linux shader fixture and kernel61/61 pass. Configured and absent GPU cases pass D3D11 1x/4x, Vulkan and D3D12; actual native colour/depth texture/SRV/RTV retry checks pass. Both game builds and Vulkan run-dz0s8k2b driving pass (1.47077m).",
+          "limit": "Depth policy ownership resolved for these scopes; no full renderer/file ownership or complete generic packed depth/stencil emulation claim. MM3 approximation is explicitly caller-owned.",
           "prior_review": {
             "decision": "needs_port_policy",
-            "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
-            "scope": "Depth-Y16 high-word proxy and fixed quarter-pixel alignment only; other mechanisms retain their prior scoped reviews",
-            "evidence": "Shader always returns depth bits23:8; both depth_y16 functions hardcode 0.25 guest pixels. Source snapshot and test-gap analysis in tools/reference/ownership_depth_view_frontier.md",
-            "limit": "Migration and GPU word/stencil proof not implemented. Do not treat this finding as whole-file ownership certification."
+            "reviewed_at_fork": "05c523366dcbbb1c3372acf5873cc04889b5a8cc",
+            "scope": "Quarter-pixel alignment factor removed from depth_y16; upload host/guest source scale only",
+            "evidence": "Old default alignment test fails while shifted control passes. Surface suite61/61; actual unshifted/port-shifted readback passes D3D11 1x/4x, Vulkan and D3D12; both game builds pass. D3D12 night run-sgbh4qpa, inspected capture and 2.09215m movement in 123.719s.",
+            "limit": "Quarter-pixel policy migration only; shared high-word proxy/packed low-word/stencil support remains incomplete. Broader file/source ownership is not certified.",
+            "prior_review": {
+              "decision": "needs_port_policy",
+              "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+              "scope": "Depth-Y16 high-word proxy and fixed quarter-pixel alignment only; other mechanisms retain their prior scoped reviews",
+              "evidence": "Shader always returns depth bits23:8; both depth_y16 functions hardcode 0.25 guest pixels. Source snapshot and test-gap analysis in tools/reference/ownership_depth_view_frontier.md",
+              "limit": "Migration and GPU word/stencil proof not implemented. Do not treat this finding as whole-file ownership certification."
+            }
           }
         }
       }
@@ -4481,7 +4502,14 @@
       "path": "tests/nv2a_textures/mip_generation_tests.h",
       "mode": "100644",
       "git_blob": "b7645d232fd2b46fa15e468863d28e5acfe2c2cd",
-      "sha256": "2e8e152826ca85e0994f2b9a7c6f73df8ddaeaa3c209e479d1780258b7ed22b8"
+      "sha256": "2e8e152826ca85e0994f2b9a7c6f73df8ddaeaa3c209e479d1780258b7ed22b8",
+      "ownership_review": {
+        "decision": "needs_port_policy",
+        "reviewed_at_fork": "b59fbc5558998c55223743316203d53bee8b0341",
+        "scope": "Implicit completion of partial authored mip chains changes host levels and possibly host format",
+        "evidence": "Production helper probe: 32x32 guest2 -> host6; both texture_get callers and early cache-return paths inspected; see ownership_mip_completion_frontier.md",
+        "limit": "Finding only. Default guest counts, explicit MM3 opt-in, cache-policy contract and backend/readback/driving verification remain outstanding."
+      }
     },
     {
       "path": "tests/nv2a_textures/native_bc_tests.h",
