@@ -11,3 +11,16 @@ history, not current caller coverage or instruction-semantic proof.
  * still carry their own and can move onto this whenever they are next touched.
  *
 ```
+
+## Previous NV2A extraction notes and fallback claims
+
+```text
+/* Global APU state pointer is declared in apu.h and referenced from main.c
+ * (regardless of whether the MMIO hook is active). Keep its definition
+ * outside the Win32 guard. */
+
+ * Returns false if the instruction couldn't be decoded (caller
+ * should fall back to allocating a zero page).
+ * For 0xF0000000-0xFCFFFFFF range. Currently just allocates
+ * pages backed by NV2A VRAM where appropriate.
+```

@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "8ffa9feef6ba84daaf12dde5b9e6ac6ba3a26522",
+  "fork_commit": "dd07ff368211dacd440bfb33b68eac8816468e00",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -2367,21 +2367,35 @@
     },
     {
       "path": "src/nv2a/nv2a_mmio_hook.c",
-      "sha256": "8683c3710eaabd10ea993f32d04442c8719e98bdd6c1d8a1e2da8abb12fd558b",
+      "sha256": "0e51645a2e8ee7638395419788a005e6a18e9b1eff4cb92ad989018e6bf34d1b",
       "mode": "100644",
-      "git_blob": "bb294d6b8edbcfdfd70851993c0782b6dbdfdf3a"
+      "git_blob": "9271c21c705143c7679a023e995b0b2ac9ed4c09",
+      "ownership_review": {
+        "decision": "needs_generic_fix",
+        "reviewed_at_fork": "dd07ff368211dacd440bfb33b68eac8816468e00",
+        "scope": "Full NV2A hook C/header ownership read; replace duplicate decoder with generic callbacks, preserve reverse CMP and PVIDEO locking; atomic statistics and checked failure logging",
+        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
+        "limit": "Legacy native VRAM page allocator and GPU allocation lifecycle remain partial/unowned; no actual GPU register-model, live fault or hardware equivalence proof. Header now documents these limits without zero-page fallback advice."
+      }
     },
     {
       "path": "src/nv2a/nv2a_mmio_hook.h",
-      "sha256": "5f76ee12cffb786c2ff317e48bfa7f97d78a39bb173c63067e32c22b7e3d78cd",
+      "sha256": "5b50189ac1b33907164df1432af2280bfc0129eb77dda6dc43f962705ccd8943",
       "mode": "100644",
-      "git_blob": "093f18652a8216fa80ddd622bb6b7d5d7917b4fd",
+      "git_blob": "b476e3a6c6a7e52dee4e7f9f7263f1f4f4f205e6",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "1988028bb7655f7796af5dda1479c92feb2e5847",
-        "scope": "Include-guard namespace and introductory API comments only",
-        "evidence": "Six header bodies identical after guard normalization and comment exclusion; standalone MSVC double-inclusion checks pass; audio executable body identical except startup log; both Windows renderer builds and Linux runtime/mapping check pass",
-        "limit": "No new playback, full SDK ABI, graphics/USB fidelity or lifecycle acceptance; unsupported DirectSound stream/spatial methods remain partial stubs"
+        "reviewed_at_fork": "dd07ff368211dacd440bfb33b68eac8816468e00",
+        "scope": "Full NV2A hook C/header ownership read; replace duplicate decoder with generic callbacks, preserve reverse CMP and PVIDEO locking; atomic statistics and checked failure logging",
+        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
+        "limit": "Legacy native VRAM page allocator and GPU allocation lifecycle remain partial/unowned; no actual GPU register-model, live fault or hardware equivalence proof. Header now documents these limits without zero-page fallback advice.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "1988028bb7655f7796af5dda1479c92feb2e5847",
+          "scope": "Include-guard namespace and introductory API comments only",
+          "evidence": "Six header bodies identical after guard normalization and comment exclusion; standalone MSVC double-inclusion checks pass; audio executable body identical except startup log; both Windows renderer builds and Linux runtime/mapping check pass",
+          "limit": "No new playback, full SDK ABI, graphics/USB fidelity or lifecycle acceptance; unsupported DirectSound stream/spatial methods remain partial stubs"
+        }
       }
     },
     {
@@ -2431,27 +2445,34 @@
     },
     {
       "path": "src/platform/mmio_decode.h",
-      "sha256": "ef6d6fde79398e63f05ba39f3045132b6cb268d1fa9d06a47ada92263a3d868c",
+      "sha256": "77df24a7b4e7712616c5bce9ce58565d3ca4aaf86f5eb2fc67902dc6e22c849a",
       "mode": "100644",
-      "git_blob": "d74dbdf210513d37e9f143b65e63f662f5ec25a2",
+      "git_blob": "4d51edf5f5e871ec5b61bc5b71ec3366c0605914",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "8ffa9feef6ba84daaf12dde5b9e6ac6ba3a26522",
-        "scope": "Full shared decoder source ownership review; bounded snapshot prevalidation, complete supported memory-form checks, 15-byte limit, REX ordering and checked fault-handler fetch",
-        "evidence": "42 pre-fix assertions fail for 13 register-only forms and overlong encoding; snapshots/truncation/guard-page tests pass Windows/Linux; both game builds pass; tools/reference/ownership_mmio_decoder_frontier.md",
-        "limit": "Supported host x86-64 subset only; no full ISA/native CPU differential/live MMIO or macOS proof. Snapshot fetch adds host read overhead; concurrent instruction modification remains caller lifecycle responsibility.",
+        "reviewed_at_fork": "dd07ff368211dacd440bfb33b68eac8816468e00",
+        "scope": "Full NV2A hook C/header ownership read; replace duplicate decoder with generic callbacks, preserve reverse CMP and PVIDEO locking; atomic statistics and checked failure logging",
+        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
+        "limit": "Legacy native VRAM page allocator and GPU allocation lifecycle remain partial/unowned; no actual GPU register-model, live fault or hardware equivalence proof. Header now documents these limits without zero-page fallback advice.",
         "prior_review": {
-          "decision": "needs_generic_fix",
-          "reviewed_at_fork": "eb5e2e4175ae756265d9120e722aa73cced0a4f9",
-          "scope": "Shared MMIO register lane, MOVZX destination and defined status flag semantics across supported MOV/TEST/CMP/OR/AND paths",
-          "evidence": "Eight new pre-fix failures; actual-header checks pass Windows/Linux including 20 CMP edge cases across byte/word/dword/qword; both game builds pass; tools/reference/ownership_mmio_decoder_frontier.md",
-          "limit": "General ModRM form validation and prefix/instruction-byte bounds remain incomplete. No complete decoder/native CPU differential or live MMIO certification; logical AF is undefined and preserved.",
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "8ffa9feef6ba84daaf12dde5b9e6ac6ba3a26522",
+          "scope": "Full shared decoder source ownership review; bounded snapshot prevalidation, complete supported memory-form checks, 15-byte limit, REX ordering and checked fault-handler fetch",
+          "evidence": "42 pre-fix assertions fail for 13 register-only forms and overlong encoding; snapshots/truncation/guard-page tests pass Windows/Linux; both game builds pass; tools/reference/ownership_mmio_decoder_frontier.md",
+          "limit": "Supported host x86-64 subset only; no full ISA/native CPU differential/live MMIO or macOS proof. Snapshot fetch adds host read overhead; concurrent instruction modification remains caller lifecycle responsibility.",
           "prior_review": {
             "decision": "needs_generic_fix",
-            "reviewed_at_fork": "ae79ef6118a9419fbdf552ba50423b4f8c05a61a",
-            "scope": "Full shared MMIO decoder source ownership read; SIB no-base displacement, immediate size/sign extension, REX.W precedence and C6/C7 form validation fixes",
-            "evidence": "tools/reference/ownership_mmio_decoder_frontier.md; six pre-fix failures; existing/new actual-header checks pass Windows/Linux; both game builds pass; migration narrative moved to legacy_mmio_decoder_notes.md",
-            "limit": "High-byte register semantics, complete flags, 16-bit MOVZX destination, general ModRM validation and instruction-byte/prefix bounds remain incomplete. No full decoder, live MMIO or hardware certification."
+            "reviewed_at_fork": "eb5e2e4175ae756265d9120e722aa73cced0a4f9",
+            "scope": "Shared MMIO register lane, MOVZX destination and defined status flag semantics across supported MOV/TEST/CMP/OR/AND paths",
+            "evidence": "Eight new pre-fix failures; actual-header checks pass Windows/Linux including 20 CMP edge cases across byte/word/dword/qword; both game builds pass; tools/reference/ownership_mmio_decoder_frontier.md",
+            "limit": "General ModRM form validation and prefix/instruction-byte bounds remain incomplete. No complete decoder/native CPU differential or live MMIO certification; logical AF is undefined and preserved.",
+            "prior_review": {
+              "decision": "needs_generic_fix",
+              "reviewed_at_fork": "ae79ef6118a9419fbdf552ba50423b4f8c05a61a",
+              "scope": "Full shared MMIO decoder source ownership read; SIB no-base displacement, immediate size/sign extension, REX.W precedence and C6/C7 form validation fixes",
+              "evidence": "tools/reference/ownership_mmio_decoder_frontier.md; six pre-fix failures; existing/new actual-header checks pass Windows/Linux; both game builds pass; migration narrative moved to legacy_mmio_decoder_notes.md",
+              "limit": "High-byte register semantics, complete flags, 16-bit MOVZX destination, general ModRM validation and instruction-byte/prefix bounds remain incomplete. No full decoder, live MMIO or hardware certification."
+            }
           }
         }
       }
@@ -4649,46 +4670,73 @@
     {
       "path": "tests/mmio_decode/CMakeLists.txt",
       "mode": "100644",
-      "git_blob": "53b42249ae6181d96a72d98afdbb3465bcfe84bf",
-      "sha256": "1940a14c8f57ea80968fcf3e7e3d0755509aeec407727de0051a829c9200ea05",
+      "git_blob": "3ea2b9cef01af5e5e314aab361871bf952843cd4",
+      "sha256": "155fc21593985512187151e778ee1232055ce66ef94e5fd7febdece9f1601baa",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "8ffa9feef6ba84daaf12dde5b9e6ac6ba3a26522",
-        "scope": "Full shared decoder source ownership review; bounded snapshot prevalidation, complete supported memory-form checks, 15-byte limit, REX ordering and checked fault-handler fetch",
-        "evidence": "42 pre-fix assertions fail for 13 register-only forms and overlong encoding; snapshots/truncation/guard-page tests pass Windows/Linux; both game builds pass; tools/reference/ownership_mmio_decoder_frontier.md",
-        "limit": "Supported host x86-64 subset only; no full ISA/native CPU differential/live MMIO or macOS proof. Snapshot fetch adds host read overhead; concurrent instruction modification remains caller lifecycle responsibility.",
+        "reviewed_at_fork": "dd07ff368211dacd440bfb33b68eac8816468e00",
+        "scope": "Full NV2A hook C/header ownership read; replace duplicate decoder with generic callbacks, preserve reverse CMP and PVIDEO locking; atomic statistics and checked failure logging",
+        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
+        "limit": "Legacy native VRAM page allocator and GPU allocation lifecycle remain partial/unowned; no actual GPU register-model, live fault or hardware equivalence proof. Header now documents these limits without zero-page fallback advice.",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "ae79ef6118a9419fbdf552ba50423b4f8c05a61a",
-          "scope": "Full shared MMIO decoder source ownership read; SIB no-base displacement, immediate size/sign extension, REX.W precedence and C6/C7 form validation fixes",
-          "evidence": "tools/reference/ownership_mmio_decoder_frontier.md; six pre-fix failures; existing/new actual-header checks pass Windows/Linux; both game builds pass; migration narrative moved to legacy_mmio_decoder_notes.md",
-          "limit": "High-byte register semantics, complete flags, 16-bit MOVZX destination, general ModRM validation and instruction-byte/prefix bounds remain incomplete. No full decoder, live MMIO or hardware certification."
-        }
-      }
-    },
-    {
-      "path": "tests/mmio_decode/test_main.c",
-      "mode": "100644",
-      "git_blob": "a03d1206a2ae585b5a599a303131b5656ad7388d",
-      "sha256": "5f08fc403bf39a28f7ff2004530cd53fff32d2f80283b1260dbc7332d921677e",
-      "ownership_review": {
-        "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "8ffa9feef6ba84daaf12dde5b9e6ac6ba3a26522",
-        "scope": "Full shared decoder source ownership review; bounded snapshot prevalidation, complete supported memory-form checks, 15-byte limit, REX ordering and checked fault-handler fetch",
-        "evidence": "42 pre-fix assertions fail for 13 register-only forms and overlong encoding; snapshots/truncation/guard-page tests pass Windows/Linux; both game builds pass; tools/reference/ownership_mmio_decoder_frontier.md",
-        "limit": "Supported host x86-64 subset only; no full ISA/native CPU differential/live MMIO or macOS proof. Snapshot fetch adds host read overhead; concurrent instruction modification remains caller lifecycle responsibility.",
-        "prior_review": {
-          "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "eb5e2e4175ae756265d9120e722aa73cced0a4f9",
-          "scope": "Shared MMIO register lane, MOVZX destination and defined status flag semantics across supported MOV/TEST/CMP/OR/AND paths",
-          "evidence": "Eight new pre-fix failures; actual-header checks pass Windows/Linux including 20 CMP edge cases across byte/word/dword/qword; both game builds pass; tools/reference/ownership_mmio_decoder_frontier.md",
-          "limit": "General ModRM form validation and prefix/instruction-byte bounds remain incomplete. No complete decoder/native CPU differential or live MMIO certification; logical AF is undefined and preserved.",
+          "reviewed_at_fork": "8ffa9feef6ba84daaf12dde5b9e6ac6ba3a26522",
+          "scope": "Full shared decoder source ownership review; bounded snapshot prevalidation, complete supported memory-form checks, 15-byte limit, REX ordering and checked fault-handler fetch",
+          "evidence": "42 pre-fix assertions fail for 13 register-only forms and overlong encoding; snapshots/truncation/guard-page tests pass Windows/Linux; both game builds pass; tools/reference/ownership_mmio_decoder_frontier.md",
+          "limit": "Supported host x86-64 subset only; no full ISA/native CPU differential/live MMIO or macOS proof. Snapshot fetch adds host read overhead; concurrent instruction modification remains caller lifecycle responsibility.",
           "prior_review": {
             "decision": "retain_generic_boundary",
             "reviewed_at_fork": "ae79ef6118a9419fbdf552ba50423b4f8c05a61a",
             "scope": "Full shared MMIO decoder source ownership read; SIB no-base displacement, immediate size/sign extension, REX.W precedence and C6/C7 form validation fixes",
             "evidence": "tools/reference/ownership_mmio_decoder_frontier.md; six pre-fix failures; existing/new actual-header checks pass Windows/Linux; both game builds pass; migration narrative moved to legacy_mmio_decoder_notes.md",
             "limit": "High-byte register semantics, complete flags, 16-bit MOVZX destination, general ModRM validation and instruction-byte/prefix bounds remain incomplete. No full decoder, live MMIO or hardware certification."
+          }
+        }
+      }
+    },
+    {
+      "path": "tests/mmio_decode/nv2a_adapter_test.c",
+      "mode": "100644",
+      "git_blob": "eec7fc0bce0453fd4dc815833e303524e35dc107",
+      "sha256": "dabad814625e06f43b488707d49f9a707488902180bac4bf05c8b3c90f0418d5",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "dd07ff368211dacd440bfb33b68eac8816468e00",
+        "scope": "Full NV2A hook C/header ownership read; replace duplicate decoder with generic callbacks, preserve reverse CMP and PVIDEO locking; atomic statistics and checked failure logging",
+        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
+        "limit": "Legacy native VRAM page allocator and GPU allocation lifecycle remain partial/unowned; no actual GPU register-model, live fault or hardware equivalence proof. Header now documents these limits without zero-page fallback advice."
+      }
+    },
+    {
+      "path": "tests/mmio_decode/test_main.c",
+      "mode": "100644",
+      "git_blob": "411d39e120f0452ae6f94cc9f3528d5f066a815c",
+      "sha256": "4b6e33c6a826f5bdb349ad1e07dde904d30b6eb92238e2aea66ad352d8ece066",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "dd07ff368211dacd440bfb33b68eac8816468e00",
+        "scope": "Full NV2A hook C/header ownership read; replace duplicate decoder with generic callbacks, preserve reverse CMP and PVIDEO locking; atomic statistics and checked failure logging",
+        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
+        "limit": "Legacy native VRAM page allocator and GPU allocation lifecycle remain partial/unowned; no actual GPU register-model, live fault or hardware equivalence proof. Header now documents these limits without zero-page fallback advice.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "8ffa9feef6ba84daaf12dde5b9e6ac6ba3a26522",
+          "scope": "Full shared decoder source ownership review; bounded snapshot prevalidation, complete supported memory-form checks, 15-byte limit, REX ordering and checked fault-handler fetch",
+          "evidence": "42 pre-fix assertions fail for 13 register-only forms and overlong encoding; snapshots/truncation/guard-page tests pass Windows/Linux; both game builds pass; tools/reference/ownership_mmio_decoder_frontier.md",
+          "limit": "Supported host x86-64 subset only; no full ISA/native CPU differential/live MMIO or macOS proof. Snapshot fetch adds host read overhead; concurrent instruction modification remains caller lifecycle responsibility.",
+          "prior_review": {
+            "decision": "retain_generic_boundary",
+            "reviewed_at_fork": "eb5e2e4175ae756265d9120e722aa73cced0a4f9",
+            "scope": "Shared MMIO register lane, MOVZX destination and defined status flag semantics across supported MOV/TEST/CMP/OR/AND paths",
+            "evidence": "Eight new pre-fix failures; actual-header checks pass Windows/Linux including 20 CMP edge cases across byte/word/dword/qword; both game builds pass; tools/reference/ownership_mmio_decoder_frontier.md",
+            "limit": "General ModRM form validation and prefix/instruction-byte bounds remain incomplete. No complete decoder/native CPU differential or live MMIO certification; logical AF is undefined and preserved.",
+            "prior_review": {
+              "decision": "retain_generic_boundary",
+              "reviewed_at_fork": "ae79ef6118a9419fbdf552ba50423b4f8c05a61a",
+              "scope": "Full shared MMIO decoder source ownership read; SIB no-base displacement, immediate size/sign extension, REX.W precedence and C6/C7 form validation fixes",
+              "evidence": "tools/reference/ownership_mmio_decoder_frontier.md; six pre-fix failures; existing/new actual-header checks pass Windows/Linux; both game builds pass; migration narrative moved to legacy_mmio_decoder_notes.md",
+              "limit": "High-byte register semantics, complete flags, 16-bit MOVZX destination, general ModRM validation and instruction-byte/prefix bounds remain incomplete. No full decoder, live MMIO or hardware certification."
+            }
           }
         }
       }
@@ -7369,9 +7417,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "bed6086c96e81a89b154a401c1897d0bca6d21ea",
+  "fork_tree": "3f00b8c189dda32568836f09202ee277a07439a5",
   "coverage": {
-    "tracked_files": 648,
+    "tracked_files": 649,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -7389,7 +7437,7 @@
       "include": 2,
       "src": 153,
       "templates": 7,
-      "tests": 209,
+      "tests": 210,
       "tools": 229
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
@@ -7426,7 +7474,8 @@
       "tests/recomp_trace/CMakeLists.txt",
       "tests/recomp_trace/test_main.c",
       "tests/kernel_dispatch/ram_statistics_test.c",
-      "tests/mmio_decode/CMakeLists.txt"
+      "tests/mmio_decode/CMakeLists.txt",
+      "tests/mmio_decode/nv2a_adapter_test.c"
     ],
     "stale_fff_paths": [
       "docs/technical/burnout3-reunification.md",

@@ -71,3 +71,13 @@ The recorded encoding/lane/flag/bounds defects are addressed for this supported
 subset. Source ownership now retains the generic mechanism. No full x86 ISA,
 native CPU differential, live device, macOS, concurrent code mutation or
 performance certification is claimed; the broader fork audit is incomplete.
+
+
+## NV2A consumer adoption
+
+Fork dd07ff3 replaces the duplicate NV2A decoder with shared callbacks.
+Reverse CMP support is retained through the common implementation, tested in
+both operand directions across four widths (40 cases). The actual NV2A adapter
+fixture reproduces five pre-consolidation failures and passes on Windows/Linux.
+Two decoder/adapter CTests and both game builds pass. NV2A VRAM/lifecycle gaps
+are tracked separately in ownership_nv2a_mmio_adapter.md.

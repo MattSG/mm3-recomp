@@ -3186,3 +3186,16 @@ Fork checkpoint for this batch: `364d9d1`.
 - tools/reference/ownership_wait_gamma_renderer.md records the source findings
   and lifecycle/order/backend limits. No fork code change or whole-runtime/
   gameplay certification is claimed; broader ownership work remains open.
+
+
+### Adopt shared generic decoder in NV2A fault handling
+
+- Fork dd07ff3 removes the duplicate NV2A decoder and uses callback
+  adapters around the corrected shared mechanism. Reverse CMP remains supported;
+  PVIDEO locking is preserved, counters are atomic, failure logging is checked.
+- Actual old hook fails five adapter assertions. Final two CTests pass Windows/
+  Linux, including 40 CMP direction/width cases and unreadable-code rejection.
+  Both game builds pass. Old fallback claims/history moved to MM3.
+- Full hook C/header source read. Native VRAM-page and initialization lifecycle
+  gaps remain in tools/reference/ownership_nv2a_mmio_adapter.md; source is still
+  needs_generic_fix outside the consolidated decode path. Broader goal open.
