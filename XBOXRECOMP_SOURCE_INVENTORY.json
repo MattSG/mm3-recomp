@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "ba19bda12d26279c7d570ef6180a699b091685e3",
+  "fork_commit": "b70d7821119a583edde9ea8da0cbd7f1aeec5aa8",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -233,8 +233,15 @@
     {
       "path": "docs/DECOMP.md",
       "mode": "100644",
-      "git_blob": "8bd764194bf77f7815ebc201c743be54f378c6e5",
-      "sha256": "56b9282e5e7cbf4a9588e9991b4b08e5a72ad026a7da5a745dc289f76f3ac623"
+      "git_blob": "2e48c842ae98e2c04198b53e1b5d9e3e4b23c704",
+      "sha256": "e1459f88225b259f01d27e2f59e149b397559f2eb541144a4a492240f454f8d4",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "b70d7821119a583edde9ea8da0cbd7f1aeec5aa8",
+        "scope": "Generic caller-input splitting, byte-range emission and synthetic guide; captured decompilation guide/rationale moved to MM3",
+        "evidence": "Splitter/CLI sources read; executable AST unchanged excluding docstrings; 3 splitter tests pass; real parser/split CLI emits 5 synthetic functions, all byte ranges verified; 5 guide links resolve",
+        "limit": "Ownership and synthetic emission scope, not real-title boundary/ABI correctness, full image-parser safety, assembled/link parity or behavioral conformance of arbitrary functions."
+      }
     },
     {
       "path": "docs/GETTING_STARTED.md",
@@ -5994,13 +6001,27 @@
       "path": "tools/split/__main__.py",
       "mode": "100644",
       "git_blob": "de9a56b21edfd8c132856dfeff5718cf4ec9138e",
-      "sha256": "49d0268148c76ee3aa7f9da9d08dcd5b78c37c3d08d1e23c3e8b8c87b5e00bea"
+      "sha256": "49d0268148c76ee3aa7f9da9d08dcd5b78c37c3d08d1e23c3e8b8c87b5e00bea",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "b70d7821119a583edde9ea8da0cbd7f1aeec5aa8",
+        "scope": "Generic caller-input splitting, byte-range emission and synthetic guide; captured decompilation guide/rationale moved to MM3",
+        "evidence": "Splitter/CLI sources read; executable AST unchanged excluding docstrings; 3 splitter tests pass; real parser/split CLI emits 5 synthetic functions, all byte ranges verified; 5 guide links resolve",
+        "limit": "Ownership and synthetic emission scope, not real-title boundary/ABI correctness, full image-parser safety, assembled/link parity or behavioral conformance of arbitrary functions."
+      }
     },
     {
       "path": "tools/split/splitter.py",
       "mode": "100644",
-      "git_blob": "3b39a095bff7dc1e9a79155213865bb990da95b8",
-      "sha256": "4f6e1be35360d4935fe141e3d3ce831b78e5a3f7c791d79d311fd46de7f025b5"
+      "git_blob": "ea910625078fac38feacf95cb32fea5b1c74755c",
+      "sha256": "798b3fa181eec697992d44207d11e2da23add9a681e859c6b99b87884cd412aa",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "b70d7821119a583edde9ea8da0cbd7f1aeec5aa8",
+        "scope": "Generic caller-input splitting, byte-range emission and synthetic guide; captured decompilation guide/rationale moved to MM3",
+        "evidence": "Splitter/CLI sources read; executable AST unchanged excluding docstrings; 3 splitter tests pass; real parser/split CLI emits 5 synthetic functions, all byte ranges verified; 5 guide links resolve",
+        "limit": "Ownership and synthetic emission scope, not real-title boundary/ABI correctness, full image-parser safety, assembled/link parity or behavioral conformance of arbitrary functions."
+      }
     },
     {
       "path": "tools/split/test_split.py",
@@ -6175,7 +6196,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "2e7d880412c78cbfaa704184b63ef93dd659831c",
+  "fork_tree": "30c3a90fdda39887cbc5c9b63d31e5bed56a59cf",
   "coverage": {
     "tracked_files": 631,
     "tracked_src_files": 153,

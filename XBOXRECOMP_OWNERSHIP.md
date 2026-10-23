@@ -2485,3 +2485,21 @@ Fork checkpoint for this batch: `364d9d1`.
   Evidence: conformance_tmp/ownership-python-{current,msvc,complete}.log/xml.
   Dependency install is isolated in build/ownership-python-deps; user venv
   was not modified. Inventory: 631 paths / 153 src paths. Audit remains open.
+
+
+### Replace captured decompilation guide with synthetic workflow
+
+- Archived the old DECOMP.md (Dashboard bytes/addresses, title coverage counts
+  and RTTI results) plus captured splitter rationale in
+  tools/reference/legacy_decomp_guide.md. The normalized historical guide
+  matches prior source. Shared guide uses actual listing/manifest output from
+  the five-function synthetic XBE and corrects the explicit --xbe conformance
+  invocation; removed claims of guaranteed function discovery/safe execution.
+- Read the splitter and CLI. They operate on caller image/analysis and remain
+  generic. Source changes affect comments/docstrings only; executable AST
+  equality checked after stripping docstrings. Three splitter tests pass.
+- Actual parser and split CLIs emit five synthetic functions; reconstructed db
+  directives match all five original input ranges. All five guide links resolve.
+  Evidence: conformance_tmp/ownership-split-synthetic-check.py and its output
+  directory. This is not original-title boundary/ABI accuracy or link parity.
+  Wider ownership review remains open.
