@@ -3109,3 +3109,17 @@ Fork checkpoint for this batch: `364d9d1`.
   scope and unverified flags, packing, timing and callback-progress limits.
 - Existing dsp_cpu CTest, including DMA cases, passes Windows/Linux. This is not
   full DSP/audio/hardware acceptance. The overall ownership audit remains open.
+
+
+### Review APU state and fix generic stereo target updates
+
+- Fork d7582c4 changes HRTF's zero/unit normalization early break to
+  continue, so the right coefficient target updates independently. New actual
+  header regression fails before the fix and passes for left sums zero/one/two.
+- HRTF CTest, including exact processing state/PCM comparison, passes Windows
+  and Linux; the target is now cross-platform. Both game builds pass.
+- Full APU state header read: generic filters, codec/state and callback API.
+  Captured title statistics/queue observations moved to
+  tools/reference/legacy_apu_state_observations.md. Full scope/limits are in
+  tools/reference/ownership_apu_state.md; no audible/full-APU acceptance claim.
+  The broader ownership audit remains open.

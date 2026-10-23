@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "e7252320435a2da4d1c7cb51b94c4a7966382738",
+  "fork_commit": "d7582c4b740b7cbfc879e2d4d72221db84335419",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -799,9 +799,16 @@
     },
     {
       "path": "src/apu/apu_state.h",
-      "sha256": "76b608ee55ba4aff1329f46cb3d8dd61550c66bce4650cea71976bed87ebf54b",
+      "sha256": "2c98bbd455c4333289203ccd09f12cefee9050062bfbf9ca42d0b9b73f1b5502",
       "mode": "100644",
-      "git_blob": "a1e92bd309445a820eb0c01977bcb958854a2e11"
+      "git_blob": "8e158133503ee9048586fc678e1d0ebc765e4669",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "d7582c4b740b7cbfc879e2d4d72221db84335419",
+        "scope": "Full APU state/filter/ADPCM header read; generic HRTF target loop correction and stereo regression; title/pacing observations archived in MM3",
+        "evidence": "Left sum 0/1 skips right target before fix; sums 0/1/2 now pass Windows/Linux alongside existing exact filter state/PCM comparison; both game builds pass; tools/reference/ownership_apu_state.md",
+        "limit": "No audible-game acceptance or full APU/codec/hardware conformance. ADPCM input/channel preconditions, filter numerical edge behavior and shared-state lifecycle remain wider verification topics."
+      }
     },
     {
       "path": "src/apu/apu_vp.c",
@@ -3284,8 +3291,8 @@
     {
       "path": "tests/dsp/CMakeLists.txt",
       "mode": "100644",
-      "git_blob": "182453f75d76463d0cc90b4c6037f47a194ed8bd",
-      "sha256": "5e64757726843bca9289c53e2444ca0bd07e6e2e40873163ab781f445255f6d2"
+      "git_blob": "5cf5a357aaa80aed75a68e9a0291bd37fb5dbb64",
+      "sha256": "151ecaab8a7427a65fcadb8ac653938fb04941637a1ccaf7c8ac9e54bb4014ba"
     },
     {
       "path": "tests/dsp/apu_dsp_under_test.c",
@@ -3362,8 +3369,15 @@
     {
       "path": "tests/dsp/hrtf_filter_test.c",
       "mode": "100644",
-      "git_blob": "192774a1fb511c99904204fffab560346bdb1d93",
-      "sha256": "bc376fde0a64bf2601a04d8265e6da401773f48f8511e25d57ae6d86e0531b3a"
+      "git_blob": "d96a36db0a59fb73edef0b3726dca90eab97d4bf",
+      "sha256": "476339c0f392409c990709517971f384ba9be4c2d336fcdbb5515bbc63112663",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "d7582c4b740b7cbfc879e2d4d72221db84335419",
+        "scope": "Full APU state/filter/ADPCM header read; generic HRTF target loop correction and stereo regression; title/pacing observations archived in MM3",
+        "evidence": "Left sum 0/1 skips right target before fix; sums 0/1/2 now pass Windows/Linux alongside existing exact filter state/PCM comparison; both game builds pass; tools/reference/ownership_apu_state.md",
+        "limit": "No audible-game acceptance or full APU/codec/hardware conformance. ADPCM input/channel preconditions, filter numerical edge behavior and shared-state lifecycle remain wider verification topics."
+      }
     },
     {
       "path": "tests/dsp/reference/qemu/bswap.h",
@@ -7251,7 +7265,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "1c13c3686e19edf23a3f10d0b1d5dcf38719820d",
+  "fork_tree": "c4af747b2dc14f34182e2da400f722e0c5591467",
   "coverage": {
     "tracked_files": 647,
     "tracked_src_files": 153,
