@@ -2303,3 +2303,33 @@ Fork checkpoint for this batch: `364d9d1`.
   scopes retain needs_port_policy in the inventory; this checkpoint removes the
   fixed alignment policy but does not claim complete depth-view migration,
   packed low-word/stencil fidelity or whole-fork ownership.
+
+
+### Complete ownership migration of the depth proxy
+
+- Removed src/video/shaders/nv2a_y16d.hlsl from the shared tree. Its normalized
+  05c5233 version matches tools/reference/legacy_shared_depth_proxy.md. MM3's
+  existing selected fragment remains the active high-word/alignment policy.
+  The shared pipeline no longer supplies an implicit high-word approximation.
+- The optional caller fragment nv2a_y16d.hlsl activates converter compilation
+  through both shader helpers and the real runtime targets. Without it,
+  cached-depth-as-Y16 draws report the missing conversion and return unsupported
+  before binding/drawing; no proxy is allocated and no stale RAM fallback is
+  used. With it, shared code owns conversion targets, metadata and execution.
+  The source-selection fixture uses its own synthetic depth visualisation.
+- Native colour/depth converters share a checked target constructor. Texture,
+  SRV and RTV creation failures release partial objects and publish no cache;
+  subsequent attempts retry. Actual fault/readback tests cover all three native
+  failure points for both colour and depth and texture failure on SDL GPU.
+- Windows surface 63/63 passes, including unconfigured draw rejection. Configured
+  MM3 readback passes D3D11 1x/4x MSAA, Vulkan and Direct3D12; explicit Vulkan and
+  Direct3D12 absent-converter checks pass too. Default/synthetic shader CTests
+  pass, including disabling/re-enabling in one build directory. Linux shader
+  fixture and kernel 61/61 pass. Both game builds pass. Evidence:
+  conformance_tmp/ownership-depth-* and ownership-depth-owned-validation.json.
+- Vulkan night Cruise run-dz0s8k2b passes in 123.453 seconds with an
+  inspected capture and 1.47077 metres of movement. The inherited
+  MM3 proxy remains an approximation; full generic packed low-word/stencil
+  emulation is unimplemented. This closes this policy migration, not the wider
+  ownership or renderer-fidelity audit. Inventory retains 627 paths,
+  with 152 src paths after removing the shared shader and adding a synthetic test shader.
