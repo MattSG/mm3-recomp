@@ -2771,3 +2771,19 @@ Fork checkpoint for this batch: `364d9d1`.
   interface boundaries remain. Whole-file string-aware executable-token
   equality confirms both edits are comments only. No new runtime proof
   or broad device/GL certification is claimed. Wider review stays open.
+
+
+### Identify independent NV2A wire-decoder failure
+
+- Actual d3d8_vsh parser reads opcode/constant fields from DWORD 0 instead
+  of DWORD 1 in the pinned NV2A reference. Operand mux and destination
+  modeling also require correction. Existing synthetic construction reused
+  production macros and could not detect the mismatch.
+- Added a standalone literal MOV c191 diagnostic under tools/reference; it
+  compiles and fails with MAC NOP/c0/temp, proving a generic correction is
+  required. Pinned source hashes, independent word fixture and required
+  parser/emitter/caller verification are recorded in
+  tools/reference/ownership_vsh_encoding_frontier.md. No decoder fix or
+  broad hardware/renderer certification is claimed in this checkpoint.
+- Decoder/header/test scopes now carry needs_generic_fix. This belongs in
+  the fork; no title-specific workaround is proposed. The goal remains open.
