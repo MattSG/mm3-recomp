@@ -2026,3 +2026,36 @@ Fork checkpoint for this batch: `364d9d1`.
   not a new clean installation, full regeneration or gameplay acceptance run.
 - Source behavior is unchanged by this checkpoint. Linked guides/templates,
   native/thread/object fidelity and whole-fork ownership still require review.
+
+
+### Native thread callback ABI and optional guest system routine
+
+- Native callbacks now distinguish the one-context start routine from the
+  two-argument system routine. Ex supports the optional system callback;
+  ordinal 254 has its own five-argument native wrapper. Termination returns
+  VOID. Primary signature reference:
+  https://github.com/XboxDev/nxdk/blob/master/lib/xboxkrnl/xboxkrnl.h
+- The native facade executes host callbacks, preserves actual host suspension,
+  returns the actual host thread ID and clears outputs on rejected requests.
+  Nonzero thread extension/TLS/debugger requests return NOT_SUPPORTED instead
+  of being silently ignored. Zero stack bytes selects the host default.
+  Start metadata is freed before callbacks that may terminate without returning.
+- Guest Ex with no system routine dispatches its supplied start routine with
+  one context; custom system callbacks retain two arguments. Both creation
+  routes report invalid/missing dispatch entries instead of fake success.
+  Existing log field layout remains compatible with seed consumers.
+- Native optional-system baseline and four guest Ex modes fail before their
+  respective fixes. Seven native tests use real host threads; six guest modes
+  cover optional system entry in inline/spawn modes and missing/unresolved
+  routines for both ordinals. Seven original normalized code/guide blocks
+  are preserved in tools/reference/legacy_native_thread_abi.md from 760ca88.
+- Windows memory 56/56, kernel 62/62 and bridge 42/42 pass. Linux kernel 61/61,
+  seven native and six guest modes, eight existing thread and seventeen unwind
+  modes and actual C++ consumer pass. Both renderer builds and ordinal route
+  audit pass. Evidence: conformance_tmp/ownership-native-thread-*.
+- D3D12 night Cruise run-1mq5tm6c passes in 123.328 seconds,
+  with inspected gameplay capture and 2.17761 metres of movement.
+  This does not establish full thread fidelity: guest suspension/ID output,
+  TLS/extensions, native allocation failure injection, object semantics and
+  whole-fork ownership remain open. Other sections of the kernel guide have
+  not been certified by this scoped correction.
