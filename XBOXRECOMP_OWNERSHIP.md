@@ -3068,3 +3068,21 @@ Fork checkpoint for this batch: `364d9d1`.
   availability approximation, contiguous bounds/alignment/protection, inferred
   free ownership and stub semantics. Source remains needs_generic_fix; broader
   ownership and runtime completion are not claimed.
+
+
+### Replace title-derived pinned allocation with a generic bounded allocator
+
+- Fork bd37081 adds xbox_ContiguousAllocRange with inclusive physical
+  bounds, reusing the existing owned arena, free-span splitting, page rounding,
+  zeroing and heap exclusion. The unconstrained API delegates to full bounds.
+- MmAllocateContiguousMemoryEx now uses the same owned path for every range;
+  the Halo-derived narrow-range shortcut is gone. Original title evidence and
+  allocator stories moved to tools/reference/legacy_pinned_contiguous_policy.md.
+- Original bridge reproduced duplicate issuance of an already-owned exact
+  range. Restored source rejects it; new constrained allocations are tracked.
+  Exact/invalid/reuse/heap/bridge checks pass on Windows/Linux. Full suites pass
+  64 Windows and 63 Linux tests; both game builds pass. Final expanded bridge
+  assertions were rerun on both hosts. Evidence is in the contiguous frontier.
+- Protection/native-wrapper semantics and broader allocator/bridge correctness
+  remain open. This checkpoint is scoped ownership/mechanism proof, not full
+  gameplay, physical-allocation parity or goal completion.
