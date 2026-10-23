@@ -18,6 +18,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="mm3-car-selection-") as temporary:
         folder = Path(temporary)
         shutil.copyfile(ROOT / "src/mm3_recomp_types.h", folder / "recomp_types.h")
+        shutil.copyfile(ROOT / "tools/xboxrecomp/templates/runtime/recomp_types.h", folder / "recomp_base.h")
         executable = folder / f"contract{cc.exe_suffix()}"
         subprocess.run(cc.compile_command(
             [ROOT / "tests/mm3_car_selection_compat_contract.c"], executable,

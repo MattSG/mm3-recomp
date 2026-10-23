@@ -125,6 +125,7 @@ def main():
             (shifter + "\n" + threshold_builder_tail(builder)).replace(
                 "int _flags = 0; /*", "int _flags = 0; (void)_flags; /*"))
         shutil.copyfile(ROOT / "src/mm3_recomp_types.h", folder / "recomp_types.h")
+        shutil.copyfile(ROOT / "tools/xboxrecomp/templates/runtime/recomp_types.h", folder / "recomp_base.h")
         executable = folder / f"contract{cc.exe_suffix()}"
         subprocess.run(cc.compile_command(
             [ROOT / "tests/mm3_gearing_contract.c"], executable,

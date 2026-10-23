@@ -113,6 +113,7 @@ def main():
             needle_branch(original, "needle_original") + "\n" +
             needle_branch(modified, "needle_modified"))
         shutil.copyfile(ROOT / "src/mm3_recomp_types.h", folder / "recomp_types.h")
+        shutil.copyfile(ROOT / "tools/xboxrecomp/templates/runtime/recomp_types.h", folder / "recomp_base.h")
         executable = folder / f"contract{cc.exe_suffix()}"
         subprocess.run(cc.compile_command(
             [ROOT / "tests/mm3_speedometer_contract.c"], executable,

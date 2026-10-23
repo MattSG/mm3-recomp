@@ -19,6 +19,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="mm3-speedometer-dial-") as temporary:
         folder = Path(temporary)
         shutil.copyfile(ROOT / "src/mm3_recomp_types.h", folder / "recomp_types.h")
+        shutil.copyfile(ROOT / "tools/xboxrecomp/templates/runtime/recomp_types.h", folder / "recomp_base.h")
         executable = folder / f"contract{cc.exe_suffix()}"
         subprocess.run(cc.compile_command(
             [ROOT / "tests/mm3_speedometer_dial_contract.c"], executable,

@@ -168,6 +168,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='cpu-diagnostics-', dir=ROOT / 'conformance_tmp') as temporary:
         directory = Path(temporary)
         shutil.copyfile(ROOT / 'src/mm3_recomp_types.h', directory / 'recomp_types.h')
+        shutil.copyfile(ROOT / "tools/xboxrecomp/templates/runtime/recomp_types.h", directory / "recomp_base.h")
         cpu = compile_fixture(directory, 'cpu', cpu_fixture())
         cases = 0
         for cached in (-1, -2, 0, 1):
