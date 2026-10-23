@@ -2809,3 +2809,14 @@ Fork checkpoint for this batch: `364d9d1`.
   Numeric edge behavior, guest upload/ABI, stream declarations, cache identity,
   unsupported-draw propagation and other backend/gameplay fidelity remain
   open. Those source scopes retain needs_generic_fix; the full goal is active.
+
+
+### Bound vertex constant updates before arithmetic
+
+- Fork 81852fd validates start/count before addition and clamps count to the
+  remaining constant file. Large counts no longer overflow; invalid/empty ranges
+  leave the dirty state unchanged. This is generic translator input handling.
+- Added actual-source checks with INT_MAX and INT_MIN. Existing code failed two
+  assertions; corrected code passes the full d3d8_vsh program, including WARP.
+- Handle/FVF discrimination and shader draw-failure propagation remain open.
+  This checkpoint does not establish full translator or gameplay correctness.
