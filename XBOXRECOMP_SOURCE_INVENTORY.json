@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "1b47454faba9a4ab232850e7c817cd1a19250507",
+  "fork_commit": "ed59e671d8ac9ad8e2619020425fc5ae208263f9",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1909,21 +1909,28 @@
     },
     {
       "path": "src/kernel/recomp_trace.c",
-      "sha256": "671d655e06ac7ca190e47e6b2a8aab8131a218507f74dcb81777ed7da24cbd8e",
+      "sha256": "7de3b318d7f84b2c2c415ce21bcf13c6d954aed88f41f5e3f5a0781ffde67bda",
       "mode": "100644",
-      "git_blob": "3bbb4196ded34413912690d73dd5d006cf376447",
+      "git_blob": "376d756251f41259b88079b9e036d4c1694b97f9",
       "ownership_review": {
-        "decision": "needs_generic_fix",
-        "reviewed_at_fork": "1b47454faba9a4ab232850e7c817cd1a19250507",
-        "scope": "Generic checked tracing reads, 32-bit range validation, exact read requirement and LastError preservation; remove low-64MB pointer dump filter",
-        "evidence": "Actual-source guard-page fixture crashes before fix on Windows; plain/args CTests pass 2/2 Windows and 2/2 Linux; both game builds pass; tools/reference/ownership_trace_frontier.md",
-        "limit": "Profile/budget lazy initialization, shared counters/table and borrowed name lifetime remain unresolved; no macOS/live-game trace proof.",
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "ed59e671d8ac9ad8e2619020425fc5ae208263f9",
+        "scope": "Full trace source ownership review plus checked reads, synchronized state initialization/budget/profile reports and process-lifetime owned profile names",
+        "evidence": "Prior source loses concurrent calls and retains mutable borrowed name; four trace CTests pass Windows/Linux, exact 200000 worker counts and 100000 budget admissions, periodic/exit reports; both game builds pass; tools/reference/ownership_trace_frontier.md",
+        "limit": "Diagnostic global lock may contend; names live until process exit. Environment policy is startup-only; signal/reentrant tracing is unsupported. No TSan/macOS/live-game or complete runtime proof.",
         "prior_review": {
           "decision": "needs_generic_fix",
-          "reviewed_at_fork": "a3ac8cc0093e4a038a277e5b6afb7c41ba8be2d8",
-          "scope": "Full source ownership read of function/profile/debug-service diagnostics; migration history moved to MM3",
-          "evidence": "tools/reference/ownership_trace_frontier.md and legacy_trace_migration_notes.md; only selected comment changed; platform checked read primitive inspected",
-          "limit": "Unchecked guest reads and fixed low-memory dump bounds remain; profile/budget initialization and shared tables are unsynchronized; borrowed name lifetime not enforced. No crashing experiment or runtime certification."
+          "reviewed_at_fork": "1b47454faba9a4ab232850e7c817cd1a19250507",
+          "scope": "Generic checked tracing reads, 32-bit range validation, exact read requirement and LastError preservation; remove low-64MB pointer dump filter",
+          "evidence": "Actual-source guard-page fixture crashes before fix on Windows; plain/args CTests pass 2/2 Windows and 2/2 Linux; both game builds pass; tools/reference/ownership_trace_frontier.md",
+          "limit": "Profile/budget lazy initialization, shared counters/table and borrowed name lifetime remain unresolved; no macOS/live-game trace proof.",
+          "prior_review": {
+            "decision": "needs_generic_fix",
+            "reviewed_at_fork": "a3ac8cc0093e4a038a277e5b6afb7c41ba8be2d8",
+            "scope": "Full source ownership read of function/profile/debug-service diagnostics; migration history moved to MM3",
+            "evidence": "tools/reference/ownership_trace_frontier.md and legacy_trace_migration_notes.md; only selected comment changed; platform checked read primitive inspected",
+            "limit": "Unchecked guest reads and fixed low-memory dump bounds remain; profile/budget initialization and shared tables are unsynchronized; borrowed name lifetime not enforced. No crashing experiment or runtime certification."
+          }
         }
       }
     },
@@ -5040,27 +5047,41 @@
     {
       "path": "tests/recomp_trace/CMakeLists.txt",
       "mode": "100644",
-      "git_blob": "1f000573f1932f02e51769623294ec5625bae4e4",
-      "sha256": "9cf439a99c956112e0988546644ac35f5727bb19b36d70aa34ad334f77530155",
+      "git_blob": "7e8faca42bad67acada6db0abf2cea1d9d2efb6e",
+      "sha256": "927b0da5fe9c411a7e8b1dddd55aa9f1286f3929a080d727d8fdbd4edf5b6ca9",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "1b47454faba9a4ab232850e7c817cd1a19250507",
-        "scope": "Generic checked tracing reads, 32-bit range validation, exact read requirement and LastError preservation; remove low-64MB pointer dump filter",
-        "evidence": "Actual-source guard-page fixture crashes before fix on Windows; plain/args CTests pass 2/2 Windows and 2/2 Linux; both game builds pass; tools/reference/ownership_trace_frontier.md",
-        "limit": "Profile/budget lazy initialization, shared counters/table and borrowed name lifetime remain unresolved; no macOS/live-game trace proof."
+        "reviewed_at_fork": "ed59e671d8ac9ad8e2619020425fc5ae208263f9",
+        "scope": "Full trace source ownership review plus checked reads, synchronized state initialization/budget/profile reports and process-lifetime owned profile names",
+        "evidence": "Prior source loses concurrent calls and retains mutable borrowed name; four trace CTests pass Windows/Linux, exact 200000 worker counts and 100000 budget admissions, periodic/exit reports; both game builds pass; tools/reference/ownership_trace_frontier.md",
+        "limit": "Diagnostic global lock may contend; names live until process exit. Environment policy is startup-only; signal/reentrant tracing is unsupported. No TSan/macOS/live-game or complete runtime proof.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "1b47454faba9a4ab232850e7c817cd1a19250507",
+          "scope": "Generic checked tracing reads, 32-bit range validation, exact read requirement and LastError preservation; remove low-64MB pointer dump filter",
+          "evidence": "Actual-source guard-page fixture crashes before fix on Windows; plain/args CTests pass 2/2 Windows and 2/2 Linux; both game builds pass; tools/reference/ownership_trace_frontier.md",
+          "limit": "Profile/budget lazy initialization, shared counters/table and borrowed name lifetime remain unresolved; no macOS/live-game trace proof."
+        }
       }
     },
     {
       "path": "tests/recomp_trace/test_main.c",
       "mode": "100644",
-      "git_blob": "140d04387b1f861019526586c03377c8e067c856",
-      "sha256": "a081f20ca8df26d302d8efe36a5d0f7da662cf013f4c46e95d029534a3493e9c",
+      "git_blob": "12c85a8a321f3a447d8f8094b3fa307bce7237ec",
+      "sha256": "93b3ba15aa815f88777f3c48dbaf60eea4b5080586004637ab676d6269f12533",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "1b47454faba9a4ab232850e7c817cd1a19250507",
-        "scope": "Generic checked tracing reads, 32-bit range validation, exact read requirement and LastError preservation; remove low-64MB pointer dump filter",
-        "evidence": "Actual-source guard-page fixture crashes before fix on Windows; plain/args CTests pass 2/2 Windows and 2/2 Linux; both game builds pass; tools/reference/ownership_trace_frontier.md",
-        "limit": "Profile/budget lazy initialization, shared counters/table and borrowed name lifetime remain unresolved; no macOS/live-game trace proof."
+        "reviewed_at_fork": "ed59e671d8ac9ad8e2619020425fc5ae208263f9",
+        "scope": "Full trace source ownership review plus checked reads, synchronized state initialization/budget/profile reports and process-lifetime owned profile names",
+        "evidence": "Prior source loses concurrent calls and retains mutable borrowed name; four trace CTests pass Windows/Linux, exact 200000 worker counts and 100000 budget admissions, periodic/exit reports; both game builds pass; tools/reference/ownership_trace_frontier.md",
+        "limit": "Diagnostic global lock may contend; names live until process exit. Environment policy is startup-only; signal/reentrant tracing is unsupported. No TSan/macOS/live-game or complete runtime proof.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "1b47454faba9a4ab232850e7c817cd1a19250507",
+          "scope": "Generic checked tracing reads, 32-bit range validation, exact read requirement and LastError preservation; remove low-64MB pointer dump filter",
+          "evidence": "Actual-source guard-page fixture crashes before fix on Windows; plain/args CTests pass 2/2 Windows and 2/2 Linux; both game builds pass; tools/reference/ownership_trace_frontier.md",
+          "limit": "Profile/budget lazy initialization, shared counters/table and borrowed name lifetime remain unresolved; no macOS/live-game trace proof."
+        }
       }
     },
     {
@@ -7126,7 +7147,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "c65ef30c6e933c0a8c42ef9bfab79f1c231a3700",
+  "fork_tree": "b15339788091bc3123ef1ed932ecd374ba3b292f",
   "coverage": {
     "tracked_files": 646,
     "tracked_src_files": 153,

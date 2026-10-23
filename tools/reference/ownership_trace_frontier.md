@@ -42,3 +42,21 @@ Linux fixture build required replacing Windows GetSystemInfo with sysconf.
 Both game builds pass. No macOS or live-game tracing acceptance is claimed.
 Shared profile/budget initialization/state and borrowed names remain open;
 needs_generic_fix stays in place for the source.
+
+
+## Shared-state and name lifetime correction
+
+Fork ed59e67 uses the existing native SRW lock for lazy profile/budget
+state, table counts and periodic/exit reports. Reporting uses a locked helper
+to avoid recursive lock acquisition. Profile names are copied at first entry
+and retained with the process-lifetime table; caller buffers can be released.
+
+The prior Windows fixture loses concurrent call counts and a mutable stack
+name corrupts the stored name. Four CTests now pass on Windows and Linux:
+checked reads, argument dumps, four-thread exact profile counts (200000 worker
+calls plus one name snapshot), and exact budget admission (100000 of 200000
+attempts). The profile fixture exercises periodic and exit reports. Both game
+builds pass. Environment changes during tracing and signal/reentrant tracing
+are unsupported; the global diagnostic lock may contend. No TSan, macOS or
+live-game tracing proof. Recorded read/state/name defects are addressed; source
+ownership is now retain_generic_boundary, not whole-runtime certification.

@@ -3040,3 +3040,17 @@ Fork checkpoint for this batch: `364d9d1`.
   Both game builds pass. Detailed evidence/limits are in the trace frontier.
 - Shared profiler/budget state and borrowed-name lifetime remain unresolved;
   needs_generic_fix is retained. No live-game/macOS or full ownership claim.
+
+
+### Synchronize generic tracing and own stored names
+
+- Fork ed59e67 serializes lazy state, counters, budget and reports
+  through the existing SRW lock. Profile names are copied for table lifetime.
+  Prior source reproduced lost concurrent counts and invalid borrowed names.
+- Four trace CTests pass on Windows/Linux, including exact concurrent profile
+  counts, exact budget admission, periodic/exit reporting and checked reads.
+  Both game builds pass. The trace frontier records full evidence and limits.
+- Recorded trace defects are addressed; source ownership is retain_generic_boundary.
+  Startup-only environment policy, process-lifetime name storage, possible lock
+  contention and unsupported signal/reentrant use remain explicit limits.
+  The broader fork ownership goal is still incomplete.
