@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "2b6936e54ca64e9e74e431bb6840f329c4fb302d",
+  "fork_commit": "95f5f9c17dec7c60263e154901ea145cac9dce82",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1370,9 +1370,16 @@
     },
     {
       "path": "src/kernel/CMakeLists.txt",
-      "sha256": "751ca2413e8355b768d1759beeebfd32271997d737284c497b8f63532260801b",
+      "sha256": "21aebcbf11b83bd5028a8ff9d5e63a574f4ec8db1b071531668c8fa6e239ed4e",
       "mode": "100644",
-      "git_blob": "19c15b1b783046229919117b4ea45f0b34de5a0c"
+      "git_blob": "a742caaf71df5b6406f82f2f9cfcc168bdd19a29",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "95f5f9c17dec7c60263e154901ea145cac9dce82",
+        "scope": "Full source ownership read of four host/input/profile interface headers and four USB/network/NV2A/kernel build files; no title policy/data found",
+        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/reference/legacy_kernel_build_claims.md",
+        "limit": "Declaration/build ownership only. No new concurrency/USB protocol/Tracy/platform or complete runtime certification. Volatile shared window declarations do not establish thread safety."
+      }
     },
     {
       "path": "src/kernel/README.md",
@@ -2111,7 +2118,14 @@
       "path": "src/net/CMakeLists.txt",
       "sha256": "bcc84e333bc3b00972038e62f73debb7e89845a2b41fef00ba107c28e28d0c9a",
       "mode": "100644",
-      "git_blob": "6fbef323b865aa66bb9b33116c512789e64e48a5"
+      "git_blob": "6fbef323b865aa66bb9b33116c512789e64e48a5",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "95f5f9c17dec7c60263e154901ea145cac9dce82",
+        "scope": "Full source ownership read of four host/input/profile interface headers and four USB/network/NV2A/kernel build files; no title policy/data found",
+        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/reference/legacy_kernel_build_claims.md",
+        "limit": "Declaration/build ownership only. No new concurrency/USB protocol/Tracy/platform or complete runtime certification. Volatile shared window declarations do not establish thread safety."
+      }
     },
     {
       "path": "src/net/net.h",
@@ -2169,7 +2183,14 @@
       "path": "src/nv2a/CMakeLists.txt",
       "sha256": "cb594a76816b004b9fa98ec481abb1f81ade93042684c87d9119fb8705ed7f53",
       "mode": "100644",
-      "git_blob": "0920d97ea1c1095c7af34ce9eeff5d9901f0ba35"
+      "git_blob": "0920d97ea1c1095c7af34ce9eeff5d9901f0ba35",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "95f5f9c17dec7c60263e154901ea145cac9dce82",
+        "scope": "Full source ownership read of four host/input/profile interface headers and four USB/network/NV2A/kernel build files; no title policy/data found",
+        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/reference/legacy_kernel_build_claims.md",
+        "limit": "Declaration/build ownership only. No new concurrency/USB protocol/Tracy/platform or complete runtime certification. Volatile shared window declarations do not establish thread safety."
+      }
     },
     {
       "path": "src/nv2a/README.md",
@@ -2271,7 +2292,14 @@
       "path": "src/platform/recomp_profile.h",
       "sha256": "3b7563c2d8902ee2641f626cfcbe865485df12d227ca7dce0a96051fdb768e0e",
       "mode": "100644",
-      "git_blob": "2f9fbd1c009495402c9bfc4b8535fcbe9e6b99f8"
+      "git_blob": "2f9fbd1c009495402c9bfc4b8535fcbe9e6b99f8",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "95f5f9c17dec7c60263e154901ea145cac9dce82",
+        "scope": "Full source ownership read of four host/input/profile interface headers and four USB/network/NV2A/kernel build files; no title policy/data found",
+        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/reference/legacy_kernel_build_claims.md",
+        "limit": "Declaration/build ownership only. No new concurrency/USB protocol/Tracy/platform or complete runtime certification. Volatile shared window declarations do not establish thread safety."
+      }
     },
     {
       "path": "src/platform/win32_compat.c",
@@ -2295,7 +2323,14 @@
       "path": "src/usb/CMakeLists.txt",
       "sha256": "31c29c8f58ab1648c85dcc6d7726c0c640aff3cec91a261028d2b5d7f423cf0d",
       "mode": "100644",
-      "git_blob": "88cf726a117b7046ec42d6046330abdd3c2a494a"
+      "git_blob": "88cf726a117b7046ec42d6046330abdd3c2a494a",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "95f5f9c17dec7c60263e154901ea145cac9dce82",
+        "scope": "Full source ownership read of four host/input/profile interface headers and four USB/network/NV2A/kernel build files; no title policy/data found",
+        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/reference/legacy_kernel_build_claims.md",
+        "limit": "Declaration/build ownership only. No new concurrency/USB protocol/Tracy/platform or complete runtime certification. Volatile shared window declarations do not establish thread safety."
+      }
     },
     {
       "path": "src/usb/ohci.c",
@@ -2340,7 +2375,14 @@
       "path": "src/usb/usb_gamepad.h",
       "sha256": "b759a92c444094a3d3080bef92aa5df260d0fc186090eff7741ea5e6a14b173c",
       "mode": "100644",
-      "git_blob": "18291d77f757098a24357381dd8cab34b8b3979a"
+      "git_blob": "18291d77f757098a24357381dd8cab34b8b3979a",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "95f5f9c17dec7c60263e154901ea145cac9dce82",
+        "scope": "Full source ownership read of four host/input/profile interface headers and four USB/network/NV2A/kernel build files; no title policy/data found",
+        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/reference/legacy_kernel_build_claims.md",
+        "limit": "Declaration/build ownership only. No new concurrency/USB protocol/Tracy/platform or complete runtime certification. Volatile shared window declarations do not establish thread safety."
+      }
     },
     {
       "path": "src/video/CMakeLists.txt",
@@ -2385,7 +2427,14 @@
       "path": "src/video/fb_window.h",
       "sha256": "7b2995d5abe40233b59651e118cfd4f6f81c09294329c8524a0dcb174d59a54f",
       "mode": "100644",
-      "git_blob": "cbf9158cfb4e77b35e8f4ebf32166f0bca05f7ac"
+      "git_blob": "cbf9158cfb4e77b35e8f4ebf32166f0bca05f7ac",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "95f5f9c17dec7c60263e154901ea145cac9dce82",
+        "scope": "Full source ownership read of four host/input/profile interface headers and four USB/network/NV2A/kernel build files; no title policy/data found",
+        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/reference/legacy_kernel_build_claims.md",
+        "limit": "Declaration/build ownership only. No new concurrency/USB protocol/Tracy/platform or complete runtime certification. Volatile shared window declarations do not establish thread safety."
+      }
     },
     {
       "path": "src/video/fb_window_sdl.c",
@@ -2397,7 +2446,14 @@
       "path": "src/video/fb_window_sdl.h",
       "sha256": "152cf3c4aa45c8d3ff5c166cfa1c5fbf8fd3222935968a9b6cd38451ed226cee",
       "mode": "100644",
-      "git_blob": "f8b8efcb2a81931d54c51a4150fee26a5961f6e5"
+      "git_blob": "f8b8efcb2a81931d54c51a4150fee26a5961f6e5",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "95f5f9c17dec7c60263e154901ea145cac9dce82",
+        "scope": "Full source ownership read of four host/input/profile interface headers and four USB/network/NV2A/kernel build files; no title policy/data found",
+        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/reference/legacy_kernel_build_claims.md",
+        "limit": "Declaration/build ownership only. No new concurrency/USB protocol/Tracy/platform or complete runtime certification. Volatile shared window declarations do not establish thread safety."
+      }
     },
     {
       "path": "src/video/fb_window_win32.c",
@@ -7016,7 +7072,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "f66b87559207629c8ec8b4ffc8327609bdee4d03",
+  "fork_tree": "1fb2c2ddace250784c8d00151fc119be27f5b6da",
   "coverage": {
     "tracked_files": 644,
     "tracked_src_files": 153,

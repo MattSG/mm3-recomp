@@ -2984,3 +2984,19 @@ Fork checkpoint for this batch: `364d9d1`.
 - This closes the two reporting gaps recorded above. Raw-address constructor
   matching remains heuristic, not semantic/ABI proof. No title-specific policy
   or data was added; the broader ownership audit remains open.
+
+
+### Review generic interface headers and subsystem build files
+
+- Fork 95f5f9c removes the historical 147-import completion claim
+  from the kernel build comment; original wording moved to MM3 at
+  tools/reference/legacy_kernel_build_claims.md. Non-comment CMake commands
+  compare equal; no build options, dependencies or executable code changed.
+- Read four complete interface headers: fb_window.h, fb_window_sdl.h,
+  recomp_profile.h and usb_gamepad.h, plus USB/network/NV2A/kernel CMake files.
+  These expose generic window callbacks, input/controller/profiling mechanisms
+  and subsystem dependencies; no title dataset or policy was found.
+- Decisions cover declaration/build ownership. They do not prove thread safety
+  of volatile shared state, USB fidelity, Tracy integration or full runtime
+  behavior. No build/runtime rerun for this comment-only change. Remaining
+  implementation bodies and the overall ownership audit stay open.
