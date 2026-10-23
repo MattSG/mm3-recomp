@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "03cf828df4804ff1702f24c56fb4632c8c8819fc",
+  "fork_commit": "bb4f7e17ffaf6bbd6c22e73b2a524b5016511582",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -594,8 +594,15 @@
     {
       "path": "include/xbox/xboxrecomp.h",
       "mode": "100644",
-      "git_blob": "b8332e3df935531171d40fd55e594286d06bff2b",
-      "sha256": "6c822a41e05ce7b234b2e4a90107b7a1972855117c1d51b16f0376f1c7b7b4a0"
+      "git_blob": "4561fd69dcf61973537541b84f711ab3e1adbb71",
+      "sha256": "37f2ba26c844cef9dc0d65fd074d15c303a8765a855a94cc5c71e6f8453864d2",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "bb4f7e17ffaf6bbd6c22e73b2a524b5016511582",
+        "scope": "Optional synchronous stop handler and explicit executor integration; implicit odd/128 recovery removed from scanner and shared tests",
+        "evidence": "Windows kernel 62/62, Linux kernel 61/61, MM3 recovery 1/1, both renderer builds; Vulkan run-1i7xopyf with inspected capture and 1.43926m movement",
+        "limit": "Scoped ownership migration only. Runtime run had zero malformed stops, so recovery branch proof is synthetic. Existing consume-to-PUT behavior, decoder/window assumptions and full fence/hardware fidelity remain outside this checkpoint."
+      }
     },
     {
       "path": "src/README.md",
@@ -1514,28 +1521,55 @@
       "git_blob": "d7fe2b711efaab24528e0969716191c8a00ba822"
     },
     {
-      "path": "src/kernel/nv2a_pb_exec.c",
-      "sha256": "72ec22b40a8112a5745fd77182deb64ad6879907a6109aeb7efba76df5d18283",
+      "path": "src/kernel/nv2a_pb.h",
       "mode": "100644",
-      "git_blob": "007b416fae0dbebdf53e61fa8e69b713184e1fed"
+      "git_blob": "c4c70757e4f24c59dc76a8ccd99af71541542455",
+      "sha256": "e3b67f9ec8977cfa06c2c0acece6ac56341dc49a3cffbe13bdb82ec25d566961",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "bb4f7e17ffaf6bbd6c22e73b2a524b5016511582",
+        "scope": "Optional synchronous stop handler and explicit executor integration; implicit odd/128 recovery removed from scanner and shared tests",
+        "evidence": "Windows kernel 62/62, Linux kernel 61/61, MM3 recovery 1/1, both renderer builds; Vulkan run-1i7xopyf with inspected capture and 1.43926m movement",
+        "limit": "Scoped ownership migration only. Runtime run had zero malformed stops, so recovery branch proof is synthetic. Existing consume-to-PUT behavior, decoder/window assumptions and full fence/hardware fidelity remain outside this checkpoint."
+      }
+    },
+    {
+      "path": "src/kernel/nv2a_pb_exec.c",
+      "sha256": "858892023f1cb39d10c270eb07e7b565b482cb580f28f2768c450dcad7d770dd",
+      "mode": "100644",
+      "git_blob": "4ca5af93d2fe574c3a6d4408314e249978f0fd89",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "bb4f7e17ffaf6bbd6c22e73b2a524b5016511582",
+        "scope": "Optional synchronous stop handler and explicit executor integration; implicit odd/128 recovery removed from scanner and shared tests",
+        "evidence": "Windows kernel 62/62, Linux kernel 61/61, MM3 recovery 1/1, both renderer builds; Vulkan run-1i7xopyf with inspected capture and 1.43926m movement",
+        "limit": "Scoped ownership migration only. Runtime run had zero malformed stops, so recovery branch proof is synthetic. Existing consume-to-PUT behavior, decoder/window assumptions and full fence/hardware fidelity remain outside this checkpoint."
+      }
     },
     {
       "path": "src/kernel/nv2a_pb_scan.c",
-      "sha256": "3acadcb22bee1bb89fc5f055648fb0292a6c46c394304940c8dc343bb1ccbf22",
+      "sha256": "29bc05df2ae24621fc9e29b43f05a0b6b30c7eb48eaddbd8f47ccba3a4da43db",
       "mode": "100644",
-      "git_blob": "92659cbb06955f057b99f13ff3b01055e86f9106",
+      "git_blob": "12706488da92d65f520df01c69ea00b882271642",
       "ownership_review": {
-        "decision": "needs_port_policy",
-        "reviewed_at_fork": "03cf828df4804ff1702f24c56fb4632c8c8819fc",
-        "scope": "Malformed-stream stop recovery guesses semaphore releases from unparsed payload using odd/increment<=128 rule",
-        "evidence": "Current helper, stop call site and explicit synthetic test expectation inspected; see tools/reference/ownership_pushbuffer_stop_frontier.md",
-        "limit": "Finding only; migration, default no-release proof and caller-owned recovery remain outstanding.",
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "bb4f7e17ffaf6bbd6c22e73b2a524b5016511582",
+        "scope": "Optional synchronous stop handler and explicit executor integration; implicit odd/128 recovery removed from scanner and shared tests",
+        "evidence": "Windows kernel 62/62, Linux kernel 61/61, MM3 recovery 1/1, both renderer builds; Vulkan run-1i7xopyf with inspected capture and 1.43926m movement",
+        "limit": "Scoped ownership migration only. Runtime run had zero malformed stops, so recovery branch proof is synthetic. Existing consume-to-PUT behavior, decoder/window assumptions and full fence/hardware fidelity remain outside this checkpoint.",
         "prior_review": {
-          "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
-          "scope": "Pre-execution full-ring capture and generic producer JSON; other scanner behavior retains only prior scoped reviews",
-          "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
-          "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity."
+          "decision": "needs_port_policy",
+          "reviewed_at_fork": "03cf828df4804ff1702f24c56fb4632c8c8819fc",
+          "scope": "Malformed-stream stop recovery guesses semaphore releases from unparsed payload using odd/increment<=128 rule",
+          "evidence": "Current helper, stop call site and explicit synthetic test expectation inspected; see tools/reference/ownership_pushbuffer_stop_frontier.md",
+          "limit": "Finding only; migration, default no-release proof and caller-owned recovery remain outstanding.",
+          "prior_review": {
+            "decision": "retain_generic_boundary",
+            "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
+            "scope": "Pre-execution full-ring capture and generic producer JSON; other scanner behavior retains only prior scoped reviews",
+            "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
+            "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity."
+          }
         }
       }
     },
@@ -3257,20 +3291,27 @@
     {
       "path": "tests/kernel_dispatch/nv2a_pb_hitch_test.c",
       "mode": "100644",
-      "git_blob": "f48a8a8b311de8fd92cecf46545ec7a58ae81613",
-      "sha256": "a537902eadd6dd49241318107d0736815b6426b97dc1344cb7942dc5b73b0645",
+      "git_blob": "30b80d837506aac2c9349ca286329a9cbe0eb364",
+      "sha256": "a38795079a9c4efd49ae0a272c4357a88a5b7832e072ee47f7e45f0cfce36512",
       "ownership_review": {
-        "decision": "needs_port_policy",
-        "reviewed_at_fork": "03cf828df4804ff1702f24c56fb4632c8c8819fc",
-        "scope": "Malformed-stream stop recovery guesses semaphore releases from unparsed payload using odd/increment<=128 rule",
-        "evidence": "Current helper, stop call site and explicit synthetic test expectation inspected; see tools/reference/ownership_pushbuffer_stop_frontier.md",
-        "limit": "Finding only; migration, default no-release proof and caller-owned recovery remain outstanding.",
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "bb4f7e17ffaf6bbd6c22e73b2a524b5016511582",
+        "scope": "Optional synchronous stop handler and explicit executor integration; implicit odd/128 recovery removed from scanner and shared tests",
+        "evidence": "Windows kernel 62/62, Linux kernel 61/61, MM3 recovery 1/1, both renderer builds; Vulkan run-1i7xopyf with inspected capture and 1.43926m movement",
+        "limit": "Scoped ownership migration only. Runtime run had zero malformed stops, so recovery branch proof is synthetic. Existing consume-to-PUT behavior, decoder/window assumptions and full fence/hardware fidelity remain outside this checkpoint.",
         "prior_review": {
-          "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
-          "scope": "Version-2 snapshot/ring metadata fixture and captured-word/full-ring preservation",
-          "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
-          "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity."
+          "decision": "needs_port_policy",
+          "reviewed_at_fork": "03cf828df4804ff1702f24c56fb4632c8c8819fc",
+          "scope": "Malformed-stream stop recovery guesses semaphore releases from unparsed payload using odd/increment<=128 rule",
+          "evidence": "Current helper, stop call site and explicit synthetic test expectation inspected; see tools/reference/ownership_pushbuffer_stop_frontier.md",
+          "limit": "Finding only; migration, default no-release proof and caller-owned recovery remain outstanding.",
+          "prior_review": {
+            "decision": "retain_generic_boundary",
+            "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
+            "scope": "Version-2 snapshot/ring metadata fixture and captured-word/full-ring preservation",
+            "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
+            "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity."
+          }
         }
       }
     },
@@ -5941,10 +5982,10 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "0e1ad80cb98df7630eebc9a96cb01f1ebb435bae",
+  "fork_tree": "baabfb56ca1c8637d52b7cd479b352a3c39cd5e4",
   "coverage": {
-    "tracked_files": 627,
-    "tracked_src_files": 152,
+    "tracked_files": 628,
+    "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
       ".gitignore": 1,
@@ -5959,7 +6000,7 @@
       "cmake": 7,
       "docs": 30,
       "include": 2,
-      "src": 152,
+      "src": 153,
       "templates": 7,
       "tests": 200,
       "tools": 218
@@ -5968,6 +6009,7 @@
     "tracked_paths_missing_from_fff": [
       "docs/technical/fusion-analysis.md",
       "docs/technical/shader-overrides.md",
+      "src/kernel/nv2a_pb.h",
       "tests/cmake_sdlgpu/CMakeLists.txt",
       "tests/cmake_sdlgpu/port/nv2a_y16d.hlsl",
       "tests/cmake_sdlgpu/verify_shader_sources.cmake",

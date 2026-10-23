@@ -2361,3 +2361,23 @@ Fork checkpoint for this batch: `364d9d1`.
   require the heuristic, so they do not establish hardware-correct recovery.
   No executable behavior changed. Generic stopped-submission support, MM3-owned
   compatibility recovery and runtime verification remain required.
+
+
+### Move malformed-stream fence recovery into MM3
+
+- Shared nv2a_pb.h exposes a startup/quiesced synchronous stop handler and
+  existing executor primitives. NULL is the default and removes the handler.
+  Scanner bounds, continuation and consume-to-PUT behavior remain; it no longer
+  searches undecoded payload for semaphore commands. Survey mode never calls
+  recovery. The MM3 startup registers src/mm3_pb_recovery.c, which owns the
+  inherited odd/increment<=128 compatibility rule and validates its read span.
+- Shared tests prove no inferred release by default, exact callback arguments,
+  explicit caller work, no callback for valid work/survey, and removal via NULL.
+  The separate MM3 fixture covers selection, rejected values, unreadable/wrapped
+  and unaligned spans, and a header truncated before PUT. Windows kernel 62/62,
+  Linux kernel 61/61, MM3 fixture 1/1 pass; both renderer game builds pass.
+- Vulkan night Cruise run-1i7xopyf passes in 124.265 seconds with an inspected
+  capture and 1.43926m movement. This run has no malformed stops; branch proof
+  comes from synthetic tests, not gameplay. Evidence: conformance_tmp/ownership-stop-*.
+  MM3 retains an explicit approximation, not hardware-correct recovery.
+  Inventory covers 628 paths / 153 src paths. Wider ownership remains open.

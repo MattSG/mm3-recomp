@@ -1,6 +1,21 @@
 # Pushbuffer stop recovery ownership frontier
 
-Status: unresolved at fork 03cf828. This is an ownership finding, not a fix.
+Status: policy migration implemented after fork 03cf828. Historical finding
+and source excerpts below are retained as evidence.
+
+The fork now exposes `nv2a_pb_set_stop_handler` in `nv2a_pb.h`. Its default
+is NULL and executes no inferred semaphore release. The synchronous handler
+runs only in execution mode on malformed work, before existing packet/call
+cleanup and resume-at-PUT. Work-cap yields and partial packets use their
+existing continuation path. Configuration is startup/quiesced; NULL removes
+the callback. Positions are not a validated readable span.
+
+MM3 registers `mm3_pb_recover_stop` from `src/mm3_pb_recovery.c` at startup.
+It owns the inherited odd/128 heuristic and validates its own contiguous
+span before reading it. This preserves the compatibility approximation;
+it does not fix malformed submissions or prove hardware fence behavior.
+Default no-release/caller isolation and separate MM3 policy tests replace
+the shared test's implicit requirement for the heuristic.
 
 `src/kernel/nv2a_pb_scan.c::pb_walk` routes invalid JUMP/CALL targets and
 out-of-window reads through `stop`. That path discards packet/call state,
@@ -15,7 +30,7 @@ A passing test protects the current compatibility policy; it does not prove
 hardware semantics. Bounds checks and scheduler continuation are separate
 mechanisms and should remain generic.
 
-Required migration: expose a generic stopped-submission notification/recovery
+Original migration requirements: expose a generic stopped-submission notification/recovery
 boundary, with the caller receiving the stopped position, submitted PUT and
 reason. Shared defaults must not infer semaphore commands from undecoded
 payload. MM3 must own any compatibility recovery it still needs, including
