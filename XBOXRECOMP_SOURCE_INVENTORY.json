@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "a29e5005c7b194022ec757e55576bdfc4d9e830d",
+  "fork_commit": "1ca3db460e10cf4d3f77a23e3443148e8b4bde82",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -5339,14 +5339,28 @@
     {
       "path": "tools/ghidra_naming/README.md",
       "mode": "100644",
-      "git_blob": "413275ac54b688dec77001bbbf9e072a82bdcc3e",
-      "sha256": "6b97d119c472e7694495ac204244337a34d85e0bcd03b36914bb3c109077e1ca"
+      "git_blob": "574f2955be36d34db3e73decdbb9185fc11b96e0",
+      "sha256": "ad63ff4117d630ca7a2dbd681b02586da20c06340ff7d538c8d01cca8444cb1a",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1ca3db460e10cf4d3f77a23e3443148e8b4bde82",
+        "scope": "Caller-header-derived flat image and import base; captured naming guide/statistics moved to MM3",
+        "evidence": "Builder/runner read; old runner mock fails at 0x10000 instead of metadata 0x20000. Linux 2 tests pass; Windows 1 passed, POSIX fixture skipped, 2 base subtests pass; bash syntax and 3 guide links pass",
+        "limit": "Synthetic placement and mocked argv only, not live Ghidra analysis, version compatibility, complete parser validation or imported-project identity. Existing IMPORT=0 projects are not rebased/verified."
+      }
     },
     {
       "path": "tools/ghidra_naming/extract_for_ghidra.py",
       "mode": "100644",
-      "git_blob": "b773285e5b5b701d90cde106e3fbaf5f65c400da",
-      "sha256": "655ec57f405e1d4e9a5671ad2395ffcbba1b92d72cc2ada15572ef4bb6656fab"
+      "git_blob": "a8ab28cc874ed930254f0e933b2c752980ca3dbc",
+      "sha256": "2a8d099c86bbc603e73fa2b273c4cb2dc93c40ed3f209009c5acffbac777c251",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1ca3db460e10cf4d3f77a23e3443148e8b4bde82",
+        "scope": "Caller-header-derived flat image and import base; captured naming guide/statistics moved to MM3",
+        "evidence": "Builder/runner read; old runner mock fails at 0x10000 instead of metadata 0x20000. Linux 2 tests pass; Windows 1 passed, POSIX fixture skipped, 2 base subtests pass; bash syntax and 3 guide links pass",
+        "limit": "Synthetic placement and mocked argv only, not live Ghidra analysis, version compatibility, complete parser validation or imported-project identity. Existing IMPORT=0 projects are not rebased/verified."
+      }
     },
     {
       "path": "tools/ghidra_naming/ghidra_scripts/ClassifyTargets.java",
@@ -5387,8 +5401,28 @@
     {
       "path": "tools/ghidra_naming/run_ghidra.sh",
       "mode": "100644",
-      "git_blob": "93925f8d3ea575395e63e0930f82a89031afce4e",
-      "sha256": "ef7a8717930854ed8093f8858db4e59ccf63a8219d011af0ff3165b328f5247b"
+      "git_blob": "ef5f25b0b985e0f86d995e63f3dbc59d30a66ca3",
+      "sha256": "3efd7bfbceff051255f9f57a34f4c85871f3d4b25bde68e4eb547b26d434c741",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1ca3db460e10cf4d3f77a23e3443148e8b4bde82",
+        "scope": "Caller-header-derived flat image and import base; captured naming guide/statistics moved to MM3",
+        "evidence": "Builder/runner read; old runner mock fails at 0x10000 instead of metadata 0x20000. Linux 2 tests pass; Windows 1 passed, POSIX fixture skipped, 2 base subtests pass; bash syntax and 3 guide links pass",
+        "limit": "Synthetic placement and mocked argv only, not live Ghidra analysis, version compatibility, complete parser validation or imported-project identity. Existing IMPORT=0 projects are not rebased/verified."
+      }
+    },
+    {
+      "path": "tools/ghidra_naming/test_extract.py",
+      "mode": "100644",
+      "git_blob": "a4b81203706c03c637bfaf635b857c550eb8bd36",
+      "sha256": "87da0a228ef309837fd00bea8bb38aa391cee0a8e184818a380b4530bfe2586d",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1ca3db460e10cf4d3f77a23e3443148e8b4bde82",
+        "scope": "Caller-header-derived flat image and import base; captured naming guide/statistics moved to MM3",
+        "evidence": "Builder/runner read; old runner mock fails at 0x10000 instead of metadata 0x20000. Linux 2 tests pass; Windows 1 passed, POSIX fixture skipped, 2 base subtests pass; bash syntax and 3 guide links pass",
+        "limit": "Synthetic placement and mocked argv only, not live Ghidra analysis, version compatibility, complete parser validation or imported-project identity. Existing IMPORT=0 projects are not rebased/verified."
+      }
     },
     {
       "path": "tools/ghidra_naming/test_merge_names.py",
@@ -6230,9 +6264,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "35fb5faf72fb15ab1c2c1210fb9e16a77cc8aa7e",
+  "fork_tree": "9f7034610a72ecb50c8b60eabb1baa4d77e0f8f3",
   "coverage": {
-    "tracked_files": 632,
+    "tracked_files": 633,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -6251,7 +6285,7 @@
       "src": 153,
       "templates": 7,
       "tests": 200,
-      "tools": 222
+      "tools": 223
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
     "tracked_paths_missing_from_fff": [
@@ -6271,7 +6305,8 @@
       "tools/conformance/test_mkxbe.py",
       "tools/func_id/test_keywords.py",
       "tools/func_id/test_rw_versions.py",
-      "tools/fusion/test_module.py"
+      "tools/fusion/test_module.py",
+      "tools/ghidra_naming/test_extract.py"
     ],
     "stale_fff_paths": [
       "docs/technical/burnout3-reunification.md",

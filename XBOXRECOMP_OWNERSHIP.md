@@ -2522,3 +2522,22 @@ Fork checkpoint for this batch: `364d9d1`.
   Both local guide links resolve; archived guide matches prior normalized text.
   Accepting an ID tag does not prove library ABI compatibility or correctness
   of region heuristics. Inventory: 632 paths / 153 src paths. Audit remains open.
+
+
+### Derive Ghidra import origin from the caller image
+
+- The flat-image builder already uses the XBE header base, but the runner
+  imported every image at literal 0x10000. The runner now reads base_address
+  from generated sections.json and forwards it as a quoted headless argument.
+  Its old mock invocation fails the relocated-base assertion; corrected one
+  passes. Removed captured size/layout assumptions from builder/runner docs.
+- Synthetic tests verify byte placement/zero gaps at bases 0x10000 and 0x20000
+  and mock headless argv forwarding. Linux 2/2 passes; Windows image test passes
+  with two subtests and the POSIX shell fixture is skipped. bash -n passes.
+  Evidence includes conformance_tmp/ownership-ghidra-base-check.py.
+- Archived previous builder documentation and complete naming guide, including
+  captured title counts/results, in tools/reference/legacy_ghidra_import_assumptions.md.
+  Historical guide matches normalized old source; 3 replacement-guide links
+  resolve. No live Ghidra analysis was run, and IMPORT=0 does not validate or
+  rebase an existing program. No game runtime changed. Inventory now covers
+  633 paths / 153 src paths. Broader ownership remains open.
