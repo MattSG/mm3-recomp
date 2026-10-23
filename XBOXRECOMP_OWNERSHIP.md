@@ -2820,3 +2820,19 @@ Fork checkpoint for this batch: `364d9d1`.
   assertions; corrected code passes the full d3d8_vsh program, including WARP.
 - Handle/FVF discrimination and shader draw-failure propagation remain open.
   This checkpoint does not establish full translator or gameplay correctness.
+
+
+### Separate opaque host shader handles from full-width FVFs
+
+- Fork 107a484 replaces the 0x10000 magnitude test with host handle bit 0
+  tagging and matching slot decoding. Upper FVF bits describe texture coordinate
+  dimensions and must not imply a programmable shader. The old Xbox handle
+  claim was removed: host API handles are opaque, not guest binary handles.
+- Actual-source regression failed 65535 upper-bit combinations before the fix;
+  all 65536 now pass. Two live handles remain distinct/deletable; FVF and
+  out-of-range deletion fail. All five D3D8 programs and both game builds pass.
+- Reserved FVF fields are documented by Microsoft:
+  https://github.com/MicrosoftDocs/win32/blob/docs/desktop-src/direct3d9/d3dfvf.md
+  This supports the host convention, not certification of guest Xbox handles.
+- Draw failure propagation, shader cache identity, handle lifetime/reuse and
+  guest declaration/upload adaptation remain open; no gameplay parity claim.

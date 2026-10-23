@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "81852fdd92d20a30fb5be003bf90abd19c841ff4",
+  "fork_commit": "107a484b5e7590e363e5e466b4bf01a9d71905e1",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1226,9 +1226,9 @@
     },
     {
       "path": "src/d3d/d3d8_vsh.c",
-      "sha256": "3b14c211125b7fceea1300e191fe76bb11319b7d850ec0a023c9f42a839d7717",
+      "sha256": "171d11df4a1422d30f888b7b786d05394544f46199c649767096003165fb8299",
       "mode": "100644",
-      "git_blob": "02253244654621496d4c5b8e33ae662eeecf33aa",
+      "git_blob": "2d014229170c8cdd493eb25fc2ed9c92d0c57c87",
       "ownership_review": {
         "decision": "needs_generic_fix",
         "reviewed_at_fork": "a6e278ed78554a2d5e6c8325f0c9f42ef8b94961",
@@ -1246,9 +1246,9 @@
     },
     {
       "path": "src/d3d/d3d8_vsh.h",
-      "sha256": "191310e3dcff7d815150ff53063023d558e6e2064d5cc4629424e8b4e504e64b",
+      "sha256": "09743fb46947ac09a6bdbd84946ee0904e84ac615b3103df37c4f265efb9457a",
       "mode": "100644",
-      "git_blob": "25e52d08a45847251d67732f36b6a699c3e73522",
+      "git_blob": "9f9ecaa9e7dfb42566f2217daadef3ec8d5e4da1",
       "ownership_review": {
         "decision": "needs_generic_fix",
         "reviewed_at_fork": "a6e278ed78554a2d5e6c8325f0c9f42ef8b94961",
@@ -3089,8 +3089,8 @@
     {
       "path": "tests/d3d8_smoke/test_vsh.c",
       "mode": "100644",
-      "git_blob": "e0672edae62b17005a3adbde9eac8d6c152d89ea",
-      "sha256": "f711c66ecb3b35630e56ebb1f116809dfe88573a78d01a3edac65bd672435d7e",
+      "git_blob": "f3cbcff18601299efdedc57ebda2788fe68635ee",
+      "sha256": "0a86e31915f19fb086ba120d3fb0b8f54fba0bda96894cfa231cd99dc7007b88",
       "ownership_review": {
         "decision": "needs_generic_fix",
         "reviewed_at_fork": "a6e278ed78554a2d5e6c8325f0c9f42ef8b94961",
@@ -6832,7 +6832,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "c8f48825fecdf4d19d07740b93bab259a28a1af2",
+  "fork_tree": "36ea37a97014cd7bb05bcff4bbf606d68760eeaa",
   "coverage": {
     "tracked_files": 639,
     "tracked_src_files": 153,
