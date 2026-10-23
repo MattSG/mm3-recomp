@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "a3ac8cc0093e4a038a277e5b6afb7c41ba8be2d8",
+  "fork_commit": "1b47454faba9a4ab232850e7c817cd1a19250507",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1909,15 +1909,22 @@
     },
     {
       "path": "src/kernel/recomp_trace.c",
-      "sha256": "704cff33ef7220aa0bb045e4dc919a7bfd74f35a59c8e6aeae555af35f7b0c2f",
+      "sha256": "671d655e06ac7ca190e47e6b2a8aab8131a218507f74dcb81777ed7da24cbd8e",
       "mode": "100644",
-      "git_blob": "5a18640959b704de865e961bcaf19cb95fdff82f",
+      "git_blob": "3bbb4196ded34413912690d73dd5d006cf376447",
       "ownership_review": {
         "decision": "needs_generic_fix",
-        "reviewed_at_fork": "a3ac8cc0093e4a038a277e5b6afb7c41ba8be2d8",
-        "scope": "Full source ownership read of function/profile/debug-service diagnostics; migration history moved to MM3",
-        "evidence": "tools/reference/ownership_trace_frontier.md and legacy_trace_migration_notes.md; only selected comment changed; platform checked read primitive inspected",
-        "limit": "Unchecked guest reads and fixed low-memory dump bounds remain; profile/budget initialization and shared tables are unsynchronized; borrowed name lifetime not enforced. No crashing experiment or runtime certification."
+        "reviewed_at_fork": "1b47454faba9a4ab232850e7c817cd1a19250507",
+        "scope": "Generic checked tracing reads, 32-bit range validation, exact read requirement and LastError preservation; remove low-64MB pointer dump filter",
+        "evidence": "Actual-source guard-page fixture crashes before fix on Windows; plain/args CTests pass 2/2 Windows and 2/2 Linux; both game builds pass; tools/reference/ownership_trace_frontier.md",
+        "limit": "Profile/budget lazy initialization, shared counters/table and borrowed name lifetime remain unresolved; no macOS/live-game trace proof.",
+        "prior_review": {
+          "decision": "needs_generic_fix",
+          "reviewed_at_fork": "a3ac8cc0093e4a038a277e5b6afb7c41ba8be2d8",
+          "scope": "Full source ownership read of function/profile/debug-service diagnostics; migration history moved to MM3",
+          "evidence": "tools/reference/ownership_trace_frontier.md and legacy_trace_migration_notes.md; only selected comment changed; platform checked read primitive inspected",
+          "limit": "Unchecked guest reads and fixed low-memory dump bounds remain; profile/budget initialization and shared tables are unsynchronized; borrowed name lifetime not enforced. No crashing experiment or runtime certification."
+        }
       }
     },
     {
@@ -5031,6 +5038,32 @@
       "sha256": "997fa90d1de81d7c78cb2484d8a14d2fa1dedeb89db9348512a517765ab87a15"
     },
     {
+      "path": "tests/recomp_trace/CMakeLists.txt",
+      "mode": "100644",
+      "git_blob": "1f000573f1932f02e51769623294ec5625bae4e4",
+      "sha256": "9cf439a99c956112e0988546644ac35f5727bb19b36d70aa34ad334f77530155",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1b47454faba9a4ab232850e7c817cd1a19250507",
+        "scope": "Generic checked tracing reads, 32-bit range validation, exact read requirement and LastError preservation; remove low-64MB pointer dump filter",
+        "evidence": "Actual-source guard-page fixture crashes before fix on Windows; plain/args CTests pass 2/2 Windows and 2/2 Linux; both game builds pass; tools/reference/ownership_trace_frontier.md",
+        "limit": "Profile/budget lazy initialization, shared counters/table and borrowed name lifetime remain unresolved; no macOS/live-game trace proof."
+      }
+    },
+    {
+      "path": "tests/recomp_trace/test_main.c",
+      "mode": "100644",
+      "git_blob": "140d04387b1f861019526586c03377c8e067c856",
+      "sha256": "a081f20ca8df26d302d8efe36a5d0f7da662cf013f4c46e95d029534a3493e9c",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1b47454faba9a4ab232850e7c817cd1a19250507",
+        "scope": "Generic checked tracing reads, 32-bit range validation, exact read requirement and LastError preservation; remove low-64MB pointer dump filter",
+        "evidence": "Actual-source guard-page fixture crashes before fix on Windows; plain/args CTests pass 2/2 Windows and 2/2 Linux; both game builds pass; tools/reference/ownership_trace_frontier.md",
+        "limit": "Profile/budget lazy initialization, shared counters/table and borrowed name lifetime remain unresolved; no macOS/live-game trace proof."
+      }
+    },
+    {
       "path": "tests/test_menu_placement.py",
       "mode": "100644",
       "git_blob": "8d6418b480149a98ce12e6e64d23781c87ab9848",
@@ -7093,9 +7126,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "2cce18c447c274fc7f248db6c3e118f9b02a1c16",
+  "fork_tree": "c65ef30c6e933c0a8c42ef9bfab79f1c231a3700",
   "coverage": {
-    "tracked_files": 644,
+    "tracked_files": 646,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -7113,7 +7146,7 @@
       "include": 2,
       "src": 153,
       "templates": 7,
-      "tests": 205,
+      "tests": 207,
       "tools": 229
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
@@ -7146,7 +7179,9 @@
       "tools/func_id/test_stub_classifier.py",
       "tools/func_id/test_crt_identifier.py",
       "tools/func_id/test_imm_scanner.py",
-      "tools/func_id/test_vtable_scanner.py"
+      "tools/func_id/test_vtable_scanner.py",
+      "tests/recomp_trace/CMakeLists.txt",
+      "tests/recomp_trace/test_main.c"
     ],
     "stale_fff_paths": [
       "docs/technical/burnout3-reunification.md",

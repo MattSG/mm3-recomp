@@ -3027,3 +3027,16 @@ Fork checkpoint for this batch: `364d9d1`.
   Existing platform exact-size checked reads were inspected as the reuse path.
 - The source is needs_generic_fix, not certified complete. No deliberate
   crashing test or fresh build/runtime claim. The overall goal remains active.
+
+
+### Make generic tracing survive invalid guest reads
+
+- Fork 1b47454 reuses platform checked reads for return addresses,
+  arguments, pointer dumps and guest ANSI strings. Exact-size/range checks
+  reject partial/overflow reads and preserve LastError; dumps no longer assume
+  a low-64MB guest range. Old debugging narrative is archived in MM3.
+- Actual-source guard-page fixture crashed before the Windows fix. Plain/args
+  tests pass 2/2 Windows and 2/2 Linux, including valid strings/high addresses.
+  Both game builds pass. Detailed evidence/limits are in the trace frontier.
+- Shared profiler/budget state and borrowed-name lifetime remain unresolved;
+  needs_generic_fix is retained. No live-game/macOS or full ownership claim.

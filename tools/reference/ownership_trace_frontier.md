@@ -24,3 +24,21 @@ without direct fallback, and test guard-page/truncated memory on each host.
 This is a generic mechanism defect, not a reason for a title workaround.
 The ownership inventory remains needs_generic_fix for this source; no runtime,
 fidelity or full ownership completion is claimed.
+
+
+## Checked-read implementation
+
+Fork 1b47454 replaces direct guest reads with the existing platform
+ReadProcessMemory primitive. Reads validate the full 32-bit guest interval,
+require exact byte counts, preserve host LastError, and never fall back to an
+unchecked dereference. Dumps print unreadable markers; invalid debug strings
+are skipped. Pointer selection no longer assumes low 64 MB backing.
+
+The actual-source guard-page fixture crashed on Windows before the fix.
+Plain/argument CTests pass 2/2 on Windows and 2/2 on Linux. They cover crossing
+headers/strings/return addresses, invalid pointers, guest address overflow,
+valid strings, high guest addresses and LastError preservation. The initial
+Linux fixture build required replacing Windows GetSystemInfo with sysconf.
+Both game builds pass. No macOS or live-game tracing acceptance is claimed.
+Shared profile/budget initialization/state and borrowed names remain open;
+needs_generic_fix stays in place for the source.

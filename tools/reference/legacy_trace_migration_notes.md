@@ -11,3 +11,14 @@ current coverage or support claim:
  * file. They belong with the runtime that declares them.
  *
 ```
+
+## Prior pointer-dump debugging narrative
+
+```c
+        /* And the object eax points at. A matrix of NaNs says the maths went
+         * wrong; whether its inputs were already zero says whether the maths
+         * is at fault or the data behind it was never built. */
+        /* Follow the pointer arguments one level. A matrix that arrives as
+         * NaN was copied from somewhere, and the object it came from is what
+         * needs looking at -- the value alone says only that it is wrong. */
+```
