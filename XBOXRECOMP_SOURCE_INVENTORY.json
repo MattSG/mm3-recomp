@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "59f5103b9720f14a17f15f4c2b62f82d1de11ae2",
+  "fork_commit": "f2bbe30a3cb743060fad4705fd82891d69bd6a3e",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -599,8 +599,15 @@
     {
       "path": "docs/technical/rtti-recovery.md",
       "mode": "100644",
-      "git_blob": "654f652005d46283d9b59f64de7b5a4f469d996c",
-      "sha256": "15ab3b2a92b1ddff44ac62833322acdb792ab1f4926643848137b71c2741c255"
+      "git_blob": "42f0024ec1866342c205435421683d418ea4cd04",
+      "sha256": "8fcefbf4a393168b325f2b26bcd1049ca26fb2545d60d59afa753212889fcaaa",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "f2bbe30a3cb743060fad4705fd82891d69bd6a3e",
+        "scope": "Caller-input RTTI mechanisms, executable section flags and file-backed read limits; captured title results moved to MM3",
+        "evidence": "Package sources read. New tests fail old code and pass Windows/Linux; records/empty CLI outputs checked; full configured Python suite 660 passed,16 skipped,89 subtests; guide archive/link verified",
+        "limit": "Synthetic supported-record and bounds contracts, not full RTTI/XBE validation, original class/member identity, method ABI or live title correctness. Conventional data-section and legacy SDK-name fallbacks remain explicit."
+      }
     },
     {
       "path": "docs/technical/seh-handling.md",
@@ -6055,19 +6062,53 @@
       "path": "tools/rtti/__init__.py",
       "mode": "100644",
       "git_blob": "87acedb28b09fa96fafc97db7e2c14f6c2f832f8",
-      "sha256": "91055689d38001b12f6cc8e38b487be1d7820afb0610602489e3861f460f7435"
+      "sha256": "91055689d38001b12f6cc8e38b487be1d7820afb0610602489e3861f460f7435",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "f2bbe30a3cb743060fad4705fd82891d69bd6a3e",
+        "scope": "Caller-input RTTI mechanisms, executable section flags and file-backed read limits; captured title results moved to MM3",
+        "evidence": "Package sources read. New tests fail old code and pass Windows/Linux; records/empty CLI outputs checked; full configured Python suite 660 passed,16 skipped,89 subtests; guide archive/link verified",
+        "limit": "Synthetic supported-record and bounds contracts, not full RTTI/XBE validation, original class/member identity, method ABI or live title correctness. Conventional data-section and legacy SDK-name fallbacks remain explicit."
+      }
     },
     {
       "path": "tools/rtti/__main__.py",
       "mode": "100644",
-      "git_blob": "42423cbb9936dc4cdad8fcf45c857351e02ef7af",
-      "sha256": "c2b5051a1f3a72568ec89092349c6c0bad217aec3951cf55e3ac655e63baf8cb"
+      "git_blob": "b987ccd9427be21c956491a5a29fb66e1c9fd430",
+      "sha256": "20a6e4054e99ae6b9ed6c7a8115e34b397a34e46563ab207427c9fe5442e5406",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "f2bbe30a3cb743060fad4705fd82891d69bd6a3e",
+        "scope": "Caller-input RTTI mechanisms, executable section flags and file-backed read limits; captured title results moved to MM3",
+        "evidence": "Package sources read. New tests fail old code and pass Windows/Linux; records/empty CLI outputs checked; full configured Python suite 660 passed,16 skipped,89 subtests; guide archive/link verified",
+        "limit": "Synthetic supported-record and bounds contracts, not full RTTI/XBE validation, original class/member identity, method ABI or live title correctness. Conventional data-section and legacy SDK-name fallbacks remain explicit."
+      }
     },
     {
       "path": "tools/rtti/rtti.py",
       "mode": "100644",
-      "git_blob": "e5b47e9d5e72c65db3c09206af4fae2ca9824e1a",
-      "sha256": "df068f08a0908f6864fe6e74fb28767c004228163fa62fdc50ae42cfb4ec8213"
+      "git_blob": "824e652940913265a05bce6dbec6b38f55be55ae",
+      "sha256": "ac2f8f5335086a3a0b075ba6d735f38f8a61f9e7c94cc5aae97777a1bc88750e",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "f2bbe30a3cb743060fad4705fd82891d69bd6a3e",
+        "scope": "Caller-input RTTI mechanisms, executable section flags and file-backed read limits; captured title results moved to MM3",
+        "evidence": "Package sources read. New tests fail old code and pass Windows/Linux; records/empty CLI outputs checked; full configured Python suite 660 passed,16 skipped,89 subtests; guide archive/link verified",
+        "limit": "Synthetic supported-record and bounds contracts, not full RTTI/XBE validation, original class/member identity, method ABI or live title correctness. Conventional data-section and legacy SDK-name fallbacks remain explicit."
+      }
+    },
+    {
+      "path": "tools/rtti/test_rtti.py",
+      "mode": "100644",
+      "git_blob": "a121dff009b7de25abb9a645b63e2f3459006b04",
+      "sha256": "c1eb7e6966b26b86d24bd9362347522619ba6e6176378346950738288d233537",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "f2bbe30a3cb743060fad4705fd82891d69bd6a3e",
+        "scope": "Caller-input RTTI mechanisms, executable section flags and file-backed read limits; captured title results moved to MM3",
+        "evidence": "Package sources read. New tests fail old code and pass Windows/Linux; records/empty CLI outputs checked; full configured Python suite 660 passed,16 skipped,89 subtests; guide archive/link verified",
+        "limit": "Synthetic supported-record and bounds contracts, not full RTTI/XBE validation, original class/member identity, method ABI or live title correctness. Conventional data-section and legacy SDK-name fallbacks remain explicit."
+      }
     },
     {
       "path": "tools/sdk_validate.py",
@@ -6292,9 +6333,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "2f2f95e1259d13e6eddd5fa500196207e3b78060",
+  "fork_tree": "9a1b0119d083d131cf43d1e0e996c60f15afe516",
   "coverage": {
-    "tracked_files": 633,
+    "tracked_files": 634,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -6313,7 +6354,7 @@
       "src": 153,
       "templates": 7,
       "tests": 200,
-      "tools": 223
+      "tools": 224
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
     "tracked_paths_missing_from_fff": [
@@ -6334,7 +6375,8 @@
       "tools/func_id/test_keywords.py",
       "tools/func_id/test_rw_versions.py",
       "tools/fusion/test_module.py",
-      "tools/ghidra_naming/test_extract.py"
+      "tools/ghidra_naming/test_extract.py",
+      "tools/rtti/test_rtti.py"
     ],
     "stale_fff_paths": [
       "docs/technical/burnout3-reunification.md",

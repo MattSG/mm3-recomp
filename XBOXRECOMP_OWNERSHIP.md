@@ -2558,3 +2558,25 @@ Fork checkpoint for this batch: `364d9d1`.
   output metadata, backup creation and preservation of existing names. The
   replacement source link resolves. No original symbol/ABI/runtime fidelity
   claim follows from these heuristic tests. Wider ownership remains open.
+
+
+### Review RTTI and remove reference-layout assumptions
+
+- Read the RTTI package. It uses caller image records/hierarchies; captured
+  Half-Life/corpus counts and class/address examples are now preserved in
+  tools/reference/legacy_rtti_recovery.md. Shared docs treat boundaries, seeds
+  and owners as proposals, not proof of callable identity. Historical guide
+  payload matches prior normalized text; replacement source link resolves.
+- Image code ranges now include input executable flags, preserving existing
+  conventional/SDK-name fallback. Raw extents are clipped to actual file bytes;
+  u32 requires four bytes within one raw section. Shared image helpers fix all
+  RTTI callers rather than guarding individual vtable reads.
+- Both new synthetic tests fail old code and pass on Windows and Linux: custom
+  executable names, legacy fallback, section/file bounds and truncated public
+  recovery. Actual CLI checks verify class/name/seed output and the no-records
+  no-output case. Evidence: conformance_tmp/ownership-rtti-cli-check.py and
+  ownership-rtti-cli/. Full configured Python suite passes: 660 tests, 16 skips,
+  89 subtests, 35.02s (ownership-python-rtti.log/xml).
+- This is generic ownership and supported-record proof, not complete malformed
+  header handling, RTTI/ABI correctness or original-title acceptance. Inventory
+  covers 634 paths / 153 src paths. Broader audit remains open.
