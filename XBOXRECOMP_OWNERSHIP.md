@@ -2852,3 +2852,17 @@ Fork checkpoint for this batch: `364d9d1`.
   function preparation, programmable layout/constant-map failure reporting,
   combiner handling, cache identity and guest adaptation still need review.
   No fresh gameplay/backend fidelity certification or full ownership completion.
+
+
+### Preserve pending programmable constants on upload failure
+
+- Fork 48f518a returns failure when WRITE_DISCARD mapping fails and
+  clears the dirty flag only after successful upload. The draw boundary can
+  now reject that failure, and a subsequent preparation retries the data.
+- Actual-source WARP regression uses a DEFAULT constant buffer to produce a
+  real mapping failure, then restores the dynamic buffer for a successful
+  retry. Both assertions failed before the fix and pass afterward. The full
+  d3d8_vsh program and both game builds pass.
+- This is generic GPU resource error handling. Input-layout failures, fixed
+  function preparation, cache identity and guest adaptation remain open;
+  no new full-renderer/gameplay or ownership-completion claim is made.
