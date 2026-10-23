@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "95f5f9c17dec7c60263e154901ea145cac9dce82",
+  "fork_commit": "4dc8b6fe6682216ee08d1094ca5ade55130f978f",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -2438,9 +2438,16 @@
     },
     {
       "path": "src/video/fb_window_sdl.c",
-      "sha256": "79dd6e54589e29378e354f4499d4de5c15bc8ee1465c580524fa1b210cd83e95",
+      "sha256": "26f240376772a106d1a2115f533b1c19e7fbe7deb3dfb6868337b7b1f366108b",
       "mode": "100644",
-      "git_blob": "5cc68c8c56770aa1cc595f8a05dc74da1c9f3e5e"
+      "git_blob": "e42b842854542492e0af62b1c290df7fff47761f",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "4dc8b6fe6682216ee08d1094ca5ade55130f978f",
+        "scope": "Full source ownership read of Win32/SDL window creation, event dispatch, input, cursor, fullscreen and host callback handling; captured driver observations moved to MM3",
+        "evidence": "Only selected SDL comment changed; code and driver hint priority unchanged; tools/reference/legacy_sdl_window_driver_notes.md",
+        "limit": "No fresh GUI/runtime test. Shared volatile fields, callback lifetime, multi-window SDL event routing, modifier pairing and window teardown need separate correctness verification. Ownership review does not prove concurrency or UI fidelity."
+      }
     },
     {
       "path": "src/video/fb_window_sdl.h",
@@ -2459,7 +2466,14 @@
       "path": "src/video/fb_window_win32.c",
       "sha256": "d22d090100171dfc231bf2c92238c48b625c2f3ff72f98cbb71770af417d9ad2",
       "mode": "100644",
-      "git_blob": "e4c86ddc99277f68ba1e9bb4cf50aa6cd7f37e4e"
+      "git_blob": "e4c86ddc99277f68ba1e9bb4cf50aa6cd7f37e4e",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "4dc8b6fe6682216ee08d1094ca5ade55130f978f",
+        "scope": "Full source ownership read of Win32/SDL window creation, event dispatch, input, cursor, fullscreen and host callback handling; captured driver observations moved to MM3",
+        "evidence": "Only selected SDL comment changed; code and driver hint priority unchanged; tools/reference/legacy_sdl_window_driver_notes.md",
+        "limit": "No fresh GUI/runtime test. Shared volatile fields, callback lifetime, multi-window SDL event routing, modifier pairing and window teardown need separate correctness verification. Ownership review does not prove concurrency or UI fidelity."
+      }
     },
     {
       "path": "src/video/nv2a_d3d11.c",
@@ -7072,7 +7086,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "1fb2c2ddace250784c8d00151fc119be27f5b6da",
+  "fork_tree": "d357b97daa39b7be8873d08673f98134f1443941",
   "coverage": {
     "tracked_files": 644,
     "tracked_src_files": 153,

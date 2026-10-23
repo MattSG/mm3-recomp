@@ -3000,3 +3000,17 @@ Fork checkpoint for this batch: `364d9d1`.
   of volatile shared state, USB fidelity, Tracy integration or full runtime
   behavior. No build/runtime rerun for this comment-only change. Remaining
   implementation bodies and the overall ownership audit stay open.
+
+
+### Review generic native window implementations
+
+- Fork 4dc8b6f moves captured Linux driver error/run observations to
+  tools/reference/legacy_sdl_window_driver_notes.md. Existing default-priority
+  Wayland/X11 hint and caller overrides are unchanged. Only the selected
+  comment changed; no fresh runtime/build test was needed or claimed.
+- Full Win32 and SDL implementation sources read. Window creation, event/input
+  mapping, fullscreen, cursor, title statistics and host overlay/close/mouse
+  callbacks are generic mechanisms, with application behavior delegated out.
+- This is source ownership proof, not GUI/concurrency certification. Shared
+  volatile state, callback lifetime, multi-window routing, modifier pairing
+  and teardown need separate correctness verification. Broader audit stays open.
