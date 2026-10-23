@@ -2205,3 +2205,28 @@ Fork checkpoint for this batch: `364d9d1`.
   correctness claim accompanies this source ownership review.
 - Other source files/module guides, captured commentary and runtime approximations
   still need review. This checkpoint does not certify whole-fork ownership.
+
+
+### Host input ownership and integration guide
+
+- Input implementation/header/build and the keymap fixture were inspected.
+  Host XInput/SDL state conversion, configurable default mappings, input-capture
+  packet handling and explicit keyboard/menu/click callbacks are reusable
+  mechanisms. MM3-specific driving buttons/state and native menu handoff remain
+  in src/mods/keyboard_driving.c, mods.c and menu_mouse.c. No captured MM3 address
+  or action map needs moving from the shared implementation. Retain these APIs.
+- The old input guide describes Windows only, records obsolete LOC, omits the
+  contextual/click interfaces and dismisses accessory support as unnecessary.
+  Its complete normalized version from fork 7089a43 is archived in
+  tools/reference/legacy_input_integration_guide.md. Current shared guidance
+  documents host backends, configurable maps, callback thread/handoff boundaries,
+  startup caching and partial capability/accessory support. Three links resolve.
+  Header comment changes remove obsolete Windows-only qualifiers; all runtime
+  tokens are unchanged.
+- Windows keymap 3/3 passes. The actual Linux fixture compiles with assertions
+  enabled and passes default remapping/hooks, click fallback, default pad map
+  and two virtual gamepad discovery modes. Evidence:
+  conformance_tmp/ownership-input-windows-* and ownership-input-linux-* plus
+  ownership-input-validation.json. No new renderer/gameplay claim is made.
+  Full input capture, hotplug, concurrency, vibration, accessory behavior and
+  broader source ownership remain separate incomplete work.

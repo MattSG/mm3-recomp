@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "7089a43ab0d5647e4efcec671da25ec66604462f",
+  "fork_commit": "2218bff0b2d482a15a300e9530b4d0297d092c06",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -999,25 +999,53 @@
       "path": "src/input/CMakeLists.txt",
       "sha256": "84073fc2eee86989859d728ae7c7849bef8d07e45656897a62d0f6aa6ba49188",
       "mode": "100644",
-      "git_blob": "4b84b4f756a0268e3921f1ea56a04e4db8d4561b"
+      "git_blob": "4b84b4f756a0268e3921f1ea56a04e4db8d4561b",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Retain platform-selected input dependencies and library target",
+        "evidence": "Windows keymap3/3; four actual Linux modes with assertions enabled including virtual two-pad discovery; three guide links and exact original archive pass; MM3 keyboard_driving/mods/menu_mouse registrations inspected",
+        "limit": "Input ownership and focused checks only; not full hotplug/concurrency/capture/vibration/accessory or platform parity proof. Mapping caches and callback caller-thread requirements remain."
+      }
     },
     {
       "path": "src/input/README.md",
-      "sha256": "262e8432a5ccf987736a53ac0703d74125e003230773d31014046fac6f596593",
+      "sha256": "84fbc8ec87b375cbe765c621ccd4eda5e9ef88581199aea329e3c504e91c1ac9",
       "mode": "100644",
-      "git_blob": "dc20ffdce1520029b84804b0c301198f9204537a"
+      "git_blob": "8360b5bce74031003a802efaecd0bff915f19b7a",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Replace obsolete platform/LOC/accessory guidance with current generic mapping and callback contracts",
+        "evidence": "Windows keymap3/3; four actual Linux modes with assertions enabled including virtual two-pad discovery; three guide links and exact original archive pass; MM3 keyboard_driving/mods/menu_mouse registrations inspected",
+        "limit": "Input ownership and focused checks only; not full hotplug/concurrency/capture/vibration/accessory or platform parity proof. Mapping caches and callback caller-thread requirements remain."
+      }
     },
     {
       "path": "src/input/xinput_device.c",
       "sha256": "24d17f7af6e27022908c603fcd222e9b3fd33e87af6470bb33620c69dc4ccf25",
       "mode": "100644",
-      "git_blob": "1ebc5c2e857f69db488627e5d046602a71dec9e5"
+      "git_blob": "1ebc5c2e857f69db488627e5d046602a71dec9e5",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Retain host XInput/SDL conversion, configurable mappings, capture packet handling and port-supplied context/click hooks; no application address/actions embedded",
+        "evidence": "Windows keymap3/3; four actual Linux modes with assertions enabled including virtual two-pad discovery; three guide links and exact original archive pass; MM3 keyboard_driving/mods/menu_mouse registrations inspected",
+        "limit": "Input ownership and focused checks only; not full hotplug/concurrency/capture/vibration/accessory or platform parity proof. Mapping caches and callback caller-thread requirements remain."
+      }
     },
     {
       "path": "src/input/xinput_xbox.h",
-      "sha256": "c98bc1245abcb27ab0187d18b53ef9674d06f250cc68ae792491fd08fb3e25b2",
+      "sha256": "f6ca78e6b64f0e332aa00da46010980c49773ea6c50044ff13aa5b43ff223897",
       "mode": "100644",
-      "git_blob": "138cd08d68bc1fe9feff4ad06a3a62cf352cec65"
+      "git_blob": "445bdfdb820f24dc4564f821167573b60f8075b5",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Retain host input API and correct obsolete Windows-only comment scope; runtime tokens unchanged",
+        "evidence": "Windows keymap3/3; four actual Linux modes with assertions enabled including virtual two-pad discovery; three guide links and exact original archive pass; MM3 keyboard_driving/mods/menu_mouse registrations inspected",
+        "limit": "Input ownership and focused checks only; not full hotplug/concurrency/capture/vibration/accessory or platform parity proof. Mapping caches and callback caller-thread requirements remain."
+      }
     },
     {
       "path": "src/kernel/CMakeLists.txt",
@@ -3182,13 +3210,27 @@
       "path": "tests/keymap/CMakeLists.txt",
       "mode": "100644",
       "git_blob": "b347f093191b2b756f69d326caf785d5d5afd47d",
-      "sha256": "cebec35dfb88eba1f378baa0dca7dd6692c966267489acc89493175d81eef48f"
+      "sha256": "cebec35dfb88eba1f378baa0dca7dd6692c966267489acc89493175d81eef48f",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Retain host-specific fixture dependencies and assertion-enabled checks",
+        "evidence": "Windows keymap3/3; four actual Linux modes with assertions enabled including virtual two-pad discovery; three guide links and exact original archive pass; MM3 keyboard_driving/mods/menu_mouse registrations inspected",
+        "limit": "Input ownership and focused checks only; not full hotplug/concurrency/capture/vibration/accessory or platform parity proof. Mapping caches and callback caller-thread requirements remain."
+      }
     },
     {
       "path": "tests/keymap/keymap_test.c",
       "mode": "100644",
       "git_blob": "06d531be4b0033f4d94ab3f6a6f1c343dbc38890",
-      "sha256": "a5a0c8bcb9121ee1ccbba02d985e663b316d88dbc4290dac16da94a8db93cd2e"
+      "sha256": "a5a0c8bcb9121ee1ccbba02d985e663b316d88dbc4290dac16da94a8db93cd2e",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+        "scope": "Retain asset-free synthetic key/pad/menu tests including SDL two-pad discovery",
+        "evidence": "Windows keymap3/3; four actual Linux modes with assertions enabled including virtual two-pad discovery; three guide links and exact original archive pass; MM3 keyboard_driving/mods/menu_mouse registrations inspected",
+        "limit": "Input ownership and focused checks only; not full hotplug/concurrency/capture/vibration/accessory or platform parity proof. Mapping caches and callback caller-thread requirements remain."
+      }
     },
     {
       "path": "tests/memory_layout_posix/CMakeLists.txt",
@@ -5593,7 +5635,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "92217877f8e3ba4bfa0f2a5014a53c4a6437a9e9",
+  "fork_tree": "3a9c7c811418102a5aa88a767d832c7f8f690684",
   "coverage": {
     "tracked_files": 625,
     "tracked_src_files": 153,
