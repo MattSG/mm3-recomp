@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "119bf71deebfcba52dfa7761c778419b75d612b9",
+  "fork_commit": "b6cac0c207ed4643a9b9891e5e0edc3ce0bdd907",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -5920,8 +5920,15 @@
     {
       "path": "tools/symbols/lib_port.py",
       "mode": "100644",
-      "git_blob": "807c9b0e9ac19e7fedce2270ed6cded7eea0d6ed",
-      "sha256": "cca3d894336441432d23b272fa16fc3d54d57baca91b92a64f5fbd80c7f6ff98"
+      "git_blob": "c07a97beaeedb2eec644501d4c25e87eceb852f6",
+      "sha256": "29c654f797e9d8ea4dea2d9bd1945b99db8c159cf62a949bbcfe5c70d354548f",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "b6cac0c207ed4643a9b9891e5e0edc3ce0bdd907",
+        "scope": "Caller-input symbol matching and texture-pack resampling; captured donor/target history moved to MM3",
+        "evidence": "Complete three tool sources read; symbol executable AST equality; both historical docstrings archived; 8 synthetic symbol CLI cases and upscaler selftest pass",
+        "limit": "Heuristic symbol hints, not identity/ABI proof. Limited .text/COFF assumptions and malformed-input coverage; texture selftest is not visual/gameplay acceptance."
+      }
     },
     {
       "path": "tools/symbols/map_names.py",
@@ -5932,8 +5939,15 @@
     {
       "path": "tools/symbols/rw_port.py",
       "mode": "100644",
-      "git_blob": "c03317d2f3ecea3a27ca0df5a46d4f0439895c1d",
-      "sha256": "99ed2afd8a8118dd5e3d7895601a86e33cdd06052b20a90df3e3d5cae4d02375"
+      "git_blob": "69606a28f2df836f185179426b1ec9c318b47356",
+      "sha256": "8ba78ee11ff91609d52ffe9b5d78305c4a233b2533a0a23642a8b91d5c704e00",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "b6cac0c207ed4643a9b9891e5e0edc3ce0bdd907",
+        "scope": "Caller-input symbol matching and texture-pack resampling; captured donor/target history moved to MM3",
+        "evidence": "Complete three tool sources read; symbol executable AST equality; both historical docstrings archived; 8 synthetic symbol CLI cases and upscaler selftest pass",
+        "limit": "Heuristic symbol hints, not identity/ABI proof. Limited .text/COFF assumptions and malformed-input coverage; texture selftest is not visual/gameplay acceptance."
+      }
     },
     {
       "path": "tools/symbols/test_map_names.py",
@@ -5951,7 +5965,14 @@
       "path": "tools/texpack/upscale.py",
       "mode": "100644",
       "git_blob": "e33e546f60feb401e5fcedf5f6b1036fe58bd7ec",
-      "sha256": "bb22998d0709ec2b6a05dcf4753465f653a7b645ec4f62d5b5cddf63c251f419"
+      "sha256": "bb22998d0709ec2b6a05dcf4753465f653a7b645ec4f62d5b5cddf63c251f419",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "b6cac0c207ed4643a9b9891e5e0edc3ce0bdd907",
+        "scope": "Caller-input symbol matching and texture-pack resampling; captured donor/target history moved to MM3",
+        "evidence": "Complete three tool sources read; symbol executable AST equality; both historical docstrings archived; 8 synthetic symbol CLI cases and upscaler selftest pass",
+        "limit": "Heuristic symbol hints, not identity/ABI proof. Limited .text/COFF assumptions and malformed-input coverage; texture selftest is not visual/gameplay acceptance."
+      }
     },
     {
       "path": "tools/validate_ordinals.py",
@@ -6031,7 +6052,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "c2717d2690e39d82b7c2412e47ab732c55327b1e",
+  "fork_tree": "92ea5f85bc9cc80559bdf4220e0e20cbe894e7fa",
   "coverage": {
     "tracked_files": 628,
     "tracked_src_files": 153,

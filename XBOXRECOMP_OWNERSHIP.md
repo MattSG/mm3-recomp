@@ -2411,3 +2411,21 @@ Fork checkpoint for this batch: `364d9d1`.
   no runtime tests or new fidelity claims are warranted. Scope is replacement
   guides/link descriptions, not full review of the referring documents.
   The wider ownership audit remains active.
+
+
+### Review generic symbol and texture-pack tools
+
+- Read rw_port.py, lib_port.py and texpack/upscale.py in full. These take
+  caller-supplied donors/target analysis or textures; no captured assets or
+  title addresses drive their implementation. Retain the mechanisms.
+- Archived both symbol-tool module docstrings in
+  tools/reference/legacy_symbol_port_observations.md and replaced title
+  results/unproven cross-version generalizations with usage and matching limits.
+  Both archives match normalized prior text; executable Python ASTs are
+  unchanged after excluding module documentation.
+- Eight synthetic CLI cases pass across both symbol tools: unique match,
+  duplicate rejection, absent match and rejection off detected function starts.
+  Texture upscaler --selftest passes. Evidence/inputs: ignored
+  conformance_tmp/ownership-symbol-check.py and ownership-symbol-inputs/.
+  These are bounded tool contracts, not complete COFF/PE validation, symbol
+  identity or texture visual parity. Broader ownership remains open.
