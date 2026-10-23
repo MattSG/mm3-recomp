@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "3db6097d65335362787b5c75530940c5ec34a3bd",
+  "fork_commit": "6cb804af68e63bcc03f45dac5576e83d7ebb9e03",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -5899,14 +5899,28 @@
     {
       "path": "tools/ghidra_naming/ghidra_scripts/ClassifyTargets.java",
       "mode": "100644",
-      "git_blob": "e7f1421992f4489da463c13f4be380a095228baf",
-      "sha256": "accff3d17f09634053f227eea020b53020331c6754b36093b369ed69f834ca26"
+      "git_blob": "d825685c07f82d7dbd1342967964d3a5e0ed0409",
+      "sha256": "ca2a51e9fdee612c312fd637b9c23e309fe23e0e572e62aff5b1b2e8c004200f",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "6cb804af68e63bcc03f45dac5576e83d7ebb9e03",
+        "scope": "Full source read of argument-driven Ghidra triage, function seeding, entry export and analysis option scripts; captured run commentary moved to MM3",
+        "evidence": "tools/reference/legacy_ghidra_run_notes.md; edited Java executable body and Python token equality; four merge_names checks pass",
+        "limit": "No Ghidra/Jython execution or analyzer API compatibility certification; source ownership only"
+      }
     },
     {
       "path": "tools/ghidra_naming/ghidra_scripts/DumpEntries.java",
       "mode": "100644",
       "git_blob": "49091dd36932e11276bfac81322ed061304deee8",
-      "sha256": "f5657dd5b0608828b8ad18c875b6495d4052e2b4590094ea2800c46d9429f977"
+      "sha256": "f5657dd5b0608828b8ad18c875b6495d4052e2b4590094ea2800c46d9429f977",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "6cb804af68e63bcc03f45dac5576e83d7ebb9e03",
+        "scope": "Full source read of argument-driven Ghidra triage, function seeding, entry export and analysis option scripts; captured run commentary moved to MM3",
+        "evidence": "tools/reference/legacy_ghidra_run_notes.md; edited Java executable body and Python token equality; four merge_names checks pass",
+        "limit": "No Ghidra/Jython execution or analyzer API compatibility certification; source ownership only"
+      }
     },
     {
       "path": "tools/ghidra_naming/ghidra_scripts/ExportXbeNames.py",
@@ -5917,14 +5931,28 @@
     {
       "path": "tools/ghidra_naming/ghidra_scripts/SeedFunctions.py",
       "mode": "100644",
-      "git_blob": "42d8aeee8de77ec16759a04944ca2533798d00ba",
-      "sha256": "39c7db3f70cd4a1d28319b3f7d29b924208856d0cd3a9ce6e6fdb451913beb7e"
+      "git_blob": "17d0892050e11d8783e2964e11a3b575d6db0719",
+      "sha256": "ff725e5cd059e016f3615ac23e529999085f3d7a81c91d81991bb4f1a65e5e96",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "6cb804af68e63bcc03f45dac5576e83d7ebb9e03",
+        "scope": "Full source read of argument-driven Ghidra triage, function seeding, entry export and analysis option scripts; captured run commentary moved to MM3",
+        "evidence": "tools/reference/legacy_ghidra_run_notes.md; edited Java executable body and Python token equality; four merge_names checks pass",
+        "limit": "No Ghidra/Jython execution or analyzer API compatibility certification; source ownership only"
+      }
     },
     {
       "path": "tools/ghidra_naming/ghidra_scripts/SetAnalysisOptions.java",
       "mode": "100644",
       "git_blob": "e69633fff506e2dde634a6207b8c4ef8e0f9d133",
-      "sha256": "2ba3e54595aa316b31f2e95e9f6c0e0de1aaeab8a7bfb82f601552d734654697"
+      "sha256": "2ba3e54595aa316b31f2e95e9f6c0e0de1aaeab8a7bfb82f601552d734654697",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "6cb804af68e63bcc03f45dac5576e83d7ebb9e03",
+        "scope": "Full source read of argument-driven Ghidra triage, function seeding, entry export and analysis option scripts; captured run commentary moved to MM3",
+        "evidence": "tools/reference/legacy_ghidra_run_notes.md; edited Java executable body and Python token equality; four merge_names checks pass",
+        "limit": "No Ghidra/Jython execution or analyzer API compatibility certification; source ownership only"
+      }
     },
     {
       "path": "tools/ghidra_naming/merge_names.py",
@@ -6832,7 +6860,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "f990300f91c33e38fea6ae37e350dfd797755216",
+  "fork_tree": "21a6e6ab130e9d6a172b910ac1889f4e561c8bd8",
   "coverage": {
     "tracked_files": 639,
     "tracked_src_files": 153,

@@ -2880,3 +2880,17 @@ Fork checkpoint for this batch: `364d9d1`.
 - Generic failure handling belongs in the fork. Stream declaration policy,
   cache identity, fixed-function preparation and guest adaptation remain open.
   This does not certify complete renderer fidelity or ownership completion.
+
+
+### Keep Ghidra mechanisms, move captured run commentary
+
+- Fork 6cb804a removes concrete triage output addresses and a captured
+  function count. Original snippets are preserved in MM3 at
+  tools/reference/legacy_ghidra_run_notes.md. The generic argument-driven
+  classification and seeding behavior is unchanged.
+- Read all of ClassifyTargets, SeedFunctions, DumpEntries and SetAnalysisOptions.
+  They use caller/program data and generic Ghidra operations; no title policy
+  or hardcoded target address remains in those four scripts.
+- Edited Java executable body and Python non-comment tokens match the prior
+  versions; four existing name-merging checks pass. Ghidra/Jython itself was
+  not run. Other naming/export scripts and broader fork ownership remain open.
