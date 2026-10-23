@@ -388,6 +388,7 @@ add_executable(${PROJECT_NAME}
     src/mods/collision_fix.c
     src/mods/widescreen_hud.c
     src/mods/skip_intro.c
+    src/mods/dvd_media.c
     src/mods/framerate.c
     src/mods/keyboard_driving.c
     src/mm3_unresolved_stubs.c

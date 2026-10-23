@@ -65,11 +65,13 @@ extern void mm3_menu_mouse_init(void);                           /* menu_mouse.c
 extern void mm3_dev_tools_tick(void);                             /* dev_tools.c */
 extern void mm3_debug_teleport_init(void);                        /* teleport.c */
 extern void mm3_keyboard_driving_init(int (*driving)(void));      /* keyboard_driving.c */
+extern void mm3_dvd_media_init(void);                            /* dvd_media.c */
 
 void mm3_mods_init(void)
 {
     int i;
     extern void mm3_debug_overlay_init(void);
+    mm3_dvd_media_init();
     mm3_debug_overlay_init();
     mm3_render_commands_init();
     xbox_InputSetMenuProbe(in_menu);
