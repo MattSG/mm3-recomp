@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "57f6f4c032884f8c2f5e9df96e5032db51fe7d33",
+  "fork_commit": "7089a43ab0d5647e4efcec671da25ec66604462f",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -18,8 +18,15 @@
     {
       "path": "CMakeLists.txt",
       "mode": "100644",
-      "git_blob": "e5fb0328765b5c36a1d4f82ad564fe404e286f7b",
-      "sha256": "e06d011fa72999d7c4bd3584c217f3f8e8a9856b1ad4915d394735a1d987fa48"
+      "git_blob": "0751f4c85fd179d8fb71fa96574e7dd4b16c4496",
+      "sha256": "833e4183187831a8e2cb8943ec3b3425ddaf53819382f2854e903ea44da04385",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "7089a43ab0d5647e4efcec671da25ec66604462f",
+        "scope": "Remove captured import/library commentary; commands unchanged",
+        "evidence": "Local command-line equality and source module/renderer/umbrella definitions read; no fresh install claim",
+        "limit": "Ownership/source scope only. No new gameplay/performance/platform-parity or full host lifecycle/MMIO/sampler correctness claim. Sampler is one watched thread with Windows x64/PDB-specific implementation and process-lifetime resources."
+      }
     },
     {
       "path": "CONTRIBUTING.md",
@@ -537,9 +544,16 @@
     },
     {
       "path": "src/README.md",
-      "sha256": "26c9bfbb85fd4570c66fcfd76d7df8dbaa791dc7ba99522bdf5bb565ebdf2f23",
+      "sha256": "a2a04f50f2782644743c5f5bcf525e98df2e32e40ea44f2b4e57d4272d67ee5b",
       "mode": "100644",
-      "git_blob": "0ed554d028ac10afb3fa1560d69fa9f5bfa7e0a0"
+      "git_blob": "f803af43bf7c9e469887dcd585173c9e9df8688c",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "7089a43ab0d5647e4efcec671da25ec66604462f",
+        "scope": "Replace captured counts/LOC and obsolete initialization with generic integration/navigation",
+        "evidence": "17 local links resolve and normalized original overview archived exactly",
+        "limit": "Ownership/source scope only. No new gameplay/performance/platform-parity or full host lifecycle/MMIO/sampler correctness claim. Sampler is one watched thread with Windows x64/PDB-specific implementation and process-lifetime resources."
+      }
     },
     {
       "path": "src/apu/CMakeLists.txt",
@@ -946,19 +960,40 @@
       "path": "src/host/CMakeLists.txt",
       "sha256": "2a9eba70d091dd1912824e54f14771c857df035f0a72c5d200b0e3314fb5fc3f",
       "mode": "100644",
-      "git_blob": "c9968fab9cadfdac610980a9ac689fd75e6545a3"
+      "git_blob": "c9968fab9cadfdac610980a9ac689fd75e6545a3",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "7089a43ab0d5647e4efcec671da25ec66604462f",
+        "scope": "Retain host library target and explicit shared module dependencies",
+        "evidence": "Complete build definition read against top-level umbrella",
+        "limit": "Ownership/source scope only. No new gameplay/performance/platform-parity or full host lifecycle/MMIO/sampler correctness claim. Sampler is one watched thread with Windows x64/PDB-specific implementation and process-lifetime resources."
+      }
     },
     {
       "path": "src/host/host.c",
       "sha256": "80f563cc899f0ceb5653b8c6da4c3e07fc4f3c7eecc77437f198575c9a4f6c71",
       "mode": "100644",
-      "git_blob": "6c2e1b7358140f9d4cd4d11bed7687f93ce78978"
+      "git_blob": "6c2e1b7358140f9d4cd4d11bed7687f93ce78978",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "7089a43ab0d5647e4efcec671da25ec66604462f",
+        "scope": "Retain shared MMIO routing and optional APU/USB/NIC/graphics bring-up; no title address or application hook in source",
+        "evidence": "Complete source read; routes use hardware MMIO ranges and shared ownership APIs; port controls launch and service selection",
+        "limit": "Ownership/source scope only. No new gameplay/performance/platform-parity or full host lifecycle/MMIO/sampler correctness claim. Sampler is one watched thread with Windows x64/PDB-specific implementation and process-lifetime resources."
+      }
     },
     {
       "path": "src/host/xbox_host.h",
       "sha256": "83ffdc661072e3cdd43050aef00bfea0f432005931815ad30ec68bde86277641",
       "mode": "100644",
-      "git_blob": "d457270d0e3f8a57d1432270c9d35cd4e4054b1f"
+      "git_blob": "d457270d0e3f8a57d1432270c9d35cd4e4054b1f",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "7089a43ab0d5647e4efcec671da25ec66604462f",
+        "scope": "Retain host lifecycle/service declarations as generic integration surface",
+        "evidence": "Complete header and matching implementation read",
+        "limit": "Ownership/source scope only. No new gameplay/performance/platform-parity or full host lifecycle/MMIO/sampler correctness claim. Sampler is one watched thread with Windows x64/PDB-specific implementation and process-lifetime resources."
+      }
     },
     {
       "path": "src/input/CMakeLists.txt",
@@ -1872,7 +1907,14 @@
       "path": "src/video/CMakeLists.txt",
       "sha256": "61fdea206dacb1dbf5bc6885361d1f4c96b62d4808482d9e98d57090743e82d3",
       "mode": "100644",
-      "git_blob": "67d06ee4d3bf0910188b1be7734a6ba34f0aa444"
+      "git_blob": "67d06ee4d3bf0910188b1be7734a6ba34f0aa444",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "7089a43ab0d5647e4efcec671da25ec66604462f",
+        "scope": "Retain common video sources, optional Windows sampler dependencies and renderer-specific shader/window/backend selection",
+        "evidence": "Complete CMake definition read; no title data or captured application source inputs",
+        "limit": "Ownership/source scope only. No new gameplay/performance/platform-parity or full host lifecycle/MMIO/sampler correctness claim. Sampler is one watched thread with Windows x64/PDB-specific implementation and process-lifetime resources."
+      }
     },
     {
       "path": "src/video/fb_present.c",
@@ -2079,7 +2121,14 @@
       "path": "src/video/spike_sampler.c",
       "sha256": "78e0c782487221dc62a85ada108d78e4807ff64547ac37dd021d69160713bfe4",
       "mode": "100644",
-      "git_blob": "c7a0fb53cd387000200d5143bbe9b7c290a69af4"
+      "git_blob": "c7a0fb53cd387000200d5143bbe9b7c290a69af4",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "7089a43ab0d5647e4efcec671da25ec66604462f",
+        "scope": "Retain opt-in watched-thread sampling, runtime executable/PDB lookup and generic symbol aggregation",
+        "evidence": "Complete source read; registration caller is in MM3 render hook; renderer report call and Windows libraries traced",
+        "limit": "Ownership/source scope only. No new gameplay/performance/platform-parity or full host lifecycle/MMIO/sampler correctness claim. Sampler is one watched thread with Windows x64/PDB-specific implementation and process-lifetime resources."
+      }
     },
     {
       "path": "src/video/video_player.c",
@@ -5544,7 +5593,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "743378ae502a1fc0f3843f6e1484a8709d4f96ad",
+  "fork_tree": "92217877f8e3ba4bfa0f2a5014a53c4a6437a9e9",
   "coverage": {
     "tracked_files": 625,
     "tracked_src_files": 153,

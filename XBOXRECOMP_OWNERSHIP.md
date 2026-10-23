@@ -2174,3 +2174,34 @@ Fork checkpoint for this batch: `364d9d1`.
   No new gameplay evidence is claimed for this native-only behavior change.
 - Guest asynchronous IDE/IRP scheduling, native object shape/lifetime semantics
   and broader fork ownership remain incomplete and require separate work.
+
+
+### Source overview and host/sampler ownership
+
+- The src overview retained captured 147-import/LOC/library totals, a Windows-only
+  architectural snapshot and unchecked/incomplete initialization examples.
+  Its normalized original and the top-level CMake library commentary from fork
+  57f6f4c are archived in tools/reference/legacy_runtime_source_overview.md;
+  both original blocks match. Shared source guidance now links current build,
+  memory/register and module contracts, separates application policy and avoids
+  treating a route/library as fidelity proof. All 17 local links resolve.
+- Top-level CMake changes are comments only: all nonblank/noncomment lines match.
+  Evidence: conformance_tmp/ownership-source-overview-validation.json. No new
+  renderer/gameplay/installation validation is claimed by this documentation edit.
+- Complete host implementation/header/build definitions were read. Shared code
+  uses hardware MMIO ranges, ownership-aware alias resolution, APU/OHCI/NIC/NV2A
+  handlers and optional host graphics bring-up. Its default window/device setup
+  is generic service behavior; application entry, assets, captured engine
+  addresses and service selection remain in the port. Retain these mechanisms.
+  This ownership decision does not certify shutdown/reinitialization cleanup,
+  all MMIO paths, portability or hardware fidelity.
+- Complete spike sampler and video build definition were read. The mechanism
+  watches an explicitly selected current host thread, derives executable bounds
+  and symbol names at runtime, and reports aggregated samples. MM3's specific
+  render-thread registration remains in src/recomp_manual.c; the shared renderer
+  consumes the report API. No title function address lives in the sampler.
+  Retain it as an opt-in generic diagnostic, with Windows x64/PDB, one-thread
+  and process-lifetime resource limits. No new sampling/concurrency/performance
+  correctness claim accompanies this source ownership review.
+- Other source files/module guides, captured commentary and runtime approximations
+  still need review. This checkpoint does not certify whole-fork ownership.
