@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "cf4d0ffb3b896c187bb1afc8c01d54641c28aee6",
+  "fork_commit": "5753aa58c26f7a6a21c356e78c0831a47a02e0e3",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -5654,8 +5654,15 @@
     {
       "path": "tools/func_id/crt_identifier.py",
       "mode": "100644",
-      "git_blob": "b657fa7d96c244ba43b8f5efb4800e0a24a6f0c5",
-      "sha256": "650013d0c84158de0a7fe37904dcdaed40c277a014e882de54d57fc81f5a099a"
+      "git_blob": "716022fc8d6f0ec4b67ef22de8699d5af431be11",
+      "sha256": "1f9644a320c7daec8911ea90cc48db1221645cbce566f3c9842eb9f3a1cede91",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "5753aa58c26f7a6a21c356e78c0831a47a02e0e3",
+        "scope": "Full source read of CRT byte-signature matcher and immediate data-reference scanner; stale reverse-name bookkeeping and final-instruction boundary fixes",
+        "evidence": "Both focused synthetic checks fail before fixes and pass after; short/long SSE check and six adjacent policy/version tests pass",
+        "limit": "Heuristic candidate generation, not semantic proof. Raw scanning can match embedded bytes and attribute gaps to prior starts; CRT prefixes may read beyond supplied function size. No full decode/title accuracy certification."
+      }
     },
     {
       "path": "tools/func_id/identify.py",
@@ -5673,8 +5680,15 @@
     {
       "path": "tools/func_id/imm_scanner.py",
       "mode": "100644",
-      "git_blob": "5fcddcd6ed5468ee96f5dc685e963119e3b60f42",
-      "sha256": "70773183ce8c3e175a8a3bf82a38f2af39c4ef4fc0e2008bf7af8d9933678ce8"
+      "git_blob": "acdcf5b6d8daf065e44cd002421b147f4ad301bb",
+      "sha256": "9df81ec3c3f79594ddd48749cd89354bde2bbcde8f83a56581ad913d784a191a",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "5753aa58c26f7a6a21c356e78c0831a47a02e0e3",
+        "scope": "Full source read of CRT byte-signature matcher and immediate data-reference scanner; stale reverse-name bookkeeping and final-instruction boundary fixes",
+        "evidence": "Both focused synthetic checks fail before fixes and pass after; short/long SSE check and six adjacent policy/version tests pass",
+        "limit": "Heuristic candidate generation, not semantic proof. Raw scanning can match embedded bytes and attribute gaps to prior starts; CRT prefixes may read beyond supplied function size. No full decode/title accuracy certification."
+      }
     },
     {
       "path": "tools/func_id/output.py",
@@ -5706,6 +5720,32 @@
         "scope": "Full source read of SSE chain recognizer; remove observed 120-byte ceiling and title-purpose commentary",
         "evidence": "Long-chain regression fails before fix and passes after; 2/16/64-operation chains and invalid opcode rejection pass; six adjacent policy/version tests pass; tools/reference/legacy_stub_classification_notes.md",
         "limit": "Byte-pattern heuristic only. data_init categories and confidence scores do not prove purpose, boundaries or SDK provenance; no actual title classification run."
+      }
+    },
+    {
+      "path": "tools/func_id/test_crt_identifier.py",
+      "mode": "100644",
+      "git_blob": "8210c7d4b5cde03fc7ff7d4df3ca0fba1cc90112",
+      "sha256": "81c1ca154cf3c87d04c0375920b38277bfe012caacff68e9ed1ca1c8b67aa3b8",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "5753aa58c26f7a6a21c356e78c0831a47a02e0e3",
+        "scope": "Full source read of CRT byte-signature matcher and immediate data-reference scanner; stale reverse-name bookkeeping and final-instruction boundary fixes",
+        "evidence": "Both focused synthetic checks fail before fixes and pass after; short/long SSE check and six adjacent policy/version tests pass",
+        "limit": "Heuristic candidate generation, not semantic proof. Raw scanning can match embedded bytes and attribute gaps to prior starts; CRT prefixes may read beyond supplied function size. No full decode/title accuracy certification."
+      }
+    },
+    {
+      "path": "tools/func_id/test_imm_scanner.py",
+      "mode": "100644",
+      "git_blob": "b3114393863cd57b6bbeb2e1f486bb152720ca69",
+      "sha256": "8aa35a5d6b02adc5eae2ad26086448580c8b78c713470b8dc25e89450c679622",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "5753aa58c26f7a6a21c356e78c0831a47a02e0e3",
+        "scope": "Full source read of CRT byte-signature matcher and immediate data-reference scanner; stale reverse-name bookkeeping and final-instruction boundary fixes",
+        "evidence": "Both focused synthetic checks fail before fixes and pass after; short/long SSE check and six adjacent policy/version tests pass",
+        "limit": "Heuristic candidate generation, not semantic proof. Raw scanning can match embedded bytes and attribute gaps to prior starts; CRT prefixes may read beyond supplied function size. No full decode/title accuracy certification."
       }
     },
     {
@@ -6928,9 +6968,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "0ccaebc6e7ef34f686cf6660d5eed7dfaf12fd6e",
+  "fork_tree": "fc62eaf2db05a22fc216e995a57da9df6f29c801",
   "coverage": {
-    "tracked_files": 641,
+    "tracked_files": 643,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -6949,7 +6989,7 @@
       "src": 153,
       "templates": 7,
       "tests": 205,
-      "tools": 226
+      "tools": 228
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
     "tracked_paths_missing_from_fff": [
@@ -6978,7 +7018,9 @@
       "tests/apu_mmio/CMakeLists.txt",
       "tests/apu_mmio/test_main.c",
       "tools/ida_naming/test_export.py",
-      "tools/func_id/test_stub_classifier.py"
+      "tools/func_id/test_stub_classifier.py",
+      "tools/func_id/test_crt_identifier.py",
+      "tools/func_id/test_imm_scanner.py"
     ],
     "stale_fff_paths": [
       "docs/technical/burnout3-reunification.md",

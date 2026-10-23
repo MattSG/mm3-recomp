@@ -2938,3 +2938,20 @@ Fork checkpoint for this batch: `364d9d1`.
 - Retained data_init labels/confidence are heuristics, not semantic proof.
   Full stub source reviewed; remaining CRT/immediate/vtable source and broader
   ownership/runtime correctness still require review. No title-run claim.
+
+
+### Review generic CRT and immediate-reference candidate mechanisms
+
+- Fork 5753aa5 clears a replaced CRT signature's reverse name mapping,
+  preventing later short-pattern candidates from deleting a valid longer
+  match. The immediate scanner now includes a complete five-byte encoding at
+  the final section offset. Both single callers keep their existing interface.
+- Full source reads found caller-configured ranges/signatures and generic
+  candidate mechanisms, with no title-specific dataset in these two modules.
+  The two new synthetic checks reproduce prior failures and pass after fixes;
+  nine immediate opcodes with padding/truncation, SSE checks and six adjacent
+  policy/version tests pass.
+- Accuracy limits remain: raw byte scanning is not instruction decoding, gap
+  references can map to prior function starts, and CRT prefix reads are not
+  bounded by supplied function size. These are candidates, not verified names
+  or semantics. The remaining vtable and broader fork audit stays open.
