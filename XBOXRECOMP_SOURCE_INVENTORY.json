@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "2da4407f02eb378f4f5f8b0d0045a31e371b23eb",
+  "fork_commit": "fe644314d7283f72a021381ec7e5cbebdad71b84",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -2662,9 +2662,17 @@
     },
     {
       "path": "src/video/fb_present.c",
-      "sha256": "7d8dd58f67462d9a483febc02094e79facc4ad6d6593b7ec69dd026f1caedc3b",
+      "sha256": "4c344d6685c11b9b82c235270d4710481f67589d2378afacb27afdebfcc084fa",
       "mode": "100644",
-      "git_blob": "c10906aee12ebee2f10b5f0405d183f53e93715f"
+      "git_blob": "ef2883f095109dfdd58003b39eb46bbc9e8f1ef8",
+      "ownership_review": {
+        "decision": "needs_generic_fix",
+        "reviewed_at_fork": "fe644314d7283f72a021381ec7e5cbebdad71b84",
+        "scope": "Full presenter ownership read; configured installed-RAM bound and actual-presenter boundary regression",
+        "evidence": "tools/reference/ownership_fb_present.md; old admission fails; final Windows/Linux focused test passes; both game builds pass",
+        "limit": "PVIDEO ordering/mapping races, capture validation and state lifetime/publication remain unverified; no live movie or hardware certification",
+        "prior_review": null
+      }
     },
     {
       "path": "src/video/fb_present.h",
@@ -3565,6 +3573,34 @@
       "mode": "100644",
       "git_blob": "ec5eda7b4ac569b98bc855f20f832588a207f06e",
       "sha256": "bd8274ba44350d34c6882145f93a03986add324d43abfab3cf720e1efe9dbe23"
+    },
+    {
+      "path": "tests/fb_present/CMakeLists.txt",
+      "mode": "100644",
+      "git_blob": "01e6ded324a05b055c13786af1a1185c3c505d51",
+      "sha256": "19f37df11e3021858b8a5207fde75ebd901151a8099083ea100a196ab263d571",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "fe644314d7283f72a021381ec7e5cbebdad71b84",
+        "scope": "Full presenter ownership read; configured installed-RAM bound and actual-presenter boundary regression",
+        "evidence": "tools/reference/ownership_fb_present.md; old admission fails; final Windows/Linux focused test passes; both game builds pass",
+        "limit": "PVIDEO ordering/mapping races, capture validation and state lifetime/publication remain unverified; no live movie or hardware certification",
+        "prior_review": null
+      }
+    },
+    {
+      "path": "tests/fb_present/test_main.c",
+      "mode": "100644",
+      "git_blob": "c9d902860da339663d44c3acdea6eccd36e94ebc",
+      "sha256": "42b2e096017983ceceb6e1ae50134c0facf81b4b5142b74898aaf8a66cf96eda",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "fe644314d7283f72a021381ec7e5cbebdad71b84",
+        "scope": "Full presenter ownership read; configured installed-RAM bound and actual-presenter boundary regression",
+        "evidence": "tools/reference/ownership_fb_present.md; old admission fails; final Windows/Linux focused test passes; both game builds pass",
+        "limit": "PVIDEO ordering/mapping races, capture validation and state lifetime/publication remain unverified; no live movie or hardware certification",
+        "prior_review": null
+      }
     },
     {
       "path": "tests/fist/CMakeLists.txt",
@@ -7519,9 +7555,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "fa6c6f2a883027c6eb5448c0bcb0debf316f0c7b",
+  "fork_tree": "189d8d42b5b3c39e518d56579c0f8ea5b9e46879",
   "coverage": {
-    "tracked_files": 649,
+    "tracked_files": 651,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -7539,7 +7575,7 @@
       "include": 2,
       "src": 153,
       "templates": 7,
-      "tests": 210,
+      "tests": 212,
       "tools": 229
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
@@ -7577,7 +7613,9 @@
       "tests/recomp_trace/test_main.c",
       "tests/kernel_dispatch/ram_statistics_test.c",
       "tests/mmio_decode/CMakeLists.txt",
-      "tests/mmio_decode/nv2a_adapter_test.c"
+      "tests/mmio_decode/nv2a_adapter_test.c",
+      "tests/fb_present/CMakeLists.txt",
+      "tests/fb_present/test_main.c"
     ],
     "stale_fff_paths": [
       "docs/technical/burnout3-reunification.md",

@@ -3258,3 +3258,13 @@ Fork checkpoint for this batch: `364d9d1`.
 - Full kernel_io.c ownership read retains generic services, with native stubs,
   symbol/object table and pointer-validation gaps recorded in
   tools/reference/ownership_kernel_io.md. Wider goal remains open.
+
+
+### Honor configured RAM in generic PVIDEO presentation
+
+- Fork fe64431 replaces a retail-only scanout bound with installed RAM
+  configuration. Extra backed guest storage does not enlarge that limit.
+- Actual-presenter fixture fails above-64-MB admission before the fix; final
+  exact-end/out-of-range/retained-pixel tests pass Windows/Linux. Both game
+  builds pass. Full presenter ownership read and remaining accuracy/lifetime
+  gaps are recorded in tools/reference/ownership_fb_present.md.
