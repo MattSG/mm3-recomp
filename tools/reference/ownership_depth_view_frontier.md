@@ -19,7 +19,9 @@ renderer must not silently impose an application's approximation on every port.
 Existing port render-policy hooks cover forced depth, cubic filtering, idle
 presentation and vertex alignment. MM3's implementations are in
 `src/mods/render_policy.c`, registered in `src/mods/widescreen_hud.c`.
-They currently do not select this depth-view approximation. A migration must
+MM3 now selects its own matching shader fragment through the generic build-time
+shader-directory extension. The shared fallback shader and quarter-pixel backend
+constants still remain; this is migration in progress. A completed migration must
 preserve any required MM3 compatibility explicitly while giving the shared
 runtime a truthful generic view contract. Exact low-word/stencil support or an
 explicitly selected proxy remains implementation work; it has not been decided

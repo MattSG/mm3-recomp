@@ -2251,3 +2251,30 @@ Fork checkpoint for this batch: `364d9d1`.
   or new gameplay claim accompanies this evidence checkpoint.
 - Depth-view migration, remaining shader internals and whole-fork ownership
   remain incomplete.
+
+
+### Shared source selection for port-owned shaders
+
+- Added XBOXRECOMP_NV2A_SHADER_DIR as a build-time extension configured before
+  toolkit/helper inclusion. It must be an existing absolute directory. Matching
+  fragment filenames replace shared source; missing fragments retain defaults.
+  D3D11 embedding and SDL GPU generated compile units use the same selection.
+  Port HLSL/HLSLI files are dependencies; additions/removals trigger selection
+  again. Shader ABI, entry points/resources and external include dependencies
+  remain the caller's responsibility. No new runtime replacement API is implied.
+- MM3 sets its own source directory and selects
+  src/mods/shaders/nv2a/nv2a_y16d.hlsl. Its bytes match the prior shared shader,
+  preserving current logic while establishing the owner boundary. Both actual
+  game renderer builds pass, and SDL compile-unit/D3D11 build inputs select the
+  port fragment. The shared fallback/high-word proxy and fixed backend offsets
+  have not yet been removed or given complete generic semantics. The depth-view
+  frontier is updated to distinguish this checkpoint from completed migration.
+- Windows fixtures build actual SPIR-V and DXIL with default and port selection;
+  each CTest passes. Linux port fixture builds SPIR-V and passes CTest. The
+  fixture verifies selected/fallback sources and embedded port marker. A changed
+  port fragment rebuilds D3D embedding plus both Windows shader formats; invalid
+  relative source directories fail configuration. Evidence:
+  conformance_tmp/ownership-shader-* including ownership-shader-validation.json.
+  No new GPU pixel, driving or complete format-fidelity claim is made.
+- Inventory now covers 627 committed paths with unchanged 153 src paths.
+  Whole-fork ownership and the identified depth policy migration remain open.

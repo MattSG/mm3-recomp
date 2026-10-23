@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+  "fork_commit": "528e2a48d891bb67a18a4903bc29d366353e8a00",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -126,27 +126,41 @@
     {
       "path": "cmake/Nv2aHlsl.cmake",
       "mode": "100644",
-      "git_blob": "c45fdddd4254460324f64eeab392712bf5047471",
-      "sha256": "2113ccffac8726023a68ddefc220ef7f4ba5c3a0411f9e23f5147716d7865f0c",
+      "git_blob": "2c845e529cf787ede2a4e9d6aada69a44fee51b9",
+      "sha256": "70ab04711818f4ae6dfc632e2cad0637a74744a77b4342fcf3131f4ad54b9361",
       "ownership_review": {
-        "decision": "retain_generic",
-        "reviewed_at_fork": "6ee217d95a50e48182f5275f7f78f7ab00ed7ef9",
-        "scope": "Full generic HLSL input list and target embedding rule",
-        "evidence": "Caller-independent build/format/dependency inspection; existing-SDL fixture fails before independent DXC setup and passes after with real Windows 24 SPIR-V/DXIL and Linux 12 SPIR-V headers; normal SDL runtime build and 19 binding cases pass",
-        "limit": "Build dependency/shader-generation proof, not GPU execution or isolated descriptor-patch fidelity; MinGW cross-build and exhaustive embed encodings are not established by these checks"
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "528e2a48d891bb67a18a4903bc29d366353e8a00",
+        "scope": "Validate optional port shader directory, select matching fragments and depend on port HLSL/includes for D3D11 embedding",
+        "evidence": "Windows default and port fixtures build/CTest pass; Linux port fixture compiles SPIR-V and CTest passes; changed fragment rebuilds embedding/SPIR-V/DXIL; invalid relative directory rejected; both MM3 renderer builds select its own matching depth fragment",
+        "limit": "Build/source selection only. Shared depth proxy and quarter-pixel constants remain pending migration; no new GPU pixels, game acceptance or format-fidelity proof.",
+        "prior_review": {
+          "decision": "retain_generic",
+          "reviewed_at_fork": "6ee217d95a50e48182f5275f7f78f7ab00ed7ef9",
+          "scope": "Full generic HLSL input list and target embedding rule",
+          "evidence": "Caller-independent build/format/dependency inspection; existing-SDL fixture fails before independent DXC setup and passes after with real Windows 24 SPIR-V/DXIL and Linux 12 SPIR-V headers; normal SDL runtime build and 19 binding cases pass",
+          "limit": "Build dependency/shader-generation proof, not GPU execution or isolated descriptor-patch fidelity; MinGW cross-build and exhaustive embed encodings are not established by these checks"
+        }
       }
     },
     {
       "path": "cmake/Nv2aSdlgpu.cmake",
       "mode": "100644",
-      "git_blob": "859595175eb134f5cfbeb1c6896af151d3a14886",
-      "sha256": "795012cc734737abf123b98866bc7a1a4f97d1635d4343735caf5ef79dbfc590",
+      "git_blob": "e89d7df47cc411ccb7b3791fa35f731cc22e78b7",
+      "sha256": "cb506937aa6eed9c8f79b3b15e63e61108757e267283cd717e87272fba8007e6",
       "ownership_review": {
-        "decision": "retain_generic",
-        "reviewed_at_fork": "6ee217d95a50e48182f5275f7f78f7ab00ed7ef9",
-        "scope": "Full reusable target/dependency and generic shader-variant build helpers",
-        "evidence": "Caller-independent build/format/dependency inspection; existing-SDL fixture fails before independent DXC setup and passes after with real Windows 24 SPIR-V/DXIL and Linux 12 SPIR-V headers; normal SDL runtime build and 19 binding cases pass",
-        "limit": "Build dependency/shader-generation proof, not GPU execution or isolated descriptor-patch fidelity; MinGW cross-build and exhaustive embed encodings are not established by these checks"
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "528e2a48d891bb67a18a4903bc29d366353e8a00",
+        "scope": "Generate SDL compile units from the same selected fragments and track source/unit dependencies",
+        "evidence": "Windows default and port fixtures build/CTest pass; Linux port fixture compiles SPIR-V and CTest passes; changed fragment rebuilds embedding/SPIR-V/DXIL; invalid relative directory rejected; both MM3 renderer builds select its own matching depth fragment",
+        "limit": "Build/source selection only. Shared depth proxy and quarter-pixel constants remain pending migration; no new GPU pixels, game acceptance or format-fidelity proof.",
+        "prior_review": {
+          "decision": "retain_generic",
+          "reviewed_at_fork": "6ee217d95a50e48182f5275f7f78f7ab00ed7ef9",
+          "scope": "Full reusable target/dependency and generic shader-variant build helpers",
+          "evidence": "Caller-independent build/format/dependency inspection; existing-SDL fixture fails before independent DXC setup and passes after with real Windows 24 SPIR-V/DXIL and Linux 12 SPIR-V headers; normal SDL runtime build and 19 binding cases pass",
+          "limit": "Build dependency/shader-generation proof, not GPU execution or isolated descriptor-patch fidelity; MinGW cross-build and exhaustive embed encodings are not established by these checks"
+        }
       }
     },
     {
@@ -523,6 +537,19 @@
       "mode": "100644",
       "git_blob": "0ba8225d28b700d68f487a45aac7ea5a8f4a3b17",
       "sha256": "301e0390018fb573e2c43122a25fd2a396aa826b05aa8dcaa7011c9c149e5211"
+    },
+    {
+      "path": "docs/technical/shader-overrides.md",
+      "mode": "100644",
+      "git_blob": "fee31ff932ef3d379d6e55d817d80c40007313e6",
+      "sha256": "5c3e197034ae382d544e7fe2af07a77e8ca0a943fb77483bd1f1eee17394eaaa",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "528e2a48d891bb67a18a4903bc29d366353e8a00",
+        "scope": "Build-time shader replacement contract, interfaces, dependency ownership and test limits",
+        "evidence": "Windows default and port fixtures build/CTest pass; Linux port fixture compiles SPIR-V and CTest passes; changed fragment rebuilds embedding/SPIR-V/DXIL; invalid relative directory rejected; both MM3 renderer builds select its own matching depth fragment",
+        "limit": "Build/source selection only. Shared depth proxy and quarter-pixel constants remain pending migration; no new GPU pixels, game acceptance or format-fidelity proof."
+      }
     },
     {
       "path": "docs/technical/xemu-debugging.md",
@@ -2396,14 +2423,34 @@
     {
       "path": "tests/cmake_sdlgpu/CMakeLists.txt",
       "mode": "100644",
-      "git_blob": "03eaefa557c239a4c89e245313145e6c9eb582b1",
-      "sha256": "16362a63a5a8e08926011cec5d71321380d551a609dd1ae792d0c7d8e6087fa1",
+      "git_blob": "be6b6bbbc27667eea661784908488b4d94f21a8e",
+      "sha256": "8709b772d3d5339bb23a7fdd7239d3cba40516957bcb489b54d632d73c1089c0",
       "ownership_review": {
-        "decision": "retain_generic",
-        "reviewed_at_fork": "6ee217d95a50e48182f5275f7f78f7ab00ed7ef9",
-        "scope": "Full parent-provided SDL/no-DXC build-graph regression fixture",
-        "evidence": "Caller-independent build/format/dependency inspection; existing-SDL fixture fails before independent DXC setup and passes after with real Windows 24 SPIR-V/DXIL and Linux 12 SPIR-V headers; normal SDL runtime build and 19 binding cases pass",
-        "limit": "Build dependency/shader-generation proof, not GPU execution or isolated descriptor-patch fidelity; MinGW cross-build and exhaustive embed encodings are not established by these checks"
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "528e2a48d891bb67a18a4903bc29d366353e8a00",
+        "scope": "Compile default/port fragment selection through embedding and actual DXC shader headers",
+        "evidence": "Windows default and port fixtures build/CTest pass; Linux port fixture compiles SPIR-V and CTest passes; changed fragment rebuilds embedding/SPIR-V/DXIL; invalid relative directory rejected; both MM3 renderer builds select its own matching depth fragment",
+        "limit": "Build/source selection only. Shared depth proxy and quarter-pixel constants remain pending migration; no new GPU pixels, game acceptance or format-fidelity proof.",
+        "prior_review": {
+          "decision": "retain_generic",
+          "reviewed_at_fork": "6ee217d95a50e48182f5275f7f78f7ab00ed7ef9",
+          "scope": "Full parent-provided SDL/no-DXC build-graph regression fixture",
+          "evidence": "Caller-independent build/format/dependency inspection; existing-SDL fixture fails before independent DXC setup and passes after with real Windows 24 SPIR-V/DXIL and Linux 12 SPIR-V headers; normal SDL runtime build and 19 binding cases pass",
+          "limit": "Build dependency/shader-generation proof, not GPU execution or isolated descriptor-patch fidelity; MinGW cross-build and exhaustive embed encodings are not established by these checks"
+        }
+      }
+    },
+    {
+      "path": "tests/cmake_sdlgpu/verify_shader_sources.cmake",
+      "mode": "100644",
+      "git_blob": "125a07c633942de12cf902ee6a505b90d83a841b",
+      "sha256": "6928715f56af56f848f5873e137644c9e7e181942b52bcdd2d9d766d20bd92fe",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "528e2a48d891bb67a18a4903bc29d366353e8a00",
+        "scope": "Check embedded marker, selected depth/fallback vertex source and compiled SPIR-V artifact",
+        "evidence": "Windows default and port fixtures build/CTest pass; Linux port fixture compiles SPIR-V and CTest passes; changed fragment rebuilds embedding/SPIR-V/DXIL; invalid relative directory rejected; both MM3 renderer builds select its own matching depth fragment",
+        "limit": "Build/source selection only. Shared depth proxy and quarter-pixel constants remain pending migration; no new GPU pixels, game acceptance or format-fidelity proof."
       }
     },
     {
@@ -5733,9 +5780,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "3a9c7c811418102a5aa88a767d832c7f8f690684",
+  "fork_tree": "40881206da49d8026398592f8739e6585e4a4d98",
   "coverage": {
-    "tracked_files": 625,
+    "tracked_files": 627,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -5749,17 +5796,19 @@
       "NOTICE": 1,
       "README.md": 1,
       "cmake": 7,
-      "docs": 29,
+      "docs": 30,
       "include": 2,
       "src": 153,
       "templates": 7,
-      "tests": 198,
+      "tests": 199,
       "tools": 218
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
     "tracked_paths_missing_from_fff": [
       "docs/technical/fusion-analysis.md",
+      "docs/technical/shader-overrides.md",
       "tests/cmake_sdlgpu/CMakeLists.txt",
+      "tests/cmake_sdlgpu/verify_shader_sources.cmake",
       "tests/dsp/dsp_program_dump_test.c",
       "tests/kernel_dispatch/guest_vmem_prefix_test.c",
       "tests/memory_regressions/cpp_linkage.cpp",
