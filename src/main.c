@@ -60,6 +60,36 @@ static void mm3_configure_kernel_identity(void)
     }
 }
 
+/* Inherited port compatibility: references expose one finished thread object,
+ * not live per-handle KTHREAD state. Keep this approximation out of the runtime.
+ * Reset its guest address before each host-owned memory generation. */
+static uint32_t mm3_finished_thread_object;
+static void mm3_reference_object_bridge(void)
+{
+    uint32_t handle=MEM32(g_esp),type=MEM32(g_esp+4),output=MEM32(g_esp+8);
+    MEMORY_BASIC_INFORMATION region;
+    uintptr_t pointer=(uintptr_t)output+g_xbox_mem_offset;
+    if (output<0x1000 || (uint64_t)output+4>xbox_GetMappedSize() ||
+        !VirtualQuery((void *)pointer,&region,sizeof(region)) ||
+        region.State!=MEM_COMMIT || region.Protect!=PAGE_READWRITE ||
+        pointer+4>(uintptr_t)region.BaseAddress+region.RegionSize) {
+        g_eax=STATUS_INVALID_PARAMETER; return;
+    }
+    MEM32(output)=0;
+    if (!handle || handle==UINT32_MAX) { g_eax=STATUS_INVALID_HANDLE; return; }
+    if (type==XBOX_KERNEL_DATA_BASE+KDATA_THREAD_OBJ_TYPE) {
+        if (!mm3_finished_thread_object) {
+            mm3_finished_thread_object=xbox_HeapAlloc(0x124,16);
+            if (mm3_finished_thread_object) {
+                memset((void *)XBOX_PTR(mm3_finished_thread_object),0,0x124);
+                MEM32(mm3_finished_thread_object+4)=1;
+            }
+        }
+        MEM32(output)=mm3_finished_thread_object;
+        g_eax=mm3_finished_thread_object?STATUS_SUCCESS:STATUS_NO_MEMORY;
+    } else { MEM32(output)=handle; g_eax=STATUS_SUCCESS; }
+}
+
 /* Preserve the port's optional launch command-line interface. The identity
  * comes from this XBE's certificate, never from a different title's capture. */
 static void mm3_configure_launch_data(const void *image, size_t size)
@@ -379,6 +409,11 @@ int main(void)
     xbox_kernel_init();
     xbox_path_init(MM3_GAME_DIR, getenv("MM3_SAVE_DIR"));
     mm3_asset_cache_refresh();
+    mm3_finished_thread_object=0;
+    if (xbox_kernel_set_bridge_override(246,mm3_reference_object_bridge)!=0) {
+        fprintf(stderr,"cannot register MM3 object-reference bridge\n");
+        xbox_kernel_shutdown(); xbox_MemoryLayoutShutdown(); free(xbe_data); return 1;
+    }
     xbox_kernel_bridge_init();
     if (xbox_Nv2aMirrorFence(0x00351F48u, 0x2Cu, 0x30u) != 0 ||
         xbox_Nv2aCommandFence(0x00351F48u, 0xCu, 0u) != 0) {

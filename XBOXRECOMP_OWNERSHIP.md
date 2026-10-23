@@ -2113,3 +2113,38 @@ Fork checkpoint for this batch: `364d9d1`.
   ownership-runtime-comments-tests.log. This is a comment-only migration, not
   new gameplay or complete CPU/SEH correctness evidence. Other source/template
   ownership and incomplete runtime semantics still require review.
+
+
+### Move fabricated thread objects to the port
+
+- Shared ObReferenceObjectByHandle formerly returned one static, signaled guest
+  KTHREAD with zero exit status for every thread handle; other objects were
+  returned as tokens. The static guest address also survived memory generations.
+  Its normalized original from fork 081a77d is preserved in
+  tools/reference/legacy_thread_object_bridge.md. The pre-fix regression confirms
+  this fabricated-success behavior. Shared guest references now validate their
+  output and report invalid handles or NOT_SUPPORTED with a cleared output.
+- xbox_kernel_set_bridge_override installs a port host callback for a supported
+  canonical function at initialization. It rejects invalid/data/unrouted IDs,
+  preserves policy until changed, supports replacement/NULL clearing, and leaves
+  native resolution/data exports alone. Selection occurs after one remap. ESP
+  points to arg0 after the dispatcher consumes the return slot; the callback
+  preserves that ESP and the original dispatcher performs ABI cleanup.
+- MM3 main owns and registers the inherited reference approximation at ordinal
+  246, validates its output and clears its cached guest address at startup.
+  This preserves application compatibility without advertising fabricated thread
+  state as generic kernel semantics. Live per-handle type/object/reference and
+  thread exit/wait semantics remain incomplete; native object facades still
+  require separate review.
+- Windows bridge 44/44 and memory 56/56 pass. Linux kernel 61/61, both new actual
+  bridge modes and C++ consumer pass. Cases cover remap-once selection, replacement,
+  clearing, invalid/data IDs, native isolation, stdcall cleanup, fastcall register
+  arguments and unsupported/invalid/truncated object-reference outputs. Both
+  renderer builds and eight route-audit checks pass. An extracted production MM3
+  callback check validates its inherited values, reuse, invalid/truncated outputs
+  and unchanged ESP against the actual Linux runtime. Evidence:
+  conformance_tmp/ownership-object-* and ownership-mm3-object-*.
+- Vulkan night Cruise run-mujf75gd passes in 123.438 seconds with an
+  inspected capture and 1.27575 metres of movement. This is bounded driving
+  evidence, not complete object or concurrency fidelity. Whole-fork ownership
+  and remaining native/guest runtime approximations are still open.
