@@ -1824,3 +1824,42 @@ Fork checkpoint for this batch: `364d9d1`.
   menu/loading/driving evidence, not identity, crypto or network fidelity.
 - Remaining disk/image-name policy, object-type stand-ins, native export
   coverage, worker-stack policy and whole-tree ownership still require review.
+
+
+### Marshal port-owned disk and image strings
+
+- Native disk/image STRING exports were configurable, but the bridge replaced
+  them with fixed disk labels, serial, image path and partition count. The old
+  compiled Linux runtime fails the configured counts/copy/storage/topology
+  assertions. The bridge now marshals native export inputs into 8-byte guest
+  descriptors (two 16-bit counts and one 32-bit VA), rather than copying the
+  host-pointer layout or assuming C strings.
+- Each valid string receives owned guest heap capacity MaximumLength; exactly
+  Length bytes are copied, unused capacity is zeroed, and counts are preserved.
+  No terminator is assumed or appended outside capacity. Invalid length/null
+  nonempty input and failed allocation leave an empty descriptor. Host buffers
+  remain caller-owned and must back Length bytes; boot copies remain until
+  memory-layout shutdown, not synchronized live with host writes.
+- Generic strings/topology default to unconfigured zero. MM3 supplies its
+  inherited virtual disk model/serial, disc image path and three cache
+  partitions through existing exports. Its native capacities include the NUL
+  byte to retain inherited guest text behavior. No new configuration API was
+  needed. Actual port-helper checks include path text/counts and disk topology,
+  alongside existing identity/key parser checks.
+- Five original normalized blocks are archived in
+  `tools/reference/legacy_kernel_string_policy.md`, verified against fork
+  0f55435. Obsolete inline buffer constants/capacity assumptions leave the shared
+  header; guest descriptor offsets remain stable. No title path or disk label
+  remains as an active generic default.
+- Five synthetic modes cover native/guest pointer/count/capacity consistency,
+  embedded NUL, exact nonterminated bytes, long paths and all 65535 counted
+  bytes, unconfigured and valid empty strings, invalid counts/null data and
+  exhausted guest heap. Windows memory 50/50, kernel 62/62 and bridge 8/8 pass;
+  Linux kernel 61/61 and all 28 thunk modes pass. Both renderer builds, bridge
+  ordinal audit and actual MM3 helper checks pass. Logs:
+  `conformance_tmp/ownership-strings-*`.
+- D3D12 night Cruise `run-x67u2_e5` passes in 123.578 seconds, with
+  inspected gameplay captures and 1.06960 metres of movement. This is
+  bounded boot/menu/loading/driving evidence, not full disk/launch fidelity.
+- Remaining object-type/channel stand-ins, native export coverage, worker-stack
+  policy and whole-tree ownership still require review.

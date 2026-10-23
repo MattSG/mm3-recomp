@@ -29,6 +29,13 @@
  * Keep credential input in the port; the shared kernel copies export bytes. */
 static void mm3_configure_kernel_identity(void)
 {
+    static char disk_model[]="XBOXRECOMP VIRTUAL HDD";
+    static char disk_serial[]="XR0000000000";
+    static char image_path[]="\\Device\\CdRom0\\default.xbe";
+    xbox_HalDiskCachePartitionCount=3;
+    xbox_HalDiskModelNumber=(XBOX_ANSI_STRING){sizeof(disk_model)-1,sizeof(disk_model),disk_model};
+    xbox_HalDiskSerialNumber=(XBOX_ANSI_STRING){sizeof(disk_serial)-1,sizeof(disk_serial),disk_serial};
+    xbox_XeImageFileName=(XBOX_ANSI_STRING){sizeof(image_path)-1,sizeof(image_path),image_path};
     static const struct { const char *name; UCHAR *bytes; } keys[] = {
         {"RECOMP_XBOX_HDKEY", xbox_HDKey},
         {"RECOMP_XBOX_SIGKEY", xbox_SignatureKey},
