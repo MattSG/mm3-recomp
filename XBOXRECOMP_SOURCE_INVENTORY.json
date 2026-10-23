@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "a66c66c72b73cb6ad22638bfa5e15ce514d9c7ec",
+  "fork_commit": "72f7e88a0a06901d8789bfcbf3d06dfedca90446",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -978,21 +978,28 @@
     },
     {
       "path": "src/kernel/README.md",
-      "sha256": "ba90de0e4cac3a301ae62fffa9330f616cb0b9c86b2e01196a104161403e86e3",
+      "sha256": "7b2d056c68f5c647029f6f7fb52b8b6e3527e473bc98739338b58ec3830c8662",
       "mode": "100644",
-      "git_blob": "5dc118df470f63c0093b47e0366a3bfdd1bb008a",
+      "git_blob": "d13578eac0000fe8a204a8e8ea8a892a3d823684",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "a66c66c72b73cb6ad22638bfa5e15ce514d9c7ec",
-        "scope": "Correct native callback ABI guide and distinguish guest path",
-        "evidence": "Native optional-system baseline and four guest Ex cases fail before their respective fixes. Windows memory 56/56, kernel 62/62, bridge 42/42; Linux kernel 61/61, seven native and six guest modes, eight existing thread and seventeen unwind modes plus C++ consumer pass. Both renderer builds and ordinal route audit pass. D3D12 night Cruise run-1mq5tm6c: inspected capture, 2.17761m movement in 123.328s.",
-        "limit": "Native host callback facade and selected guest entry dispatch only. Guest suspension/IDs/TLS/extensions, native failure injection, object fidelity and whole-fork ownership remain open.",
+        "reviewed_at_fork": "72f7e88a0a06901d8789bfcbf3d06dfedca90446",
+        "scope": "Replace title-specific memory map, obsolete LOC/API tables and broad completeness claims with current generic integration boundaries",
+        "evidence": "Nine local links resolve; archived text exactly matches normalized original at a66c66c; current public memory/header and path implementation read",
+        "limit": "Documentation-only ownership checkpoint; no new runtime correctness claim",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "5de8b116af3b46407478b952588eb18ce2943fbd",
-          "scope": "Replace fixed address and stale offset example with runtime ownership contract",
-          "evidence": "Old Linux runtime overwrites synthetic image sentinel at former fixed page. Windows memory43/kernel62/bridge8 pass; Linux kernel61, actual C++ consumer,21 original memory modes and21 thunk modes pass; both renderer builds and ordinal audit pass. D3D12 night Cruise run-6ad4jq_e: inspected capture,1.51153m movement in123.593s.",
-          "limit": "Export storage placement/ownership only. Existing partial identity/data payloads, native export coverage, worker policy and whole-fork ownership remain open."
+          "reviewed_at_fork": "a66c66c72b73cb6ad22638bfa5e15ce514d9c7ec",
+          "scope": "Correct native callback ABI guide and distinguish guest path",
+          "evidence": "Native optional-system baseline and four guest Ex cases fail before their respective fixes. Windows memory 56/56, kernel 62/62, bridge 42/42; Linux kernel 61/61, seven native and six guest modes, eight existing thread and seventeen unwind modes plus C++ consumer pass. Both renderer builds and ordinal route audit pass. D3D12 night Cruise run-1mq5tm6c: inspected capture, 2.17761m movement in 123.328s.",
+          "limit": "Native host callback facade and selected guest entry dispatch only. Guest suspension/IDs/TLS/extensions, native failure injection, object fidelity and whole-fork ownership remain open.",
+          "prior_review": {
+            "decision": "retain_generic_boundary",
+            "reviewed_at_fork": "5de8b116af3b46407478b952588eb18ce2943fbd",
+            "scope": "Replace fixed address and stale offset example with runtime ownership contract",
+            "evidence": "Old Linux runtime overwrites synthetic image sentinel at former fixed page. Windows memory43/kernel62/bridge8 pass; Linux kernel61, actual C++ consumer,21 original memory modes and21 thunk modes pass; both renderer builds and ordinal audit pass. D3D12 night Cruise run-6ad4jq_e: inspected capture,1.51153m movement in123.593s.",
+            "limit": "Export storage placement/ownership only. Existing partial identity/data payloads, native export coverage, worker policy and whole-fork ownership remain open."
+          }
         }
       }
     },
@@ -5436,7 +5443,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "35f7505fefc9d5f2827590f5c35957a99f403553",
+  "fork_tree": "431e47a653868fffa6b82f5aea2d5771390deceb",
   "coverage": {
     "tracked_files": 625,
     "tracked_src_files": 153,

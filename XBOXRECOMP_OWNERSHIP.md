@@ -2059,3 +2059,21 @@ Fork checkpoint for this batch: `364d9d1`.
   TLS/extensions, native allocation failure injection, object semantics and
   whole-fork ownership remain open. Other sections of the kernel guide have
   not been certified by this scoped correction.
+
+
+### Generic kernel integration guide
+
+- The kernel guide still embedded a fixed title section/TLS/stack/heap map,
+  a title asset directory, obsolete source LOC and bump-allocator API claims,
+  and broad replacement/full-synchronization claims unsupported by route tests.
+  The original guide from fork a66c66c is preserved verbatim after newline
+  normalization in tools/reference/legacy_kernel_integration_guide.md.
+- The shared guide now points to current public headers and memory ownership
+  guidance. Image-derived layout and port configuration replace edits to shared
+  header constants. Native versus guest contracts, initialization/lifetimes,
+  address spaces, import/data configuration and partial fidelity are explicit.
+  No code behavior changes or new game acceptance claim accompany this edit.
+- All nine local links resolve and the archive exactly matches the original.
+  Evidence: conformance_tmp/ownership-kernel-guide-validation.json.
+  Register-model/template commentary and broader source ownership still need
+  review; this checkpoint does not certify the entire fork.
