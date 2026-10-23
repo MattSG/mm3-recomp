@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "4ce8a993991bb0d168e3f0299226382e6520cac6",
+  "fork_commit": "119bf71deebfcba52dfa7761c778419b75d612b9",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -37,8 +37,15 @@
     {
       "path": "CONTRIBUTORS.md",
       "mode": "100644",
-      "git_blob": "bef9983ff20db2b8d02462be41301114bbc3a704",
-      "sha256": "fdaf9d7f08637fbf8cf1685641d68a8ec3c445001b45bae7ed2d8d3c776ba1a6"
+      "git_blob": "b6cc7bb63aadd093a852c24098ac9d250df1562b",
+      "sha256": "054389021e25493becd7fec508d7dabd0f94e7196515b053394bf35e758949fc",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "119bf71deebfcba52dfa7761c778419b75d612b9",
+        "scope": "Incoming link description update only; document remainder not newly reviewed",
+        "evidence": "Two archived documents match prior text after newline/trailing-space normalization; 16 replacement-guide links resolve; fork diff documentation only",
+        "limit": "No new runtime coverage or hardware-fidelity claim; archived DONE claims are historical and not current certification."
+      }
     },
     {
       "path": "Dockerfile.gcc",
@@ -73,26 +80,33 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "git_blob": "12ba471b8689e46304d9d4c17414766faede65f5",
-      "sha256": "f89acc4f544d822acaea8b4f0dd92c8a182d0d35536970594df1a9491bdbbe5f",
+      "git_blob": "17f5c03ef39d288b3fbdfbf7b8569d99c79efa9c",
+      "sha256": "f0923a5d4a8d3b85cbdd7ed4224ae5fb7c79c76ae219017cff66b6177cbe4106",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "760ca88b46d00bde1ffa5f4d4038850e6e574058",
-        "scope": "Remove captured release/gameplay/test-count history and broad compatibility/performance promises; retain generic SDK interfaces, explicit renderers, scoped checks and unchanged attribution/licensing",
-        "evidence": "Original 1721-line README archived as full normalized text with original blob identity/SHA256. Licence/contributor/credit block unchanged. Current README: 477 lines; all 55 local path links and six actual CLI help interfaces pass; renderer choices match current CMake and existing compiled configurations.",
-        "limit": "README/interface/link review only. No new clean-install, pipeline regeneration, platform gameplay or whole-fork ownership claim. Linked guides/templates and remaining source/data still need scoped review.",
+        "reviewed_at_fork": "119bf71deebfcba52dfa7761c778419b75d612b9",
+        "scope": "Incoming link description update only; document remainder not newly reviewed",
+        "evidence": "Two archived documents match prior text after newline/trailing-space normalization; 16 replacement-guide links resolve; fork diff documentation only",
+        "limit": "No new runtime coverage or hardware-fidelity claim; archived DONE claims are historical and not current certification.",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "e7a7589beb9668f223527c8fedd3bdf3a7107cba",
-          "scope": "Navigation description for per-image D3D8LTCG investigation; prior scoped edits retained, unrelated text unreviewed",
-          "evidence": "Complete captured-title map archived in MM3 with source commit/blob and exact original text; replacement local links resolve; only documentation changed.",
-          "limit": "Documentation ownership and preservation, not validation of captured offsets, historical bypasses, GPU completion or original-game fidelity.",
+          "reviewed_at_fork": "760ca88b46d00bde1ffa5f4d4038850e6e574058",
+          "scope": "Remove captured release/gameplay/test-count history and broad compatibility/performance promises; retain generic SDK interfaces, explicit renderers, scoped checks and unchanged attribution/licensing",
+          "evidence": "Original 1721-line README archived as full normalized text with original blob identity/SHA256. Licence/contributor/credit block unchanged. Current README: 477 lines; all 55 local path links and six actual CLI help interfaces pass; renderer choices match current CMake and existing compiled configurations.",
+          "limit": "README/interface/link review only. No new clean-install, pipeline regeneration, platform gameplay or whole-fork ownership claim. Linked guides/templates and remaining source/data still need scoped review.",
           "prior_review": {
             "decision": "retain_generic_boundary",
-            "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
-            "scope": "Reference-analysis navigation/provenance paragraph; prior target/port-policy edits retained; unrelated content not certified",
-            "evidence": "Five captured corpus/adoption documents preserved in MM3 with source blob identities; new/updated guide links resolve; checked callers have no removed-page references; 42 Fusion tests pass",
-            "limit": "Documentation ownership, not validation against actual captured modules, corpus claims, complete private compiler formats or gameplay"
+            "reviewed_at_fork": "e7a7589beb9668f223527c8fedd3bdf3a7107cba",
+            "scope": "Navigation description for per-image D3D8LTCG investigation; prior scoped edits retained, unrelated text unreviewed",
+            "evidence": "Complete captured-title map archived in MM3 with source commit/blob and exact original text; replacement local links resolve; only documentation changed.",
+            "limit": "Documentation ownership and preservation, not validation of captured offsets, historical bypasses, GPU completion or original-game fidelity.",
+            "prior_review": {
+              "decision": "retain_generic_boundary",
+              "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
+              "scope": "Reference-analysis navigation/provenance paragraph; prior target/port-policy edits retained; unrelated content not certified",
+              "evidence": "Five captured corpus/adoption documents preserved in MM3 with source blob identities; new/updated guide links resolve; checked callers have no removed-page references; 42 Fusion tests pass",
+              "limit": "Documentation ownership, not validation against actual captured modules, corpus claims, complete private compiler formats or gameplay"
+            }
           }
         }
       }
@@ -231,20 +245,27 @@
     {
       "path": "docs/INDEX.md",
       "mode": "100644",
-      "git_blob": "37e775275783a30b49a72d6c29bd5941d0b4413e",
-      "sha256": "197c400d1e72e8b60c653aa93d8be95f90b5f92428c54f100eaedf530b81f6e1",
+      "git_blob": "7336469289bb9ea87127abc50a34c4a3c5da5fcd",
+      "sha256": "553e4a656e60790bcc838eea0b75ce68fc3483792a009b39b3fa2db5867d45db",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "e7a7589beb9668f223527c8fedd3bdf3a7107cba",
-        "scope": "Navigation description for per-image D3D8LTCG investigation; prior scoped edits retained, unrelated text unreviewed",
-        "evidence": "Complete captured-title map archived in MM3 with source commit/blob and exact original text; replacement local links resolve; only documentation changed.",
-        "limit": "Documentation ownership and preservation, not validation of captured offsets, historical bypasses, GPU completion or original-game fidelity.",
+        "reviewed_at_fork": "119bf71deebfcba52dfa7761c778419b75d612b9",
+        "scope": "Incoming link description update only; document remainder not newly reviewed",
+        "evidence": "Two archived documents match prior text after newline/trailing-space normalization; 16 replacement-guide links resolve; fork diff documentation only",
+        "limit": "No new runtime coverage or hardware-fidelity claim; archived DONE claims are historical and not current certification.",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
-          "scope": "Reference-analysis navigation/provenance paragraph; prior target/port-policy edits retained; unrelated content not certified",
-          "evidence": "Five captured corpus/adoption documents preserved in MM3 with source blob identities; new/updated guide links resolve; checked callers have no removed-page references; 42 Fusion tests pass",
-          "limit": "Documentation ownership, not validation against actual captured modules, corpus claims, complete private compiler formats or gameplay"
+          "reviewed_at_fork": "e7a7589beb9668f223527c8fedd3bdf3a7107cba",
+          "scope": "Navigation description for per-image D3D8LTCG investigation; prior scoped edits retained, unrelated text unreviewed",
+          "evidence": "Complete captured-title map archived in MM3 with source commit/blob and exact original text; replacement local links resolve; only documentation changed.",
+          "limit": "Documentation ownership and preservation, not validation of captured offsets, historical bypasses, GPU completion or original-game fidelity.",
+          "prior_review": {
+            "decision": "retain_generic_boundary",
+            "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
+            "scope": "Reference-analysis navigation/provenance paragraph; prior target/port-policy edits retained; unrelated content not certified",
+            "evidence": "Five captured corpus/adoption documents preserved in MM3 with source blob identities; new/updated guide links resolve; checked callers have no removed-page references; 42 Fusion tests pass",
+            "limit": "Documentation ownership, not validation against actual captured modules, corpus claims, complete private compiler formats or gameplay"
+          }
         }
       }
     },
@@ -396,8 +417,15 @@
     {
       "path": "docs/technical/gap-analysis.md",
       "mode": "100644",
-      "git_blob": "5ecab3918441e0a96c2228660f53f286eea63598",
-      "sha256": "51ed3a6b41bf15801fdf87a98ecd288b2d919ee0d8faa6518d409dd3795b22cc"
+      "git_blob": "226d9b9e2ed2bccc7984e27fd28d4551cbe54d2e",
+      "sha256": "421ffcf6aa14d6a6090792f02c34e1f8a42cf8439884982c753ece27fdfec1a6",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "119bf71deebfcba52dfa7761c778419b75d612b9",
+        "scope": "Replace title retrospective/support-status history with generic review criteria and update incoming link descriptions",
+        "evidence": "Two archived documents match prior text after newline/trailing-space normalization; 16 replacement-guide links resolve; fork diff documentation only",
+        "limit": "No new runtime coverage or hardware-fidelity claim; archived DONE claims are historical and not current certification."
+      }
     },
     {
       "path": "docs/technical/indirect-calls.md",
@@ -428,8 +456,15 @@
     {
       "path": "docs/technical/lessons-learned.md",
       "mode": "100644",
-      "git_blob": "197ab9449d6074a2522116075c60cd782b8bb4b1",
-      "sha256": "188fe5e597a3528082fa5757902c0d69f9f3bfff4bc994c63ea4cc8e276553ac"
+      "git_blob": "cdcb88a6cdd24959a9744f5e5535181e7412f81a",
+      "sha256": "6a60a77e79440a0c53826576ae889549fa4b590b961c458b865b96255d9766f9",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "119bf71deebfcba52dfa7761c778419b75d612b9",
+        "scope": "Replace title retrospective/support-status history with generic review criteria and update incoming link descriptions",
+        "evidence": "Two archived documents match prior text after newline/trailing-space normalization; 16 replacement-guide links resolve; fork diff documentation only",
+        "limit": "No new runtime coverage or hardware-fidelity claim; archived DONE claims are historical and not current certification."
+      }
     },
     {
       "path": "docs/technical/memory-layout.md",
@@ -517,8 +552,15 @@
     {
       "path": "docs/technical/nv2a-shaders.md",
       "mode": "100644",
-      "git_blob": "8ac94683b9517777ab2f81c3c9cb291c2e82dadf",
-      "sha256": "c1e1cecdaaf5147be255b6a04bc1d210df9e6ce3a7963b34f1df615cf118001b"
+      "git_blob": "c70d4a9e88ace632d0069ff6358f56090a9fc4fb",
+      "sha256": "ec97f3e7fe69b9d8f5eb20eb17204469baa0d0d49ddadc2dbbbf9f7a011c7241",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "119bf71deebfcba52dfa7761c778419b75d612b9",
+        "scope": "Incoming link description update only; document remainder not newly reviewed",
+        "evidence": "Two archived documents match prior text after newline/trailing-space normalization; 16 replacement-guide links resolve; fork diff documentation only",
+        "limit": "No new runtime coverage or hardware-fidelity claim; archived DONE claims are historical and not current certification."
+      }
     },
     {
       "path": "docs/technical/register-model.md",
@@ -5989,7 +6031,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "e99c6ba2ad23866af9b3189be7c77f3e45a48b69",
+  "fork_tree": "c2717d2690e39d82b7c2412e47ab732c55327b1e",
   "coverage": {
     "tracked_files": 628,
     "tracked_src_files": 153,

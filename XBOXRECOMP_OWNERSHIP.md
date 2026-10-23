@@ -2395,3 +2395,19 @@ Fork checkpoint for this batch: `364d9d1`.
   No runtime rebuild/test is needed for this comment-only change and no new
   audio-fidelity claim is made. Inventory scope is these four comments, not
   the full APU implementation; the wider ownership audit remains active.
+
+
+### Move captured support reports and development retrospective
+
+- Archived the complete legacy gap-analysis and lessons-learned documents in
+  tools/reference/legacy_gap_analysis.md and legacy_lessons_learned.md. These
+  contain title priorities, captured addresses, development-session history and
+  stale DONE claims; they are retained as history, not current support proof.
+- Existing shared paths now contain generic integration review criteria and
+  support-evidence boundaries, with source/test entry points. Updated README,
+  index, shader-guide and contributor references without removing credit.
+- Both archive payloads match prior text after newline/trailing-space normalization; all 16
+  replacement-guide links resolve. The fork diff changes documentation only;
+  no runtime tests or new fidelity claims are warranted. Scope is replacement
+  guides/link descriptions, not full review of the referring documents.
+  The wider ownership audit remains active.
