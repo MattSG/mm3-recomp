@@ -3135,3 +3135,16 @@ Fork checkpoint for this batch: `364d9d1`.
 - Three analytical combiner cases pass default/forced generic Windows/Linux.
   This does not certify all fast paths, hardware numerics, the whole vertex
   body or gameplay. Broader ownership completion remains unproven.
+
+
+### Review shared MMIO decoder and correct encoding boundaries
+
+- Fork ae79ef6 fixes no-base SIB length, C7 word immediate length,
+  64-bit immediate sign extension and REX.W precedence. Invalid immediate
+  forms are rejected before device callbacks. Six pre-fix checks failed.
+- Shared actual-header regression is now a portable CMake target and passes
+  Windows/Linux. Both game builds pass. Extraction history moved into MM3.
+- Full source read found generic callback-based mechanisms. Remaining high-byte,
+  flags, MOVZX and validation gaps are recorded in
+  tools/reference/ownership_mmio_decoder_frontier.md; source stays needs_generic_fix.
+  No full MMIO/decoder or goal-completion claim is made.

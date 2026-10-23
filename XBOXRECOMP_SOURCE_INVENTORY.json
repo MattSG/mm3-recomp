@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "693fb082cd1f97b43cba1534c0948ccbb81c3acd",
+  "fork_commit": "ae79ef6118a9419fbdf552ba50423b4f8c05a61a",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -2417,9 +2417,16 @@
     },
     {
       "path": "src/platform/mmio_decode.h",
-      "sha256": "9c270cc14cb14aa4cb7a24c238da8f0a53a23d583333b1292d179b6724fc356d",
+      "sha256": "7ffd32a7fc8534f91a0c87fe5c8c7c510e37fd143c2c8fd9857db35f263ce792",
       "mode": "100644",
-      "git_blob": "5bfeb2bd92396b4dd33b4aab8b98c595146f82bf"
+      "git_blob": "3c37f0d1eb18e381420d0bfa025e8ca5fd84f23d",
+      "ownership_review": {
+        "decision": "needs_generic_fix",
+        "reviewed_at_fork": "ae79ef6118a9419fbdf552ba50423b4f8c05a61a",
+        "scope": "Full shared MMIO decoder source ownership read; SIB no-base displacement, immediate size/sign extension, REX.W precedence and C6/C7 form validation fixes",
+        "evidence": "tools/reference/ownership_mmio_decoder_frontier.md; six pre-fix failures; existing/new actual-header checks pass Windows/Linux; both game builds pass; migration narrative moved to legacy_mmio_decoder_notes.md",
+        "limit": "High-byte register semantics, complete flags, 16-bit MOVZX destination, general ModRM validation and instruction-byte/prefix bounds remain incomplete. No full decoder, live MMIO or hardware certification."
+      }
     },
     {
       "path": "src/platform/recomp_profile.h",
@@ -4605,10 +4612,30 @@
       }
     },
     {
+      "path": "tests/mmio_decode/CMakeLists.txt",
+      "mode": "100644",
+      "git_blob": "03fc7b06c27a29980f3f5337b2e13a55a97036d2",
+      "sha256": "c40386d426ead41599c7cea2604f0007b1c13dc60f1136e18ead33d31906e3a6",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "ae79ef6118a9419fbdf552ba50423b4f8c05a61a",
+        "scope": "Full shared MMIO decoder source ownership read; SIB no-base displacement, immediate size/sign extension, REX.W precedence and C6/C7 form validation fixes",
+        "evidence": "tools/reference/ownership_mmio_decoder_frontier.md; six pre-fix failures; existing/new actual-header checks pass Windows/Linux; both game builds pass; migration narrative moved to legacy_mmio_decoder_notes.md",
+        "limit": "High-byte register semantics, complete flags, 16-bit MOVZX destination, general ModRM validation and instruction-byte/prefix bounds remain incomplete. No full decoder, live MMIO or hardware certification."
+      }
+    },
+    {
       "path": "tests/mmio_decode/test_main.c",
       "mode": "100644",
-      "git_blob": "c49007cbd8d485f95f62e69c103c60b3882a0399",
-      "sha256": "02328cef004247a4a2a4ac684632a22844e6db0500bf4c28a979b87c87ad0407"
+      "git_blob": "16a93aea9b64a20b7986c601577893ce310af472",
+      "sha256": "dcfaf47ecb70197af26a4f9c2e42ca2a34ae244d6db9934e8fe44c1f78cc1203",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "ae79ef6118a9419fbdf552ba50423b4f8c05a61a",
+        "scope": "Full shared MMIO decoder source ownership read; SIB no-base displacement, immediate size/sign extension, REX.W precedence and C6/C7 form validation fixes",
+        "evidence": "tools/reference/ownership_mmio_decoder_frontier.md; six pre-fix failures; existing/new actual-header checks pass Windows/Linux; both game builds pass; migration narrative moved to legacy_mmio_decoder_notes.md",
+        "limit": "High-byte register semantics, complete flags, 16-bit MOVZX destination, general ModRM validation and instruction-byte/prefix bounds remain incomplete. No full decoder, live MMIO or hardware certification."
+      }
     },
     {
       "path": "tests/mmx_integer/CMakeLists.txt",
@@ -7286,9 +7313,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "13d29ed875684634fd8e92ad59c7a76ab68f8b99",
+  "fork_tree": "9523162b5f8d927624e2dc487cd7fccf05b40d60",
   "coverage": {
-    "tracked_files": 647,
+    "tracked_files": 648,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -7306,7 +7333,7 @@
       "include": 2,
       "src": 153,
       "templates": 7,
-      "tests": 208,
+      "tests": 209,
       "tools": 229
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
@@ -7342,7 +7369,8 @@
       "tools/func_id/test_vtable_scanner.py",
       "tests/recomp_trace/CMakeLists.txt",
       "tests/recomp_trace/test_main.c",
-      "tests/kernel_dispatch/ram_statistics_test.c"
+      "tests/kernel_dispatch/ram_statistics_test.c",
+      "tests/mmio_decode/CMakeLists.txt"
     ],
     "stale_fff_paths": [
       "docs/technical/burnout3-reunification.md",
