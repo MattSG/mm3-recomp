@@ -2381,3 +2381,17 @@ Fork checkpoint for this batch: `364d9d1`.
   comes from synthetic tests, not gameplay. Evidence: conformance_tmp/ownership-stop-*.
   MM3 retains an explicit approximation, not hardware-correct recovery.
   Inventory covers 628 paths / 153 src paths. Wider ownership remains open.
+
+
+### Archive captured APU device observations
+
+- Moved four Burnout/Wreckless observation blocks from apu_core.c comments
+  to tools/reference/legacy_apu_device_observations.md. The shared comments
+  explain bus aliases, interrupt vector, register startup and lock scheduling
+  without captured guest addresses or title debugging narratives. Copyright
+  and license notices remain untouched.
+- All four archived payloads match normalized prior source. A comment-aware
+  token comparison proves executable tokens unchanged; whitespace checks pass.
+  No runtime rebuild/test is needed for this comment-only change and no new
+  audio-fidelity claim is made. Inventory scope is these four comments, not
+  the full APU implementation; the wider ownership audit remains active.

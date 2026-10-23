@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "bb4f7e17ffaf6bbd6c22e73b2a524b5016511582",
+  "fork_commit": "4ce8a993991bb0d168e3f0299226382e6520cac6",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -644,9 +644,16 @@
     },
     {
       "path": "src/apu/apu_core.c",
-      "sha256": "412631ceba402d4ae20ba244fe81d8f5793874f91373168281f0643fb2a8c779",
+      "sha256": "762fb1b03163ea434d40d79d682a43e85346733b862c2140ce978e89eadde26a",
       "mode": "100644",
-      "git_blob": "c9238e67175f8983c0ba1a015f9c15a4a02b9809"
+      "git_blob": "0e0a0bbcfa3747840ebb0de88f3a34c632e03e72",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "4ce8a993991bb0d168e3f0299226382e6520cac6",
+        "scope": "Four captured title-observation comment blocks moved to MM3; surrounding bus/IRQ/startup/lock mechanism retained",
+        "evidence": "Exact archived block checks and comment-aware executable token equality; adjacent implementation read",
+        "limit": "Comment ownership only, not full APU source review, physical-address/lifetime validation, audio fidelity or scheduling correctness."
+      }
     },
     {
       "path": "src/apu/apu_debug.h",
@@ -5982,7 +5989,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "baabfb56ca1c8637d52b7cd479b352a3c39cd5e4",
+  "fork_tree": "e99c6ba2ad23866af9b3189be7c77f3e45a48b69",
   "coverage": {
     "tracked_files": 628,
     "tracked_src_files": 153,
