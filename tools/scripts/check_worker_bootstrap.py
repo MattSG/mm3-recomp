@@ -81,6 +81,7 @@ def main():
     with open(os.path.join(check_dir, "worker_bootstrap_body.inc"), "w", encoding="ascii", errors="replace") as f:
         f.write(extract_bodies(source))
     shutil.copyfile(os.path.join(repo, "src", "mm3_recomp_types.h"), os.path.join(check_dir, "recomp_types.h"))
+    shutil.copyfile(os.path.join(repo, "tools", "xboxrecomp", "templates", "runtime", "recomp_types.h"), os.path.join(check_dir, "recomp_base.h"))
 
     harness = os.path.join(repo, "tools", "scripts", "check_worker_bootstrap.c")
     include = os.path.join(repo, "tools", "xboxrecomp", "include")

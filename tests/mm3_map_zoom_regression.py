@@ -128,6 +128,7 @@ def main():
         declarations = "\n".join("void " + name + "(void);" for name in MATH)
         (folder / "native_map_zoom.inc").write_text(declarations + "\n" + body + constants(body))
         shutil.copyfile(ROOT / "src/mm3_recomp_types.h", folder / "recomp_types.h")
+        shutil.copyfile(ROOT / "tools/xboxrecomp/templates/runtime/recomp_types.h", folder / "recomp_base.h")
         production = (ROOT / "src/mm3_map_zoom.c").read_text()
         (folder / "production_map_zoom.c").write_text(production)
         executable = folder / f"contract{cc.exe_suffix()}"

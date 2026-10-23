@@ -196,8 +196,10 @@ extern void sub_00248518_original(void);
 void sub_00248518(void)
 {
     if (MEM32(g_esp) == 0x0022C89Eu && g_eax == 256u &&
-        mm3_mod_on(MM3_MOD_DRAW_DISTANCE))
+        mm3_mod_on(MM3_MOD_DRAW_DISTANCE)) {
         g_eax = (uint32_t)(256.f * fmaxf(distance_scale(), view_scale()));
+        fprintf(stderr, "[MM3_DISTANCE] flare capacity %u\n", g_eax);
+    }
     sub_00248518_original();
 }
 

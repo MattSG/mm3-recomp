@@ -258,6 +258,7 @@ def main():
         (folder / "native_race_guidance.inc").write_text(
             declarations + "\n" + body + constants(file_constants) + ui_declaration_data())
         shutil.copyfile(ROOT / "src/mm3_recomp_types.h", folder / "recomp_types.h")
+        shutil.copyfile(ROOT / "tools/xboxrecomp/templates/runtime/recomp_types.h", folder / "recomp_base.h")
         shutil.copyfile(ROOT / "src/mm3_race_guidance.c", folder / "production_race_guidance.c")
         executable = folder / f"contract{cc.exe_suffix()}"
         subprocess.run(cc.compile_command(

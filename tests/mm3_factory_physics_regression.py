@@ -82,6 +82,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="mm3-factory-physics-") as folder:
         folder = Path(folder)
         shutil.copyfile(ROOT / "src/mm3_recomp_types.h", folder / "recomp_types.h")
+        shutil.copyfile(ROOT / "tools/xboxrecomp/templates/runtime/recomp_types.h", folder / "recomp_base.h")
         (folder / "production_wheel_path.inc").write_text(native_wheel_path())
         data = folder / "game_files/Data"
         data.mkdir(parents=True)

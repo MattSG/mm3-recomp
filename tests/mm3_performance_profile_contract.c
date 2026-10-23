@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "mm3_performance_profile.h"
-#include "mm3_frame_limit.h"
+#include "platform/frame_limit.h"
 
 static const char *keys[] = {
     "RECOMP_RENDER_SCALE", "RECOMP_MSAA", "RECOMP_DRAW_DISTANCE",
@@ -32,7 +32,7 @@ static void profile(const char *name, const char *scale, const char *msaa,
     assert(strcmp(getenv("RECOMP_DRAW_DISTANCE"), distance) == 0);
     assert(strcmp(getenv("RECOMP_ANISO"), "16") == 0);
     assert(strcmp(getenv("RECOMP_FPS_LIMIT"), fps) == 0);
-    assert(mm3_frame_limit(getenv("RECOMP_FPS_LIMIT")) == atoi(fps));
+    assert(recomp_frame_limit_parse(getenv("RECOMP_FPS_LIMIT")) == atoi(fps));
 }
 
 int main(void)
@@ -61,12 +61,12 @@ int main(void)
     for (i = 1; i < sizeof(keys) / sizeof(keys[0]); ++i)
         assert(strcmp(getenv(keys[i]), overrides[i]) == 0);
 
-    /* A zero-valued explicit variable is an override, not an absent setting.
-     * MM3's existing frame-limit normalization still rejects uncapped FPS. */
+    /* A zero-valued explicit variable is an override, not an absent setting,
+     * and zero is the documented uncapped rate. */
     setting("RECOMP_FPS_LIMIT", "0");
     assert(mm3_apply_performance_defaults("LowPower") == NULL);
     assert(strcmp(getenv("RECOMP_FPS_LIMIT"), "0") == 0);
-    assert(mm3_frame_limit(getenv("RECOMP_FPS_LIMIT")) == 60);
+    assert(recomp_frame_limit_parse(getenv("RECOMP_FPS_LIMIT")) == 0);
     puts("Performance profile contracts passed.");
     return 0;
 }

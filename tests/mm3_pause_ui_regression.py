@@ -121,6 +121,7 @@ int main(void) {
     with tempfile.TemporaryDirectory(prefix="mm3-pause-ui-") as folder:
         folder = Path(folder)
         shutil.copyfile(ROOT / "src/mm3_recomp_types.h", folder / "recomp_types.h")
+        shutil.copyfile(ROOT / "tools/xboxrecomp/templates/runtime/recomp_types.h", folder / "recomp_base.h")
         shutil.copyfile(ROOT / "src/mods/mods.h", folder / "mods.h")
         shutil.copyfile(ROOT / "src/mods/widescreen.c", folder / "production_widescreen.c")
         (folder / "contract.c").write_text(harness)

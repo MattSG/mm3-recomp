@@ -153,6 +153,8 @@ file(GLOB RECOMP_GEN_SOURCES CONFIGURE_DEPENDS
 # project's compatibility header so pulling fixes does not require regeneration.
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/mm3_recomp_types.h"
     "${RECOMP_GEN_DIR}/recomp_types.h" COPYONLY)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/xboxrecomp/templates/runtime/recomp_types.h"
+    "${RECOMP_GEN_DIR}/recomp_base.h" COPYONLY)
 
 # Generated functions move between split chunks whenever the generator's
 # function list changes, so find each project hook's owner instead of naming

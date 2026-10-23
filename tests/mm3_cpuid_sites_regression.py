@@ -158,6 +158,7 @@ def main():
         from pathlib import Path
         directory = Path(temporary)
         shutil.copyfile(ROOT / 'src/mm3_recomp_types.h', directory / 'recomp_types.h')
+        shutil.copyfile(ROOT / "tools/xboxrecomp/templates/runtime/recomp_types.h", directory / "recomp_base.h")
         executable = diagnostics.compile_fixture(directory, 'sites', native_source(),
                                                  disable_warnings=('4102',))
         cases = 0

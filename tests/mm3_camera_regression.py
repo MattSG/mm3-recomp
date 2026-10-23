@@ -79,6 +79,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="mm3-camera-") as folder:
         folder = Path(folder)
         shutil.copyfile(ROOT / "src/mm3_recomp_types.h", folder / "recomp_types.h")
+        shutil.copyfile(ROOT / "tools/xboxrecomp/templates/runtime/recomp_types.h", folder / "recomp_base.h")
         shutil.copyfile(ROOT / "src/mods/mods.h", folder / "mods.h")
         production = (ROOT / "src/mods/widescreen.c").read_text()
         (folder / "production_widescreen.c").write_text(production, encoding="utf-8")

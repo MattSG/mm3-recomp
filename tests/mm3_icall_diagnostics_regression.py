@@ -126,6 +126,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='icall-diagnostics-', dir=scratch) as temporary:
         directory = Path(temporary)
         shutil.copyfile(ROOT / 'src/mm3_recomp_types.h', directory / 'recomp_types.h')
+        shutil.copyfile(ROOT / "tools/xboxrecomp/templates/runtime/recomp_types.h", directory / "recomp_base.h")
         executable = cpu.compile_fixture(directory, 'diagnostics', fixture(image))
         for mode in ('default', 'trace', 'cascade', 'invalid', 'usb', 'bad_request', 'bad_stack'):
             result = subprocess.run([str(executable), mode], capture_output=True, text=True)
