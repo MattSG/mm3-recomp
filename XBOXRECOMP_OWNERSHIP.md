@@ -2909,3 +2909,18 @@ Fork checkpoint for this batch: `364d9d1`.
   fix. Five focused checks and an actual --names-json CLI run now pass.
   No Ghidra/Jython or game run was needed for this Python-only name allocation
   change. The broader ownership/runtime audit remains incomplete.
+
+
+### Remove reference-image policy from IDA export
+
+- Fork 1aa1602 replaces a fixed 0x10000 rejection with optional
+  caller-supplied --image-base validation. Absolute database addresses are
+  exported unchanged. The guide uses header-derived sections.json metadata.
+  Captured image size/donor naming counts and prior import advice moved to
+  tools/reference/legacy_ida_naming_notes.md in MM3.
+- Full exporter/guide source reviewed. Mocked IDA check accepts non-reference
+  bases, checks explicit expected bases, rejects mismatches before writing,
+  and verifies JSON shape. Five merge_names checks pass. No live IDA claim.
+- The fork retains generic analysis export and validation mechanisms. Loader
+  correctness and recovered symbol quality remain caller validation; the full
+  ownership audit is not complete.

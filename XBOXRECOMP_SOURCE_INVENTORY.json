@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "4fa2d8bce01018fab8b1097d333c1609b0feea87",
+  "fork_commit": "1aa1602cf07e0335def427cb06a8bfce410624b7",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -6016,14 +6016,41 @@
     {
       "path": "tools/ida_naming/README.md",
       "mode": "100644",
-      "git_blob": "59b681fba0f4fb6f00bd0cee87ef86f5b38a5856",
-      "sha256": "ce1ed1bbc5e99187edc9dadb2c7aa5c9fecd48e98f76900ec8c41d1cbf4a9f76"
+      "git_blob": "d234f32a8ab5f053df2317622dd526a081454ed2",
+      "sha256": "626553991e4fe4f551432e278ce3f6ac8d2e0b1d2674d8bd92d6991e575222ea",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1aa1602cf07e0335def427cb06a8bfce410624b7",
+        "scope": "IDA exporter, guide and synthetic test; caller-supplied optional image-base validation replaces fixed reference base; captured statistics moved to MM3",
+        "evidence": "Mocked IDA check covers trusted non-reference base, expected-base acceptance, mismatch rejection before output creation and JSON shape; five merge checks pass",
+        "limit": "No live IDA/API-version or loader correctness proof; output database addresses remain caller responsibility."
+      }
     },
     {
       "path": "tools/ida_naming/export_xbe_names.py",
       "mode": "100644",
-      "git_blob": "f812fd1a5b1cbd8ca6dd53242888792c85add866",
-      "sha256": "d6f1af08c10422390aea058ac9b425ebea41d87fadfde93fa03b114142a64a95"
+      "git_blob": "b201269aa4b2d39656bc214edf181b3329b87263",
+      "sha256": "75aedaf083651de050dfa9adbd23b2ee9f9f96c6aae9d5acd1c1f4b9110000de",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1aa1602cf07e0335def427cb06a8bfce410624b7",
+        "scope": "IDA exporter, guide and synthetic test; caller-supplied optional image-base validation replaces fixed reference base; captured statistics moved to MM3",
+        "evidence": "Mocked IDA check covers trusted non-reference base, expected-base acceptance, mismatch rejection before output creation and JSON shape; five merge checks pass",
+        "limit": "No live IDA/API-version or loader correctness proof; output database addresses remain caller responsibility."
+      }
+    },
+    {
+      "path": "tools/ida_naming/test_export.py",
+      "mode": "100644",
+      "git_blob": "95b573e3c0d09fb2d2cfeebaf3bab5975142dc61",
+      "sha256": "14c071ec8ad242a7bae947dbd33c14755b0c0f128a4587cfb1b36a02bb5f0f15",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1aa1602cf07e0335def427cb06a8bfce410624b7",
+        "scope": "IDA exporter, guide and synthetic test; caller-supplied optional image-base validation replaces fixed reference base; captured statistics moved to MM3",
+        "evidence": "Mocked IDA check covers trusted non-reference base, expected-base acceptance, mismatch rejection before output creation and JSON shape; five merge checks pass",
+        "limit": "No live IDA/API-version or loader correctness proof; output database addresses remain caller responsibility."
+      }
     },
     {
       "path": "tools/kernel_audit/__init__.py",
@@ -6881,9 +6908,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "e7143d4d3b550a9c8a08d787d5dff4f5f127c283",
+  "fork_tree": "b372c4b021e75e8ed2282b2465d06f3582f2edbe",
   "coverage": {
-    "tracked_files": 639,
+    "tracked_files": 640,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -6902,7 +6929,7 @@
       "src": 153,
       "templates": 7,
       "tests": 205,
-      "tools": 224
+      "tools": 225
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
     "tracked_paths_missing_from_fff": [
@@ -6929,7 +6956,8 @@
       "tests/video_pump/test_main.c",
       "tests/video_pump/test_stub.c",
       "tests/apu_mmio/CMakeLists.txt",
-      "tests/apu_mmio/test_main.c"
+      "tests/apu_mmio/test_main.c",
+      "tools/ida_naming/test_export.py"
     ],
     "stale_fff_paths": [
       "docs/technical/burnout3-reunification.md",
