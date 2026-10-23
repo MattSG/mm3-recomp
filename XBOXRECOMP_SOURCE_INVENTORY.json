@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "1593662da5932f0f54d5e0946b7503f9d84efafe",
+  "fork_commit": "ca81d2f82f9e64efec6e46452654ed976c2cfe05",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -4571,14 +4571,21 @@
     {
       "path": "tools/README.md",
       "mode": "100644",
-      "git_blob": "667028ddab666c5fa24b46cd86d14a7559cc0525",
-      "sha256": "546d4e19c0acafeb471359c9caeef6da327ef6638342450e5e2862199fddb466",
+      "git_blob": "b6af9eadf75c613789405e27a433a9091b826156",
+      "sha256": "a0608f2a716ca7628022b7bcf62311241590af24198e758de8102259a2aa312a",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "c21aa15b074a8ee5bffdc53553055aa3b6ef6cab",
-        "scope": "Regeneration subsection only",
-        "evidence": "Original subsection preserved in MM3 reference notes; runtime-guide link exists",
-        "limit": "Other tool-reference sections remain outside this scoped decision"
+        "reviewed_at_fork": "ca81d2f82f9e64efec6e46452654ed976c2cfe05",
+        "scope": "Function-identification usage/options and captured output example only",
+        "evidence": "Four unit tests (including eight malformed schemas); actual synthetic CLI outputs default unknown, caller game_space and MM3 game_vehicle; migrated dictionary equals original nine ordered categories",
+        "limit": "Keyword policy migration only, not full configuration, clustering, signature-accuracy, parser or function-identifier audit. No game runtime changes or gameplay claim.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "c21aa15b074a8ee5bffdc53553055aa3b6ef6cab",
+          "scope": "Regeneration subsection only",
+          "evidence": "Original subsection preserved in MM3 reference notes; runtime-guide link exists",
+          "limit": "Other tool-reference sections remain outside this scoped decision"
+        }
       }
     },
     {
@@ -5012,20 +5019,41 @@
     {
       "path": "tools/func_id/__main__.py",
       "mode": "100644",
-      "git_blob": "e08713eb02eb0ec6246813be0f09e622102a1458",
-      "sha256": "5de33ea415936c3e656658e66093ad2feaca7235c5aa078794b892a31d6bae1a"
+      "git_blob": "77980459bd95afb6b0c8112d27c64a6a3bc7cbbf",
+      "sha256": "f3c4e793b698f6709f5d3219a33be2201b5ba63315f524238d33b675a5143b0d",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "ca81d2f82f9e64efec6e46452654ed976c2cfe05",
+        "scope": "Explicit caller-owned keyword mapping, validation and CLI propagation; implicit application keyword dictionary removed",
+        "evidence": "Four unit tests (including eight malformed schemas); actual synthetic CLI outputs default unknown, caller game_space and MM3 game_vehicle; migrated dictionary equals original nine ordered categories",
+        "limit": "Keyword policy migration only, not full configuration, clustering, signature-accuracy, parser or function-identifier audit. No game runtime changes or gameplay claim."
+      }
     },
     {
       "path": "tools/func_id/clustering.py",
       "mode": "100644",
-      "git_blob": "7af59a0ac7432a4fb3b3cd4842520eec85fa9a42",
-      "sha256": "14b1cd0c2619e5e9fece59e08edb898665d62b6f12d7c440c183a3faf6725957"
+      "git_blob": "d06051d156467d603c789166219b8f1675a3b8ce",
+      "sha256": "b6f2b3c601db00a9263cca0ede8ff30408a32d7d4039b4379cb43cf499926815",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "ca81d2f82f9e64efec6e46452654ed976c2cfe05",
+        "scope": "Explicit caller-owned keyword mapping, validation and CLI propagation; implicit application keyword dictionary removed",
+        "evidence": "Four unit tests (including eight malformed schemas); actual synthetic CLI outputs default unknown, caller game_space and MM3 game_vehicle; migrated dictionary equals original nine ordered categories",
+        "limit": "Keyword policy migration only, not full configuration, clustering, signature-accuracy, parser or function-identifier audit. No game runtime changes or gameplay claim."
+      }
     },
     {
       "path": "tools/func_id/config.py",
       "mode": "100644",
-      "git_blob": "3fa6d99f974bb8b6fbe1ec6edde9313ca0c55a4d",
-      "sha256": "3b24d0fa78d43e27e650c853efc6e75c029b7f72ae1e23573a11bd4e22ad84c2"
+      "git_blob": "73016417b51bd8b58b1565825341a6d377c37559",
+      "sha256": "17789c5073b92ec5ed2509f1988ab35516da34581951a8ed7018319b141f5785",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "ca81d2f82f9e64efec6e46452654ed976c2cfe05",
+        "scope": "Explicit caller-owned keyword mapping, validation and CLI propagation; implicit application keyword dictionary removed",
+        "evidence": "Four unit tests (including eight malformed schemas); actual synthetic CLI outputs default unknown, caller game_space and MM3 game_vehicle; migrated dictionary equals original nine ordered categories",
+        "limit": "Keyword policy migration only, not full configuration, clustering, signature-accuracy, parser or function-identifier audit. No game runtime changes or gameplay claim."
+      }
     },
     {
       "path": "tools/func_id/crt_identifier.py",
@@ -5036,8 +5064,15 @@
     {
       "path": "tools/func_id/identify.py",
       "mode": "100644",
-      "git_blob": "422aa088188420ab1b2647a162c9e70bf92b50b2",
-      "sha256": "8e2941b518b8ab6d571aa0c2c6f8abd7ae065053082d8c362227dbf856675ade"
+      "git_blob": "2c1105dffa48b4049b3bd17662a8c3ddf9b85e5a",
+      "sha256": "727852f4ea95a67f19b1f185a0af029603c662ac78e83ef21a63f8ad214a67ae",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "ca81d2f82f9e64efec6e46452654ed976c2cfe05",
+        "scope": "Explicit caller-owned keyword mapping, validation and CLI propagation; implicit application keyword dictionary removed",
+        "evidence": "Four unit tests (including eight malformed schemas); actual synthetic CLI outputs default unknown, caller game_space and MM3 game_vehicle; migrated dictionary equals original nine ordered categories",
+        "limit": "Keyword policy migration only, not full configuration, clustering, signature-accuracy, parser or function-identifier audit. No game runtime changes or gameplay claim."
+      }
     },
     {
       "path": "tools/func_id/imm_scanner.py",
@@ -5062,6 +5097,19 @@
       "mode": "100644",
       "git_blob": "5b15df11303ca1bc7473a08b3d22d65b8056cd3b",
       "sha256": "025aa8aae66f3d26b150a7a564b444927b9c9a12cf33c3581a32ed60d1bca320"
+    },
+    {
+      "path": "tools/func_id/test_keywords.py",
+      "mode": "100644",
+      "git_blob": "afd055b24076ac9c4fb302be9469f4fbce8e039f",
+      "sha256": "a5ded35d2f20f9eba93f08366464bba2546fcea5493f6fdc7a4ee1f05a4cdf80",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "ca81d2f82f9e64efec6e46452654ed976c2cfe05",
+        "scope": "Explicit caller-owned keyword mapping, validation and CLI propagation; implicit application keyword dictionary removed",
+        "evidence": "Four unit tests (including eight malformed schemas); actual synthetic CLI outputs default unknown, caller game_space and MM3 game_vehicle; migrated dictionary equals original nine ordered categories",
+        "limit": "Keyword policy migration only, not full configuration, clustering, signature-accuracy, parser or function-identifier audit. No game runtime changes or gameplay claim."
+      }
     },
     {
       "path": "tools/func_id/vtable_scanner.py",
@@ -6086,9 +6134,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "abc06598f79374920aa8fd77026c431bc0c0ea9c",
+  "fork_tree": "264742e861ab0af93d2e2f7975a8e2a9c92e3c11",
   "coverage": {
-    "tracked_files": 629,
+    "tracked_files": 630,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -6107,7 +6155,7 @@
       "src": 153,
       "templates": 7,
       "tests": 200,
-      "tools": 219
+      "tools": 220
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
     "tracked_paths_missing_from_fff": [
@@ -6124,6 +6172,7 @@
       "tests/new_game_template/CMakeLists.txt",
       "tests/new_game_template/test_main.c",
       "tools/conformance/test_mkxbe.py",
+      "tools/func_id/test_keywords.py",
       "tools/fusion/test_module.py"
     ],
     "stale_fff_paths": [

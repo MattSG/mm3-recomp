@@ -2446,3 +2446,23 @@ Fork checkpoint for this batch: `364d9d1`.
 - This proves synthetic reproducibility and plumbing, not real-title execution,
   full parser safety or full conformance-driver ownership. Inventory now has
   629 tracked paths / 153 src paths. The wider audit remains open.
+
+
+### Move application keyword classification into explicit MM3 policy
+
+- Removed the implicit racing/application lexicon from shared func_id config.
+  tools/mm3_func_id_keywords.json preserves all nine original ordered category
+  lists exactly. The shared CLI accepts --game-keywords JSON; run and
+  propagate_labels accept a caller mapping. None/empty disables the keyword
+  pass; it neither installs global policy nor leaks policy into later calls.
+  The scoring/matching algorithm and non-keyword classification stay shared.
+- Four unit tests pass: default disabled, explicit policy and call isolation,
+  eight malformed policy schemas, and JSON CLI forwarding. Actual full-pipeline
+  synthetic CLI checks produce unknown by default, game_space for a caller
+  mapping, and game_vehicle for the MM3 mapping on identical input. Evidence:
+  conformance_tmp/ownership-func-keywords-check.py and ownership-func-keywords/.
+- Updated the shared usage/options and moved its captured output example to
+  tools/reference/legacy_function_id_output_example.md. MM3 opt-in usage is in
+  tools/reference/mm3_function_keywords.md. No game runtime files changed.
+  Scope is this policy boundary, not complete function-identification accuracy
+  or full-file ownership certification. Inventory: 630 paths / 153 src paths.
