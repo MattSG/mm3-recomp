@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "fe644314d7283f72a021381ec7e5cbebdad71b84",
+  "fork_commit": "8ac688973147872e38374c7b4feda62137c28222",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1175,9 +1175,17 @@
     },
     {
       "path": "src/d3d/d3d8_combiners.c",
-      "sha256": "eab6b860ae68fb0e61fad2b415c8406b5de9e1a4e369951c674af87b0bba13bb",
+      "sha256": "aa5912e5166474df0a01e77fc7608c057e343bf7bc4b22b199ae948f89b5fc1f",
       "mode": "100644",
-      "git_blob": "9a90e7e6c2d8a69483ad45f2ba526af0dc2c6587"
+      "git_blob": "debffaa8d0bd9d5225a6a4f02388f7cca13f3383",
+      "ownership_review": {
+        "decision": "needs_generic_fix",
+        "reviewed_at_fork": "8ac688973147872e38374c7b4feda62137c28222",
+        "scope": "Scoped combiner shader compilation/cache/draw integration ownership read; transactional full-cache replacement and WARP failure regression",
+        "evidence": "tools/reference/ownership_d3d8_combiner_cache.md; old ownership assertion fails; final 128-slot failure/retry and existing 448 texture plus four RHW draws pass; D3D11 game rebuild passes",
+        "limit": "Full translator not certified; state identity, generation/order/upload/fallback gaps remain; Windows D3D11 only",
+        "prior_review": null
+      }
     },
     {
       "path": "src/d3d/d3d8_combiners.h",
@@ -1754,8 +1762,8 @@
         "decision": "needs_generic_fix",
         "reviewed_at_fork": "2da4407f02eb378f4f5f8b0d0045a31e371b23eb",
         "scope": "Full kernel_io.c ownership read; validate full IRP clearing span and add direct shared-initializer boundary regression",
-        "evidence": "tools/reference/ownership_kernel_io.md; old code fails two assertions; Windows bridge suite 45/45; both game builds pass",
-        "limit": "Linux check pending; native I/O stubs, symbol/object table concurrency/truncation/lifecycle and wider guest buffer validation remain open",
+        "evidence": "tools/reference/ownership_kernel_io.md; old code fails two assertions; Windows bridge suite 45/45; both game builds pass; fresh Linux kernel_irp_packet_boundary now passes",
+        "limit": "native I/O stubs, symbol/object table concurrency/truncation/lifecycle and wider guest buffer validation remain open",
         "prior_review": null
       }
     },
@@ -3386,14 +3394,21 @@
     {
       "path": "tests/d3d8_smoke/test_a8.c",
       "mode": "100644",
-      "git_blob": "4a766c7a91f5d6ef938ab6278b41ed409f8f5895",
-      "sha256": "af69adcba7ffb6d3b7b11428b75c3846a38419d4dc63f5050ccbe16ae967958f",
+      "git_blob": "b6b50fe232b2b127ec62f7f80d2260d24461a755",
+      "sha256": "79ce964225633ee8f11987d9021ad203c2d7790d853d65a96db5ba535a97d830",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "3e2de8330f983f59aa9b8ed8d74e93aa81bb00e7",
-        "scope": "P8 ARGB-to-BGRA conversion correction and asymmetric palette regressions; documentation reflects palette sampling coverage",
-        "evidence": "CPU expected-byte test fails before fix; D3D11 WARP sweep has 112 P8 failures before and zero afterward, 448 texture plus four RHW draws pass; all five D3D8 programs and both game builds pass",
-        "limit": "Scoped palette conversion, not full resource/device source certification. Default palette provenance remains open; no independent original SDK, POSIX GL, separate NV2A renderer or live MM3 color claim."
+        "reviewed_at_fork": "8ac688973147872e38374c7b4feda62137c28222",
+        "scope": "Scoped combiner shader compilation/cache/draw integration ownership read; transactional full-cache replacement and WARP failure regression",
+        "evidence": "tools/reference/ownership_d3d8_combiner_cache.md; old ownership assertion fails; final 128-slot failure/retry and existing 448 texture plus four RHW draws pass; D3D11 game rebuild passes",
+        "limit": "Full translator not certified; state identity, generation/order/upload/fallback gaps remain; Windows D3D11 only",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "3e2de8330f983f59aa9b8ed8d74e93aa81bb00e7",
+          "scope": "P8 ARGB-to-BGRA conversion correction and asymmetric palette regressions; documentation reflects palette sampling coverage",
+          "evidence": "CPU expected-byte test fails before fix; D3D11 WARP sweep has 112 P8 failures before and zero afterward, 448 texture plus four RHW draws pass; all five D3D8 programs and both game builds pass",
+          "limit": "Scoped palette conversion, not full resource/device source certification. Default palette provenance remains open; no independent original SDK, POSIX GL, separate NV2A renderer or live MM3 color claim."
+        }
       }
     },
     {
@@ -7555,7 +7570,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "189d8d42b5b3c39e518d56579c0f8ea5b9e46879",
+  "fork_tree": "a484ba42939bff278fc977c503dcc9d691d9a441",
   "coverage": {
     "tracked_files": 651,
     "tracked_src_files": 153,

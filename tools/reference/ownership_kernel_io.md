@@ -26,3 +26,6 @@ gameplay certification.
 Checkpoint fork: 2da4407f02eb378f4f5f8b0d0045a31e371b23eb. Windows bridge suite passes 45/45 and both game
 builds pass. Linux boundary test is pending a fresh dependency build; no Linux
 pass is claimed for this checkpoint.
+
+Follow-up: the fresh Linux bridge build completed; kernel_irp_packet_boundary
+passes on Linux too. The broader Linux bridge suite was not rerun here.

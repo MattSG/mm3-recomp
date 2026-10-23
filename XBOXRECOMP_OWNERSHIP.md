@@ -3268,3 +3268,14 @@ Fork checkpoint for this batch: `364d9d1`.
   exact-end/out-of-range/retained-pixel tests pass Windows/Linux. Both game
   builds pass. Full presenter ownership read and remaining accuracy/lifetime
   gaps are recorded in tools/reference/ownership_fb_present.md.
+
+
+### Preserve combiner cache ownership on failed replacement
+
+- Fork 8ac6889 compiles a replacement before releasing a full-cache
+  victim. Captured cache-population assumptions moved to MM3 references.
+- WARP regression reproduces released ownership before the fix; full-cache
+  failure/retry plus 448 texture/four RHW checks pass after it. D3D11 game
+  rebuild passes. Scoped evidence: ownership_d3d8_combiner_cache.md.
+- Earlier pending Linux IRP packet boundary test now passes after the fresh
+  bridge build. Broader ownership and fidelity work remain incomplete.
