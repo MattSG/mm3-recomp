@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "dd07ff368211dacd440bfb33b68eac8816468e00",
+  "fork_commit": "dd80d047e8bed2ae6246c860d32ae8c671dd1520",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1362,15 +1362,22 @@
     },
     {
       "path": "src/host/host.c",
-      "sha256": "80f563cc899f0ceb5653b8c6da4c3e07fc4f3c7eecc77437f198575c9a4f6c71",
+      "sha256": "70497e757af4a67cd8ddb8d1ed6155666b85465264482e5e097b669c0b2c2d2d",
       "mode": "100644",
-      "git_blob": "6c2e1b7358140f9d4cd4d11bed7687f93ce78978",
+      "git_blob": "8596586a7fd371f057e959782a28cbfa46daf5e1",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "7089a43ab0d5647e4efcec671da25ec66604462f",
-        "scope": "Retain shared MMIO routing and optional APU/USB/NIC/graphics bring-up; no title address or application hook in source",
-        "evidence": "Complete source read; routes use hardware MMIO ranges and shared ownership APIs; port controls launch and service selection",
-        "limit": "Ownership/source scope only. No new gameplay/performance/platform-parity or full host lifecycle/MMIO/sampler correctness claim. Sampler is one watched thread with Windows x64/PDB-specific implementation and process-lifetime resources."
+        "reviewed_at_fork": "dd80d047e8bed2ae6246c860d32ae8c671dd1520",
+        "scope": "NV2A hook initialization, register-range guard and removal of unused VRAM placeholder; host review limited to two graphics-init branches",
+        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; Windows/Linux adapter tests 2/2; actual Windows I/O-mapping regression zero failures; both game builds pass",
+        "limit": "Quiesced process singleton without teardown; no full host-file, GPU semantics, live gameplay or hardware certification",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "7089a43ab0d5647e4efcec671da25ec66604462f",
+          "scope": "Retain shared MMIO routing and optional APU/USB/NIC/graphics bring-up; no title address or application hook in source",
+          "evidence": "Complete source read; routes use hardware MMIO ranges and shared ownership APIs; port controls launch and service selection",
+          "limit": "Ownership/source scope only. No new gameplay/performance/platform-parity or full host lifecycle/MMIO/sampler correctness claim. Sampler is one watched thread with Windows x64/PDB-specific implementation and process-lifetime resources."
+        }
       }
     },
     {
@@ -2341,15 +2348,22 @@
     },
     {
       "path": "src/nv2a/README.md",
-      "sha256": "02024fba8ebc3349484dd4a48b7837a198e468ccd7057eb114a30cd787697cc7",
+      "sha256": "65761949377fc06f0743bf8086165c4833d23e274b24f798c8828483a652c721",
       "mode": "100644",
-      "git_blob": "bb18e3bcf6010f9cc4dc111b5ac5f69bdd406719",
+      "git_blob": "5e5ca0705e24c61b48abcc634638e377e91f0e90",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "03cf828df4804ff1702f24c56fb4632c8c8819fc",
-        "scope": "Current public integration guide; historical claims archived in MM3",
-        "evidence": "Source read and documentation API/link checks; archived guide matches normalized prior source",
-        "limit": "Ownership scope only; no new runtime or hardware-fidelity proof. Device lifecycle, instruction decoding, synthetic raster timing and shader approximations remain partial."
+        "reviewed_at_fork": "dd80d047e8bed2ae6246c860d32ae8c671dd1520",
+        "scope": "NV2A hook initialization, register-range guard and removal of unused VRAM placeholder; host review limited to two graphics-init branches",
+        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; Windows/Linux adapter tests 2/2; actual Windows I/O-mapping regression zero failures; both game builds pass",
+        "limit": "Quiesced process singleton without teardown; no full host-file, GPU semantics, live gameplay or hardware certification",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "03cf828df4804ff1702f24c56fb4632c8c8819fc",
+          "scope": "Current public integration guide; historical claims archived in MM3",
+          "evidence": "Source read and documentation API/link checks; archived guide matches normalized prior source",
+          "limit": "Ownership scope only; no new runtime or hardware-fidelity proof. Device lifecycle, instruction decoding, synthetic raster timing and shader approximations remain partial."
+        }
       }
     },
     {
@@ -2367,34 +2381,48 @@
     },
     {
       "path": "src/nv2a/nv2a_mmio_hook.c",
-      "sha256": "0e51645a2e8ee7638395419788a005e6a18e9b1eff4cb92ad989018e6bf34d1b",
+      "sha256": "d75b81a8a2ab95ef4b0637e81ebdac55951ff9c6e9aebc1029595a0625a6090e",
       "mode": "100644",
-      "git_blob": "9271c21c705143c7679a023e995b0b2ac9ed4c09",
+      "git_blob": "f8cba318a864673aa3b609088afd42183c44f70f",
       "ownership_review": {
-        "decision": "needs_generic_fix",
-        "reviewed_at_fork": "dd07ff368211dacd440bfb33b68eac8816468e00",
-        "scope": "Full NV2A hook C/header ownership read; replace duplicate decoder with generic callbacks, preserve reverse CMP and PVIDEO locking; atomic statistics and checked failure logging",
-        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
-        "limit": "Legacy native VRAM page allocator and GPU allocation lifecycle remain partial/unowned; no actual GPU register-model, live fault or hardware equivalence proof. Header now documents these limits without zero-page fallback advice."
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "dd80d047e8bed2ae6246c860d32ae8c671dd1520",
+        "scope": "NV2A hook initialization, register-range guard and removal of unused VRAM placeholder; host review limited to two graphics-init branches",
+        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; Windows/Linux adapter tests 2/2; actual Windows I/O-mapping regression zero failures; both game builds pass",
+        "limit": "Quiesced process singleton without teardown; no full host-file, GPU semantics, live gameplay or hardware certification",
+        "prior_review": {
+          "decision": "needs_generic_fix",
+          "reviewed_at_fork": "dd07ff368211dacd440bfb33b68eac8816468e00",
+          "scope": "Full NV2A hook C/header ownership read; replace duplicate decoder with generic callbacks, preserve reverse CMP and PVIDEO locking; atomic statistics and checked failure logging",
+          "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
+          "limit": "Legacy native VRAM page allocator and GPU allocation lifecycle remain partial/unowned; no actual GPU register-model, live fault or hardware equivalence proof. Header now documents these limits without zero-page fallback advice."
+        }
       }
     },
     {
       "path": "src/nv2a/nv2a_mmio_hook.h",
-      "sha256": "5b50189ac1b33907164df1432af2280bfc0129eb77dda6dc43f962705ccd8943",
+      "sha256": "f25baa4f72ff3a2fec8715399bbe2b932127559db6a4cdaa5edebe8895a3c3f5",
       "mode": "100644",
-      "git_blob": "b476e3a6c6a7e52dee4e7f9f7263f1f4f4f205e6",
+      "git_blob": "025fd81de6bfaca9d704722330b177be0bf9b84c",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "dd07ff368211dacd440bfb33b68eac8816468e00",
-        "scope": "Full NV2A hook C/header ownership read; replace duplicate decoder with generic callbacks, preserve reverse CMP and PVIDEO locking; atomic statistics and checked failure logging",
-        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
-        "limit": "Legacy native VRAM page allocator and GPU allocation lifecycle remain partial/unowned; no actual GPU register-model, live fault or hardware equivalence proof. Header now documents these limits without zero-page fallback advice.",
+        "reviewed_at_fork": "dd80d047e8bed2ae6246c860d32ae8c671dd1520",
+        "scope": "NV2A hook initialization, register-range guard and removal of unused VRAM placeholder; host review limited to two graphics-init branches",
+        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; Windows/Linux adapter tests 2/2; actual Windows I/O-mapping regression zero failures; both game builds pass",
+        "limit": "Quiesced process singleton without teardown; no full host-file, GPU semantics, live gameplay or hardware certification",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "1988028bb7655f7796af5dda1479c92feb2e5847",
-          "scope": "Include-guard namespace and introductory API comments only",
-          "evidence": "Six header bodies identical after guard normalization and comment exclusion; standalone MSVC double-inclusion checks pass; audio executable body identical except startup log; both Windows renderer builds and Linux runtime/mapping check pass",
-          "limit": "No new playback, full SDK ABI, graphics/USB fidelity or lifecycle acceptance; unsupported DirectSound stream/spatial methods remain partial stubs"
+          "reviewed_at_fork": "dd07ff368211dacd440bfb33b68eac8816468e00",
+          "scope": "Full NV2A hook C/header ownership read; replace duplicate decoder with generic callbacks, preserve reverse CMP and PVIDEO locking; atomic statistics and checked failure logging",
+          "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
+          "limit": "Legacy native VRAM page allocator and GPU allocation lifecycle remain partial/unowned; no actual GPU register-model, live fault or hardware equivalence proof. Header now documents these limits without zero-page fallback advice.",
+          "prior_review": {
+            "decision": "retain_generic_boundary",
+            "reviewed_at_fork": "1988028bb7655f7796af5dda1479c92feb2e5847",
+            "scope": "Include-guard namespace and introductory API comments only",
+            "evidence": "Six header bodies identical after guard normalization and comment exclusion; standalone MSVC double-inclusion checks pass; audio executable body identical except startup log; both Windows renderer builds and Linux runtime/mapping check pass",
+            "limit": "No new playback, full SDK ABI, graphics/USB fidelity or lifecycle acceptance; unsupported DirectSound stream/spatial methods remain partial stubs"
+          }
         }
       }
     },
@@ -4697,14 +4725,21 @@
     {
       "path": "tests/mmio_decode/nv2a_adapter_test.c",
       "mode": "100644",
-      "git_blob": "eec7fc0bce0453fd4dc815833e303524e35dc107",
-      "sha256": "dabad814625e06f43b488707d49f9a707488902180bac4bf05c8b3c90f0418d5",
+      "git_blob": "e4c304358ddb06b6a7b20fd626584b50876f8af1",
+      "sha256": "8af0577f7ee8008f2fc19513794c69f03fccfaab38c5de5c67cb06503421736f",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "dd07ff368211dacd440bfb33b68eac8816468e00",
-        "scope": "Full NV2A hook C/header ownership read; replace duplicate decoder with generic callbacks, preserve reverse CMP and PVIDEO locking; atomic statistics and checked failure logging",
-        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
-        "limit": "Legacy native VRAM page allocator and GPU allocation lifecycle remain partial/unowned; no actual GPU register-model, live fault or hardware equivalence proof. Header now documents these limits without zero-page fallback advice."
+        "reviewed_at_fork": "dd80d047e8bed2ae6246c860d32ae8c671dd1520",
+        "scope": "NV2A hook initialization, register-range guard and removal of unused VRAM placeholder; host review limited to two graphics-init branches",
+        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; Windows/Linux adapter tests 2/2; actual Windows I/O-mapping regression zero failures; both game builds pass",
+        "limit": "Quiesced process singleton without teardown; no full host-file, GPU semantics, live gameplay or hardware certification",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "dd07ff368211dacd440bfb33b68eac8816468e00",
+          "scope": "Full NV2A hook C/header ownership read; replace duplicate decoder with generic callbacks, preserve reverse CMP and PVIDEO locking; atomic statistics and checked failure logging",
+          "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
+          "limit": "Legacy native VRAM page allocator and GPU allocation lifecycle remain partial/unowned; no actual GPU register-model, live fault or hardware equivalence proof. Header now documents these limits without zero-page fallback advice."
+        }
       }
     },
     {
@@ -7417,7 +7452,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "3f00b8c189dda32568836f09202ee277a07439a5",
+  "fork_tree": "3c63a839a0c109aa305b1a954fd17fb04856517f",
   "coverage": {
     "tracked_files": 649,
     "tracked_src_files": 153,

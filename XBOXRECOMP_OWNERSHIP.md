@@ -3199,3 +3199,15 @@ Fork checkpoint for this batch: `364d9d1`.
 - Full hook C/header source read. Native VRAM-page and initialization lifecycle
   gaps remain in tools/reference/ownership_nv2a_mmio_adapter.md; source is still
   needs_generic_fix outside the consolidated decode path. Broader goal open.
+
+
+### Remove unused VRAM placeholder and fix hook initialization
+
+- Fork dd80d04 removes the unused host-page allocator masquerading as
+  VRAM mapping. Historical implementation moved to MM3 reference material.
+- Hook initialization reuses existing state, releases failed backing, permits
+  retry, and rejects out-of-range register faults. Host graphics startup checks
+  state initialization. Quiesced process lifetime remains explicit.
+- Three old lifecycle assertions fail; final Windows/Linux adapter suites pass
+  2/2 each, actual Windows I/O mapping has zero failures, both game builds pass.
+  Broader ownership and gameplay verification remain open.

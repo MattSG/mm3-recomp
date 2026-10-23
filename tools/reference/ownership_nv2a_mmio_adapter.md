@@ -17,7 +17,22 @@ Two focused CTests pass Windows/Linux, and both game builds pass.
 Stale extraction notes and zero-page/VRAM alias claims moved to
 legacy_mmio_decoder_notes.md. Header failure guidance now agrees with the
 inspected host handler: unsupported faults continue searching, not fabricated
-zero registers. The legacy VRAM helper still allocates unrelated host pages,
-not a modeled physical alias, and repeated GPU init/shutdown lifetime needs
-review. Source remains needs_generic_fix for those paths. No live fault delivery,
-real GPU model correctness, full architecture or gameplay proof is claimed.
+zero registers. The remaining hook cleanup is recorded below.
+
+## Initialization and placeholder cleanup
+
+Fork dd80d047e8bed2ae6246c860d32ae8c671dd1520 removes the unused VRAM fault helper and archives its
+implementation in legacy_nv2a_vram_helper.md. It allocated unrelated writable
+host pages rather than GPU aliases. Existing guest mappings stay owned by the
+memory-layout layer. MMIO entry rejects addresses outside its register range.
+
+Initialization preserves an existing process singleton, frees newly allocated
+backing if state initialization fails, and allows retry. Both host graphics
+branches reject failed GPU initialization. Startup must be quiesced; successful
+backing remains for process lifetime, with no teardown API.
+
+The old initializer fails three lifecycle assertions. Final decoder/actual-hook
+adapter tests pass 2/2 on Windows and Linux; the Windows actual I/O-mapping test
+passes with zero failures. Both D3D11 and SDL GPU game builds pass. These checks
+do not certify GPU register semantics, live gameplay, concurrent initialization
+or hardware equivalence. The wider ownership audit remains incomplete.
