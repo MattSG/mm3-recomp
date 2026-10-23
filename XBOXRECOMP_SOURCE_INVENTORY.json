@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "48f518a0da31e561013d8aff2ef2a0908ce66920",
+  "fork_commit": "3db6097d65335362787b5c75530940c5ec34a3bd",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1226,9 +1226,9 @@
     },
     {
       "path": "src/d3d/d3d8_vsh.c",
-      "sha256": "67dacf65950f133785a43fcfc3de1b4c5a27867b4086997d418f0e996eb9751e",
+      "sha256": "abaf54ccda0d93742858e293c1acb02b2afd6782c541aca4679d28e86b5ec54f",
       "mode": "100644",
-      "git_blob": "f8867a1af198106551d653952c198c165607544a",
+      "git_blob": "226ff2bfffab00d79806544ed2ea46fb3b501f9f",
       "ownership_review": {
         "decision": "needs_generic_fix",
         "reviewed_at_fork": "a6e278ed78554a2d5e6c8325f0c9f42ef8b94961",
@@ -3089,8 +3089,8 @@
     {
       "path": "tests/d3d8_smoke/test_vsh.c",
       "mode": "100644",
-      "git_blob": "0ccf6eef82f8bbb33773a4f8bc85a91cfdd0277a",
-      "sha256": "77aac28b18b9c7eeec08a75b2d827f95db6a5f58469481f8803602e77771986c",
+      "git_blob": "3edd019cecda5d2fd45d77af981b7c0e25f01a1b",
+      "sha256": "feb256b2d4afab0cf81cddae4206e2bd225bf032aa26e7b8a1d5abfd460071b4",
       "ownership_review": {
         "decision": "needs_generic_fix",
         "reviewed_at_fork": "a6e278ed78554a2d5e6c8325f0c9f42ef8b94961",
@@ -6832,7 +6832,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "5c8610096b0f514c761fdad5151fe3b5c5400d2e",
+  "fork_tree": "f990300f91c33e38fea6ae37e350dfd797755216",
   "coverage": {
     "tracked_files": 639,
     "tracked_src_files": 153,

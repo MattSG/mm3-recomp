@@ -2866,3 +2866,17 @@ Fork checkpoint for this batch: `364d9d1`.
 - This is generic GPU resource error handling. Input-layout failures, fixed
   function preparation, cache identity and guest adaptation remain open;
   no new full-renderer/gameplay or ownership-completion claim is made.
+
+
+### Reject failed programmable input layouts
+
+- Fork 3db6097 checks required input-layout creation before binding the
+  programmable shader. Failed layouts are not cached. Shaders with no vertex
+  inputs explicitly bind a null layout instead of retaining unrelated state.
+- Actual-source WARP regression corrupts a cached signature, reproducing real
+  CreateInputLayout E_INVALIDARG. Both failure-result/cache assertions failed
+  before the fix and pass afterward; restored signature preparation succeeds.
+  Full d3d8_vsh program and both game builds pass.
+- Generic failure handling belongs in the fork. Stream declaration policy,
+  cache identity, fixed-function preparation and guest adaptation remain open.
+  This does not certify complete renderer fidelity or ownership completion.
