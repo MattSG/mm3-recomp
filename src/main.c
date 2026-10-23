@@ -10,7 +10,6 @@
 #include "recomp_funcs.h"
 #include "mods/teleport.h"
 #include "mm3_asset_cache.h"
-#include "mm3_frame_limit.h"
 #include "mm3_performance_profile.h"
 #include "mods/mods.h"
 #include <xbox_host.h>
@@ -204,16 +203,6 @@ int main(void)
     const char *scripted = getenv("RECOMP_PB_EXEC");
     if ((!scripted || !*scripted) && !mm3_launcher())
         return 0;
-
-    /* Validate the rate before either vblank or presentation
-     * caches its setting, including launches that bypass scripts/play.py. */
-    char frame_limit[16];
-    snprintf(frame_limit, sizeof frame_limit, "%d",
-             mm3_frame_limit(getenv("RECOMP_FPS_LIMIT")));
-    if (_putenv_s("RECOMP_FPS_LIMIT", frame_limit) != 0) {
-        fprintf(stderr, "cannot set MM3 frame-rate limit\n");
-        return 1;
-    }
 
     /* MM3 releases large model buffers through NtFreeVirtualMemory when a
      * scene is destroyed. The shared runtime leaves NT heap reclamation
