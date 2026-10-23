@@ -2631,3 +2631,16 @@ Fork checkpoint for this batch: `364d9d1`.
   texture test results now live in tools/reference/legacy_texture_test_guide.md.
   Frontier source/history and migration proof remain in
   tools/reference/ownership_mip_completion_frontier.md. Wider audit stays open.
+
+
+### Separate DSP provenance from captured review history
+
+- Read all four DSP provenance, source-inventory, SA-frontier and stack-extension
+  documents. Preserved their original bytes in tools/reference/legacy_dsp_*.md.
+  Removed obsolete local hashes, captured test outcomes and sequential
+  unimplemented/implemented narratives from the shared documents.
+- Fork retains the unchanged license/provenance header, pinned upstream origin
+  mapping, architecture references, adaptation boundaries and validation limits.
+  Relative links resolve; changes are Markdown only. No new DSP execution or
+  hardware-conformance claim is made. Interpreter ownership/fidelity remains
+  subject to the broader audit.

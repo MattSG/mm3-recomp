@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "0e3ec2609a76dfb7327b8afdf3ec0b0ee7edbcda",
+  "fork_commit": "9613aea617af93c9ab77fb6535cc2f78931fc00a",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -793,27 +793,55 @@
     },
     {
       "path": "src/apu/dsp/PROVENANCE.md",
-      "sha256": "fad3c3315b511602ebfe38e231face666d9d90cbc26a83e2fee6f94a57a1c059",
+      "sha256": "ab96ac3dde94663aabe41f92002dcfb07ed6b6e36bad5cc613550361ab05d86c",
       "mode": "100644",
-      "git_blob": "ae4ad1ab563521420f23ac5e1eee1330041b85fa"
+      "git_blob": "c470e29fe0fbd2c644fd11f9ca559db890ec026e",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "9613aea617af93c9ab77fb6535cc2f78931fc00a",
+        "scope": "Full document read: preserve source licensing/origins and architectural guidance; move stale snapshots and captured audit/test history into MM3 tools/reference/legacy_dsp_*",
+        "evidence": "Four original document archives compared with prior committed text; provenance/license header identical; local documentation links resolve; committed changes limited to Markdown",
+        "limit": "Documentation ownership only; interpreter, DMA, stack and SA implementation conformance remain unaudited by this checkpoint."
+      }
     },
     {
       "path": "src/apu/dsp/SA_ARITHMETIC_FRONTIER.md",
-      "sha256": "4ad8a91e7cc4ade615b4693c2591a4374a8c5a55e8139db611f8c9b7e127cb36",
+      "sha256": "06e239c90221b368321835631945dfb9896740b6ea821e2cfb5dbb2374577be2",
       "mode": "100644",
-      "git_blob": "8253acdb0a7b473d6ebb193fe567ada9765a90ac"
+      "git_blob": "207aa24f187cc4f3bc6fc3c590ee8d514d22f998",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "9613aea617af93c9ab77fb6535cc2f78931fc00a",
+        "scope": "Full document read: preserve source licensing/origins and architectural guidance; move stale snapshots and captured audit/test history into MM3 tools/reference/legacy_dsp_*",
+        "evidence": "Four original document archives compared with prior committed text; provenance/license header identical; local documentation links resolve; committed changes limited to Markdown",
+        "limit": "Documentation ownership only; interpreter, DMA, stack and SA implementation conformance remain unaudited by this checkpoint."
+      }
     },
     {
       "path": "src/apu/dsp/SOURCE_INVENTORY.md",
-      "sha256": "9c1621c4377825c3aa3b3016304eac3d941ecd98ed47ce67f320cf20072d9710",
+      "sha256": "e6022aeb5ea0fdd78405e956b77b03924f7e02d660dc205f0f3610404f3e05d3",
       "mode": "100644",
-      "git_blob": "f9d9eeef910f3adbd712a1b15bb15b241dd2c959"
+      "git_blob": "11bc5c6a337d236b4abae399d10e6aa2ee2f5b98",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "9613aea617af93c9ab77fb6535cc2f78931fc00a",
+        "scope": "Full document read: preserve source licensing/origins and architectural guidance; move stale snapshots and captured audit/test history into MM3 tools/reference/legacy_dsp_*",
+        "evidence": "Four original document archives compared with prior committed text; provenance/license header identical; local documentation links resolve; committed changes limited to Markdown",
+        "limit": "Documentation ownership only; interpreter, DMA, stack and SA implementation conformance remain unaudited by this checkpoint."
+      }
     },
     {
       "path": "src/apu/dsp/STACK_EXTENSION.md",
-      "sha256": "b9e1652ffc3ce9df51a23cc2f221ce440a6c3e0a687b3b05c14e2d39d8c8a710",
+      "sha256": "c190d0722fe1bbf57a2f24b968b573b6fe8cce19e2ec0f9874c5d2d27e5baf06",
       "mode": "100644",
-      "git_blob": "305f8143f31418b4d3e1e3044822d1b50590f869"
+      "git_blob": "9926f235adab536b95cd94fa52a9e2435f457bec",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "9613aea617af93c9ab77fb6535cc2f78931fc00a",
+        "scope": "Full document read: preserve source licensing/origins and architectural guidance; move stale snapshots and captured audit/test history into MM3 tools/reference/legacy_dsp_*",
+        "evidence": "Four original document archives compared with prior committed text; provenance/license header identical; local documentation links resolve; committed changes limited to Markdown",
+        "limit": "Documentation ownership only; interpreter, DMA, stack and SA implementation conformance remain unaudited by this checkpoint."
+      }
     },
     {
       "path": "src/apu/dsp/debug.h",
@@ -6473,7 +6501,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "95f73bf5f33972c0d4827bf06e9d722a33bd0ed1",
+  "fork_tree": "12591e32f9d841bf408898c9eeaac2d1fa70cafd",
   "coverage": {
     "tracked_files": 634,
     "tracked_src_files": 153,
