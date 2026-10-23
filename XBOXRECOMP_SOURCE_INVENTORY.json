@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "62926935fd1ec0ec564b8a7880104aeb34f7c260",
+  "fork_commit": "760ca88b46d00bde1ffa5f4d4038850e6e574058",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -66,20 +66,27 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "git_blob": "a6f224e0e99e269645cd2ef49e76a5fa7d01a74f",
-      "sha256": "a7804b5b9e799624b26d5483a4810dc15270e4c20b2a7b8f32ff3ff8f34c7b57",
+      "git_blob": "12ba471b8689e46304d9d4c17414766faede65f5",
+      "sha256": "f89acc4f544d822acaea8b4f0dd92c8a182d0d35536970594df1a9491bdbbe5f",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "e7a7589beb9668f223527c8fedd3bdf3a7107cba",
-        "scope": "Navigation description for per-image D3D8LTCG investigation; prior scoped edits retained, unrelated text unreviewed",
-        "evidence": "Complete captured-title map archived in MM3 with source commit/blob and exact original text; replacement local links resolve; only documentation changed.",
-        "limit": "Documentation ownership and preservation, not validation of captured offsets, historical bypasses, GPU completion or original-game fidelity.",
+        "reviewed_at_fork": "760ca88b46d00bde1ffa5f4d4038850e6e574058",
+        "scope": "Remove captured release/gameplay/test-count history and broad compatibility/performance promises; retain generic SDK interfaces, explicit renderers, scoped checks and unchanged attribution/licensing",
+        "evidence": "Original 1721-line README archived as full normalized text with original blob identity/SHA256. Licence/contributor/credit block unchanged. Current README: 477 lines; all 55 local path links and six actual CLI help interfaces pass; renderer choices match current CMake and existing compiled configurations.",
+        "limit": "README/interface/link review only. No new clean-install, pipeline regeneration, platform gameplay or whole-fork ownership claim. Linked guides/templates and remaining source/data still need scoped review.",
         "prior_review": {
           "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
-          "scope": "Reference-analysis navigation/provenance paragraph; prior target/port-policy edits retained; unrelated content not certified",
-          "evidence": "Five captured corpus/adoption documents preserved in MM3 with source blob identities; new/updated guide links resolve; checked callers have no removed-page references; 42 Fusion tests pass",
-          "limit": "Documentation ownership, not validation against actual captured modules, corpus claims, complete private compiler formats or gameplay"
+          "reviewed_at_fork": "e7a7589beb9668f223527c8fedd3bdf3a7107cba",
+          "scope": "Navigation description for per-image D3D8LTCG investigation; prior scoped edits retained, unrelated text unreviewed",
+          "evidence": "Complete captured-title map archived in MM3 with source commit/blob and exact original text; replacement local links resolve; only documentation changed.",
+          "limit": "Documentation ownership and preservation, not validation of captured offsets, historical bypasses, GPU completion or original-game fidelity.",
+          "prior_review": {
+            "decision": "retain_generic_boundary",
+            "reviewed_at_fork": "dd9294ec0feb9e9a952bd93a902e75e9f4e6c526",
+            "scope": "Reference-analysis navigation/provenance paragraph; prior target/port-policy edits retained; unrelated content not certified",
+            "evidence": "Five captured corpus/adoption documents preserved in MM3 with source blob identities; new/updated guide links resolve; checked callers have no removed-page references; 42 Fusion tests pass",
+            "limit": "Documentation ownership, not validation against actual captured modules, corpus claims, complete private compiler formats or gameplay"
+          }
         }
       }
     },
@@ -5366,7 +5373,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "a470ac42eaf46820c6ba37c0cb8c6787b32d0e5e",
+  "fork_tree": "1486e03ac846311802a8af20f7be05a5b2d2ab0e",
   "coverage": {
     "tracked_files": 625,
     "tracked_src_files": 153,

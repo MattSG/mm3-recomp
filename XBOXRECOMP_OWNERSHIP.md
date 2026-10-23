@@ -1996,3 +1996,33 @@ Fork checkpoint for this batch: `364d9d1`.
   fidelity. Native thread ABI/coverage, optional flags/IDs/system routine,
   object-reference/thread-object/channel stand-ins and whole-fork ownership
   still require review.
+
+
+### Keep the shared README generic and move captured history to the port
+
+- README's release history mixes generic fixes with captured title progress,
+  timings, function counts, test totals and case-study conclusions. The full
+  original 1721-line README is preserved as normalized text in
+  `tools/reference/legacy_xboxrecomp_readme.md`, with fork 6292693, original
+  README blob identity and SHA-256. Its body exactly matches the normalized
+  original; historical relative links retain toolkit-root context.
+- Shared README is now 477 lines. It retains pipeline/integration references
+  and unchanged licence/contributor/credit text, while removing title success
+  estimates, snapshot test totals and unsupported broad compatibility/speed
+  claims. Generic fixes/contributors remain available in Git history. This
+  does not erase the archived original attribution or evidence.
+- Build guidance distinguishes D3D11 from SDL3_GPU configuration and SDL3 GPU's
+  runtime Vulkan/Direct3D12 choice. The current CMake selectors, dependency
+  modules, environment lookup and existing compiled renderer caches were read;
+  obsolete Linux OpenGL/default, six-library and no-dependency claims leave the
+  active README. The starter host is explicitly Windows-oriented and needs
+  lifecycle adaptation on other hosts.
+- All 55 local Markdown path links resolve. Six actual CLI help commands pass:
+  xbe_parser, disasm, func_id, abi_analysis, recomp and conformance; the documented
+  primary analysis/generation flags appear in their current interfaces. Snapshot
+  equality and the unchanged licence/credits block are asserted. Evidence:
+  `conformance_tmp/ownership-readme-*-help.log` and
+  `ownership-readme-validation.json`. This is documentation/interface evidence,
+  not a new clean installation, full regeneration or gameplay acceptance run.
+- Source behavior is unchanged by this checkpoint. Linked guides/templates,
+  native/thread/object fidelity and whole-fork ownership still require review.
