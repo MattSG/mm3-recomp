@@ -1717,3 +1717,35 @@ Fork checkpoint for this batch: `364d9d1`.
   The refreshed runtime-entry metadata required regenerating ignored local bodies
   with MM3's pinned generator before rebuilding the combined game.
 - Combined SDL3 GPU and D3D11 game builds pass after pinned runtime-entry regeneration.
+
+
+### Port-owned launch input instead of captured command-line policy
+
+- The bridge no longer reads RECOMP_CMDLINE or invents title ID 0x45410091.
+  Both original source blocks are retained unchanged as normalized reference
+  text in `tools/reference/legacy_launch_data_policy.md`, checked against fork
+  5a36559. The existing host LaunchDataPage export is sufficient generic input;
+  no new configuration API was needed. Absent input is NULL. A supplied page is
+  copied in full to a 4096-byte-aligned guest heap allocation, without runtime
+  interpretation of type, identity, path, flags or payload. The caller retains
+  native pointer storage while in use; guest copies retire with mapped memory.
+- MM3 owns the optional RECOMP_CMDLINE interface, truncates/NUL-terminates its
+  payload and reads the actual loaded XBE certificate title ID with checked
+  bounds. No command-line contents are printed. Synthetic checks compile the
+  actual port helper and cover absent input, valid identity/payload, truncation,
+  below-base, beyond-buffer and truncated certificate cases.
+- The previous compiled Linux runtime fails caller-page byte-copy/identity
+  checks because it replaces input with its environment-generated launch page.
+  New asset-free supplied/absent cases check all 4096 bytes, native export
+  pointer identity, guest alignment and independent copy lifetime. Even with
+  RECOMP_CMDLINE present, absent generic input remains NULL.
+- Windows memory 37/37, kernel 62/62 and bridge 8/8 pass; Linux kernel 61/61 and all 15 actual thunk
+  fixture modes pass. Both Windows renderer builds and bridge ordinal audit
+  pass. Evidence is `conformance_tmp/ownership-launch-*`.
+- Bounded Vulkan night Cruise `run-y4fgm5ra` passes in 123.968 seconds. Capture 004 was
+  inspected as actual night driving; telemetry moves from 1450.21997,-308.053009
+  to 1448.13,-307.592, approximately 2.14 metres. With the optional input enabled, the
+  port reports loaded MM3 title ID 0x4D53002A and 15 payload bytes. This proves
+  bounded boot/menu/loading/movement, not complete launch/reboot semantics.
+- Fixed kernel-data placement and remaining hardware/identity stand-ins still
+  require review, alongside worker-stack policy and whole-tree ownership.

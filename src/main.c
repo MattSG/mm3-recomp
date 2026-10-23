@@ -25,6 +25,33 @@
 #define MM3_KERNEL_THUNK_COUNT 151u
 #define MM3_MEMORY_MAP_SIZE (128u * 1024u * 1024u)
 
+/* Preserve the port's optional launch command-line interface. The identity
+ * comes from this XBE's certificate, never from a different title's capture. */
+static void mm3_configure_launch_data(const void *image, size_t size)
+{
+    static XBOX_LAUNCH_DATA_PAGE page;
+    const char *cmdline = getenv("RECOMP_CMDLINE");
+    uint32_t base, certificate, title_id;
+    size_t offset, length;
+    xbox_LaunchDataPage = NULL;
+    if (!cmdline || !*cmdline || size < 0x11Cu) return;
+    memcpy(&base, (const uint8_t *)image + 0x104, 4);
+    memcpy(&certificate, (const uint8_t *)image + 0x118, 4);
+    if (certificate < base) return;
+    offset = (size_t)(certificate - base);
+    if (offset > size || size - offset < 12) return;
+    memcpy(&title_id, (const uint8_t *)image + offset + 8, 4);
+    memset(&page, 0, sizeof(page));
+    page.LaunchDataType = 3;
+    page.TitleId = title_id;
+    length = strlen(cmdline);
+    if (length >= sizeof(page.LaunchData)) length = sizeof(page.LaunchData) - 1;
+    memcpy(page.LaunchData, cmdline, length);
+    xbox_LaunchDataPage = &page;
+    fprintf(stderr, "[MM3_LAUNCH] title=0x%08X command-line bytes=%zu\n",
+            (unsigned)title_id, length);
+}
+
 static HANDLE g_mm3_main_worker;
 static HANDLE g_mm3_main_worker_ready;
 static int g_mm3_inline_threads;
@@ -301,6 +328,7 @@ int main(void)
     }
     xbox_kernel_set_thunk_address(MM3_KERNEL_THUNK_ADDRESS,
                                    MM3_KERNEL_THUNK_COUNT);
+    mm3_configure_launch_data(xbe_data, xbe_size);
     xbox_kernel_init();
     xbox_path_init(MM3_GAME_DIR, getenv("MM3_SAVE_DIR"));
     mm3_asset_cache_refresh();
