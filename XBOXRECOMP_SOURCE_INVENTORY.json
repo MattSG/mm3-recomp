@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "6cb804af68e63bcc03f45dac5576e83d7ebb9e03",
+  "fork_commit": "4fa2d8bce01018fab8b1097d333c1609b0feea87",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -5926,7 +5926,14 @@
       "path": "tools/ghidra_naming/ghidra_scripts/ExportXbeNames.py",
       "mode": "100644",
       "git_blob": "a3c70835ffdd985ac7fbea1b2b23f6aa2e76488c",
-      "sha256": "0d5fe39d933d069031a6a56be0bf97c8e542e2e7c701c022dad335751c284dec"
+      "sha256": "0d5fe39d933d069031a6a56be0bf97c8e542e2e7c701c022dad335751c284dec",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "4fa2d8bce01018fab8b1097d333c1609b0feea87",
+        "scope": "Full source read of caller-driven Ghidra export and name-merging paths; shared identifier allocation collision fix",
+        "evidence": "Five merge_names checks pass; suffix collision reproduced before fix; actual --names-json CLI yields three distinct identifiers",
+        "limit": "No Ghidra/Jython execution. Export checkpoint recovery is not atomic and progress is not tied to program identity; broader runtime correctness remains unverified."
+      }
     },
     {
       "path": "tools/ghidra_naming/ghidra_scripts/SeedFunctions.py",
@@ -5957,8 +5964,15 @@
     {
       "path": "tools/ghidra_naming/merge_names.py",
       "mode": "100644",
-      "git_blob": "01df35d309c7196fb7daffc90a0501031bcc7f9c",
-      "sha256": "30e7226a2ec805ed8c5d14fe5ca86a063da51eb04d43ed1a075746a82e32f363"
+      "git_blob": "5b6e02dd839ebe1dd1a97c7c8f17f26833032479",
+      "sha256": "f0ef0c894d365c7caeb4e22905f1e37befb097cbac7f8f494c16167a5862f89f",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "4fa2d8bce01018fab8b1097d333c1609b0feea87",
+        "scope": "Full source read of caller-driven Ghidra export and name-merging paths; shared identifier allocation collision fix",
+        "evidence": "Five merge_names checks pass; suffix collision reproduced before fix; actual --names-json CLI yields three distinct identifiers",
+        "limit": "No Ghidra/Jython execution. Export checkpoint recovery is not atomic and progress is not tied to program identity; broader runtime correctness remains unverified."
+      }
     },
     {
       "path": "tools/ghidra_naming/run_ghidra.sh",
@@ -5989,8 +6003,15 @@
     {
       "path": "tools/ghidra_naming/test_merge_names.py",
       "mode": "100644",
-      "git_blob": "db794e55c7daec6232989e9d7e3656f202ea2d32",
-      "sha256": "c760ea08ec3aa168626d433d585b3390d748c07c7855672a7215d271db74a903"
+      "git_blob": "6cbec0b3ff25021a77b2a4bdf0318f9d766f287c",
+      "sha256": "35b7a215689b71b9ea0a27490b8cd8c54a60f97b621aa43a493c6130c7fd0735",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "4fa2d8bce01018fab8b1097d333c1609b0feea87",
+        "scope": "Full source read of caller-driven Ghidra export and name-merging paths; shared identifier allocation collision fix",
+        "evidence": "Five merge_names checks pass; suffix collision reproduced before fix; actual --names-json CLI yields three distinct identifiers",
+        "limit": "No Ghidra/Jython execution. Export checkpoint recovery is not atomic and progress is not tied to program identity; broader runtime correctness remains unverified."
+      }
     },
     {
       "path": "tools/ida_naming/README.md",
@@ -6860,7 +6881,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "21a6e6ab130e9d6a172b910ac1889f4e561c8bd8",
+  "fork_tree": "e7143d4d3b550a9c8a08d787d5dff4f5f127c283",
   "coverage": {
     "tracked_files": 639,
     "tracked_src_files": 153,

@@ -2894,3 +2894,18 @@ Fork checkpoint for this batch: `364d9d1`.
 - Edited Java executable body and Python non-comment tokens match the prior
   versions; four existing name-merging checks pass. Ghidra/Jython itself was
   not run. Other naming/export scripts and broader fork ownership remain open.
+
+
+### Review Ghidra export and keep generated identifiers unique
+
+- Fork 4fa2d8b shares identifier allocation across exported symbol data
+  and --names-json. Address suffixes are checked again for collisions with
+  existing literal names instead of producing duplicate generated C symbols.
+- Full source read of ExportXbeNames, merge_names and its tests found generic
+  caller/program-driven tooling, not title-specific data or application policy.
+  Existing export checkpoints remain non-atomic and lack program identity;
+  this ownership decision does not certify recovery behavior or Ghidra APIs.
+- Regression reproduced three symbols becoming two distinct names before the
+  fix. Five focused checks and an actual --names-json CLI run now pass.
+  No Ghidra/Jython or game run was needed for this Python-only name allocation
+  change. The broader ownership/runtime audit remains incomplete.
