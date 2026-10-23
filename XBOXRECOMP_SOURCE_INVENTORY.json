@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "b70d7821119a583edde9ea8da0cbd7f1aeec5aa8",
+  "fork_commit": "a29e5005c7b194022ec757e55576bdfc4d9e830d",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -309,8 +309,15 @@
     {
       "path": "docs/pipeline/03-function-id.md",
       "mode": "100644",
-      "git_blob": "1b7887d91dca3c83b144179029a2f8dc4c48aaeb",
-      "sha256": "05713bdfb9e3508908ba2765b593bd248a354b1d5fb7b72013bdae60704e5117"
+      "git_blob": "04ffec0cbf5dd9779b7f9779707848051e2e5fa4",
+      "sha256": "b13c87399ad963376945379ddf99a39c1d82b11fcf09de41bf4941d21c0439e4",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "a29e5005c7b194022ec757e55576bdfc4d9e830d",
+        "scope": "Input-derived RenderWare ID parsing accepts numeric version tags; captured count/history and inaccurate pipeline guide moved to MM3. Config change is comments only",
+        "evidence": "RW37 synthetic case fails old parser; 6 focused tests and 3 full-pipeline CLI cases pass. Config AST unchanged. New guide 2 links resolve; old guide normalized archive verified",
+        "limit": "Synthetic ID-format/classification proof, not library ABI/version compatibility, accurate inferred RW regions or full config/signature/identifier certification."
+      }
     },
     {
       "path": "docs/pipeline/04-lifting.md",
@@ -5093,14 +5100,21 @@
     {
       "path": "tools/func_id/config.py",
       "mode": "100644",
-      "git_blob": "73016417b51bd8b58b1565825341a6d377c37559",
-      "sha256": "17789c5073b92ec5ed2509f1988ab35516da34581951a8ed7018319b141f5785",
+      "git_blob": "8f0af5021e930c91434a888954df55232eeabc52",
+      "sha256": "e8a1cd88e650245754c24166f4c8c3e11c0a81066b0925f0bcb4c16503817929",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "ca81d2f82f9e64efec6e46452654ed976c2cfe05",
-        "scope": "Explicit caller-owned keyword mapping, validation and CLI propagation; implicit application keyword dictionary removed",
-        "evidence": "Four unit tests (including eight malformed schemas); actual synthetic CLI outputs default unknown, caller game_space and MM3 game_vehicle; migrated dictionary equals original nine ordered categories",
-        "limit": "Keyword policy migration only, not full configuration, clustering, signature-accuracy, parser or function-identifier audit. No game runtime changes or gameplay claim."
+        "reviewed_at_fork": "a29e5005c7b194022ec757e55576bdfc4d9e830d",
+        "scope": "Input-derived RenderWare ID parsing accepts numeric version tags; captured count/history and inaccurate pipeline guide moved to MM3. Config change is comments only",
+        "evidence": "RW37 synthetic case fails old parser; 6 focused tests and 3 full-pipeline CLI cases pass. Config AST unchanged. New guide 2 links resolve; old guide normalized archive verified",
+        "limit": "Synthetic ID-format/classification proof, not library ABI/version compatibility, accurate inferred RW regions or full config/signature/identifier certification.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "ca81d2f82f9e64efec6e46452654ed976c2cfe05",
+          "scope": "Explicit caller-owned keyword mapping, validation and CLI propagation; implicit application keyword dictionary removed",
+          "evidence": "Four unit tests (including eight malformed schemas); actual synthetic CLI outputs default unknown, caller game_space and MM3 game_vehicle; migrated dictionary equals original nine ordered categories",
+          "limit": "Keyword policy migration only, not full configuration, clustering, signature-accuracy, parser or function-identifier audit. No game runtime changes or gameplay claim."
+        }
       }
     },
     {
@@ -5137,8 +5151,15 @@
     {
       "path": "tools/func_id/rw_identifier.py",
       "mode": "100644",
-      "git_blob": "9209fcdb07ac79808c1536ad73b9ced3365d28c6",
-      "sha256": "68c99495a8f890c4554754d435b3c1ebc5ffe512894b6366db6f45c69248a63b"
+      "git_blob": "11ca9a6e438e9962e1ee128e8e93b9cbfc8f2303",
+      "sha256": "3a89350d78a502fc377a635ea92572f3df8b95ad2b8dd07ae11dfd59a3104510",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "a29e5005c7b194022ec757e55576bdfc4d9e830d",
+        "scope": "Input-derived RenderWare ID parsing accepts numeric version tags; captured count/history and inaccurate pipeline guide moved to MM3. Config change is comments only",
+        "evidence": "RW37 synthetic case fails old parser; 6 focused tests and 3 full-pipeline CLI cases pass. Config AST unchanged. New guide 2 links resolve; old guide normalized archive verified",
+        "limit": "Synthetic ID-format/classification proof, not library ABI/version compatibility, accurate inferred RW regions or full config/signature/identifier certification."
+      }
     },
     {
       "path": "tools/func_id/stub_classifier.py",
@@ -5157,6 +5178,19 @@
         "scope": "Explicit caller-owned keyword mapping, validation and CLI propagation; implicit application keyword dictionary removed",
         "evidence": "Four unit tests (including eight malformed schemas); actual synthetic CLI outputs default unknown, caller game_space and MM3 game_vehicle; migrated dictionary equals original nine ordered categories",
         "limit": "Keyword policy migration only, not full configuration, clustering, signature-accuracy, parser or function-identifier audit. No game runtime changes or gameplay claim."
+      }
+    },
+    {
+      "path": "tools/func_id/test_rw_versions.py",
+      "mode": "100644",
+      "git_blob": "5863697dda2401ffc0e6e8bfa17bf756f7f100e4",
+      "sha256": "a38f1db84d6e1dc85edb9893bd7791eab6bd400a4502cbdbae0acb906c7d1e56",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "a29e5005c7b194022ec757e55576bdfc4d9e830d",
+        "scope": "Input-derived RenderWare ID parsing accepts numeric version tags; captured count/history and inaccurate pipeline guide moved to MM3. Config change is comments only",
+        "evidence": "RW37 synthetic case fails old parser; 6 focused tests and 3 full-pipeline CLI cases pass. Config AST unchanged. New guide 2 links resolve; old guide normalized archive verified",
+        "limit": "Synthetic ID-format/classification proof, not library ABI/version compatibility, accurate inferred RW regions or full config/signature/identifier certification."
       }
     },
     {
@@ -6196,9 +6230,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "30c3a90fdda39887cbc5c9b63d31e5bed56a59cf",
+  "fork_tree": "35fb5faf72fb15ab1c2c1210fb9e16a77cc8aa7e",
   "coverage": {
-    "tracked_files": 631,
+    "tracked_files": 632,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -6217,7 +6251,7 @@
       "src": 153,
       "templates": 7,
       "tests": 200,
-      "tools": 221
+      "tools": 222
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
     "tracked_paths_missing_from_fff": [
@@ -6236,6 +6270,7 @@
       "tools/abi_analysis/test_cli.py",
       "tools/conformance/test_mkxbe.py",
       "tools/func_id/test_keywords.py",
+      "tools/func_id/test_rw_versions.py",
       "tools/fusion/test_module.py"
     ],
     "stale_fff_paths": [

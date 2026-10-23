@@ -2503,3 +2503,22 @@ Fork checkpoint for this batch: `364d9d1`.
   Evidence: conformance_tmp/ownership-split-synthetic-check.py and its output
   directory. This is not original-title boundary/ABI accuracy or link parity.
   Wider ownership review remains open.
+
+
+### Remove reference-version restriction from RenderWare identification
+
+- The RW source-ID parser used a literal RW36Active path and the header
+  described a captured count of 67 strings. It now accepts numeric RW version
+  tags in the same ID envelope; captured header/layout history is archived with
+  the old pipeline guide in tools/reference/legacy_function_identification_guide.md.
+  Config executable AST is unchanged; its title-specific history is now in MM3.
+- RW37 input fails the old parser's public classifier. Six focused tests now
+  pass across versions, malformed/unrelated tags and caller keyword policy.
+  Actual full-pipeline CLI checks classify RW36/RW37 as rw_plcore and leave
+  RWfoo unknown on synthetic paired image/string inputs. Evidence:
+  conformance_tmp/ownership-rw-version-check.py and ownership-rw-version/.
+- Replaced unsupported guide flags, stale output schema, captured layout/counts
+  and uncalibrated support claims with actual CLI/implementation boundaries.
+  Both local guide links resolve; archived guide matches prior normalized text.
+  Accepting an ID tag does not prove library ABI compatibility or correctness
+  of region heuristics. Inventory: 632 paths / 153 src paths. Audit remains open.
