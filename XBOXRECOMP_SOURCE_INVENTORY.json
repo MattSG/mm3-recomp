@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "d7582c4b740b7cbfc879e2d4d72221db84335419",
+  "fork_commit": "693fb082cd1f97b43cba1534c0948ccbb81c3acd",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1889,15 +1889,29 @@
     },
     {
       "path": "src/kernel/nv2a_combiner.c",
-      "sha256": "126ac0c3ccbc18fca1baa5779c0b721f017eaa9193a66aeefb0675b650a9f081",
+      "sha256": "8a30e9b03d396b6d890702b3a014199662796f57a4d209293f57937cbe60fdad",
       "mode": "100644",
-      "git_blob": "8dac1ddb5c35bf5a30c9f3e508ed3cefe147e971"
+      "git_blob": "58b97edcd7df7834d68ba5f34d840c9cfe722624",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "693fb082cd1f97b43cba1534c0948ccbb81c3acd",
+        "scope": "Full combiner C/header and vertex interpreter header ownership read; remove title/migration/performance narrative and document raw program output/16 inputs",
+        "evidence": "tools/reference/ownership_nv2a_combiner_interfaces.md and legacy_nv2a_interface_notes.md; non-comment token equality in all three files; existing three-case combiner program passes default and forced generic Windows/Linux",
+        "limit": "No full fast-path/numerical/hardware equivalence or gameplay claim. Vertex interpreter body was not fully reviewed here; header output copy verified at return path. Environment remains startup/thread-cached policy."
+      }
     },
     {
       "path": "src/kernel/nv2a_combiner.h",
-      "sha256": "a374412a230e78e9b5289951fc5094f657a4f0915d40063e608171f39d789d70",
+      "sha256": "257bfcd87d552d1764913f4f9b009f885f4d5d88bb0ae34cf306b339b5d94b99",
       "mode": "100644",
-      "git_blob": "8abfc5fa76198465ef0256c4d64349ea7a432dc8"
+      "git_blob": "187e8c2730a9550399e1befb0e990f9fb47d8d16",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "693fb082cd1f97b43cba1534c0948ccbb81c3acd",
+        "scope": "Full combiner C/header and vertex interpreter header ownership read; remove title/migration/performance narrative and document raw program output/16 inputs",
+        "evidence": "tools/reference/ownership_nv2a_combiner_interfaces.md and legacy_nv2a_interface_notes.md; non-comment token equality in all three files; existing three-case combiner program passes default and forced generic Windows/Linux",
+        "limit": "No full fast-path/numerical/hardware equivalence or gameplay claim. Vertex interpreter body was not fully reviewed here; header output copy verified at return path. Environment remains startup/thread-cached policy."
+      }
     },
     {
       "path": "src/kernel/nv2a_notify_wait.h",
@@ -1966,9 +1980,16 @@
     },
     {
       "path": "src/kernel/nv2a_vsh_interp.h",
-      "sha256": "f4449b1918157132f1a68ce0776e22554f1232a10e92af04b40c803921a35688",
+      "sha256": "7cf400900a962759f313d803b4999f438924aa0c75424562503b6bb062be1004",
       "mode": "100644",
-      "git_blob": "ec1068d7dfcd8269087c514d33fe60dafd2515a5"
+      "git_blob": "408a10e5f21d975eb446c49daf78aa41ff12aa85",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "693fb082cd1f97b43cba1534c0948ccbb81c3acd",
+        "scope": "Full combiner C/header and vertex interpreter header ownership read; remove title/migration/performance narrative and document raw program output/16 inputs",
+        "evidence": "tools/reference/ownership_nv2a_combiner_interfaces.md and legacy_nv2a_interface_notes.md; non-comment token equality in all three files; existing three-case combiner program passes default and forced generic Windows/Linux",
+        "limit": "No full fast-path/numerical/hardware equivalence or gameplay claim. Vertex interpreter body was not fully reviewed here; header output copy verified at return path. Environment remains startup/thread-cached policy."
+      }
     },
     {
       "path": "src/kernel/recomp_icall_feedback.h",
@@ -7265,7 +7286,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "c4af747b2dc14f34182e2da400f722e0c5591467",
+  "fork_tree": "13d29ed875684634fd8e92ad59c7a76ab68f8b99",
   "coverage": {
     "tracked_files": 647,
     "tracked_src_files": 153,

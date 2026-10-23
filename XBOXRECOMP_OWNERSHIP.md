@@ -3123,3 +3123,15 @@ Fork checkpoint for this batch: `364d9d1`.
   tools/reference/legacy_apu_state_observations.md. Full scope/limits are in
   tools/reference/ownership_apu_state.md; no audible/full-APU acceptance claim.
   The broader ownership audit remains open.
+
+
+### Review generic NV2A combiner and vertex interfaces
+
+- Fork 693fb08 moves title/migration/performance narratives to
+  tools/reference/legacy_nv2a_interface_notes.md and describes raw vertex
+  outputs and the actual sixteen-input interface. Executable tokens unchanged.
+- Full combiner C/header and vertex header read; generic register/program
+  mechanisms retained. Scope/limits are in the combiner-interface review.
+- Three analytical combiner cases pass default/forced generic Windows/Linux.
+  This does not certify all fast paths, hardware numerics, the whole vertex
+  body or gameplay. Broader ownership completion remains unproven.
