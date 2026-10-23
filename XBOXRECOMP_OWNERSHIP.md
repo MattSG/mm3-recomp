@@ -2348,3 +2348,16 @@ Fork checkpoint for this batch: `364d9d1`.
   or the whole fork. No executable source changed in this checkpoint.
 - All nine guide links resolve; fork diff is documentation only. Inventory
   remains 627 tracked paths and 152 src paths. No new gameplay claim.
+
+
+### Identify remaining pushbuffer stop-recovery policy
+
+- Current scanner and hitch tests still contain an odd/increment<=128 fence
+  recovery heuristic over unparsed payload after malformed commands. Recorded
+  exact source/test excerpts and migration requirements in
+  tools/reference/ownership_pushbuffer_stop_frontier.md. Both paths now carry
+  needs_port_policy rather than a broader implied generic certification.
+- Existing Windows hitch quiet/trace tests pass (2/2); those tests explicitly
+  require the heuristic, so they do not establish hardware-correct recovery.
+  No executable behavior changed. Generic stopped-submission support, MM3-owned
+  compatibility recovery and runtime verification remain required.

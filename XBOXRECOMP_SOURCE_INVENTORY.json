@@ -1525,11 +1525,18 @@
       "mode": "100644",
       "git_blob": "92659cbb06955f057b99f13ff3b01055e86f9106",
       "ownership_review": {
-        "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
-        "scope": "Pre-execution full-ring capture and generic producer JSON; other scanner behavior retains only prior scoped reviews",
-        "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
-        "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity."
+        "decision": "needs_port_policy",
+        "reviewed_at_fork": "03cf828df4804ff1702f24c56fb4632c8c8819fc",
+        "scope": "Malformed-stream stop recovery guesses semaphore releases from unparsed payload using odd/increment<=128 rule",
+        "evidence": "Current helper, stop call site and explicit synthetic test expectation inspected; see tools/reference/ownership_pushbuffer_stop_frontier.md",
+        "limit": "Finding only; migration, default no-release proof and caller-owned recovery remain outstanding.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
+          "scope": "Pre-execution full-ring capture and generic producer JSON; other scanner behavior retains only prior scoped reviews",
+          "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
+          "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity."
+        }
       }
     },
     {
@@ -3253,11 +3260,18 @@
       "git_blob": "f48a8a8b311de8fd92cecf46545ec7a58ae81613",
       "sha256": "a537902eadd6dd49241318107d0736815b6426b97dc1344cb7942dc5b73b0645",
       "ownership_review": {
-        "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
-        "scope": "Version-2 snapshot/ring metadata fixture and captured-word/full-ring preservation",
-        "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
-        "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity."
+        "decision": "needs_port_policy",
+        "reviewed_at_fork": "03cf828df4804ff1702f24c56fb4632c8c8819fc",
+        "scope": "Malformed-stream stop recovery guesses semaphore releases from unparsed payload using odd/increment<=128 rule",
+        "evidence": "Current helper, stop call site and explicit synthetic test expectation inspected; see tools/reference/ownership_pushbuffer_stop_frontier.md",
+        "limit": "Finding only; migration, default no-release proof and caller-owned recovery remain outstanding.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "f53ebd7a95800bf0f71c8cdc91058d1e0b95c288",
+          "scope": "Version-2 snapshot/ring metadata fixture and captured-word/full-ring preservation",
+          "evidence": "Old implicit-layout baseline fails. Windows kernel/capture 61/61 and Linux command-fence/hitch 3/3 pass; both Windows renderer game builds pass. Original layout-dependent source blocks archived; MM3 supplies measured offsets and owns its decoder with version-1/version-2/malformed-input checks.",
+          "limit": "Scoped diagnostic ownership, snapshot schema and synthetic preservation evidence; not full scanner/memory-layout audit, atomic snapshots, arbitrary SDK layouts or original-game rendering fidelity."
+        }
       }
     },
     {
