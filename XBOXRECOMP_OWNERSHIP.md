@@ -1946,3 +1946,53 @@ Fork checkpoint for this batch: `364d9d1`.
 - Main-stack-only RtlUnwind bounds, native thread export ABI/coverage, optional
   thread flags/IDs/system routine, object-reference/thread-object stand-ins and
   whole-tree ownership remain open.
+
+
+### Unwind within the actual owned stack
+
+- The old runtime rejects valid worker and callback registrations by checking
+  only the main stack. Both new baseline cases fail before the fix; the main
+  case passes. `xbox_GetStackBounds` now reuses ownership for main, allocated
+  worker/kernel stacks and retained callback leases. It returns exact exclusive
+  bounds or FALSE/zero outputs for unknown/retired addresses. Caller retains
+  ownership while using the snapshot; this is not host-thread identity or a
+  general memory/backing probe.
+- Unwind checks the full argument frame before decoding, scratch budget before
+  writing, complete aligned registration pairs, monotonic same-stack links and
+  concrete target bounds. Valid handlers are popped before invocation; normal
+  return restores the saved caller SP. Unknown/cyclic/truncated/foreign chains
+  stop with diagnostics. A missing/unreachable target is never fabricated into
+  fs:[0]; the head reflects only actual traversal. Caller-provided record flags
+  are preserved. Full context/TargetIp/return-value transfer, collided handler
+  dispositions and external record/TIB probing are still incomplete.
+- The owner audit also found MmCreateKernelStack using plain heap memory and
+  deletion freeing any supplied low pointer. These routes now use the shared
+  typed owner registry. Their existing exact requested-size/high-end convention
+  is preserved independently of worker minimum policy; matching kind/high/low
+  is required to retire a kernel stack. Ordinary heaps/worker allocations cannot
+  be released through that API. Zero/oversized requests fail. Native/guard-page/
+  debugger semantics remain open. Cxbx's primary implementation separately shows
+  guard-page accounting, which is not implemented by this bounded change:
+  https://github.com/Cxbx-Reloaded/Cxbx-Reloaded/blob/master/src/core/kernel/exports/EmuKrnlMm.cpp#L135
+- Three normalized original unwind/create/delete bridge functions are retained
+  in `tools/reference/legacy_unwind_stack_policy.md`, checked against fork 1574479.
+  New C++ references link the bounds and guest kernel-stack helpers. Memory
+  cases verify boundaries, optional/zeroed outputs, lease/stack retirement,
+  ordinary heap exclusion, strict allocation kinds/pairs, exact unaligned
+  kernel size and independence from configured worker minimum.
+- Seventeen bridge cases cover main/worker/callback/kernel stacks, target/exit
+  walks, an unreachable or foreign target, foreign/cyclic/unknown chains,
+  complete/truncated terminal frame pairs, truncated arguments, insufficient or
+  unowned scratch and caller records (including a small valid scratch budget).
+  Existing real spawned callbacks also query their retained worker ownership.
+- Windows memory 56/56, kernel 62/62 and bridge 29/29 pass. Linux kernel 61/61, 34 actual thunk modes,
+  all 8 thread and 17 unwind modes plus actual C++ consumer pass. Both renderer
+  builds and ordinal route audit pass. Evidence is
+  `conformance_tmp/ownership-unwind-*`; source-route checking alone is not the
+  runtime traversal/argument proof.
+- Vulkan night Cruise `run-6crgcgq2` passes in 123.656 seconds, with
+  inspected gameplay capture and 1.64517 metres of movement. This is
+  bounded menu/loading/driving evidence, not complete exception/concurrency
+  fidelity. Native thread ABI/coverage, optional flags/IDs/system routine,
+  object-reference/thread-object/channel stand-ins and whole-fork ownership
+  still require review.
