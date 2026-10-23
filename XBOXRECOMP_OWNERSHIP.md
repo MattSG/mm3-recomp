@@ -3211,3 +3211,13 @@ Fork checkpoint for this batch: `364d9d1`.
 - Three old lifecycle assertions fail; final Windows/Linux adapter suites pass
   2/2 each, actual Windows I/O mapping has zero failures, both game builds pass.
   Broader ownership and gameplay verification remain open.
+
+
+### Review generic kernel crypto ownership
+
+- Fork 9dc9f37 removes unused BCrypt wrapper/linking and stale exactness
+  and performance claims. Historical notes moved to MM3 references.
+- Full source read found generic runtime algorithms and caller-supplied data.
+  Existing RSA/PKCS1/two-key DES regression passes Windows and Linux.
+- Private-key/service stubs and arithmetic boundary review remain open; source
+  stays needs_generic_fix. See tools/reference/ownership_kernel_crypto.md.
