@@ -3174,3 +3174,15 @@ Fork checkpoint for this batch: `364d9d1`.
 - Recorded shared decoder defects are addressed for the supported subset;
   ownership decision is retain_generic_boundary. Full ISA/live-device/platform
   fidelity and broader fork ownership completion are not claimed.
+
+
+### Review generic host wait, gamma and renderer interfaces
+
+- Full source ownership reads of nv2a_notify_wait.h, d3d8_gamma.c and
+  nv2a_d3d11.h found guest/caller-driven mechanisms and explicit policy hooks,
+  without title tables, presets or captured payloads. Source hashes unchanged.
+- Rebuilt wait tests pass 2/2 Windows and 2/2 Linux. The rebuilt gamma WARP
+  fixture reports zero failures with nine captured and one real DXGI present.
+- tools/reference/ownership_wait_gamma_renderer.md records the source findings
+  and lifecycle/order/backend limits. No fork code change or whole-runtime/
+  gameplay certification is claimed; broader ownership work remains open.

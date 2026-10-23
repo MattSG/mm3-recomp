@@ -1214,7 +1214,14 @@
       "path": "src/d3d/d3d8_gamma.c",
       "sha256": "0582bbbe29236492224e6ea43ff4544c813fe3e15481f14140cbbecbc6586f13",
       "mode": "100644",
-      "git_blob": "678447a09b2148e8f823f52f607a9be52c0ac9e7"
+      "git_blob": "678447a09b2148e8f823f52f607a9be52c0ac9e7",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "8ffa9feef6ba84daaf12dde5b9e6ac6ba3a26522",
+        "scope": "Full ownership source read of notify/fence host waits, D3D8 gamma implementation and NV2A renderer interface; caller-driven guest state/policy with no title dataset",
+        "evidence": "tools/reference/ownership_wait_gamma_renderer.md; unchanged source hashes; two wait CTests pass Windows/Linux; gamma WARP fixture reports zero failures with nine captured and one real DXGI presentation",
+        "limit": "Renderer header declaration review only; no full backend callback/ABI or GPU fidelity proof. Gamma is D3D11 single-device/serialized lifecycle, not cross-backend certification. Guest-memory synchronization, legacy host fallback and live gameplay remain wider topics."
+      }
     },
     {
       "path": "src/d3d/d3d8_gl.c",
@@ -1917,7 +1924,14 @@
       "path": "src/kernel/nv2a_notify_wait.h",
       "sha256": "48a1f95a1075c700e3247df3f9ba46d639a46c12c21b40f4d47981f66851e1d0",
       "mode": "100644",
-      "git_blob": "d7fe2b711efaab24528e0969716191c8a00ba822"
+      "git_blob": "d7fe2b711efaab24528e0969716191c8a00ba822",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "8ffa9feef6ba84daaf12dde5b9e6ac6ba3a26522",
+        "scope": "Full ownership source read of notify/fence host waits, D3D8 gamma implementation and NV2A renderer interface; caller-driven guest state/policy with no title dataset",
+        "evidence": "tools/reference/ownership_wait_gamma_renderer.md; unchanged source hashes; two wait CTests pass Windows/Linux; gamma WARP fixture reports zero failures with nine captured and one real DXGI presentation",
+        "limit": "Renderer header declaration review only; no full backend callback/ABI or GPU fidelity proof. Gamma is D3D11 single-device/serialized lifecycle, not cross-backend certification. Guest-memory synchronization, legacy host fallback and live gameplay remain wider topics."
+      }
     },
     {
       "path": "src/kernel/nv2a_pb.h",
@@ -2681,7 +2695,14 @@
       "path": "src/video/nv2a_d3d11.h",
       "sha256": "900de109c2f99e7f7ea4317c9cb01c32204cfe313c8d741ad72b10b5b3aec294",
       "mode": "100644",
-      "git_blob": "6db187382c82b66e4927c83acc4310eb8c214513"
+      "git_blob": "6db187382c82b66e4927c83acc4310eb8c214513",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "8ffa9feef6ba84daaf12dde5b9e6ac6ba3a26522",
+        "scope": "Full ownership source read of notify/fence host waits, D3D8 gamma implementation and NV2A renderer interface; caller-driven guest state/policy with no title dataset",
+        "evidence": "tools/reference/ownership_wait_gamma_renderer.md; unchanged source hashes; two wait CTests pass Windows/Linux; gamma WARP fixture reports zero failures with nine captured and one real DXGI presentation",
+        "limit": "Renderer header declaration review only; no full backend callback/ABI or GPU fidelity proof. Gamma is D3D11 single-device/serialized lifecycle, not cross-backend certification. Guest-memory synchronization, legacy host fallback and live gameplay remain wider topics."
+      }
     },
     {
       "path": "src/video/nv2a_pacing.h",
