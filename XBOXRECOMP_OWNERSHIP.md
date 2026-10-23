@@ -2836,3 +2836,19 @@ Fork checkpoint for this batch: `364d9d1`.
   This supports the host convention, not certification of guest Xbox handles.
 - Draw failure propagation, shader cache identity, handle lifetime/reuse and
   guest declaration/upload adaptation remain open; no gameplay parity claim.
+
+
+### Propagate programmable shader preparation failure
+
+- Fork 70428c7 distinguishes explicit FVF selection from programmable
+  failure. Shader preparation returns HRESULT; all four draw entry points
+  stop on failure, before UP allocation/binding. Missing pixel resources and
+  pixel constant-buffer mapping failures also propagate instead of drawing.
+- Actual device entry point regression failed before the fix (four rejected
+  result assertions plus pipeline preservation failures), then passed with
+  unchanged target/presentation state. Updated successful programmable fixture
+  uses the opaque handle tag. All five D3D8 programs and both game builds pass.
+- Generic explicit failure replaces accidental fixed-function fallback. Fixed
+  function preparation, programmable layout/constant-map failure reporting,
+  combiner handling, cache identity and guest adaptation still need review.
+  No fresh gameplay/backend fidelity certification or full ownership completion.

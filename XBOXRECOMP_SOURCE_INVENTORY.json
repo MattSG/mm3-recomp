@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "107a484b5e7590e363e5e466b4bf01a9d71905e1",
+  "fork_commit": "70428c723b82683d75ae33ea4961d4255ab95855",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1116,9 +1116,9 @@
     },
     {
       "path": "src/d3d/d3d8_device.c",
-      "sha256": "a24ab4254566fcda85d7660b825ea3b99323e92ab472adaecc9b04586a7cd658",
+      "sha256": "cb1a507e41f8516f33fb720e36a94548586d812d1da69b3ffe5a11d84d08d996",
       "mode": "100644",
-      "git_blob": "81fb3c4a47f9074a60ab2ccbaf3d5dc6fd94eccb",
+      "git_blob": "9681a1af89c9fee3796026580179faff72d3f9ff",
       "ownership_review": {
         "decision": "needs_policy_evidence",
         "reviewed_at_fork": "e2c8f252551054cf60a79d9e24f0630f09658c55",
@@ -1168,9 +1168,9 @@
     },
     {
       "path": "src/d3d/d3d8_internal.h",
-      "sha256": "2b1597527de00c24d268fac9389ef97404032f76ca664157151c6ec57769b31e",
+      "sha256": "60ad8cbff9901443126a453dad92f7ea27f24c53dcf96a772f151583b92cf4ce",
       "mode": "100644",
-      "git_blob": "482caec41114fccfeb42f5675031ebf99db6a20a",
+      "git_blob": "fdf2bc58edd6d509569e8ca95f6fc2f1521dd5fe",
       "ownership_review": {
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "1988028bb7655f7796af5dda1479c92feb2e5847",
@@ -1194,9 +1194,9 @@
     },
     {
       "path": "src/d3d/d3d8_shaders.c",
-      "sha256": "a36434dbc6531d547b316054158456d2f1f3d7514ab94ad2d829f5dfc52ccf20",
+      "sha256": "3f6f97ccfcbc3fb27db983098d01ab86ff8c72f1c69ad0096d925b5d2fbe95da",
       "mode": "100644",
-      "git_blob": "737839692006c1a2917dda7df5e8ec142f00b905"
+      "git_blob": "1d373fcb1283cd7fa7457f5a58d603ffd4b3386f"
     },
     {
       "path": "src/d3d/d3d8_states.c",
@@ -3045,8 +3045,8 @@
     {
       "path": "tests/d3d8_smoke/test_a8.c",
       "mode": "100644",
-      "git_blob": "1570c6d0385f0fbf583f9d34f045bb847a07bc4a",
-      "sha256": "b27c68ef9c7ea1d535de0207d5df5bf67bc42927a952c35706cb43bde361bbfb",
+      "git_blob": "4a766c7a91f5d6ef938ab6278b41ed409f8f5895",
+      "sha256": "af69adcba7ffb6d3b7b11428b75c3846a38419d4dc63f5050ccbe16ae967958f",
       "ownership_review": {
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "3e2de8330f983f59aa9b8ed8d74e93aa81bb00e7",
@@ -3058,8 +3058,8 @@
     {
       "path": "tests/d3d8_smoke/test_gamma.c",
       "mode": "100644",
-      "git_blob": "4f6f0baac5b7f72bae09a492771639184fef9059",
-      "sha256": "778fd0c2512195aa565c2e43bdd09f6572ae23f6f85443dbbfdcac5b238a05b4"
+      "git_blob": "ea7afa8e7f16c6b74ca3de28976885b47bd820cc",
+      "sha256": "c7c5fc02abee6065239089890e2bae1f036147c22c5a1459754fd33be9df4bfc"
     },
     {
       "path": "tests/d3d8_smoke/test_gl.c",
@@ -6832,7 +6832,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "36ea37a97014cd7bb05bcff4bbf606d68760eeaa",
+  "fork_tree": "4f4ecb577c95a87dbf88a5afabe64e3d36360e55",
   "coverage": {
     "tracked_files": 639,
     "tracked_src_files": 153,
