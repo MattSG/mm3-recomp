@@ -3054,3 +3054,17 @@ Fork checkpoint for this batch: `364d9d1`.
   Startup-only environment policy, process-lifetime name storage, possible lock
   contention and unsupported signal/reentrant use remain explicit limits.
   The broader fork ownership goal is still incomplete.
+
+
+### Review native memory wrappers and use configured RAM totals
+
+- Fork d9adc17 makes MmQueryStatistics total pages follow existing
+  caller RAM configuration. The old 128 MB regression failed; 64/128 MB/null
+  checks pass Windows/Linux, and both game builds pass.
+- Full native wrapper source read; unsupported CPU-pointer/D3D11 assumptions
+  moved to tools/reference/legacy_native_memory_assumptions.md. Actual partial
+  constraints are documented instead of implied correctness.
+- tools/reference/ownership_kernel_memory_frontier.md records unresolved host
+  availability approximation, contiguous bounds/alignment/protection, inferred
+  free ownership and stub semantics. Source remains needs_generic_fix; broader
+  ownership and runtime completion are not claimed.

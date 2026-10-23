@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "ed59e671d8ac9ad8e2619020425fc5ae208263f9",
+  "fork_commit": "d9adc17697706687557e7426a9ae622ad7002fd7",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1653,9 +1653,16 @@
     },
     {
       "path": "src/kernel/kernel_memory.c",
-      "sha256": "5ecafc6c3d973a26303fb543a5bfdc1757f65342a481f61d7ca9d5623c81f50a",
+      "sha256": "6426239d662e83c42bed0bf632e367b9fe1c1bbddc0c08d3f5fa1da5bf4d72fc",
       "mode": "100644",
-      "git_blob": "fc69734faabd8bdb25d3e6cf41c9d690f77b183c"
+      "git_blob": "85caf6361dd318a153e3ac08201396323dd895fd",
+      "ownership_review": {
+        "decision": "needs_generic_fix",
+        "reviewed_at_fork": "d9adc17697706687557e7426a9ae622ad7002fd7",
+        "scope": "Full native memory wrapper source ownership review; configured total-RAM statistics correction; historical D3D11/CPU-pointer assumptions archived in MM3",
+        "evidence": "128MB stats regression fails before fix; configured 64/128MB, null input and bounded availability pass Windows/Linux; both game builds pass; tools/reference/ownership_kernel_memory_frontier.md",
+        "limit": "AvailablePages is host approximation; native contiguous alignment/address/protection and inferred allocation ownership remain partial; native/guest ABI wrappers differ. No full memory semantics certification."
+      }
     },
     {
       "path": "src/kernel/kernel_ob.c",
@@ -3577,8 +3584,8 @@
     {
       "path": "tests/kernel_dispatch/CMakeLists.txt",
       "mode": "100644",
-      "git_blob": "cbda64464659f252b6f5bbe75c8b3216ac7e3010",
-      "sha256": "4c9c58b7db82770a0533eeaf6c78170199b25aa948a128792dc5b47dd84d5076",
+      "git_blob": "560162f2e89b6eee253cd71df80d20a6adb7a7d2",
+      "sha256": "66d4aecc7a0b5af050b7570525bf0f8e0bc380f5cb30a00d7adb649f58db6f67",
       "ownership_review": {
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "d6fa49695f29a68ab40a2e49dd7b64cfc19ae643",
@@ -3864,6 +3871,19 @@
       "mode": "100644",
       "git_blob": "385f5f0775755d0a00889533000a85e584eee408",
       "sha256": "6909fc21f1a8a2f5acd544757c32ab1dfecab888d3704a2b22df9aa6a02c637d"
+    },
+    {
+      "path": "tests/kernel_dispatch/ram_statistics_test.c",
+      "mode": "100644",
+      "git_blob": "4bff47eedf209393603eceb6a3e22d0e4c4d152c",
+      "sha256": "32f04fcb772cfea01da0238790069faee616fade33b91940602f5d6afb38f5d0",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "d9adc17697706687557e7426a9ae622ad7002fd7",
+        "scope": "Full native memory wrapper source ownership review; configured total-RAM statistics correction; historical D3D11/CPU-pointer assumptions archived in MM3",
+        "evidence": "128MB stats regression fails before fix; configured 64/128MB, null input and bounded availability pass Windows/Linux; both game builds pass; tools/reference/ownership_kernel_memory_frontier.md",
+        "limit": "AvailablePages is host approximation; native contiguous alignment/address/protection and inferred allocation ownership remain partial; native/guest ABI wrappers differ. No full memory semantics certification."
+      }
     },
     {
       "path": "tests/kernel_dispatch/reserve_heap_ownership_test.c",
@@ -7147,9 +7167,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "b15339788091bc3123ef1ed932ecd374ba3b292f",
+  "fork_tree": "f83416127da107e0ff4e4d0ff1d6dc132933b736",
   "coverage": {
-    "tracked_files": 646,
+    "tracked_files": 647,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -7167,7 +7187,7 @@
       "include": 2,
       "src": 153,
       "templates": 7,
-      "tests": 207,
+      "tests": 208,
       "tools": 229
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
@@ -7202,7 +7222,8 @@
       "tools/func_id/test_imm_scanner.py",
       "tools/func_id/test_vtable_scanner.py",
       "tests/recomp_trace/CMakeLists.txt",
-      "tests/recomp_trace/test_main.c"
+      "tests/recomp_trace/test_main.c",
+      "tests/kernel_dispatch/ram_statistics_test.c"
     ],
     "stale_fff_paths": [
       "docs/technical/burnout3-reunification.md",
