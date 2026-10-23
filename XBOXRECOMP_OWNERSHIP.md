@@ -3148,3 +3148,15 @@ Fork checkpoint for this batch: `364d9d1`.
   flags, MOVZX and validation gaps are recorded in
   tools/reference/ownership_mmio_decoder_frontier.md; source stays needs_generic_fix.
   No full MMIO/decoder or goal-completion claim is made.
+
+
+### Correct generic MMIO register lanes and flags
+
+- Fork eb5e2e4 handles legacy high byte/REX byte registers through
+  shared operand helpers, preserves word destinations and applies MOVZX width.
+  Logical RMW operations now update defined flags; CMP sets overflow and AF.
+- Eight new assertions reproduce prior failures. Corrected actual-header checks
+  pass Windows/Linux, including 20 comparison edges across four widths and
+  unrelated-flag preservation. Both game builds pass.
+- Decoder validation/bounds remain open in the MMIO frontier; no complete
+  decoder, native differential, live-device or whole-goal claim is made.

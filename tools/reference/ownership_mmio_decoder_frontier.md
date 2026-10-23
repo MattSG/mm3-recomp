@@ -24,3 +24,23 @@ not modeled; flags are incomplete and logical RMW operations do not update
 flags; MOVZX ignores a word destination; general register-only ModRM forms and
 prefix/instruction byte bounds need validation. Source remains needs_generic_fix.
 These are runtime mechanism gaps, not application-specific workaround needs.
+
+
+## Register lanes and status flags
+
+Fork eb5e2e4 shares register read/write helpers across supported
+operations. AH/CH/DH/BH without REX map to bits 8..15; REX selects low byte
+registers. Word writes preserve upper bits; DWORD writes clear them. MOVZX
+uses its actual destination width. Writes to devices are masked to operand size.
+
+Logical operations now set ZF/SF/PF and clear CF/OF; undefined AF is preserved.
+CMP also sets signed overflow and auxiliary carry while preserving unrelated
+context flags. Eight added checks fail on prior code and pass after correction.
+Twenty further CMP edge cases cover all four widths, carry, signed overflow,
+auxiliary carry, zero and parity; CMP issues no writes. Actual-header CTests
+pass Windows/Linux and both game builds pass. These are hand-encoded expected
+semantics, not native CPU differential or live-device tests.
+
+The previously recorded lane/flag/MOVZX defects are addressed. General ModRM
+validation and prefix/instruction byte bounds remain open; needs_generic_fix
+stays in place for the shared source.

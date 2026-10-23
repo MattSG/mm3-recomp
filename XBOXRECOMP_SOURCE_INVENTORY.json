@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "ae79ef6118a9419fbdf552ba50423b4f8c05a61a",
+  "fork_commit": "eb5e2e4175ae756265d9120e722aa73cced0a4f9",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -2417,15 +2417,22 @@
     },
     {
       "path": "src/platform/mmio_decode.h",
-      "sha256": "7ffd32a7fc8534f91a0c87fe5c8c7c510e37fd143c2c8fd9857db35f263ce792",
+      "sha256": "9312c949058768febf87f9ef324e186f82bb0e482c53862866893290713de20a",
       "mode": "100644",
-      "git_blob": "3c37f0d1eb18e381420d0bfa025e8ca5fd84f23d",
+      "git_blob": "0cd04f44a918a29ded52e306fd98888bd86bf5da",
       "ownership_review": {
         "decision": "needs_generic_fix",
-        "reviewed_at_fork": "ae79ef6118a9419fbdf552ba50423b4f8c05a61a",
-        "scope": "Full shared MMIO decoder source ownership read; SIB no-base displacement, immediate size/sign extension, REX.W precedence and C6/C7 form validation fixes",
-        "evidence": "tools/reference/ownership_mmio_decoder_frontier.md; six pre-fix failures; existing/new actual-header checks pass Windows/Linux; both game builds pass; migration narrative moved to legacy_mmio_decoder_notes.md",
-        "limit": "High-byte register semantics, complete flags, 16-bit MOVZX destination, general ModRM validation and instruction-byte/prefix bounds remain incomplete. No full decoder, live MMIO or hardware certification."
+        "reviewed_at_fork": "eb5e2e4175ae756265d9120e722aa73cced0a4f9",
+        "scope": "Shared MMIO register lane, MOVZX destination and defined status flag semantics across supported MOV/TEST/CMP/OR/AND paths",
+        "evidence": "Eight new pre-fix failures; actual-header checks pass Windows/Linux including 20 CMP edge cases across byte/word/dword/qword; both game builds pass; tools/reference/ownership_mmio_decoder_frontier.md",
+        "limit": "General ModRM form validation and prefix/instruction-byte bounds remain incomplete. No complete decoder/native CPU differential or live MMIO certification; logical AF is undefined and preserved.",
+        "prior_review": {
+          "decision": "needs_generic_fix",
+          "reviewed_at_fork": "ae79ef6118a9419fbdf552ba50423b4f8c05a61a",
+          "scope": "Full shared MMIO decoder source ownership read; SIB no-base displacement, immediate size/sign extension, REX.W precedence and C6/C7 form validation fixes",
+          "evidence": "tools/reference/ownership_mmio_decoder_frontier.md; six pre-fix failures; existing/new actual-header checks pass Windows/Linux; both game builds pass; migration narrative moved to legacy_mmio_decoder_notes.md",
+          "limit": "High-byte register semantics, complete flags, 16-bit MOVZX destination, general ModRM validation and instruction-byte/prefix bounds remain incomplete. No full decoder, live MMIO or hardware certification."
+        }
       }
     },
     {
@@ -4627,14 +4634,21 @@
     {
       "path": "tests/mmio_decode/test_main.c",
       "mode": "100644",
-      "git_blob": "16a93aea9b64a20b7986c601577893ce310af472",
-      "sha256": "dcfaf47ecb70197af26a4f9c2e42ca2a34ae244d6db9934e8fe44c1f78cc1203",
+      "git_blob": "0f0d2b1aebb0b0efeac31c752bd6dc6f9bbe13c8",
+      "sha256": "de8cff5f1f635a8141d7a399f6961c9b29bfe3cc54906d18b80ebf597979fc9d",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "ae79ef6118a9419fbdf552ba50423b4f8c05a61a",
-        "scope": "Full shared MMIO decoder source ownership read; SIB no-base displacement, immediate size/sign extension, REX.W precedence and C6/C7 form validation fixes",
-        "evidence": "tools/reference/ownership_mmio_decoder_frontier.md; six pre-fix failures; existing/new actual-header checks pass Windows/Linux; both game builds pass; migration narrative moved to legacy_mmio_decoder_notes.md",
-        "limit": "High-byte register semantics, complete flags, 16-bit MOVZX destination, general ModRM validation and instruction-byte/prefix bounds remain incomplete. No full decoder, live MMIO or hardware certification."
+        "reviewed_at_fork": "eb5e2e4175ae756265d9120e722aa73cced0a4f9",
+        "scope": "Shared MMIO register lane, MOVZX destination and defined status flag semantics across supported MOV/TEST/CMP/OR/AND paths",
+        "evidence": "Eight new pre-fix failures; actual-header checks pass Windows/Linux including 20 CMP edge cases across byte/word/dword/qword; both game builds pass; tools/reference/ownership_mmio_decoder_frontier.md",
+        "limit": "General ModRM form validation and prefix/instruction-byte bounds remain incomplete. No complete decoder/native CPU differential or live MMIO certification; logical AF is undefined and preserved.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "ae79ef6118a9419fbdf552ba50423b4f8c05a61a",
+          "scope": "Full shared MMIO decoder source ownership read; SIB no-base displacement, immediate size/sign extension, REX.W precedence and C6/C7 form validation fixes",
+          "evidence": "tools/reference/ownership_mmio_decoder_frontier.md; six pre-fix failures; existing/new actual-header checks pass Windows/Linux; both game builds pass; migration narrative moved to legacy_mmio_decoder_notes.md",
+          "limit": "High-byte register semantics, complete flags, 16-bit MOVZX destination, general ModRM validation and instruction-byte/prefix bounds remain incomplete. No full decoder, live MMIO or hardware certification."
+        }
       }
     },
     {
@@ -7313,7 +7327,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "9523162b5f8d927624e2dc487cd7fccf05b40d60",
+  "fork_tree": "a528756675422baace4d322751b9ffe41fdd1a65",
   "coverage": {
     "tracked_files": 648,
     "tracked_src_files": 153,
