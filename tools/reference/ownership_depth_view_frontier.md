@@ -7,7 +7,8 @@ fidelity result or an implemented migration.
 23:8 for every output texel. Output x selects a source depth pixel, but never
 selects the low or high 16-bit word of packed Z24S8. Its comment explicitly
 states that the low word/stencil is not readable through this representation.
-Both renderers additionally install a fixed 0.25 guest-pixel left shift.
+At that snapshot, both renderers additionally installed a fixed 0.25
+guest-pixel left shift; that factor has since moved to the MM3 shader.
 The paired colour Y16 shader, by comparison, chooses distinct low/high words
 using output-x parity. This is a meaningful format/view distinction.
 
@@ -20,8 +21,9 @@ Existing port render-policy hooks cover forced depth, cubic filtering, idle
 presentation and vertex alignment. MM3's implementations are in
 `src/mods/render_policy.c`, registered in `src/mods/widescreen_hud.c`.
 MM3 now selects its own matching shader fragment through the generic build-time
-shader-directory extension. The shared fallback shader and quarter-pixel backend
-constants still remain; this is migration in progress. A completed migration must
+shader-directory extension. The quarter-pixel factor is now in MM3's shader, with shared backends supplying
+only the source scale. The shared fallback's high-word-only representation still
+remains; this is migration in progress. A completed migration must
 preserve any required MM3 compatibility explicitly while giving the shared
 runtime a truthful generic view contract. Exact low-word/stencil support or an
 explicitly selected proxy remains implementation work; it has not been decided

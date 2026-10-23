@@ -2278,3 +2278,28 @@ Fork checkpoint for this batch: `364d9d1`.
   No new GPU pixel, driving or complete format-fidelity claim is made.
 - Inventory now covers 627 committed paths with unchanged 153 src paths.
   Whole-fork ownership and the identified depth policy migration remain open.
+
+
+### Move depth-view alignment into MM3's selected shader
+
+- Both renderers now supply host-source texels per guest pixel, without the
+  captured quarter-pixel alignment factor. The shared shader reads its source
+  index without a shift. MM3's selected fragment applies its own 0.25 factor,
+  preserving its prior proxy/alignment behavior. Original two constants and
+  full shader from fork 528e2a4 are retained in
+  tools/reference/legacy_depth_view_alignment.md and match normalized source.
+  Float offset equivalence is checked over 48 representative dimension pairs.
+- A new actual GPU fixture clears distinct depth regions, converts the view at
+  2x scale and reads the 16-bit RGBA texel at the region boundary. The default
+  unshifted expectation fails against the old implementation while the shifted
+  control passes. Default and MM3-selected fragment expectations now pass on
+  D3D11 1x/4x MSAA and SDL GPU using explicit Vulkan and Direct3D12 drivers.
+  All 61 surface-sync cases pass. This is alignment proof, not packed depth-word
+  parity or stencil-preservation proof. Both renderer game builds pass.
+- D3D12 night Cruise run-sgbh4qpa passes in 123.719 seconds with inspected
+  gameplay capture and 2.09215 metres of movement. Evidence:
+  conformance_tmp/ownership-depth-* and ownership-depth-validation.json.
+- The high-word-only shared depth proxy remains unresolved. These rendering
+  scopes retain needs_port_policy in the inventory; this checkpoint removes the
+  fixed alignment policy but does not claim complete depth-view migration,
+  packed low-word/stencil fidelity or whole-fork ownership.
