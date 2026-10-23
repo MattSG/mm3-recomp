@@ -3221,3 +3221,11 @@ Fork checkpoint for this batch: `364d9d1`.
   Existing RSA/PKCS1/two-key DES regression passes Windows and Linux.
 - Private-key/service stubs and arithmetic boundary review remain open; source
   stays needs_generic_fix. See tools/reference/ownership_kernel_crypto.md.
+
+
+### Review MCPX APU register vocabulary
+
+- Full apu_regs.h ownership read retains generic device offsets, masks, voice
+  layouts and hardware capacities. No title payload or policy found.
+- Source unchanged; scoped callers checked. Accuracy FIXMEs and consumer
+  behavior remain outside this ownership result. See ownership_apu_registers.md.

@@ -782,7 +782,15 @@
       "path": "src/apu/apu_regs.h",
       "sha256": "389bbac71b64b8d0b91466840ff0992e05b5a442b8dc5de9d2bc8b03964e97a9",
       "mode": "100644",
-      "git_blob": "2deee37f69aaa4e743a12b04e47756a498099f96"
+      "git_blob": "2deee37f69aaa4e743a12b04e47756a498099f96",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "9dc9f370bc0f23b605f1a3783e3cd91326abb24e",
+        "scope": "Full APU register header ownership read and scoped consumer inspection",
+        "evidence": "tools/reference/ownership_apu_registers.md; source bytes unchanged",
+        "limit": "Hardware numeric accuracy, existing FIFO/ADPCM FIXMEs, signed masks and consumer semantics not certified",
+        "prior_review": null
+      }
     },
     {
       "path": "src/apu/apu_shim.h",
