@@ -3247,3 +3247,14 @@ Fork checkpoint for this batch: `364d9d1`.
 - Actual-runtime guard test segfaults before the fix. Three critical-section
   tests pass Windows/Linux afterward; both game builds pass. Remaining RTL
   concurrency, lifecycle/capacity and ABI gaps remain recorded and open.
+
+
+### Review kernel I/O ownership and full IRP span
+
+- Fork 2da4407 rejects full packet spans beyond guest address space
+  before clearing IRP buffers. Exact-end packet remains valid.
+- Old code fails two direct initializer checks. Windows bridge suite passes
+  45/45 and both game builds pass. Linux dependency build/check is pending.
+- Full kernel_io.c ownership read retains generic services, with native stubs,
+  symbol/object table and pointer-validation gaps recorded in
+  tools/reference/ownership_kernel_io.md. Wider goal remains open.
