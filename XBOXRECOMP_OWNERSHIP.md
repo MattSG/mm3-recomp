@@ -2095,3 +2095,21 @@ Fork checkpoint for this batch: `364d9d1`.
   and ownership-register-validation.json. Documentation only; no new runtime
   behavior or full CPU fidelity claim. Template commentary and remaining source
   ownership still need review.
+
+
+### Runtime-template commentary ownership
+
+- Eleven original comment blocks from fork e3bd6bd are retained in
+  tools/reference/legacy_runtime_template_comments.md. They mix captured title
+  failures/counts/addresses with obsolete process-global/EBP/ABI descriptions.
+  The shared header now keeps generic integration requirements and states the
+  actual limits of coarse code bounds, local/shared EBP, ABI diagnostics,
+  double-backed x87 precision and independent MMX storage. The contradictory
+  claim that direct calls bypass RECOMP_ABI_CALL is removed.
+- All non-comment tokens match the original, including literals, preprocessor
+  directives, declarations and macro bodies. Each archived block matches the
+  normalized source. Two existing runtime-helper checks pass. Evidence:
+  conformance_tmp/ownership-runtime-comments-validation.json and
+  ownership-runtime-comments-tests.log. This is a comment-only migration, not
+  new gameplay or complete CPU/SEH correctness evidence. Other source/template
+  ownership and incomplete runtime semantics still require review.
