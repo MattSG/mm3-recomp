@@ -3298,3 +3298,13 @@ Fork checkpoint for this batch: `364d9d1`.
 - Native timeout/timer/DPC/state gaps remain needs_generic_fix; guest bridge
   tests do not certify these separate paths. Findings and proof limits are in
   tools/reference/ownership_kernel_sync.md. Broader audit remains active.
+
+
+### Bound native volume query outputs and move startup evidence
+
+- Fork 852fedd rejects undersized size-information buffers in both
+  backends before writes. Captured title startup evidence moved to MM3;
+  default geometry remains unchanged and explicitly modeled.
+- Old lengths 0-23 fail; final Windows/Linux short/exact/canary checks pass.
+  Windows bridge suite passes 46/46; both game builds pass. Scoped file-volume
+  review and remaining gaps: ownership_file_volume_frontier.md.
