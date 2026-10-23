@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "b59fbc5558998c55223743316203d53bee8b0341",
+  "fork_commit": "0e3ec2609a76dfb7327b8afdf3ec0b0ee7edbcda",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -2194,35 +2194,42 @@
       "mode": "100644",
       "git_blob": "b394cacc9d46730eec82074ab80a9942b085cd10",
       "ownership_review": {
-        "decision": "needs_port_policy",
-        "reviewed_at_fork": "b59fbc5558998c55223743316203d53bee8b0341",
-        "scope": "Implicit completion of partial authored mip chains changes host levels and possibly host format",
-        "evidence": "Production helper probe: 32x32 guest2 -> host6; both texture_get callers and early cache-return paths inspected; see ownership_mip_completion_frontier.md",
-        "limit": "Finding only. Default guest counts, explicit MM3 opt-in, cache-policy contract and backend/readback/driving verification remain outstanding.",
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "0e3ec2609a76dfb7327b8afdf3ec0b0ee7edbcda",
+        "scope": "Explicit startup-fixed mip-completion option, shared backend consumers and regression contracts; historical texture guide migrated to MM3",
+        "evidence": "Windows texture 24/24; explicit SDL Vulkan 5/5 and D3D12 5/5; Linux CPU five checks; both game builds; owned Vulkan driving run-gwa36lie 123.484 seconds with movement and inspected capture",
+        "limit": "Scoped mip-policy review, not full renderer certification. SDL BC byte retention does not establish shader sampling parity; broader ownership and fidelity audit remains open.",
         "prior_review": {
-          "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "1dce7496f2f23fbda0f3836ee147a522cfc8a247",
-          "scope": "Optional conversion plumbing, reject unsupported reads, common checked colour/depth view allocation and retry cleanup",
-          "evidence": "Windows surface63/63, default/synthetic shader CTest, same-directory disable/enable, Linux shader fixture and kernel61/61 pass. Configured and absent GPU cases pass D3D11 1x/4x, Vulkan and D3D12; actual native colour/depth texture/SRV/RTV retry checks pass. Both game builds and Vulkan run-dz0s8k2b driving pass (1.47077m).",
-          "limit": "Depth policy ownership resolved for these scopes; no full renderer/file ownership or complete generic packed depth/stencil emulation claim. MM3 approximation is explicitly caller-owned.",
+          "decision": "needs_port_policy",
+          "reviewed_at_fork": "b59fbc5558998c55223743316203d53bee8b0341",
+          "scope": "Implicit completion of partial authored mip chains changes host levels and possibly host format",
+          "evidence": "Production helper probe: 32x32 guest2 -> host6; both texture_get callers and early cache-return paths inspected; see ownership_mip_completion_frontier.md",
+          "limit": "Finding only. Default guest counts, explicit MM3 opt-in, cache-policy contract and backend/readback/driving verification remain outstanding.",
           "prior_review": {
-            "decision": "needs_port_policy",
-            "reviewed_at_fork": "05c523366dcbbb1c3372acf5873cc04889b5a8cc",
-            "scope": "Quarter-pixel alignment factor removed from depth_y16; upload host/guest source scale only",
-            "evidence": "Old default alignment test fails while shifted control passes. Surface suite61/61; actual unshifted/port-shifted readback passes D3D11 1x/4x, Vulkan and D3D12; both game builds pass. D3D12 night run-sgbh4qpa, inspected capture and 2.09215m movement in 123.719s.",
-            "limit": "Quarter-pixel policy migration only; shared high-word proxy/packed low-word/stencil support remains incomplete. Broader file/source ownership is not certified.",
+            "decision": "retain_generic_boundary",
+            "reviewed_at_fork": "1dce7496f2f23fbda0f3836ee147a522cfc8a247",
+            "scope": "Optional conversion plumbing, reject unsupported reads, common checked colour/depth view allocation and retry cleanup",
+            "evidence": "Windows surface63/63, default/synthetic shader CTest, same-directory disable/enable, Linux shader fixture and kernel61/61 pass. Configured and absent GPU cases pass D3D11 1x/4x, Vulkan and D3D12; actual native colour/depth texture/SRV/RTV retry checks pass. Both game builds and Vulkan run-dz0s8k2b driving pass (1.47077m).",
+            "limit": "Depth policy ownership resolved for these scopes; no full renderer/file ownership or complete generic packed depth/stencil emulation claim. MM3 approximation is explicitly caller-owned.",
             "prior_review": {
               "decision": "needs_port_policy",
-              "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
-              "scope": "Depth-Y16 high-word proxy and fixed quarter-pixel alignment only; other mechanisms retain their prior scoped reviews",
-              "evidence": "Shader always returns depth bits23:8; both depth_y16 functions hardcode 0.25 guest pixels. Source snapshot and test-gap analysis in tools/reference/ownership_depth_view_frontier.md",
-              "limit": "Migration and GPU word/stencil proof not implemented. Do not treat this finding as whole-file ownership certification.",
+              "reviewed_at_fork": "05c523366dcbbb1c3372acf5873cc04889b5a8cc",
+              "scope": "Quarter-pixel alignment factor removed from depth_y16; upload host/guest source scale only",
+              "evidence": "Old default alignment test fails while shifted control passes. Surface suite61/61; actual unshifted/port-shifted readback passes D3D11 1x/4x, Vulkan and D3D12; both game builds pass. D3D12 night run-sgbh4qpa, inspected capture and 2.09215m movement in 123.719s.",
+              "limit": "Quarter-pixel policy migration only; shared high-word proxy/packed low-word/stencil support remains incomplete. Broader file/source ownership is not certified.",
               "prior_review": {
-                "decision": "retain_generic_boundary",
-                "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
-                "scope": "Shader-family identity and manifest import/worker integration boundary only; rest of renderer remains unreviewed",
-                "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
-                "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
+                "decision": "needs_port_policy",
+                "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+                "scope": "Depth-Y16 high-word proxy and fixed quarter-pixel alignment only; other mechanisms retain their prior scoped reviews",
+                "evidence": "Shader always returns depth bits23:8; both depth_y16 functions hardcode 0.25 guest pixels. Source snapshot and test-gap analysis in tools/reference/ownership_depth_view_frontier.md",
+                "limit": "Migration and GPU word/stencil proof not implemented. Do not treat this finding as whole-file ownership certification.",
+                "prior_review": {
+                  "decision": "retain_generic_boundary",
+                  "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
+                  "scope": "Shader-family identity and manifest import/worker integration boundary only; rest of renderer remains unreviewed",
+                  "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+                  "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
+                }
               }
             }
           }
@@ -2263,15 +2270,22 @@
     },
     {
       "path": "src/video/nv2a_render_common.h",
-      "sha256": "b2280fa8c88a1d99120e057dbfc750ea12339c89a48ac277967d736f942f36f6",
+      "sha256": "4bf9bb6ca717db48325475c07cbb75e130dea93315e864755f4a554b52e8edf9",
       "mode": "100644",
-      "git_blob": "2b1907353bada3e94d29377978e22daf62b8693c",
+      "git_blob": "e40d0bcf1a08d8e8909390a558ec651ffd7a1edc",
       "ownership_review": {
-        "decision": "needs_port_policy",
-        "reviewed_at_fork": "b59fbc5558998c55223743316203d53bee8b0341",
-        "scope": "Implicit completion of partial authored mip chains changes host levels and possibly host format",
-        "evidence": "Production helper probe: 32x32 guest2 -> host6; both texture_get callers and early cache-return paths inspected; see ownership_mip_completion_frontier.md",
-        "limit": "Finding only. Default guest counts, explicit MM3 opt-in, cache-policy contract and backend/readback/driving verification remain outstanding."
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "0e3ec2609a76dfb7327b8afdf3ec0b0ee7edbcda",
+        "scope": "Explicit startup-fixed mip-completion option, shared backend consumers and regression contracts; historical texture guide migrated to MM3",
+        "evidence": "Windows texture 24/24; explicit SDL Vulkan 5/5 and D3D12 5/5; Linux CPU five checks; both game builds; owned Vulkan driving run-gwa36lie 123.484 seconds with movement and inspected capture",
+        "limit": "Scoped mip-policy review, not full renderer certification. SDL BC byte retention does not establish shader sampling parity; broader ownership and fidelity audit remains open.",
+        "prior_review": {
+          "decision": "needs_port_policy",
+          "reviewed_at_fork": "b59fbc5558998c55223743316203d53bee8b0341",
+          "scope": "Implicit completion of partial authored mip chains changes host levels and possibly host format",
+          "evidence": "Production helper probe: 32x32 guest2 -> host6; both texture_get callers and early cache-return paths inspected; see ownership_mip_completion_frontier.md",
+          "limit": "Finding only. Default guest counts, explicit MM3 opt-in, cache-policy contract and backend/readback/driving verification remain outstanding."
+        }
       }
     },
     {
@@ -2293,29 +2307,36 @@
       "mode": "100644",
       "git_blob": "25280004b922eed0bae6ae126cafd0de21f67931",
       "ownership_review": {
-        "decision": "needs_port_policy",
-        "reviewed_at_fork": "b59fbc5558998c55223743316203d53bee8b0341",
-        "scope": "Implicit completion of partial authored mip chains changes host levels and possibly host format",
-        "evidence": "Production helper probe: 32x32 guest2 -> host6; both texture_get callers and early cache-return paths inspected; see ownership_mip_completion_frontier.md",
-        "limit": "Finding only. Default guest counts, explicit MM3 opt-in, cache-policy contract and backend/readback/driving verification remain outstanding.",
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "0e3ec2609a76dfb7327b8afdf3ec0b0ee7edbcda",
+        "scope": "Explicit startup-fixed mip-completion option, shared backend consumers and regression contracts; historical texture guide migrated to MM3",
+        "evidence": "Windows texture 24/24; explicit SDL Vulkan 5/5 and D3D12 5/5; Linux CPU five checks; both game builds; owned Vulkan driving run-gwa36lie 123.484 seconds with movement and inspected capture",
+        "limit": "Scoped mip-policy review, not full renderer certification. SDL BC byte retention does not establish shader sampling parity; broader ownership and fidelity audit remains open.",
         "prior_review": {
-          "decision": "retain_generic_boundary",
-          "reviewed_at_fork": "1dce7496f2f23fbda0f3836ee147a522cfc8a247",
-          "scope": "Conditional converter shader/includes and explicit unsupported draw without proxy allocation or RAM fallback",
-          "evidence": "Windows surface63/63, default/synthetic shader CTest, same-directory disable/enable, Linux shader fixture and kernel61/61 pass. Configured and absent GPU cases pass D3D11 1x/4x, Vulkan and D3D12; actual native colour/depth texture/SRV/RTV retry checks pass. Both game builds and Vulkan run-dz0s8k2b driving pass (1.47077m).",
-          "limit": "Depth policy ownership resolved for these scopes; no full renderer/file ownership or complete generic packed depth/stencil emulation claim. MM3 approximation is explicitly caller-owned.",
+          "decision": "needs_port_policy",
+          "reviewed_at_fork": "b59fbc5558998c55223743316203d53bee8b0341",
+          "scope": "Implicit completion of partial authored mip chains changes host levels and possibly host format",
+          "evidence": "Production helper probe: 32x32 guest2 -> host6; both texture_get callers and early cache-return paths inspected; see ownership_mip_completion_frontier.md",
+          "limit": "Finding only. Default guest counts, explicit MM3 opt-in, cache-policy contract and backend/readback/driving verification remain outstanding.",
           "prior_review": {
-            "decision": "needs_port_policy",
-            "reviewed_at_fork": "05c523366dcbbb1c3372acf5873cc04889b5a8cc",
-            "scope": "Quarter-pixel alignment factor removed from depth_y16; upload host/guest source scale only",
-            "evidence": "Old default alignment test fails while shifted control passes. Surface suite61/61; actual unshifted/port-shifted readback passes D3D11 1x/4x, Vulkan and D3D12; both game builds pass. D3D12 night run-sgbh4qpa, inspected capture and 2.09215m movement in 123.719s.",
-            "limit": "Quarter-pixel policy migration only; shared high-word proxy/packed low-word/stencil support remains incomplete. Broader file/source ownership is not certified.",
+            "decision": "retain_generic_boundary",
+            "reviewed_at_fork": "1dce7496f2f23fbda0f3836ee147a522cfc8a247",
+            "scope": "Conditional converter shader/includes and explicit unsupported draw without proxy allocation or RAM fallback",
+            "evidence": "Windows surface63/63, default/synthetic shader CTest, same-directory disable/enable, Linux shader fixture and kernel61/61 pass. Configured and absent GPU cases pass D3D11 1x/4x, Vulkan and D3D12; actual native colour/depth texture/SRV/RTV retry checks pass. Both game builds and Vulkan run-dz0s8k2b driving pass (1.47077m).",
+            "limit": "Depth policy ownership resolved for these scopes; no full renderer/file ownership or complete generic packed depth/stencil emulation claim. MM3 approximation is explicitly caller-owned.",
             "prior_review": {
               "decision": "needs_port_policy",
-              "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
-              "scope": "Depth-Y16 high-word proxy and fixed quarter-pixel alignment only; other mechanisms retain their prior scoped reviews",
-              "evidence": "Shader always returns depth bits23:8; both depth_y16 functions hardcode 0.25 guest pixels. Source snapshot and test-gap analysis in tools/reference/ownership_depth_view_frontier.md",
-              "limit": "Migration and GPU word/stencil proof not implemented. Do not treat this finding as whole-file ownership certification."
+              "reviewed_at_fork": "05c523366dcbbb1c3372acf5873cc04889b5a8cc",
+              "scope": "Quarter-pixel alignment factor removed from depth_y16; upload host/guest source scale only",
+              "evidence": "Old default alignment test fails while shifted control passes. Surface suite61/61; actual unshifted/port-shifted readback passes D3D11 1x/4x, Vulkan and D3D12; both game builds pass. D3D12 night run-sgbh4qpa, inspected capture and 2.09215m movement in 123.719s.",
+              "limit": "Quarter-pixel policy migration only; shared high-word proxy/packed low-word/stencil support remains incomplete. Broader file/source ownership is not certified.",
+              "prior_review": {
+                "decision": "needs_port_policy",
+                "reviewed_at_fork": "2218bff0b2d482a15a300e9530b4d0297d092c06",
+                "scope": "Depth-Y16 high-word proxy and fixed quarter-pixel alignment only; other mechanisms retain their prior scoped reviews",
+                "evidence": "Shader always returns depth bits23:8; both depth_y16 functions hardcode 0.25 guest pixels. Source snapshot and test-gap analysis in tools/reference/ownership_depth_view_frontier.md",
+                "limit": "Migration and GPU word/stencil proof not implemented. Do not treat this finding as whole-file ownership certification."
+              }
             }
           }
         }
@@ -4489,14 +4510,28 @@
     {
       "path": "tests/nv2a_textures/CMakeLists.txt",
       "mode": "100644",
-      "git_blob": "b4bf794fad0040cadb9b1d3204dd3ccc74e5c5f4",
-      "sha256": "4d3f35deb7d98f47224b3b676e7170d95ddccebd4abc58d7a2e0343eaf4a19a4"
+      "git_blob": "a2a0518f830dacfc656d244caa0acddec3d13511",
+      "sha256": "2f1f21e4157534826e8e161945c4c58bb2bdf2772decdaa5c7e33565ec2e31c9",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "0e3ec2609a76dfb7327b8afdf3ec0b0ee7edbcda",
+        "scope": "Explicit startup-fixed mip-completion option, shared backend consumers and regression contracts; historical texture guide migrated to MM3",
+        "evidence": "Windows texture 24/24; explicit SDL Vulkan 5/5 and D3D12 5/5; Linux CPU five checks; both game builds; owned Vulkan driving run-gwa36lie 123.484 seconds with movement and inspected capture",
+        "limit": "Scoped mip-policy review, not full renderer certification. SDL BC byte retention does not establish shader sampling parity; broader ownership and fidelity audit remains open."
+      }
     },
     {
       "path": "tests/nv2a_textures/README.md",
       "mode": "100644",
-      "git_blob": "168759e365296bd73a2e73672caf62f7040624d8",
-      "sha256": "aac3c34183801862ce0850c5525cc595eb30804d09b40cb0edac0a846a2be56e"
+      "git_blob": "b2e19acb1a9a7e7ee8efccaf0780a3d87a7b7538",
+      "sha256": "0cccaf430209310edfc48c3350aca344911013f21095a9a2ff5380fda0c0e053",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "0e3ec2609a76dfb7327b8afdf3ec0b0ee7edbcda",
+        "scope": "Explicit startup-fixed mip-completion option, shared backend consumers and regression contracts; historical texture guide migrated to MM3",
+        "evidence": "Windows texture 24/24; explicit SDL Vulkan 5/5 and D3D12 5/5; Linux CPU five checks; both game builds; owned Vulkan driving run-gwa36lie 123.484 seconds with movement and inspected capture",
+        "limit": "Scoped mip-policy review, not full renderer certification. SDL BC byte retention does not establish shader sampling parity; broader ownership and fidelity audit remains open."
+      }
     },
     {
       "path": "tests/nv2a_textures/mip_generation_tests.h",
@@ -4504,36 +4539,71 @@
       "git_blob": "b7645d232fd2b46fa15e468863d28e5acfe2c2cd",
       "sha256": "2e8e152826ca85e0994f2b9a7c6f73df8ddaeaa3c209e479d1780258b7ed22b8",
       "ownership_review": {
-        "decision": "needs_port_policy",
-        "reviewed_at_fork": "b59fbc5558998c55223743316203d53bee8b0341",
-        "scope": "Implicit completion of partial authored mip chains changes host levels and possibly host format",
-        "evidence": "Production helper probe: 32x32 guest2 -> host6; both texture_get callers and early cache-return paths inspected; see ownership_mip_completion_frontier.md",
-        "limit": "Finding only. Default guest counts, explicit MM3 opt-in, cache-policy contract and backend/readback/driving verification remain outstanding."
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "0e3ec2609a76dfb7327b8afdf3ec0b0ee7edbcda",
+        "scope": "Explicit startup-fixed mip-completion option, shared backend consumers and regression contracts; historical texture guide migrated to MM3",
+        "evidence": "Windows texture 24/24; explicit SDL Vulkan 5/5 and D3D12 5/5; Linux CPU five checks; both game builds; owned Vulkan driving run-gwa36lie 123.484 seconds with movement and inspected capture",
+        "limit": "Scoped mip-policy review, not full renderer certification. SDL BC byte retention does not establish shader sampling parity; broader ownership and fidelity audit remains open.",
+        "prior_review": {
+          "decision": "needs_port_policy",
+          "reviewed_at_fork": "b59fbc5558998c55223743316203d53bee8b0341",
+          "scope": "Implicit completion of partial authored mip chains changes host levels and possibly host format",
+          "evidence": "Production helper probe: 32x32 guest2 -> host6; both texture_get callers and early cache-return paths inspected; see ownership_mip_completion_frontier.md",
+          "limit": "Finding only. Default guest counts, explicit MM3 opt-in, cache-policy contract and backend/readback/driving verification remain outstanding."
+        }
       }
     },
     {
       "path": "tests/nv2a_textures/native_bc_tests.h",
       "mode": "100644",
-      "git_blob": "4e2a7755a24e8e67bbfa75b77a1c22611fd0a56c",
-      "sha256": "225a244f43ace6f1d30f19219b9519b269c5b5833d4d9fc072b3ff4e4c5498b0"
+      "git_blob": "955d919eabff6293c339f80c0ce6df104300bf8e",
+      "sha256": "ede6580a2f4b30a81bd59dd4fc94af83a5f4746a791ec342dc03f661b551134e",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "0e3ec2609a76dfb7327b8afdf3ec0b0ee7edbcda",
+        "scope": "Explicit startup-fixed mip-completion option, shared backend consumers and regression contracts; historical texture guide migrated to MM3",
+        "evidence": "Windows texture 24/24; explicit SDL Vulkan 5/5 and D3D12 5/5; Linux CPU five checks; both game builds; owned Vulkan driving run-gwa36lie 123.484 seconds with movement and inspected capture",
+        "limit": "Scoped mip-policy review, not full renderer certification. SDL BC byte retention does not establish shader sampling parity; broader ownership and fidelity audit remains open."
+      }
     },
     {
       "path": "tests/nv2a_textures/test_textures.c",
       "mode": "100644",
-      "git_blob": "c79018ab9c83aecb2e2c890a68cd49fe3ce1eee3",
-      "sha256": "0a8b6d157b613bad31250911d783ad3a3e77a8204b09e1f20ea2977c1cbd1079"
+      "git_blob": "de035b260bb72643cf5d58f7ff61b74b4a8b3b95",
+      "sha256": "be4ea29dd1deac0bb9495d298c6c75f51414c462bc98d3e702a930ab903c8629",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "0e3ec2609a76dfb7327b8afdf3ec0b0ee7edbcda",
+        "scope": "Explicit startup-fixed mip-completion option, shared backend consumers and regression contracts; historical texture guide migrated to MM3",
+        "evidence": "Windows texture 24/24; explicit SDL Vulkan 5/5 and D3D12 5/5; Linux CPU five checks; both game builds; owned Vulkan driving run-gwa36lie 123.484 seconds with movement and inspected capture",
+        "limit": "Scoped mip-policy review, not full renderer certification. SDL BC byte retention does not establish shader sampling parity; broader ownership and fidelity audit remains open."
+      }
     },
     {
       "path": "tests/nv2a_textures/test_textures_cpu.c",
       "mode": "100644",
-      "git_blob": "656f6a12d40782a1bd4fad6782915fce5b2f4725",
-      "sha256": "d0c19e575e3c7ca2dfbcce97a5e0b7cf1d5dff0db827048480a03b9c2336f8c4"
+      "git_blob": "111421d69047c6741e99e3a27a32404e01011222",
+      "sha256": "3d5ec9a9d630eafcab7ffd4945ac27c0cb4a1c81f29392bd83134e0f66c2694a",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "0e3ec2609a76dfb7327b8afdf3ec0b0ee7edbcda",
+        "scope": "Explicit startup-fixed mip-completion option, shared backend consumers and regression contracts; historical texture guide migrated to MM3",
+        "evidence": "Windows texture 24/24; explicit SDL Vulkan 5/5 and D3D12 5/5; Linux CPU five checks; both game builds; owned Vulkan driving run-gwa36lie 123.484 seconds with movement and inspected capture",
+        "limit": "Scoped mip-policy review, not full renderer certification. SDL BC byte retention does not establish shader sampling parity; broader ownership and fidelity audit remains open."
+      }
     },
     {
       "path": "tests/nv2a_textures/test_textures_sdlgpu.c",
       "mode": "100644",
-      "git_blob": "1edf828c57ca8a94317421b87c45576dc7e994a5",
-      "sha256": "2bce3b20f9088a9ed6c29ff7224d6d0ab5dee1d54feb248291afa295ef98caaa"
+      "git_blob": "2e0a214f4e8ac78c4e12df9a65f9135270ad8975",
+      "sha256": "1fbf720defbd03baef536b3b88187f05be9ff0ea68f8c634646ad82bed9a5167",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "0e3ec2609a76dfb7327b8afdf3ec0b0ee7edbcda",
+        "scope": "Explicit startup-fixed mip-completion option, shared backend consumers and regression contracts; historical texture guide migrated to MM3",
+        "evidence": "Windows texture 24/24; explicit SDL Vulkan 5/5 and D3D12 5/5; Linux CPU five checks; both game builds; owned Vulkan driving run-gwa36lie 123.484 seconds with movement and inspected capture",
+        "limit": "Scoped mip-policy review, not full renderer certification. SDL BC byte retention does not establish shader sampling parity; broader ownership and fidelity audit remains open."
+      }
     },
     {
       "path": "tests/nv2a_textures/texture_cpu_tests.h",
@@ -6403,7 +6473,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "c9532e0cf99040e625abfb348e867ebfee400839",
+  "fork_tree": "95f73bf5f33972c0d4827bf06e9d722a33bd0ed1",
   "coverage": {
     "tracked_files": 634,
     "tracked_src_files": 153,

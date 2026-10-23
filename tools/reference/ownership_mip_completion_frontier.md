@@ -52,3 +52,21 @@ static int host_levels(const TexLayout *L, const NvD3DTexture *t)
 }
 
 ```
+
+## Resolved migration
+
+The fork now retains guest levels by default. Literal RECOMP_COMPLETE_MIPS=1
+selects the existing completion mechanism, cached before texture use. MM3
+src/main.c selects it before device initialization unless the caller supplied
+an override. Both backends share this policy; upload/reduction/retry mechanics
+remain generic. The source excerpt above records the former implicit policy.
+
+Verification: Windows texture suite 24/24; explicit SDL Vulkan 5/5 and D3D12
+5/5; Linux CPU default/opt-in/disabled, decode equivalence and mip reduction
+all pass. Both game renderer builds pass. Owned Vulkan run-gwa36lie passed
+49 steps in 123.484 seconds with about 1.66 metres of movement from teleport;
+capture-004.bmp was inspected as night driving. Native BC tests check GPU
+sampling in both policies; SDL default BC checks compressed GPU byte retention,
+not shader sampling equivalence. No claim that this resolves original-game
+shimmer, tail-light dropouts or full rendering fidelity. Captured historical
+texture guide/results moved to legacy_texture_test_guide.md.

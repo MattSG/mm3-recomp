@@ -310,6 +310,15 @@ int main(void)
         return 1;
     }
 
+    /* Preserve MM3's inherited completion of authored partial mip chains.
+     * The renderer's generic default retains guest levels. Configure before
+     * the first texture upload; an explicit caller override takes priority. */
+    if (!getenv("RECOMP_COMPLETE_MIPS") &&
+        _putenv_s("RECOMP_COMPLETE_MIPS", "1") != 0) {
+        fprintf(stderr, "cannot configure MM3 mip completion\n");
+        return 1;
+    }
+
     /* MM3 releases large model buffers through NtFreeVirtualMemory when a
      * scene is destroyed. The shared runtime leaves NT heap reclamation
      * opt-in; without it each race/menu round trip retains those buffers

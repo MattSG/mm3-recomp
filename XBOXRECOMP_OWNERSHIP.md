@@ -2615,3 +2615,19 @@ Fork checkpoint for this batch: `364d9d1`.
   rather than an implied complete generic decision. No executable code changed
   and no new visual/gameplay claim is made. Evidence:
   conformance_tmp/ownership-mip-policy-probe.c/.log. Migration remains required.
+
+
+### Move mip-completion selection into MM3
+
+- Fork 0e3ec26 preserves authored mip counts by default. Startup-fixed
+  RECOMP_COMPLETE_MIPS=1 explicitly selects generic 2D/cube completion. MM3
+  selects its inherited behavior before texture creation and honors overrides.
+- Windows texture checks pass 24/24, explicit SDL Vulkan and D3D12 each 5/5,
+  Linux CPU five checks, and both game builds. Default native BC tests sample
+  the GPU; SDL checks compressed byte retention separately from sampling.
+- Owned Vulkan night-driving run-gwa36lie passes in 123.484 seconds, with
+  about 1.66 metres of movement and inspected capture-004.bmp. This is bounded
+  compatibility evidence, not a fix claim for light/sky flicker. Historical
+  texture test results now live in tools/reference/legacy_texture_test_guide.md.
+  Frontier source/history and migration proof remain in
+  tools/reference/ownership_mip_completion_frontier.md. Wider audit stays open.
