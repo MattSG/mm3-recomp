@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "0e671bfef1fa4ecc5d7a86a6c64492bb2a7a4f25",
+  "fork_commit": "f55fc29b052229899be50b5714d3d30f323359c4",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1073,13 +1073,27 @@
       "path": "src/d3d/CMakeLists.txt",
       "sha256": "d9b161d62e6516aaf45f67bee063fd7d969fc2ff39c18df11bf03d55da0c8975",
       "mode": "100644",
-      "git_blob": "b57b875ee6c54d46120f5d343a2cf909155847bc"
+      "git_blob": "b57b875ee6c54d46120f5d343a2cf909155847bc",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "f55fc29b052229899be50b5714d3d30f323359c4",
+        "scope": "Full source read: platform-dependent D3D8 library build/dependency declarations and encoded FVF position helpers contain generic mechanisms, no application selector identified",
+        "evidence": "Source-only ownership review, unchanged bytes; existing configured Windows D3D8 targets build and five check programs pass",
+        "limit": "Not independent format/ISA verification, full FVF coverage, fresh standalone dependency setup, POSIX build/runtime parity or complete guest ABI correctness."
+      }
     },
     {
       "path": "src/d3d/README.md",
-      "sha256": "bad75ad47e1211a14b6050a4b7f45f279838b964a8a6383201483baf1f2ccd49",
+      "sha256": "2c73f5b133331bf05e3b663aa900914be551041a94effaada6874aac6e58bbd4",
       "mode": "100644",
-      "git_blob": "503630f5e63abc0f4fea0a6b084c11b35c3f9278"
+      "git_blob": "9615d1230322dcdb9b1c9b4bae510151269fbf70",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "f55fc29b052229899be50b5714d3d30f323359c4",
+        "scope": "Replace stale D3D8 LOC/feature snapshot with generic interface/test guide; migrate historical swizzle collision and menu-sampling commentary into MM3",
+        "evidence": "Original guide archived; local links resolve; string-aware C comment stripping proves executable swizzle tokens unchanged. Five Windows D3D8 programs pass: formats, gamma, bound states, alpha/RHW sampling and vertex programs",
+        "limit": "Swizzle review covers changed commentary and initial helper contracts, not complete header/format/decoder certification. No fresh POSIX GL, full renderer equivalence, shader-format matrix or gameplay claim."
+      }
     },
     {
       "path": "src/d3d/d3d8_combiners.c",
@@ -1103,7 +1117,14 @@
       "path": "src/d3d/d3d8_fvf.h",
       "sha256": "9bb81511b0f3a8903dcd2d623a08161c6f0f71941e923e8005bef8d22caf9afe",
       "mode": "100644",
-      "git_blob": "5aa99cb761a26756cbbe1e71c1f5a18143ca6210"
+      "git_blob": "5aa99cb761a26756cbbe1e71c1f5a18143ca6210",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "f55fc29b052229899be50b5714d3d30f323359c4",
+        "scope": "Full source read: platform-dependent D3D8 library build/dependency declarations and encoded FVF position helpers contain generic mechanisms, no application selector identified",
+        "evidence": "Source-only ownership review, unchanged bytes; existing configured Windows D3D8 targets build and five check programs pass",
+        "limit": "Not independent format/ISA verification, full FVF coverage, fresh standalone dependency setup, POSIX build/runtime parity or complete guest ABI correctness."
+      }
     },
     {
       "path": "src/d3d/d3d8_gamma.c",
@@ -1150,9 +1171,16 @@
     },
     {
       "path": "src/d3d/d3d8_swizzle.h",
-      "sha256": "a67066c262bbf363937945d420de895f65645aeab0a2d0ef5657a7fd33981b69",
+      "sha256": "b8b9ac08210d4764c71c48b26b85097e37197b87b8300a8bd483e292a75b5251",
       "mode": "100644",
-      "git_blob": "869665da9273b0fc7094a8b6663643fb242a72da"
+      "git_blob": "dd4c1812909eccc7cf52f239ce87bc39220d1294",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "f55fc29b052229899be50b5714d3d30f323359c4",
+        "scope": "Replace stale D3D8 LOC/feature snapshot with generic interface/test guide; migrate historical swizzle collision and menu-sampling commentary into MM3",
+        "evidence": "Original guide archived; local links resolve; string-aware C comment stripping proves executable swizzle tokens unchanged. Five Windows D3D8 programs pass: formats, gamma, bound states, alpha/RHW sampling and vertex programs",
+        "limit": "Swizzle review covers changed commentary and initial helper contracts, not complete header/format/decoder certification. No fresh POSIX GL, full renderer equivalence, shader-format matrix or gameplay claim."
+      }
     },
     {
       "path": "src/d3d/d3d8_vsh.c",
@@ -6706,7 +6734,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "c60c0c1f1ca60c1812b388c5016428060e37d489",
+  "fork_tree": "7bdd0a179537fb82f8427116b2af9380ee872d1d",
   "coverage": {
     "tracked_files": 639,
     "tracked_src_files": 153,

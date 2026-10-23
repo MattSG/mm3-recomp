@@ -2724,3 +2724,17 @@ Fork checkpoint for this batch: `364d9d1`.
 - This establishes scoped source/input/queue evidence, not physical endpoint,
   COM/thread lifetime, timing, arbitrary audio fidelity or new driving proof.
   The broader ownership audit remains open.
+
+
+### Replace D3D8 snapshot claims with generic contracts
+
+- Fork f55fc29 replaces the old LOC/feature table with a concise interface,
+  backend and test guide. Original guide and historical swizzle/menu sampling
+  commentary are preserved in tools/reference/legacy_d3d8_guide.md.
+- Executable swizzle tokens are identical under string-aware comment stripping;
+  new local documentation links resolve. Build definitions and FVF position
+  helpers were read as generic mechanisms without source changes.
+- Five Windows D3D8 check programs build/run successfully: formats, gamma,
+  bound states, alpha/RHW and vertex programs. This is scoped source/check
+  evidence, not full format/decoder verification, POSIX GL parity or gameplay.
+  The remaining D3D8 source and broader ownership audit stay open.
