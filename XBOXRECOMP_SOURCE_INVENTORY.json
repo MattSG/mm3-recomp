@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "5753aa58c26f7a6a21c356e78c0831a47a02e0e3",
+  "fork_commit": "0f8f90fd701dd044fe7d5c82bb99f4d7c62eb164",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -5694,7 +5694,14 @@
       "path": "tools/func_id/output.py",
       "mode": "100644",
       "git_blob": "0aa2f50e3d14f8910b4b9fa37ec0732ad237844d",
-      "sha256": "d50b6d04155b527c35abcae80dca2622c0164d403fc1f3b64f2cd03085ff0320"
+      "sha256": "d50b6d04155b527c35abcae80dca2622c0164d403fc1f3b64f2cd03085ff0320",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "0f8f90fd701dd044fe7d5c82bb99f4d7c62eb164",
+        "scope": "Full source read of vtable scanner and output serialization; replace reference section name lists and address floor with executable flags or known function bounds",
+        "evidence": "Synthetic metadata regression failed before fix; renamed executable section, low addresses, raw offset zero, final pointer, non-executable rejection and known-function fallback pass; adjacent classifier checks pass; tools/reference/legacy_vtable_section_policy.md",
+        "limit": "Heuristic vtable/constructor classification only; fallback cannot discover unknown thunk ranges without executable metadata. Constructor class IDs are assigned after constructor discovery, and summary omits vtable_thunk count. Output writer was source-reviewed, not newly runtime-tested."
+      }
     },
     {
       "path": "tools/func_id/rw_identifier.py",
@@ -5788,10 +5795,30 @@
       }
     },
     {
+      "path": "tools/func_id/test_vtable_scanner.py",
+      "mode": "100644",
+      "git_blob": "1324e3a8bd4241bf1f43e0aa3e1a2e8f4ee853a8",
+      "sha256": "4eea0f07bab265309281294f0a21b0e293715e23de0857d5295ed455abbbce0b",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "0f8f90fd701dd044fe7d5c82bb99f4d7c62eb164",
+        "scope": "Full source read of vtable scanner and output serialization; replace reference section name lists and address floor with executable flags or known function bounds",
+        "evidence": "Synthetic metadata regression failed before fix; renamed executable section, low addresses, raw offset zero, final pointer, non-executable rejection and known-function fallback pass; adjacent classifier checks pass; tools/reference/legacy_vtable_section_policy.md",
+        "limit": "Heuristic vtable/constructor classification only; fallback cannot discover unknown thunk ranges without executable metadata. Constructor class IDs are assigned after constructor discovery, and summary omits vtable_thunk count. Output writer was source-reviewed, not newly runtime-tested."
+      }
+    },
+    {
       "path": "tools/func_id/vtable_scanner.py",
       "mode": "100644",
-      "git_blob": "34e497b799bd8237368c170da90d4ec62b6d4ffd",
-      "sha256": "801c8d7d1bfbb566b3679b8323754549fe781cdfefeeeca630ffade203dd6037"
+      "git_blob": "61b98d90dbf83daa31504bf0a7329bda3ba02ee4",
+      "sha256": "7190e86c28f38da1f71a7ada69d119ba5d38cf1ea6dd5d1506b71ac7dc5fb8bb",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "0f8f90fd701dd044fe7d5c82bb99f4d7c62eb164",
+        "scope": "Full source read of vtable scanner and output serialization; replace reference section name lists and address floor with executable flags or known function bounds",
+        "evidence": "Synthetic metadata regression failed before fix; renamed executable section, low addresses, raw offset zero, final pointer, non-executable rejection and known-function fallback pass; adjacent classifier checks pass; tools/reference/legacy_vtable_section_policy.md",
+        "limit": "Heuristic vtable/constructor classification only; fallback cannot discover unknown thunk ranges without executable metadata. Constructor class IDs are assigned after constructor discovery, and summary omits vtable_thunk count. Output writer was source-reviewed, not newly runtime-tested."
+      }
     },
     {
       "path": "tools/fusion/__init__.py",
@@ -6968,9 +6995,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "fc62eaf2db05a22fc216e995a57da9df6f29c801",
+  "fork_tree": "b00bc2cffa273efd4afdc07469985bdf73467ef8",
   "coverage": {
-    "tracked_files": 643,
+    "tracked_files": 644,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -6989,7 +7016,7 @@
       "src": 153,
       "templates": 7,
       "tests": 205,
-      "tools": 228
+      "tools": 229
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
     "tracked_paths_missing_from_fff": [
@@ -7020,7 +7047,8 @@
       "tools/ida_naming/test_export.py",
       "tools/func_id/test_stub_classifier.py",
       "tools/func_id/test_crt_identifier.py",
-      "tools/func_id/test_imm_scanner.py"
+      "tools/func_id/test_imm_scanner.py",
+      "tools/func_id/test_vtable_scanner.py"
     ],
     "stale_fff_paths": [
       "docs/technical/burnout3-reunification.md",

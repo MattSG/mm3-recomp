@@ -2955,3 +2955,19 @@ Fork checkpoint for this batch: `364d9d1`.
   references can map to prior function starts, and CRT prefix reads are not
   bounded by supplied function size. These are candidates, not verified names
   or semantics. The remaining vtable and broader fork audit stays open.
+
+
+### Replace reference vtable section policy with input metadata
+
+- Fork 0f8f90f uses executable flags for code ranges, all supplied
+  raw-backed scan sections, and no reference address floor. Without flags it
+  uses known function bounds rather than guessing executable status from names.
+  Original locale/SDK section lists moved to tools/reference/legacy_vtable_section_policy.md.
+- Regression failed on the prior scanner and now passes renamed executable
+  sections, addresses below 0x10000, raw offset zero, final complete pointer,
+  non-executable rejection and known-function fallback. Adjacent CRT/immediate/
+  SSE checks and six policy/version tests pass.
+- Full scanner and output writer read: retained generic candidate/serialization
+  code. No new output-writer runtime claim. Constructor class IDs are currently
+  assigned after constructor discovery; summary excludes vtable_thunk methods.
+  These accuracy gaps and broader fork review remain open. No title-run proof.
