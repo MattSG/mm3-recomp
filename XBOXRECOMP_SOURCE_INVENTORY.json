@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "e2c8f252551054cf60a79d9e24f0630f09658c55",
+  "fork_commit": "a6e278ed78554a2d5e6c8325f0c9f42ef8b94961",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1226,28 +1226,42 @@
     },
     {
       "path": "src/d3d/d3d8_vsh.c",
-      "sha256": "04387a21d4fbbc4e0b7f8c083e9db41f26c9cf9dab54c9c328505989eb227066",
+      "sha256": "822314c68e7f7d941e20741287a2052b5ee5c265fec5c97aa813177a76325377",
       "mode": "100644",
-      "git_blob": "34f0376292599608e72f69dc98de16fc2f61e874",
+      "git_blob": "34a48f53469c50109c97008003cd3d77e64c2752",
       "ownership_review": {
         "decision": "needs_generic_fix",
-        "reviewed_at_fork": "e2c8f252551054cf60a79d9e24f0630f09658c55",
-        "scope": "Object-layer vertex decoder field/model review identifies mismatch against pinned NV2A wire encoding; current unit constructor reuses the same incorrect macros",
-        "evidence": "Independent literal MOV c191 probe compiles, then reports MAC NOP/c0/temp instead of MOV/c191/constant; pinned xemu field table and exact proof in tools/reference/ownership_vsh_encoding_frontier.md",
-        "limit": "Confirmed generic defect, not corrected yet. Full parser/emitter/caller/paired-unit behavior and independent GPU validation remain required; prior green constants/layout checks are not wire-encoding proof."
+        "reviewed_at_fork": "a6e278ed78554a2d5e6c8325f0c9f42ef8b94961",
+        "scope": "Wire decoding and paired-unit correction implemented: proper field locations/muxes, masks, used ports, operand snapshots, R1 rules and commit order; unsupported state writes rejected at creation; wider translation/caller work remains",
+        "evidence": "Independent wire probe now passes; wire/constant/layout tests and 20 opcode HLSL compilations pass; WARP readback verifies pre-MAC operand value; valid create/delete and unsupported output-handle preservation pass; all five D3D8 programs and both game builds pass",
+        "limit": "Needs_generic_fix retained for wider numeric/ALU edge semantics, guest upload/ABI, stream declarations, unsupported-draw propagation and cache behavior. No arbitrary-program, other-backend or gameplay fidelity certification.",
+        "prior_review": {
+          "decision": "needs_generic_fix",
+          "reviewed_at_fork": "e2c8f252551054cf60a79d9e24f0630f09658c55",
+          "scope": "Object-layer vertex decoder field/model review identifies mismatch against pinned NV2A wire encoding; current unit constructor reuses the same incorrect macros",
+          "evidence": "Independent literal MOV c191 probe compiles, then reports MAC NOP/c0/temp instead of MOV/c191/constant; pinned xemu field table and exact proof in tools/reference/ownership_vsh_encoding_frontier.md",
+          "limit": "Confirmed generic defect, not corrected yet. Full parser/emitter/caller/paired-unit behavior and independent GPU validation remain required; prior green constants/layout checks are not wire-encoding proof."
+        }
       }
     },
     {
       "path": "src/d3d/d3d8_vsh.h",
-      "sha256": "d54763114d8ad931b4c8cb668a22df96a63267b3845bbf66f4cf4bce51c8b2c8",
+      "sha256": "191310e3dcff7d815150ff53063023d558e6e2064d5cc4629424e8b4e504e64b",
       "mode": "100644",
-      "git_blob": "906481a831adad19d626ba2f8d9a56675198a64c",
+      "git_blob": "25e52d08a45847251d67732f36b6a699c3e73522",
       "ownership_review": {
         "decision": "needs_generic_fix",
-        "reviewed_at_fork": "e2c8f252551054cf60a79d9e24f0630f09658c55",
-        "scope": "Object-layer vertex decoder field/model review identifies mismatch against pinned NV2A wire encoding; current unit constructor reuses the same incorrect macros",
-        "evidence": "Independent literal MOV c191 probe compiles, then reports MAC NOP/c0/temp instead of MOV/c191/constant; pinned xemu field table and exact proof in tools/reference/ownership_vsh_encoding_frontier.md",
-        "limit": "Confirmed generic defect, not corrected yet. Full parser/emitter/caller/paired-unit behavior and independent GPU validation remain required; prior green constants/layout checks are not wire-encoding proof."
+        "reviewed_at_fork": "a6e278ed78554a2d5e6c8325f0c9f42ef8b94961",
+        "scope": "Wire decoding and paired-unit correction implemented: proper field locations/muxes, masks, used ports, operand snapshots, R1 rules and commit order; unsupported state writes rejected at creation; wider translation/caller work remains",
+        "evidence": "Independent wire probe now passes; wire/constant/layout tests and 20 opcode HLSL compilations pass; WARP readback verifies pre-MAC operand value; valid create/delete and unsupported output-handle preservation pass; all five D3D8 programs and both game builds pass",
+        "limit": "Needs_generic_fix retained for wider numeric/ALU edge semantics, guest upload/ABI, stream declarations, unsupported-draw propagation and cache behavior. No arbitrary-program, other-backend or gameplay fidelity certification.",
+        "prior_review": {
+          "decision": "needs_generic_fix",
+          "reviewed_at_fork": "e2c8f252551054cf60a79d9e24f0630f09658c55",
+          "scope": "Object-layer vertex decoder field/model review identifies mismatch against pinned NV2A wire encoding; current unit constructor reuses the same incorrect macros",
+          "evidence": "Independent literal MOV c191 probe compiles, then reports MAC NOP/c0/temp instead of MOV/c191/constant; pinned xemu field table and exact proof in tools/reference/ownership_vsh_encoding_frontier.md",
+          "limit": "Confirmed generic defect, not corrected yet. Full parser/emitter/caller/paired-unit behavior and independent GPU validation remain required; prior green constants/layout checks are not wire-encoding proof."
+        }
       }
     },
     {
@@ -3075,14 +3089,21 @@
     {
       "path": "tests/d3d8_smoke/test_vsh.c",
       "mode": "100644",
-      "git_blob": "c99a2d9664d8daa4801ece610ac70cbd6503493e",
-      "sha256": "ccab7be6064bc0d57c17b1522507c06a1224dd83b9bcff23622fad15bbac64f6",
+      "git_blob": "27024dade2d792799171c5e573555d77c902246c",
+      "sha256": "441435143c4128e34bf6e0005f0bc122c1394c7ae3767adb9862ec6f0a81dac2",
       "ownership_review": {
         "decision": "needs_generic_fix",
-        "reviewed_at_fork": "e2c8f252551054cf60a79d9e24f0630f09658c55",
-        "scope": "Object-layer vertex decoder field/model review identifies mismatch against pinned NV2A wire encoding; current unit constructor reuses the same incorrect macros",
-        "evidence": "Independent literal MOV c191 probe compiles, then reports MAC NOP/c0/temp instead of MOV/c191/constant; pinned xemu field table and exact proof in tools/reference/ownership_vsh_encoding_frontier.md",
-        "limit": "Confirmed generic defect, not corrected yet. Full parser/emitter/caller/paired-unit behavior and independent GPU validation remain required; prior green constants/layout checks are not wire-encoding proof."
+        "reviewed_at_fork": "a6e278ed78554a2d5e6c8325f0c9f42ef8b94961",
+        "scope": "Wire decoding and paired-unit correction implemented: proper field locations/muxes, masks, used ports, operand snapshots, R1 rules and commit order; unsupported state writes rejected at creation; wider translation/caller work remains",
+        "evidence": "Independent wire probe now passes; wire/constant/layout tests and 20 opcode HLSL compilations pass; WARP readback verifies pre-MAC operand value; valid create/delete and unsupported output-handle preservation pass; all five D3D8 programs and both game builds pass",
+        "limit": "Needs_generic_fix retained for wider numeric/ALU edge semantics, guest upload/ABI, stream declarations, unsupported-draw propagation and cache behavior. No arbitrary-program, other-backend or gameplay fidelity certification.",
+        "prior_review": {
+          "decision": "needs_generic_fix",
+          "reviewed_at_fork": "e2c8f252551054cf60a79d9e24f0630f09658c55",
+          "scope": "Object-layer vertex decoder field/model review identifies mismatch against pinned NV2A wire encoding; current unit constructor reuses the same incorrect macros",
+          "evidence": "Independent literal MOV c191 probe compiles, then reports MAC NOP/c0/temp instead of MOV/c191/constant; pinned xemu field table and exact proof in tools/reference/ownership_vsh_encoding_frontier.md",
+          "limit": "Confirmed generic defect, not corrected yet. Full parser/emitter/caller/paired-unit behavior and independent GPU validation remain required; prior green constants/layout checks are not wire-encoding proof."
+        }
       }
     },
     {
@@ -6811,7 +6832,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "7234d19a027dc4744db23eeea92561f423f1f093",
+  "fork_tree": "d7ccd0092b78744b7304845579e594004180b0f4",
   "coverage": {
     "tracked_files": 639,
     "tracked_src_files": 153,

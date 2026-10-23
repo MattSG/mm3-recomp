@@ -1,7 +1,7 @@
 # Generic D3D8 vertex decoder correction frontier
 
-This is a confirmed implementation defect, not title-specific shader policy.
-No decoder rewrite is claimed by this checkpoint.
+This records the original generic defect and the subsequent wire/paired-unit
+correction below. Full translator and caller fidelity remains unproven.
 
 ## Independent reproduction
 
@@ -29,8 +29,9 @@ cl /nologo /Itools\xboxrecomp\src tools\reference\ownership_vsh_encoding_probe.c
 build\ownership_vsh_probe.exe
 ```
 
-The current diagnostic is deliberately failing and is not a green acceptance
-test. Once corrected, promote independent wire cases into the generic suite.
+The diagnostic originally failed as recorded above; it now passes after the
+correction below. Independent wire cases have been promoted into the generic
+suite. This single probe is not complete translator acceptance.
 
 ## Pinned reference
 
@@ -50,7 +51,7 @@ A/B/C fields occupy different words/positions; simply shifting every field
 by 32 does not repair the decoder. The existing kernel interpreter's encoding
 comment agrees with this reference, but that does not certify its full behavior.
 
-## Required generic correction
+## Original correction checklist
 
 - Trace parser callers and guest shader-upload adaptation before changing
   interpretation. Use independent literal/assembler fixtures, not a constructor
@@ -68,6 +69,42 @@ comment agrees with this reference, but that does not certify its full behavior.
   replacing their circular encoding construction. Verify real generated HLSL
   compilation and representative GPU results before broad translation claims.
 
-Decoder and test source carry needs_generic_fix. Header/data-model and wider
-emitter/caller review remain open. This work belongs in the generic fork;
+Decoder and test source retain needs_generic_fix for the remaining wider
+translation/caller work. This work belongs in the generic fork;
 no MM3 shader-name/address branch or title-specific replacement is warranted.
+
+## Implemented wire and paired-unit checkpoint
+
+The decoder now uses the pinned wire locations/muxes, cross-word C temporary
+index and relative bit. It tracks only actually read ports. The IR separates
+temporary/output masks and retains constant-output addresses; unsupported
+constant-file writes/encodings are rejected before a shader handle is allocated.
+Missing input attributes are not fabricated for unused ports. No-input programs
+generate a no-input HLSL signature and compile.
+
+The emitter snapshots used operands before either unit writes. It computes both
+results before committing outputs/temporaries, suppresses paired MAC R1 writes,
+forces paired ILU temporary writes to R1 and commits paired MAC temporaries
+after ILU as in the inspected reference. Original caller/ABI and draw-failure
+propagation are still separate review scopes.
+
+Independent tests cover ignored DWORD 0, literal MOV c191, source muxes, C's
+cross-word index, actual input usage, relative addressing, asymmetric temp/output
+masks, paired R1 rules, unsupported state-write rejection and unchanged failed
+output handles. All 20 MAC/ILU opcode emissions compile; this is syntax proof,
+not numerical conformance of every opcode. WARP readback of a three-instruction
+program checks an ILU reading the pre-MAC R2.x value (0.25 -> red byte 64),
+while the paired MAC writes 0.75. The historical standalone wire probe passes.
+
+All five Windows D3D8 programs pass and both game builds pass. Logs:
+conformance_tmp/ownership-vsh-{fix,suite}-*.log, ownership-vsh-ownership-*-build.log
+and ownership-vsh-encoding-fixed.log. Initial GPU-test failure was diagnosed
+with the D3D11 debug layer as mismatched VS/PS signature registers; the test's
+pixel signature now matches the generated VS. Final verification uses a normal
+WARP device and succeeds. No production change was made to hide that failure.
+
+Remaining: complete ALU numeric behavior (including EXP/LOG/RCC and corner
+cases), register/constant state semantics, guest upload/ABI adaptation, stream
+declarations, cache identity, complete unsupported-draw handling, other backend
+parity and arbitrary-program/gameplay validation. This is concrete generic
+progress, not a claim that the translator or wider ownership goal is complete.

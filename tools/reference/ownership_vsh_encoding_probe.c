@@ -1,5 +1,6 @@
-/* Diagnostic probe: expected to fail until the object-layer decoder accepts
- * NV2A wire encoding. Uses production parser and the existing host test stubs. */
+/* Historical independent wire reproducer: corrected decoder should pass.
+ * Uses the production parser and existing host test stubs. Generic wire
+ * regression coverage now also lives in tests/d3d8_smoke/test_vsh.c. */
 #define main ownership_existing_vsh_test_main
 #include "../xboxrecomp/tests/d3d8_smoke/test_vsh.c"
 #undef main

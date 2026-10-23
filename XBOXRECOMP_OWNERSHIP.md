@@ -2787,3 +2787,25 @@ Fork checkpoint for this batch: `364d9d1`.
   broad hardware/renderer certification is claimed in this checkpoint.
 - Decoder/header/test scopes now carry needs_generic_fix. This belongs in
   the fork; no title-specific workaround is proposed. The goal remains open.
+
+
+### Correct vertex wire decode and paired-unit execution
+
+- Fork a6e278e replaces incorrect field locations/mux interpretation with
+  pinned NV2A wire fields and independent temporary/output masks. It tracks
+  actual read ports, handles cross-word C addressing and relative constants,
+  and rejects unsupported constant-file writes/encodings before allocating
+  a shader handle. Valid creation/deletion and failed-handle preservation pass.
+- HLSL generation snapshots operands and computes both unit results before
+  committing, including paired R1 suppression/selection and delayed MAC
+  temporary writes. Correct no-input signatures compile. Historical encoding
+  commentary moved to tools/reference/legacy_vsh_encoding_notes.md.
+- Independent literal wire probe now passes. Twenty opcode emissions compile;
+  WARP readback proves an ILU reads 0.25 before a paired MAC writes 0.75.
+  The initial GPU-test signature mismatch was diagnosed and corrected in the
+  test; final normal-device verification passes. All five D3D8 programs and
+  both game builds pass. Detailed proof/limits remain in the encoding frontier.
+- This closes the reproduced wire-layout failure, not full vertex translation.
+  Numeric edge behavior, guest upload/ABI, stream declarations, cache identity,
+  unsupported-draw propagation and other backend/gameplay fidelity remain
+  open. Those source scopes retain needs_generic_fix; the full goal is active.
