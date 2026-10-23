@@ -2580,3 +2580,23 @@ Fork checkpoint for this batch: `364d9d1`.
 - This is generic ownership and supported-record proof, not complete malformed
   header handling, RTTI/ABI correctness or original-title acceptance. Inventory
   covers 634 paths / 153 src paths. Broader audit remains open.
+
+
+### Review retained native and renderer helpers
+
+- Read native object/pool adapters, fixed-width guest I/O declarations,
+  texture hashing, sampler-cache slot selection and pacing helpers. These
+  mechanisms are generic; no title-specific runtime policy was identified
+  in those scopes. Native object operations remain partial/no-op adapters,
+  not a complete typed namespace or guest reference-counting implementation.
+- Corrected object/pool documentation that overstated correctness and moved
+  old claims/local I/O evidence pointers to
+  tools/reference/legacy_kernel_helper_claims.md. Executable token equality
+  proves no object/pool/I/O behavior changed. Guest layout constants and
+  assertions remain intact; C11 and C++17 probes both compile.
+- Fresh Windows helper builds pass all eight CTests: hash exact/pages/feature
+  dispatch (3), sampler lifetime (1), pacing cadence/conversion/failure/native
+  wait cases (4). Evidence: conformance_tmp/ownership-helper-*.log and
+  build/ownership-helper-*/Testing. These contracts do not establish full
+  guest-object/I/O semantics, all CPU paths, performance or gameplay fidelity.
+  The wider ownership audit remains open.

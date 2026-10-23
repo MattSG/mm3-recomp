@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "f2bbe30a3cb743060fad4705fd82891d69bd6a3e",
+  "fork_commit": "b59fbc5558998c55223743316203d53bee8b0341",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1411,9 +1411,16 @@
     },
     {
       "path": "src/kernel/kernel_guest_io.h",
-      "sha256": "f094b42aeac6f4df6035f396740b063dd1ee065730e4e6a4fdc22adf7040ab7b",
+      "sha256": "f3d30befbaf5433bde713940fdd7ff6288018785e0f660e14ec0eba3f5f6aafc",
       "mode": "100644",
-      "git_blob": "c5390e8d3b0075c9f6835ec8b56fbca5cf902678"
+      "git_blob": "53da04fc28febafd75d20a220a74eddcc25405d0",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "b59fbc5558998c55223743316203d53bee8b0341",
+        "scope": "Fixed-width guest layouts/static assertions; stale local evidence pointers moved to MM3",
+        "evidence": "Six sources read; object/pool/I-O executable tokens unchanged. Windows CTests hash3/sampler1/pacing4 pass; I/O layout assertions compile C11 and C++17",
+        "limit": "Ownership and focused contracts only. Native object reference/type/namespace semantics remain partial; layout assertions do not prove guest I/O behavior. No full renderer, scheduling, performance or CPU-platform fidelity claim."
+      }
     },
     {
       "path": "src/kernel/kernel_hal.c",
@@ -1449,9 +1456,16 @@
     },
     {
       "path": "src/kernel/kernel_ob.c",
-      "sha256": "82ede62218f878df0fea8e082c6e2b8c5f8d4d9934eddaa2eed2e0c9c7665fd8",
+      "sha256": "7c1df7c9883e66aef918d258201e46183ee55f43e7dec0746eeaa6b53195dc1c",
       "mode": "100644",
-      "git_blob": "512719ad891dfd634fa34840be25ce7df8994014"
+      "git_blob": "9d3e0a3b948bc05ff84a1721bffdbf898a1c4e15",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "b59fbc5558998c55223743316203d53bee8b0341",
+        "scope": "Native opaque handle/type-token adapters; no-op reference operations and unsupported namespace are explicit",
+        "evidence": "Six sources read; object/pool/I-O executable tokens unchanged. Windows CTests hash3/sampler1/pacing4 pass; I/O layout assertions compile C11 and C++17",
+        "limit": "Ownership and focused contracts only. Native object reference/type/namespace semantics remain partial; layout assertions do not prove guest I/O behavior. No full renderer, scheduling, performance or CPU-platform fidelity claim."
+      }
     },
     {
       "path": "src/kernel/kernel_path.c",
@@ -1461,9 +1475,16 @@
     },
     {
       "path": "src/kernel/kernel_pool.c",
-      "sha256": "da09ce9ca9520bd08982f36ad0f831b6f6ca0c425ab6287cfceb69715c2bcc10",
+      "sha256": "a30f8e1ea318561fc9cb606505e284932e655e86685f8d85d3736b6fd34bb30a",
       "mode": "100644",
-      "git_blob": "a035c84312fe7526648d03bcc9493a8ea41313b5"
+      "git_blob": "5490086f4ec91c97ce1fff412b09d8698f5a8397",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "b59fbc5558998c55223743316203d53bee8b0341",
+        "scope": "Native host-pointer pool allocation wrappers; guest marshaling and pool semantics remain separate",
+        "evidence": "Six sources read; object/pool/I-O executable tokens unchanged. Windows CTests hash3/sampler1/pacing4 pass; I/O layout assertions compile C11 and C++17",
+        "limit": "Ownership and focused contracts only. Native object reference/type/namespace semantics remain partial; layout assertions do not prove guest I/O behavior. No full renderer, scheduling, performance or CPU-platform fidelity claim."
+      }
     },
     {
       "path": "src/kernel/kernel_rtl.c",
@@ -2211,7 +2232,14 @@
       "path": "src/video/nv2a_pacing.h",
       "sha256": "17381f4b1eca880c0995a0fccdaba9f9c29c40d1c21ae8a713ab39c3152b2130",
       "mode": "100644",
-      "git_blob": "bc3eedd55e933b698c4fb653bf3315f2319ce9c8"
+      "git_blob": "bc3eedd55e933b698c4fb653bf3315f2319ce9c8",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "b59fbc5558998c55223743316203d53bee8b0341",
+        "scope": "Generic deadline conversion and timer/fallback scheduling; no captured title policy",
+        "evidence": "Six sources read; object/pool/I-O executable tokens unchanged. Windows CTests hash3/sampler1/pacing4 pass; I/O layout assertions compile C11 and C++17",
+        "limit": "Ownership and focused contracts only. Native object reference/type/namespace semantics remain partial; layout assertions do not prove guest I/O behavior. No full renderer, scheduling, performance or CPU-platform fidelity claim."
+      }
     },
     {
       "path": "src/video/nv2a_ps_manifest.h",
@@ -2236,7 +2264,14 @@
       "path": "src/video/nv2a_sampler_cache.h",
       "sha256": "fc854c21d790cf70d35aa2a3e085d3529d57629f2e1a43773d7761426bc7bc6e",
       "mode": "100644",
-      "git_blob": "6690e38aaace47f12f624e5ee45df6d20b781e53"
+      "git_blob": "6690e38aaace47f12f624e5ee45df6d20b781e53",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "b59fbc5558998c55223743316203d53bee8b0341",
+        "scope": "Generic open-addressed sampler slot selection with pinned-resource exclusion",
+        "evidence": "Six sources read; object/pool/I-O executable tokens unchanged. Windows CTests hash3/sampler1/pacing4 pass; I/O layout assertions compile C11 and C++17",
+        "limit": "Ownership and focused contracts only. Native object reference/type/namespace semantics remain partial; layout assertions do not prove guest I/O behavior. No full renderer, scheduling, performance or CPU-platform fidelity claim."
+      }
     },
     {
       "path": "src/video/nv2a_sdlgpu.c",
@@ -2282,7 +2317,14 @@
       "path": "src/video/nv2a_texture_hash.h",
       "sha256": "cb760f8e2edc1dfaa60b2d7880e83d83d5402ec020ab8d0cdb9d50ab2cc52d92",
       "mode": "100644",
-      "git_blob": "19409014825669d17904c214e11f3e4ebac8678c"
+      "git_blob": "19409014825669d17904c214e11f3e4ebac8678c",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "b59fbc5558998c55223743316203d53bee8b0341",
+        "scope": "Content hash and guarded native CPU feature dispatch; no title-address/hash whitelist",
+        "evidence": "Six sources read; object/pool/I-O executable tokens unchanged. Windows CTests hash3/sampler1/pacing4 pass; I/O layout assertions compile C11 and C++17",
+        "limit": "Ownership and focused contracts only. Native object reference/type/namespace semantics remain partial; layout assertions do not prove guest I/O behavior. No full renderer, scheduling, performance or CPU-platform fidelity claim."
+      }
     },
     {
       "path": "src/video/pvideo_scanout.h",
@@ -6333,7 +6375,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "9a1b0119d083d131cf43d1e0e996c60f15afe516",
+  "fork_tree": "c9532e0cf99040e625abfb348e867ebfee400839",
   "coverage": {
     "tracked_files": 634,
     "tracked_src_files": 153,
