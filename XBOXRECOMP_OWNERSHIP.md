@@ -2738,3 +2738,21 @@ Fork checkpoint for this batch: `364d9d1`.
   bound states, alpha/RHW and vertex programs. This is scoped source/check
   evidence, not full format/decoder verification, POSIX GL parity or gameplay.
   The remaining D3D8 source and broader ownership audit stay open.
+
+
+### Correct generic P8 colors; investigate default-palette provenance
+
+- Fork 3e2de83 fixes swapped red/blue bytes during P8 palette expansion into
+  BGRA resources. CPU byte/guard regression and real WARP palette sampling
+  fail before the fix; afterward five D3D8 programs pass, including 448
+  texture and four RHW draws. Both game builds pass. This is scoped object-
+  layer evidence, not a separate NV2A/POSIX or live MM3 color fix claim.
+- An actual-library probe verifies generated opaque grayscale defaults,
+  explicit palette data retention and NULL restoration. Whether that default
+  is genuine SDK behavior or host fallback remains unproven. Recorded the
+  evidence and migration criteria in
+  tools/reference/ownership_d3d8_palette_frontier.md; device source carries
+  needs_policy_evidence rather than a false generic/port decision. Existing
+  SetPalette can supply explicit application data if migration is warranted.
+- Read render-state translation source in full as generic mechanisms; wider
+  state correctness and remaining device/resource ownership remain open.

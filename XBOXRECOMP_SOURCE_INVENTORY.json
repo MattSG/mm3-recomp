@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "f55fc29b052229899be50b5714d3d30f323359c4",
+  "fork_commit": "3e2de8330f983f59aa9b8ed8d74e93aa81bb00e7",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1084,15 +1084,22 @@
     },
     {
       "path": "src/d3d/README.md",
-      "sha256": "2c73f5b133331bf05e3b663aa900914be551041a94effaada6874aac6e58bbd4",
+      "sha256": "f163d7c3d572fb209e887f1a8a562f49b742ad232874a5d6bdf463f85639e974",
       "mode": "100644",
-      "git_blob": "9615d1230322dcdb9b1c9b4bae510151269fbf70",
+      "git_blob": "33bd679f909061ba41f1e762a86b6aa3f21fa936",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "f55fc29b052229899be50b5714d3d30f323359c4",
-        "scope": "Replace stale D3D8 LOC/feature snapshot with generic interface/test guide; migrate historical swizzle collision and menu-sampling commentary into MM3",
-        "evidence": "Original guide archived; local links resolve; string-aware C comment stripping proves executable swizzle tokens unchanged. Five Windows D3D8 programs pass: formats, gamma, bound states, alpha/RHW sampling and vertex programs",
-        "limit": "Swizzle review covers changed commentary and initial helper contracts, not complete header/format/decoder certification. No fresh POSIX GL, full renderer equivalence, shader-format matrix or gameplay claim."
+        "reviewed_at_fork": "3e2de8330f983f59aa9b8ed8d74e93aa81bb00e7",
+        "scope": "P8 ARGB-to-BGRA conversion correction and asymmetric palette regressions; documentation reflects palette sampling coverage",
+        "evidence": "CPU expected-byte test fails before fix; D3D11 WARP sweep has 112 P8 failures before and zero afterward, 448 texture plus four RHW draws pass; all five D3D8 programs and both game builds pass",
+        "limit": "Scoped palette conversion, not full resource/device source certification. Default palette provenance remains open; no independent original SDK, POSIX GL, separate NV2A renderer or live MM3 color claim.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "f55fc29b052229899be50b5714d3d30f323359c4",
+          "scope": "Replace stale D3D8 LOC/feature snapshot with generic interface/test guide; migrate historical swizzle collision and menu-sampling commentary into MM3",
+          "evidence": "Original guide archived; local links resolve; string-aware C comment stripping proves executable swizzle tokens unchanged. Five Windows D3D8 programs pass: formats, gamma, bound states, alpha/RHW sampling and vertex programs",
+          "limit": "Swizzle review covers changed commentary and initial helper contracts, not complete header/format/decoder certification. No fresh POSIX GL, full renderer equivalence, shader-format matrix or gameplay claim."
+        }
       }
     },
     {
@@ -1111,7 +1118,14 @@
       "path": "src/d3d/d3d8_device.c",
       "sha256": "91f2c4ad49412112d7847c233ad0e03755c60a566a6de1adfef24975b0b70705",
       "mode": "100644",
-      "git_blob": "ab7c4903cd865726017ce8fc72e9f61076cc39af"
+      "git_blob": "ab7c4903cd865726017ce8fc72e9f61076cc39af",
+      "ownership_review": {
+        "decision": "needs_policy_evidence",
+        "reviewed_at_fork": "3e2de8330f983f59aa9b8ed8d74e93aa81bb00e7",
+        "scope": "Palette initialization/accessors and SetPalette consumer reviewed; generated opaque grayscale default and NULL restoration need original API provenance before ownership decision",
+        "evidence": "Standalone actual-library probe verifies all 256 default entries, explicit data retention and NULL restoration; tools/reference/ownership_d3d8_palette_frontier.md records decision criteria",
+        "limit": "Partial source review. Do not assume a generated default is application policy without establishing original behavior; remaining device implementation is unaudited by this checkpoint."
+      }
     },
     {
       "path": "src/d3d/d3d8_fvf.h",
@@ -1153,9 +1167,16 @@
     },
     {
       "path": "src/d3d/d3d8_resources.c",
-      "sha256": "c4a33f27f6a8218b10f452ef34c9f030d1dafa79203aa7e5a85f9646dec2a93f",
+      "sha256": "bb9201756c3034f33bbd6df1811aed1a4e28dd2878cca3cc3f502b3a09bd5b75",
       "mode": "100644",
-      "git_blob": "c2f9dcbf9089f2ce57d16ecb513d1abb0112580a"
+      "git_blob": "92c60e0c503ba7184565f45a67fa742a9a4d3b58",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "3e2de8330f983f59aa9b8ed8d74e93aa81bb00e7",
+        "scope": "P8 ARGB-to-BGRA conversion correction and asymmetric palette regressions; documentation reflects palette sampling coverage",
+        "evidence": "CPU expected-byte test fails before fix; D3D11 WARP sweep has 112 P8 failures before and zero afterward, 448 texture plus four RHW draws pass; all five D3D8 programs and both game builds pass",
+        "limit": "Scoped palette conversion, not full resource/device source certification. Default palette provenance remains open; no independent original SDK, POSIX GL, separate NV2A renderer or live MM3 color claim."
+      }
     },
     {
       "path": "src/d3d/d3d8_shaders.c",
@@ -1167,7 +1188,14 @@
       "path": "src/d3d/d3d8_states.c",
       "sha256": "5c93b3957e094bd38b6b59002b1201b1260e716e416b07bb4223577a811c7adc",
       "mode": "100644",
-      "git_blob": "b4fcadf04c0f170c36aced0528a78545db14b733"
+      "git_blob": "b4fcadf04c0f170c36aced0528a78545db14b733",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "3e2de8330f983f59aa9b8ed8d74e93aa81bb00e7",
+        "scope": "Full source read: generic render/sampler enum/descriptor translation and host state caching; no title selector identified",
+        "evidence": "Unchanged source; bound-state program passes with the other D3D8 programs",
+        "limit": "Ownership/source and selected state contracts only. Not exhaustive enum/default behavior, invalid-value cache identity, all sampler combinations or full renderer fidelity."
+      }
     },
     {
       "path": "src/d3d/d3d8_swizzle.h",
@@ -2975,8 +3003,15 @@
     {
       "path": "tests/d3d8_smoke/test_a8.c",
       "mode": "100644",
-      "git_blob": "a5ba8c63cf8a3ceab41cd97e75589e89e77e6aea",
-      "sha256": "242b89945c13eb56708f8a1fe610ccd0f6d1a8ed1c89c4d772c848fe6db18fa0"
+      "git_blob": "1570c6d0385f0fbf583f9d34f045bb847a07bc4a",
+      "sha256": "b27c68ef9c7ea1d535de0207d5df5bf67bc42927a952c35706cb43bde361bbfb",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "3e2de8330f983f59aa9b8ed8d74e93aa81bb00e7",
+        "scope": "P8 ARGB-to-BGRA conversion correction and asymmetric palette regressions; documentation reflects palette sampling coverage",
+        "evidence": "CPU expected-byte test fails before fix; D3D11 WARP sweep has 112 P8 failures before and zero afterward, 448 texture plus four RHW draws pass; all five D3D8 programs and both game builds pass",
+        "limit": "Scoped palette conversion, not full resource/device source certification. Default palette provenance remains open; no independent original SDK, POSIX GL, separate NV2A renderer or live MM3 color claim."
+      }
     },
     {
       "path": "tests/d3d8_smoke/test_gamma.c",
@@ -2993,8 +3028,15 @@
     {
       "path": "tests/d3d8_smoke/test_main.c",
       "mode": "100644",
-      "git_blob": "90f70183190fbd99fa0e2161a7b12c7811a5d1b4",
-      "sha256": "0fbddfe138ea7d2515a5e81a611cb480ef8b25f5f731f665f3177bc7e8c4c621"
+      "git_blob": "e14b54d290ffb3abccd062170f0cf816a12af93f",
+      "sha256": "9555eb7f98ba24d32212c7b240646bf079fc6b7c3de6b7edd74e825245d9b2f9",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "3e2de8330f983f59aa9b8ed8d74e93aa81bb00e7",
+        "scope": "P8 ARGB-to-BGRA conversion correction and asymmetric palette regressions; documentation reflects palette sampling coverage",
+        "evidence": "CPU expected-byte test fails before fix; D3D11 WARP sweep has 112 P8 failures before and zero afterward, 448 texture plus four RHW draws pass; all five D3D8 programs and both game builds pass",
+        "limit": "Scoped palette conversion, not full resource/device source certification. Default palette provenance remains open; no independent original SDK, POSIX GL, separate NV2A renderer or live MM3 color claim."
+      }
     },
     {
       "path": "tests/d3d8_smoke/test_states.c",
@@ -6734,7 +6776,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "7bdd0a179537fb82f8427116b2af9380ee872d1d",
+  "fork_tree": "da64a824d362a1e9b266b846920215d9f37034a5",
   "coverage": {
     "tracked_files": 639,
     "tracked_src_files": 153,
