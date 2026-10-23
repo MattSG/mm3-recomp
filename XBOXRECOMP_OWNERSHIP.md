@@ -3098,3 +3098,14 @@ Fork checkpoint for this batch: `364d9d1`.
 - Ownership decisions cover the headers only. Forced Release assertions,
   disabled trace macros, state/capture layout and actual DSP/audio correctness
   remain explicit verification limits. The broader audit remains incomplete.
+
+
+### Review generic DSP DMA and move captured profiling result
+
+- Fork e725232 moves the 1.5-percent staging-buffer observation into
+  tools/reference/legacy_dsp_dma_profile_notes.md. Runtime behavior unchanged.
+- Full DMA source reviewed: generic descriptor/range/format/callback mechanisms,
+  no title data or callback policy. tools/reference/ownership_dsp_dma.md records
+  scope and unverified flags, packing, timing and callback-progress limits.
+- Existing dsp_cpu CTest, including DMA cases, passes Windows/Linux. This is not
+  full DSP/audio/hardware acceptance. The overall ownership audit remains open.

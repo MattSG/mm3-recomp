@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
+  "fork_commit": "e7252320435a2da4d1c7cb51b94c4a7966382738",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -940,9 +940,16 @@
     },
     {
       "path": "src/apu/dsp/dsp_dma.c",
-      "sha256": "94d049cc2c66de7dba51aad3b3b5e67bd21968d2b2250bf673063fa72d81d2d7",
+      "sha256": "cf8e2158f9a23cfe724705d8542fd9de2ad1eb9719f1e6ac7fda9da9301350ab",
       "mode": "100644",
-      "git_blob": "950185b249fd2824902b1972a6dfe80310fdd54d"
+      "git_blob": "6aec8707114058ce800078706cf437f35199ba56",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "e7252320435a2da4d1c7cb51b94c4a7966382738",
+        "scope": "Full DMA source ownership read: descriptor parsing, range checks, interleave/conversion, callback transfers and control state; captured percentage moved to MM3",
+        "evidence": "tools/reference/ownership_dsp_dma.md and legacy_dsp_dma_profile_notes.md; only staging comment changed; existing dsp_cpu CTest passes Windows/Linux with DMA checks",
+        "limit": "No independent timing/audio or complete DMA conformance. Bit 9/step fields and 24-bit packing variants remain unverified; endian/alignment assumptions and callback fault/progress behavior need wider evidence."
+      }
     },
     {
       "path": "src/apu/dsp/dsp_dma.h",
@@ -7244,7 +7251,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "08f04233bfb5e7b00c45dbc0cc476214256d1a1c",
+  "fork_tree": "1c13c3686e19edf23a3f10d0b1d5dcf38719820d",
   "coverage": {
     "tracked_files": 647,
     "tracked_src_files": 153,
