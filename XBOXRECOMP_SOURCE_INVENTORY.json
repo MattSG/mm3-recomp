@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "b6cac0c207ed4643a9b9891e5e0edc3ce0bdd907",
+  "fork_commit": "1593662da5932f0f54d5e0946b7503f9d84efafe",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -4670,13 +4670,27 @@
       "path": "tools/conformance/image.py",
       "mode": "100644",
       "git_blob": "710b41fd6b1a27de59f603957035a42bacf52982",
-      "sha256": "471724651266e901b1e693d3dcf53fb48f61a7e8073b1f323c46b394aed6617e"
+      "sha256": "471724651266e901b1e693d3dcf53fb48f61a7e8073b1f323c46b394aed6617e",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1593662da5932f0f54d5e0946b7503f9d84efafe",
+        "scope": "Synthetic XBE generator/fixture provenance and caller-input PE/MAP extent helpers",
+        "evidence": "Generator and image helper fully read; 4176-byte binary exactly equals generator; 5 synthetic leaf functions, 55 native-versus-lifted vectors with zero mismatches; fixture reproduction unittest passes",
+        "limit": "Synthetic plumbing proof only, not real-title acceptance or complete PE/XBE parsing/malformed-input coverage. Adjacent conformance driver and XBE runner were read only along the exercised path, not fully audited."
+      }
     },
     {
       "path": "tools/conformance/mkxbe.py",
       "mode": "100755",
       "git_blob": "fa95db071b75282933685112f49172f2c3329ca5",
-      "sha256": "32b5b5b0d2ab56664bfd816a7926125ba2b54d2fdde6f7569af97acce1aefe9b"
+      "sha256": "32b5b5b0d2ab56664bfd816a7926125ba2b54d2fdde6f7569af97acce1aefe9b",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1593662da5932f0f54d5e0946b7503f9d84efafe",
+        "scope": "Synthetic XBE generator/fixture provenance and caller-input PE/MAP extent helpers",
+        "evidence": "Generator and image helper fully read; 4176-byte binary exactly equals generator; 5 synthetic leaf functions, 55 native-versus-lifted vectors with zero mismatches; fixture reproduction unittest passes",
+        "limit": "Synthetic plumbing proof only, not real-title acceptance or complete PE/XBE parsing/malformed-input coverage. Adjacent conformance driver and XBE runner were read only along the exercised path, not fully audited."
+      }
     },
     {
       "path": "tools/conformance/msvc-wine/Dockerfile.amd64",
@@ -4760,7 +4774,14 @@
       "path": "tools/conformance/test.xbe",
       "mode": "100644",
       "git_blob": "105dcb5914b01651ef43e993ef253ee15e1ec3fa",
-      "sha256": "07289d2aa163c828d306f8a72f472245c2eb7b654daf8f0765a9b1c4bc16b0f0"
+      "sha256": "07289d2aa163c828d306f8a72f472245c2eb7b654daf8f0765a9b1c4bc16b0f0",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1593662da5932f0f54d5e0946b7503f9d84efafe",
+        "scope": "Synthetic XBE generator/fixture provenance and caller-input PE/MAP extent helpers",
+        "evidence": "Generator and image helper fully read; 4176-byte binary exactly equals generator; 5 synthetic leaf functions, 55 native-versus-lifted vectors with zero mismatches; fixture reproduction unittest passes",
+        "limit": "Synthetic plumbing proof only, not real-title acceptance or complete PE/XBE parsing/malformed-input coverage. Adjacent conformance driver and XBE runner were read only along the exercised path, not fully audited."
+      }
     },
     {
       "path": "tools/conformance/test_conformance.py",
@@ -4773,6 +4794,19 @@
       "mode": "100644",
       "git_blob": "23ec819fcf48c3e2add6560e2af152ae1361b098",
       "sha256": "4874dc389ccc71afcfff7504ab667d161fbb8ea338249b5d7dafbae8d67c7a19"
+    },
+    {
+      "path": "tools/conformance/test_mkxbe.py",
+      "mode": "100644",
+      "git_blob": "92db7da6267e75d29994332969636e519be84c8b",
+      "sha256": "88ef0ef597c2101a8cc2c29bbea12d4816013c865455f219f8917718108c5331",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "1593662da5932f0f54d5e0946b7503f9d84efafe",
+        "scope": "Synthetic XBE generator/fixture provenance and caller-input PE/MAP extent helpers",
+        "evidence": "Generator and image helper fully read; 4176-byte binary exactly equals generator; 5 synthetic leaf functions, 55 native-versus-lifted vectors with zero mismatches; fixture reproduction unittest passes",
+        "limit": "Synthetic plumbing proof only, not real-title acceptance or complete PE/XBE parsing/malformed-input coverage. Adjacent conformance driver and XBE runner were read only along the exercised path, not fully audited."
+      }
     },
     {
       "path": "tools/conformance/xbe_run.py",
@@ -6052,9 +6086,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "92ea5f85bc9cc80559bdf4220e0e20cbe894e7fa",
+  "fork_tree": "abc06598f79374920aa8fd77026c431bc0c0ea9c",
   "coverage": {
-    "tracked_files": 628,
+    "tracked_files": 629,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -6073,7 +6107,7 @@
       "src": 153,
       "templates": 7,
       "tests": 200,
-      "tools": 218
+      "tools": 219
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
     "tracked_paths_missing_from_fff": [
@@ -6089,6 +6123,7 @@
       "tests/memory_regressions/thunk_table.c",
       "tests/new_game_template/CMakeLists.txt",
       "tests/new_game_template/test_main.c",
+      "tools/conformance/test_mkxbe.py",
       "tools/fusion/test_module.py"
     ],
     "stale_fff_paths": [

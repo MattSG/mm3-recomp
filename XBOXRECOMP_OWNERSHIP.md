@@ -2429,3 +2429,20 @@ Fork checkpoint for this batch: `364d9d1`.
   conformance_tmp/ownership-symbol-check.py and ownership-symbol-inputs/.
   These are bounded tool contracts, not complete COFF/PE validation, symbol
   identity or texture visual parity. Broader ownership remains open.
+
+
+### Verify synthetic conformance fixture provenance
+
+- Read mkxbe.py and image.py fully. test.xbe exactly equals mkxbe.build():
+  4176 bytes, SHA-256 07289d2aa163c828d306f8a72f472245c2eb7b654daf8f0765a9b1c4bc16b0f0.
+  It contains five generated arithmetic leaf functions, not captured title data.
+  Retain the fixture/generator and generic caller-input PE/MAP extent helpers.
+- Added one dependency-free unittest requiring the tracked binary to match its
+  generator. It passes. Native MSVC XBE comparison finds five comparable
+  functions, zero rejected, and passes all 55 input vectors with zero mismatches.
+  Evidence: conformance_tmp/ownership-synthetic-xbe-native.log and its check script.
+  The first local invocation used the wrong runtime include path; rerunning
+  with the driver's templates/runtime path passed. No runtime code changed.
+- This proves synthetic reproducibility and plumbing, not real-title execution,
+  full parser safety or full conformance-driver ownership. Inventory now has
+  629 tracked paths / 153 src paths. The wider audit remains open.
