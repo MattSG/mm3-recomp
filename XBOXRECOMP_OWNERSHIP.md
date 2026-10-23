@@ -2971,3 +2971,16 @@ Fork checkpoint for this batch: `364d9d1`.
   code. No new output-writer runtime claim. Constructor class IDs are currently
   assigned after constructor discovery; summary excludes vtable_thunk methods.
   These accuracy gaps and broader fork review remain open. No title-run proof.
+
+
+### Preserve generic vtable candidate identity in output
+
+- Fork 2b6936e assigns class IDs before constructor discovery and
+  counts vtable_thunk results in output summaries. Constructor classifications
+  now refer to the same stable ID as the candidate table and its methods.
+- Scan-to-JSON regression reproduced cls_??? constructor IDs and a two-item
+  summary for four candidates; corrected result and saved JSON pass. Vtable,
+  CRT, immediate, SSE checks and six policy/version tests pass.
+- This closes the two reporting gaps recorded above. Raw-address constructor
+  matching remains heuristic, not semantic/ABI proof. No title-specific policy
+  or data was added; the broader ownership audit remains open.

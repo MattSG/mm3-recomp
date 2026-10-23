@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "0f8f90fd701dd044fe7d5c82bb99f4d7c62eb164",
+  "fork_commit": "2b6936e54ca64e9e74e431bb6840f329c4fb302d",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -5693,14 +5693,21 @@
     {
       "path": "tools/func_id/output.py",
       "mode": "100644",
-      "git_blob": "0aa2f50e3d14f8910b4b9fa37ec0732ad237844d",
-      "sha256": "d50b6d04155b527c35abcae80dca2622c0164d403fc1f3b64f2cd03085ff0320",
+      "git_blob": "4ed7baf678ff487b0b5bae2eb53c487b1ed23cf3",
+      "sha256": "2399002e27c48c81f4a5e03f3de4ade9b395b7c41dcc41e257ad75836b0d924c",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "0f8f90fd701dd044fe7d5c82bb99f4d7c62eb164",
-        "scope": "Full source read of vtable scanner and output serialization; replace reference section name lists and address floor with executable flags or known function bounds",
-        "evidence": "Synthetic metadata regression failed before fix; renamed executable section, low addresses, raw offset zero, final pointer, non-executable rejection and known-function fallback pass; adjacent classifier checks pass; tools/reference/legacy_vtable_section_policy.md",
-        "limit": "Heuristic vtable/constructor classification only; fallback cannot discover unknown thunk ranges without executable metadata. Constructor class IDs are assigned after constructor discovery, and summary omits vtable_thunk count. Output writer was source-reviewed, not newly runtime-tested."
+        "reviewed_at_fork": "2b6936e54ca64e9e74e431bb6840f329c4fb302d",
+        "scope": "Generic candidate identity and output summary correction; stable class ID assigned before constructor lookup, thunk method included in summary",
+        "evidence": "Synthetic scan-to-write_results-to-JSON regression reproduces cls_??? and count 2 instead of 4 before fix; saved class IDs/count now correct; related classifier checks and six policy/version tests pass",
+        "limit": "Heuristic classification only; no actual title accuracy or ABI proof. Constructor detection searches raw address bytes, so a matching constant is not semantic proof.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "0f8f90fd701dd044fe7d5c82bb99f4d7c62eb164",
+          "scope": "Full source read of vtable scanner and output serialization; replace reference section name lists and address floor with executable flags or known function bounds",
+          "evidence": "Synthetic metadata regression failed before fix; renamed executable section, low addresses, raw offset zero, final pointer, non-executable rejection and known-function fallback pass; adjacent classifier checks pass; tools/reference/legacy_vtable_section_policy.md",
+          "limit": "Heuristic vtable/constructor classification only; fallback cannot discover unknown thunk ranges without executable metadata. Constructor class IDs are assigned after constructor discovery, and summary omits vtable_thunk count. Output writer was source-reviewed, not newly runtime-tested."
+        }
       }
     },
     {
@@ -5797,27 +5804,41 @@
     {
       "path": "tools/func_id/test_vtable_scanner.py",
       "mode": "100644",
-      "git_blob": "1324e3a8bd4241bf1f43e0aa3e1a2e8f4ee853a8",
-      "sha256": "4eea0f07bab265309281294f0a21b0e293715e23de0857d5295ed455abbbce0b",
+      "git_blob": "c57d6505e6dd173ec8f4967e916fca5a014da2c3",
+      "sha256": "3ae3d5233615c78286bcc35eed12821c7d93bd2ad5733c89dfae32a391f3b1ec",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "0f8f90fd701dd044fe7d5c82bb99f4d7c62eb164",
-        "scope": "Full source read of vtable scanner and output serialization; replace reference section name lists and address floor with executable flags or known function bounds",
-        "evidence": "Synthetic metadata regression failed before fix; renamed executable section, low addresses, raw offset zero, final pointer, non-executable rejection and known-function fallback pass; adjacent classifier checks pass; tools/reference/legacy_vtable_section_policy.md",
-        "limit": "Heuristic vtable/constructor classification only; fallback cannot discover unknown thunk ranges without executable metadata. Constructor class IDs are assigned after constructor discovery, and summary omits vtable_thunk count. Output writer was source-reviewed, not newly runtime-tested."
+        "reviewed_at_fork": "2b6936e54ca64e9e74e431bb6840f329c4fb302d",
+        "scope": "Generic candidate identity and output summary correction; stable class ID assigned before constructor lookup, thunk method included in summary",
+        "evidence": "Synthetic scan-to-write_results-to-JSON regression reproduces cls_??? and count 2 instead of 4 before fix; saved class IDs/count now correct; related classifier checks and six policy/version tests pass",
+        "limit": "Heuristic classification only; no actual title accuracy or ABI proof. Constructor detection searches raw address bytes, so a matching constant is not semantic proof.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "0f8f90fd701dd044fe7d5c82bb99f4d7c62eb164",
+          "scope": "Full source read of vtable scanner and output serialization; replace reference section name lists and address floor with executable flags or known function bounds",
+          "evidence": "Synthetic metadata regression failed before fix; renamed executable section, low addresses, raw offset zero, final pointer, non-executable rejection and known-function fallback pass; adjacent classifier checks pass; tools/reference/legacy_vtable_section_policy.md",
+          "limit": "Heuristic vtable/constructor classification only; fallback cannot discover unknown thunk ranges without executable metadata. Constructor class IDs are assigned after constructor discovery, and summary omits vtable_thunk count. Output writer was source-reviewed, not newly runtime-tested."
+        }
       }
     },
     {
       "path": "tools/func_id/vtable_scanner.py",
       "mode": "100644",
-      "git_blob": "61b98d90dbf83daa31504bf0a7329bda3ba02ee4",
-      "sha256": "7190e86c28f38da1f71a7ada69d119ba5d38cf1ea6dd5d1506b71ac7dc5fb8bb",
+      "git_blob": "61298a75fdfaf1da49ba15dbb7eae5d69acce837",
+      "sha256": "c0c2bfe1771b88648b165101d8a88f7108703b981123163d958a7e1893fb99c7",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "0f8f90fd701dd044fe7d5c82bb99f4d7c62eb164",
-        "scope": "Full source read of vtable scanner and output serialization; replace reference section name lists and address floor with executable flags or known function bounds",
-        "evidence": "Synthetic metadata regression failed before fix; renamed executable section, low addresses, raw offset zero, final pointer, non-executable rejection and known-function fallback pass; adjacent classifier checks pass; tools/reference/legacy_vtable_section_policy.md",
-        "limit": "Heuristic vtable/constructor classification only; fallback cannot discover unknown thunk ranges without executable metadata. Constructor class IDs are assigned after constructor discovery, and summary omits vtable_thunk count. Output writer was source-reviewed, not newly runtime-tested."
+        "reviewed_at_fork": "2b6936e54ca64e9e74e431bb6840f329c4fb302d",
+        "scope": "Generic candidate identity and output summary correction; stable class ID assigned before constructor lookup, thunk method included in summary",
+        "evidence": "Synthetic scan-to-write_results-to-JSON regression reproduces cls_??? and count 2 instead of 4 before fix; saved class IDs/count now correct; related classifier checks and six policy/version tests pass",
+        "limit": "Heuristic classification only; no actual title accuracy or ABI proof. Constructor detection searches raw address bytes, so a matching constant is not semantic proof.",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "0f8f90fd701dd044fe7d5c82bb99f4d7c62eb164",
+          "scope": "Full source read of vtable scanner and output serialization; replace reference section name lists and address floor with executable flags or known function bounds",
+          "evidence": "Synthetic metadata regression failed before fix; renamed executable section, low addresses, raw offset zero, final pointer, non-executable rejection and known-function fallback pass; adjacent classifier checks pass; tools/reference/legacy_vtable_section_policy.md",
+          "limit": "Heuristic vtable/constructor classification only; fallback cannot discover unknown thunk ranges without executable metadata. Constructor class IDs are assigned after constructor discovery, and summary omits vtable_thunk count. Output writer was source-reviewed, not newly runtime-tested."
+        }
       }
     },
     {
@@ -6995,7 +7016,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "b00bc2cffa273efd4afdc07469985bdf73467ef8",
+  "fork_tree": "f66b87559207629c8ec8b4ffc8327609bdee4d03",
   "coverage": {
     "tracked_files": 644,
     "tracked_src_files": 153,
