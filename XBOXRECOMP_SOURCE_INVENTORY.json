@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "3e2de8330f983f59aa9b8ed8d74e93aa81bb00e7",
+  "fork_commit": "e2c8f252551054cf60a79d9e24f0630f09658c55",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1116,15 +1116,22 @@
     },
     {
       "path": "src/d3d/d3d8_device.c",
-      "sha256": "91f2c4ad49412112d7847c233ad0e03755c60a566a6de1adfef24975b0b70705",
+      "sha256": "a24ab4254566fcda85d7660b825ea3b99323e92ab472adaecc9b04586a7cd658",
       "mode": "100644",
-      "git_blob": "ab7c4903cd865726017ce8fc72e9f61076cc39af",
+      "git_blob": "81fb3c4a47f9074a60ab2ccbaf3d5dc6fd94eccb",
       "ownership_review": {
         "decision": "needs_policy_evidence",
-        "reviewed_at_fork": "3e2de8330f983f59aa9b8ed8d74e93aa81bb00e7",
-        "scope": "Palette initialization/accessors and SetPalette consumer reviewed; generated opaque grayscale default and NULL restoration need original API provenance before ownership decision",
-        "evidence": "Standalone actual-library probe verifies all 256 default entries, explicit data retention and NULL restoration; tools/reference/ownership_d3d8_palette_frontier.md records decision criteria",
-        "limit": "Partial source review. Do not assume a generated default is application policy without establishing original behavior; remaining device implementation is unaudited by this checkpoint."
+        "reviewed_at_fork": "e2c8f252551054cf60a79d9e24f0630f09658c55",
+        "scope": "Device/backend introduction migrated from captured RenderWare/first-cut coverage narrative to generic interface boundary; original palette initialization still requires directly applicable evidence",
+        "evidence": "Complete-file executable token equality under string-aware comment stripping; pinned Cxbx source and Microsoft D3D9 documentation inspected and recorded in palette frontier",
+        "limit": "Commentary/provenance review only. D3D9 defaults and Cxbx uncertain zero-fill cannot establish original Xbox defaults. Wider device/GL implementation and guest ABI review remain open; no fresh runtime check claimed.",
+        "prior_review": {
+          "decision": "needs_policy_evidence",
+          "reviewed_at_fork": "3e2de8330f983f59aa9b8ed8d74e93aa81bb00e7",
+          "scope": "Palette initialization/accessors and SetPalette consumer reviewed; generated opaque grayscale default and NULL restoration need original API provenance before ownership decision",
+          "evidence": "Standalone actual-library probe verifies all 256 default entries, explicit data retention and NULL restoration; tools/reference/ownership_d3d8_palette_frontier.md records decision criteria",
+          "limit": "Partial source review. Do not assume a generated default is application policy without establishing original behavior; remaining device implementation is unaudited by this checkpoint."
+        }
       }
     },
     {
@@ -1148,9 +1155,16 @@
     },
     {
       "path": "src/d3d/d3d8_gl.c",
-      "sha256": "049b85ba934a1dc8cbd2f9ab0ebc5806ceb409d8bc743f030cb5cd966940ca38",
+      "sha256": "23ad1ac91e5dda99574a369e2d997ccca0782ad6c67df0437b2b528ba78a6a6e",
       "mode": "100644",
-      "git_blob": "7bba5b5ae877473a255da049cc690fa9c41402ee"
+      "git_blob": "ca1ceb4b77d0869528bca1b3bdf985d00bf01dc8",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "e2c8f252551054cf60a79d9e24f0630f09658c55",
+        "scope": "Device/backend introduction migrated from captured RenderWare/first-cut coverage narrative to generic interface boundary; original palette initialization still requires directly applicable evidence",
+        "evidence": "Complete-file executable token equality under string-aware comment stripping; pinned Cxbx source and Microsoft D3D9 documentation inspected and recorded in palette frontier",
+        "limit": "Commentary/provenance review only. D3D9 defaults and Cxbx uncertain zero-fill cannot establish original Xbox defaults. Wider device/GL implementation and guest ABI review remain open; no fresh runtime check claimed."
+      }
     },
     {
       "path": "src/d3d/d3d8_internal.h",
@@ -6776,7 +6790,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "da64a824d362a1e9b266b846920215d9f37034a5",
+  "fork_tree": "7234d19a027dc4744db23eeea92561f423f1f093",
   "coverage": {
     "tracked_files": 639,
     "tracked_src_files": 153,

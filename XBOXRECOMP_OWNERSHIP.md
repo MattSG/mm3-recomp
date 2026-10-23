@@ -2756,3 +2756,18 @@ Fork checkpoint for this batch: `364d9d1`.
   SetPalette can supply explicit application data if migration is warranted.
 - Read render-state translation source in full as generic mechanisms; wider
   state correctness and remaining device/resource ownership remain open.
+
+
+### Investigate original palette contract and remove device bring-up narrative
+
+- Pinned Cxbx source records Xbox palette resources but explicitly treats
+  missing-palette zero-fill as an uncertain workaround. Microsoft D3D9's
+  public all-white default is not a directly applicable Xbox D3D8 contract.
+  Source hashes/links and exact limits are recorded in
+  tools/reference/ownership_d3d8_palette_frontier.md. Original default
+  provenance remains needs_policy_evidence; no behavior changed by analogy.
+- Fork e2c8f25 migrates device/OpenGL introductory RenderWare/first-cut
+  commentary into tools/reference/legacy_d3d8_device_notes.md. Generic
+  interface boundaries remain. Whole-file string-aware executable-token
+  equality confirms both edits are comments only. No new runtime proof
+  or broad device/GL certification is claimed. Wider review stays open.

@@ -44,3 +44,36 @@ equal. Thus the new regression uses asymmetric caller-owned colors. This does
 not validate complete palette lifetime/stage association, missing-palette
 semantics, format constants, device reset or the rest of the resource/device
 implementation. The broader ownership audit remains open.
+
+## Independent reference check
+
+Microsoft's public Direct3D 9 texture-palette documentation specifies ARGB
+entries, a current palette shared across stages, and all-white default entries:
+https://learn.microsoft.com/en-us/windows/win32/direct3d9/texture-palettes
+This is a PC D3D9 contract, not proof of the original Xbox D3D8 initialization.
+Do not replace the ramp with white by transferring that contract silently.
+
+Cxbx-Reloaded source was inspected at commit
+585c49a50af1255ab155099e06f24505f9c5a800. Its Direct3D9.cpp declares initially
+null cached Xbox palette pointers (line 196). CxbxImpl_SetPalette records data
+and size from an Xbox palette resource (9230-9242), while hooked SetPalette
+also calls original guest code for resource references (9293-9309). The missing-
+palette upload path at 6368-6377 zero-fills the destination and explicitly
+identifies that behavior as an uncertain crash-avoidance fallback. That is
+not independent hardware validation of a zero, white or grayscale default.
+
+Pinned source:
+https://github.com/Cxbx-Reloaded/Cxbx-Reloaded/blob/585c49a50af1255ab155099e06f24505f9c5a800/src/core/hle/D3D8/Direct3D9/Direct3D9.cpp
+SHA-256 of downloaded bytes:
+3fe69c71903f2280cb586c7bdbff00fb99bba80e3951473f5b67349e87e0c3d4.
+Pinned XbConvert.cpp was also inspected for palette expansion (894-899); its
+lookup/copy does not establish missing-palette semantics. SHA-256:
+2d84f56a5f9ed4206250970da674daa657a52eb1ada69f37b9a613a09a93bf80.
+Downloaded reference copies remain under conformance_tmp/palette-reference;
+no external implementation code was incorporated into the fork.
+
+Result: original initialization/default semantics and its ownership decision
+remain unproven. Next useful evidence is original Xbox initialization/binding
+behavior or a directly applicable SDK contract, not another emulator's admitted
+fallback. Other source review can continue independently; this does not block
+the entire ownership goal or authorize changing the default by analogy.
