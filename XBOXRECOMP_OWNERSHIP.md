@@ -3086,3 +3086,15 @@ Fork checkpoint for this batch: `364d9d1`.
 - Protection/native-wrapper semantics and broader allocator/bridge correctness
   remain open. This checkpoint is scoped ownership/mechanism proof, not full
   gameplay, physical-allocation parity or goal completion.
+
+
+### Review DSP interface and hardware vocabulary headers
+
+- Full source read of seven DSP state/register/portability headers, documented
+  in tools/reference/ownership_dsp_headers.md. They contain generic mechanisms
+  and hardware vocabulary, with no title program payload or address table.
+- All seven byte hashes match the committed fork inventory. No source or
+  rights notice changed; no fork commit/build/runtime rerun was needed.
+- Ownership decisions cover the headers only. Forced Release assertions,
+  disabled trace macros, state/capture layout and actual DSP/audio correctness
+  remain explicit verification limits. The broader audit remains incomplete.

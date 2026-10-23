@@ -903,7 +903,14 @@
       "path": "src/apu/dsp/debug.h",
       "sha256": "202cfd1d68c6102df7ba0e09153da9a78d817ccf2f3798c298b8bab7df85b141",
       "mode": "100644",
-      "git_blob": "6e915a555c10587a2c89db0ba8920a76e683a80b"
+      "git_blob": "6e915a555c10587a2c89db0ba8920a76e683a80b",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
+        "scope": "Full source ownership read of seven DSP interface/register/portability headers; hardware/state definitions and generic callbacks, no title program payloads",
+        "evidence": "tools/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
+        "limit": "Source ownership only. No new build, DSP execution, hardware register fidelity, audio acceptance, ABI/layout or capture-version compatibility proof. Forced asserts and disabled trace macros remain explicit host policy."
+      }
     },
     {
       "path": "src/apu/dsp/dsp.c",
@@ -922,7 +929,14 @@
       "path": "src/apu/dsp/dsp.h",
       "sha256": "21b8477ad2eb881aa81e1b15d048c86a761358fcfc1edbe3b9721546451a1005",
       "mode": "100644",
-      "git_blob": "f627c636410b7f8187194107c8be4a24d96ad392"
+      "git_blob": "f627c636410b7f8187194107c8be4a24d96ad392",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
+        "scope": "Full source ownership read of seven DSP interface/register/portability headers; hardware/state definitions and generic callbacks, no title program payloads",
+        "evidence": "tools/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
+        "limit": "Source ownership only. No new build, DSP execution, hardware register fidelity, audio acceptance, ABI/layout or capture-version compatibility proof. Forced asserts and disabled trace macros remain explicit host policy."
+      }
     },
     {
       "path": "src/apu/dsp/dsp_dma.c",
@@ -934,19 +948,40 @@
       "path": "src/apu/dsp/dsp_dma.h",
       "sha256": "95cb1bc4194299719072f7229b1cf12009065d0c890b14179da9a3cd598b5815",
       "mode": "100644",
-      "git_blob": "3c3caab8d92776e435a4c49084b7e111ee8ccd76"
+      "git_blob": "3c3caab8d92776e435a4c49084b7e111ee8ccd76",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
+        "scope": "Full source ownership read of seven DSP interface/register/portability headers; hardware/state definitions and generic callbacks, no title program payloads",
+        "evidence": "tools/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
+        "limit": "Source ownership only. No new build, DSP execution, hardware register fidelity, audio acceptance, ABI/layout or capture-version compatibility proof. Forced asserts and disabled trace macros remain explicit host policy."
+      }
     },
     {
       "path": "src/apu/dsp/dsp_dma_regs.h",
       "sha256": "1998173651e49a50bd9aac04a71e361f951241a88480b93d057d33306f5edb8e",
       "mode": "100644",
-      "git_blob": "ca70a69be802e88d87cea0276968bd60b2e0fac8"
+      "git_blob": "ca70a69be802e88d87cea0276968bd60b2e0fac8",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
+        "scope": "Full source ownership read of seven DSP interface/register/portability headers; hardware/state definitions and generic callbacks, no title program payloads",
+        "evidence": "tools/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
+        "limit": "Source ownership only. No new build, DSP execution, hardware register fidelity, audio acceptance, ABI/layout or capture-version compatibility proof. Forced asserts and disabled trace macros remain explicit host policy."
+      }
     },
     {
       "path": "src/apu/dsp/dsp_port.h",
       "sha256": "b20277243bbc039821986855766a0d3511aa9a2ff9ba556dcca991a6750be068",
       "mode": "100644",
-      "git_blob": "92e2d0d1577c051ef0cc707c953eb6b3051e1b5d"
+      "git_blob": "92e2d0d1577c051ef0cc707c953eb6b3051e1b5d",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
+        "scope": "Full source ownership read of seven DSP interface/register/portability headers; hardware/state definitions and generic callbacks, no title program payloads",
+        "evidence": "tools/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
+        "limit": "Source ownership only. No new build, DSP execution, hardware register fidelity, audio acceptance, ABI/layout or capture-version compatibility proof. Forced asserts and disabled trace macros remain explicit host policy."
+      }
     },
     {
       "path": "src/apu/dsp/interp/dsp_cpu.c",
@@ -958,13 +993,27 @@
       "path": "src/apu/dsp/interp/dsp_cpu.h",
       "sha256": "79cb31db7ecede148d0d52e9b0a8d2b88cf7d5cd745898fadfd71712af6087cd",
       "mode": "100644",
-      "git_blob": "1f8c3a20b483777967a92bc94ec3c5b19c5a2dc4"
+      "git_blob": "1f8c3a20b483777967a92bc94ec3c5b19c5a2dc4",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
+        "scope": "Full source ownership read of seven DSP interface/register/portability headers; hardware/state definitions and generic callbacks, no title program payloads",
+        "evidence": "tools/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
+        "limit": "Source ownership only. No new build, DSP execution, hardware register fidelity, audio acceptance, ABI/layout or capture-version compatibility proof. Forced asserts and disabled trace macros remain explicit host policy."
+      }
     },
     {
       "path": "src/apu/dsp/interp/dsp_cpu_regs.h",
       "sha256": "559f2906f2f0223e2c293e118ef262004a218fc4142605b3e748c35977cfcaac",
       "mode": "100644",
-      "git_blob": "ad03c24256d0a68ab6e17ffbd57b360db58933d1"
+      "git_blob": "ad03c24256d0a68ab6e17ffbd57b360db58933d1",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
+        "scope": "Full source ownership read of seven DSP interface/register/portability headers; hardware/state definitions and generic callbacks, no title program payloads",
+        "evidence": "tools/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
+        "limit": "Source ownership only. No new build, DSP execution, hardware register fidelity, audio acceptance, ABI/layout or capture-version compatibility proof. Forced asserts and disabled trace macros remain explicit host policy."
+      }
     },
     {
       "path": "src/apu/dsp/interp/dsp_dis.c.inc",
