@@ -2148,3 +2148,29 @@ Fork checkpoint for this batch: `364d9d1`.
   inspected capture and 1.27575 metres of movement. This is bounded driving
   evidence, not complete object or concurrency fidelity. Whole-fork ownership
   and remaining native/guest runtime approximations are still open.
+
+
+### Remove the native IDE scalar stand-in
+
+- Native IdexChannelObject pointed to a four-byte 'IDEX' marker under the
+  incorrect assumption callers only pass the identity back. The export is an
+  IDE_CHANNEL_OBJECT structure; primary declaration reference:
+  https://github.com/XboxDev/nxdk/blob/master/lib/xboxkrnl/xboxkrnl.h#L1486
+  The old placeholder and unresolved-import fallback from fork 1bc1dcb are
+  archived in tools/reference/legacy_native_ide_channel.md; both blocks match
+  normalized source. No port use of the scalar is preserved as generic semantics.
+- Native object is now NULL until an embedding supplies host-owned storage.
+  Direct resolution and native import initialization retain that supplied
+  pointer. An unavailable native IDE data import remains NULL instead of
+  exposing executable unresolved-handler bytes as a channel structure. The
+  separate fixed-width guest export and its circular empty queue are unchanged.
+  This does not implement native IDE hardware or marshal native pointers.
+- The new default assertion fails against the old marker. The actual fixture
+  now loads a minimal image and explicitly selects its export page, then checks
+  unconfigured/supplied native direct lookup and import-slot values, guest queue
+  links and independent key storage. Windows and Linux fixture runs pass;
+  Windows bridge 44/44 and Linux kernel 61/61 pass. Both renderer builds and
+  eight ordinal-route checks pass. Logs: conformance_tmp/ownership-idex-*.
+  No new gameplay evidence is claimed for this native-only behavior change.
+- Guest asynchronous IDE/IRP scheduling, native object shape/lifetime semantics
+  and broader fork ownership remain incomplete and require separate work.
