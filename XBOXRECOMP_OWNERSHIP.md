@@ -3279,3 +3279,13 @@ Fork checkpoint for this batch: `364d9d1`.
   rebuild passes. Scoped evidence: ownership_d3d8_combiner_cache.md.
 - Earlier pending Linux IRP packet boundary test now passes after the fresh
   bridge build. Broader ownership and fidelity work remain incomplete.
+
+
+### Publish interpreted NV2A constant changes
+
+- Fork 44acaed advances constant versions on valid context writes;
+  disabled/out-of-range writes leave versions unchanged. Generic debug dump
+  covers all constants; captured epilogue observations moved to MM3 references.
+- Old publication test fails; final Windows/Linux interpreter test and both
+  game builds pass. Full source ownership review and remaining semantic gaps
+  are recorded in tools/reference/ownership_vsh_interpreter.md.
