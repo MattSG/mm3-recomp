@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "1346a31bbbbdb69b3f2d7a7a289e753b9ae491a4",
+  "fork_commit": "9384ab2119b1eeb5b9a785206d0fc3dfb7be2b26",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1812,16 +1812,23 @@
     },
     {
       "path": "src/kernel/kernel_rtl.c",
-      "sha256": "c7a3eff9de6c9d670e21a275ce817c12185120be473156022e29639f1f4c1b13",
+      "sha256": "ce8697b5635f24a5d2cd39b1499cc929f2dd5c4c1566846f8c3b92107e51337d",
       "mode": "100644",
-      "git_blob": "dfe5e39c4c54f0947ca2a53e5a2f378de2edbd01",
+      "git_blob": "5166eb7ca4df35920fb234493cc3b26d7cd3eeed",
       "ownership_review": {
         "decision": "needs_generic_fix",
-        "reviewed_at_fork": "1346a31bbbbdb69b3f2d7a7a289e753b9ae491a4",
-        "scope": "Full source ownership read; move captured lock investigation history and correct shared-lock progress claim",
-        "evidence": "tools/reference/ownership_kernel_rtl.md; executable source token comparison unchanged",
-        "limit": "Unchecked diagnostic guest reads, concurrency/lifecycle/capacity, string and exception ABI gaps remain; no whole RTL certification",
-        "prior_review": null
+        "reviewed_at_fork": "9384ab2119b1eeb5b9a785206d0fc3dfb7be2b26",
+        "scope": "Checked guest reads for RTL CRT-table and stack diagnostics; add actual-runtime guard/overflow scenario",
+        "evidence": "tools/reference/ownership_kernel_rtl.md; old diagnostic test segfaults; final three CS tests pass Windows/Linux; both game builds pass",
+        "limit": "No metadata race, shadow capacity/lifecycle, whole RTL or gameplay certification; prior scopes retained",
+        "prior_review": {
+          "decision": "needs_generic_fix",
+          "reviewed_at_fork": "1346a31bbbbdb69b3f2d7a7a289e753b9ae491a4",
+          "scope": "Full source ownership read; move captured lock investigation history and correct shared-lock progress claim",
+          "evidence": "tools/reference/ownership_kernel_rtl.md; executable source token comparison unchanged",
+          "limit": "Unchecked diagnostic guest reads, concurrency/lifecycle/capacity, string and exception ABI gaps remain; no whole RTL certification",
+          "prior_review": null
+        }
       }
     },
     {
@@ -3811,14 +3818,21 @@
     {
       "path": "tests/kernel_dispatch/CMakeLists.txt",
       "mode": "100644",
-      "git_blob": "a11b8897b3e66aaa2b9de1f0be9ec239b9ea94e5",
-      "sha256": "842e2b3ff049418d62ec3f7a78d0287cec841fb82c4c7f7cee41710c87734d79",
+      "git_blob": "cbc85c8a8bab8f05f111415f8cd92943a6326f9a",
+      "sha256": "ac81cefded83a05124cc08515d7915adde423cb85ef4b0096b2825a24f7b9787",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "d6fa49695f29a68ab40a2e49dd7b64cfc19ae643",
-        "scope": "Standalone platform-only native blocker fixture registration",
-        "evidence": "Controlled old Windows and Linux failures reproduced. Native blocker cases now pass on both hosts; Windows kernel 62/62 and memory 11/11 pass; Linux blocker 1/1 plus all eleven actual memory modes pass, including five extra independent ext-vma startups. Both Windows game builds and inspected bounded D3D11 night Cruise pass (1.09m movement).",
-        "limit": "Scoped ownership/range/startup evidence, not full POSIX/NT VM or renderer fidelity. Backoff is a startup-only 64KiB linear search; arbitrary host layouts can still make requested addresses unavailable and now report explicit failure. Other memory ownership and final cumulative proof remain incomplete."
+        "reviewed_at_fork": "9384ab2119b1eeb5b9a785206d0fc3dfb7be2b26",
+        "scope": "Checked guest reads for RTL CRT-table and stack diagnostics; add actual-runtime guard/overflow scenario",
+        "evidence": "tools/reference/ownership_kernel_rtl.md; old diagnostic test segfaults; final three CS tests pass Windows/Linux; both game builds pass",
+        "limit": "No metadata race, shadow capacity/lifecycle, whole RTL or gameplay certification; prior scopes retained",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "d6fa49695f29a68ab40a2e49dd7b64cfc19ae643",
+          "scope": "Standalone platform-only native blocker fixture registration",
+          "evidence": "Controlled old Windows and Linux failures reproduced. Native blocker cases now pass on both hosts; Windows kernel 62/62 and memory 11/11 pass; Linux blocker 1/1 plus all eleven actual memory modes pass, including five extra independent ext-vma startups. Both Windows game builds and inspected bounded D3D11 night Cruise pass (1.09m movement).",
+          "limit": "Scoped ownership/range/startup evidence, not full POSIX/NT VM or renderer fidelity. Backoff is a startup-only 64KiB linear search; arbitrary host layouts can still make requested addresses unavailable and now report explicit failure. Other memory ownership and final cumulative proof remain incomplete."
+        }
       }
     },
     {
@@ -3896,14 +3910,21 @@
     {
       "path": "tests/kernel_dispatch/kernel_cs_test.c",
       "mode": "100644",
-      "git_blob": "1eb77071c022fa93645dd69313b601cb48dce6f7",
-      "sha256": "ec544c72b0c4cdbfb69ea0af1af8203318cf393346fbdb308e4c40d6fea14fb4",
+      "git_blob": "82d4c676f9927ee8ffe86ad584e1168be30aa29d",
+      "sha256": "44ffc4faaf0a47bacd8c1a050f22f0a82350f1b9d6c15ddca676107d0a4b4955",
       "ownership_review": {
         "decision": "retain_generic_boundary",
-        "reviewed_at_fork": "5de8b116af3b46407478b952588eb18ce2943fbd",
-        "scope": "Explicit synthetic fixture export-page policy or registration/documentation of kernel-data placement regressions; no general title layout default",
-        "evidence": "Old Linux runtime overwrites synthetic image sentinel at former fixed page. Windows memory43/kernel62/bridge8 pass; Linux kernel61, actual C++ consumer,21 original memory modes and21 thunk modes pass; both renderer builds and ordinal audit pass. D3D12 night Cruise run-6ad4jq_e: inspected capture,1.51153m movement in123.593s.",
-        "limit": "Export storage placement/ownership only. Existing partial identity/data payloads, native export coverage, worker policy and whole-fork ownership remain open."
+        "reviewed_at_fork": "9384ab2119b1eeb5b9a785206d0fc3dfb7be2b26",
+        "scope": "Checked guest reads for RTL CRT-table and stack diagnostics; add actual-runtime guard/overflow scenario",
+        "evidence": "tools/reference/ownership_kernel_rtl.md; old diagnostic test segfaults; final three CS tests pass Windows/Linux; both game builds pass",
+        "limit": "No metadata race, shadow capacity/lifecycle, whole RTL or gameplay certification; prior scopes retained",
+        "prior_review": {
+          "decision": "retain_generic_boundary",
+          "reviewed_at_fork": "5de8b116af3b46407478b952588eb18ce2943fbd",
+          "scope": "Explicit synthetic fixture export-page policy or registration/documentation of kernel-data placement regressions; no general title layout default",
+          "evidence": "Old Linux runtime overwrites synthetic image sentinel at former fixed page. Windows memory43/kernel62/bridge8 pass; Linux kernel61, actual C++ consumer,21 original memory modes and21 thunk modes pass; both renderer builds and ordinal audit pass. D3D12 night Cruise run-6ad4jq_e: inspected capture,1.51153m movement in123.593s.",
+          "limit": "Export storage placement/ownership only. Existing partial identity/data payloads, native export coverage, worker policy and whole-fork ownership remain open."
+        }
       }
     },
     {
@@ -7476,7 +7497,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "bf27e05cbf11a7c83b068eaf8d6291dd7881000d",
+  "fork_tree": "43d648bd646fc57d4130f0d55dfea05e23a8ab89",
   "coverage": {
     "tracked_files": 649,
     "tracked_src_files": 153,

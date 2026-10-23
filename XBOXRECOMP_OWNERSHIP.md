@@ -3238,3 +3238,12 @@ Fork checkpoint for this batch: `364d9d1`.
 - Full RTL ownership read retains caller-driven generic services, with explicit
   diagnostic, shadow-lock and string/ABI correctness gaps. See
   tools/reference/ownership_kernel_rtl.md. Broader audit remains open.
+
+
+### Make RTL guest diagnostics fault-safe
+
+- Fork 9384ab2 uses checked exact word reads and widened guest-address
+  arithmetic in CRT table and stack scans, preserving LastError.
+- Actual-runtime guard test segfaults before the fix. Three critical-section
+  tests pass Windows/Linux afterward; both game builds pass. Remaining RTL
+  concurrency, lifecycle/capacity and ABI gaps remain recorded and open.

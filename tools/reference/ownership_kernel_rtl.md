@@ -20,3 +20,19 @@ length truncation, codepage sizing, counted-string comparisons, host exception
 ABI delegation and incomplete status mappings need focused correctness review.
 These are not title policy and cannot be resolved by moving them to MM3. Source
 remains needs_generic_fix; this review does not certify whole RTL correctness.
+
+## Checked diagnostic reads
+
+Fork 9384ab2119b1eeb5b9a785206d0fc3dfb7be2b26 replaces raw guest dereferences in the CRT table lookup and
+approximate stack scan with exact checked ReadProcessMemory word reads.
+Address arithmetic is widened before offsets are added and rejects words
+crossing the guest 32-bit boundary. Failed reads stop the diagnostic scan;
+LastError is preserved. No separate memory-mapping subsystem was introduced.
+
+A new actual-runtime diagnostics mode faults the old implementation on a
+protected CRT table. Final tests cover unreadable CRT/stack pages and near-end
+32-bit addresses. Three critical-section CTests pass on Windows and Linux,
+including existing recursive/concurrent exclusion and counters; both D3D11
+and SDL GPU game builds pass. Earlier unchecked-read gap is addressed for
+these two scans. Metadata publication races, enormous readable table scans,
+shadow capacity/retirement and other RTL gaps above remain unverified/open.
