@@ -2924,3 +2924,17 @@ Fork checkpoint for this batch: `364d9d1`.
 - The fork retains generic analysis export and validation mechanisms. Loader
   correctness and recovered symbol quality remain caller validation; the full
   ownership audit is not complete.
+
+
+### Remove observed SSE recognition ceiling
+
+- Fork cf4d0ff removes the 120-byte maximum derived from previously
+  observed chains. The generic recognizer validates all supplied function bytes
+  as two or more scalar SSE operations plus RET. Original application-purpose
+  commentary and size rationale moved to tools/reference/legacy_stub_classification_notes.md.
+- Long-chain regression failed before the fix. Synthetic 2/16/64-operation
+  chains and invalid-opcode rejection pass, plus six adjacent policy/version
+  tests. The single caller still uses the same recognition interface.
+- Retained data_init labels/confidence are heuristics, not semantic proof.
+  Full stub source reviewed; remaining CRT/immediate/vtable source and broader
+  ownership/runtime correctness still require review. No title-run claim.

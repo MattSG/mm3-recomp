@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "1aa1602cf07e0335def427cb06a8bfce410624b7",
+  "fork_commit": "cf4d0ffb3b896c187bb1afc8c01d54641c28aee6",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -5698,8 +5698,15 @@
     {
       "path": "tools/func_id/stub_classifier.py",
       "mode": "100644",
-      "git_blob": "5b15df11303ca1bc7473a08b3d22d65b8056cd3b",
-      "sha256": "025aa8aae66f3d26b150a7a564b444927b9c9a12cf33c3581a32ed60d1bca320"
+      "git_blob": "0b7eb5fc26afd6d875fb9a94ae4f4314910bd5b1",
+      "sha256": "3efb5d87699abb099d9ad2114880210df69951caccec94a612e56d28a48fff82",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "cf4d0ffb3b896c187bb1afc8c01d54641c28aee6",
+        "scope": "Full source read of SSE chain recognizer; remove observed 120-byte ceiling and title-purpose commentary",
+        "evidence": "Long-chain regression fails before fix and passes after; 2/16/64-operation chains and invalid opcode rejection pass; six adjacent policy/version tests pass; tools/reference/legacy_stub_classification_notes.md",
+        "limit": "Byte-pattern heuristic only. data_init categories and confidence scores do not prove purpose, boundaries or SDK provenance; no actual title classification run."
+      }
     },
     {
       "path": "tools/func_id/test_keywords.py",
@@ -5725,6 +5732,19 @@
         "scope": "Input-derived RenderWare ID parsing accepts numeric version tags; captured count/history and inaccurate pipeline guide moved to MM3. Config change is comments only",
         "evidence": "RW37 synthetic case fails old parser; 6 focused tests and 3 full-pipeline CLI cases pass. Config AST unchanged. New guide 2 links resolve; old guide normalized archive verified",
         "limit": "Synthetic ID-format/classification proof, not library ABI/version compatibility, accurate inferred RW regions or full config/signature/identifier certification."
+      }
+    },
+    {
+      "path": "tools/func_id/test_stub_classifier.py",
+      "mode": "100644",
+      "git_blob": "44c76f697d8cccb4e9b1618aca2fde6d5385280f",
+      "sha256": "70ddefc0bc0a268abc46662808208d4eebe485b770f103b31edf4b0df4168147",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "cf4d0ffb3b896c187bb1afc8c01d54641c28aee6",
+        "scope": "Full source read of SSE chain recognizer; remove observed 120-byte ceiling and title-purpose commentary",
+        "evidence": "Long-chain regression fails before fix and passes after; 2/16/64-operation chains and invalid opcode rejection pass; six adjacent policy/version tests pass; tools/reference/legacy_stub_classification_notes.md",
+        "limit": "Byte-pattern heuristic only. data_init categories and confidence scores do not prove purpose, boundaries or SDK provenance; no actual title classification run."
       }
     },
     {
@@ -6908,9 +6928,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "b372c4b021e75e8ed2282b2465d06f3582f2edbe",
+  "fork_tree": "0ccaebc6e7ef34f686cf6660d5eed7dfaf12fd6e",
   "coverage": {
-    "tracked_files": 640,
+    "tracked_files": 641,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -6929,7 +6949,7 @@
       "src": 153,
       "templates": 7,
       "tests": 205,
-      "tools": 225
+      "tools": 226
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
     "tracked_paths_missing_from_fff": [
@@ -6957,7 +6977,8 @@
       "tests/video_pump/test_stub.c",
       "tests/apu_mmio/CMakeLists.txt",
       "tests/apu_mmio/test_main.c",
-      "tools/ida_naming/test_export.py"
+      "tools/ida_naming/test_export.py",
+      "tools/func_id/test_stub_classifier.py"
     ],
     "stale_fff_paths": [
       "docs/technical/burnout3-reunification.md",
