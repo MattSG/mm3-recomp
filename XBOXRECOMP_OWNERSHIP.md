@@ -3229,3 +3229,12 @@ Fork checkpoint for this batch: `364d9d1`.
   layouts and hardware capacities. No title payload or policy found.
 - Source unchanged; scoped callers checked. Accuracy FIXMEs and consumer
   behavior remain outside this ownership result. See ownership_apu_registers.md.
+
+
+### Separate RTL runtime mechanisms from captured lock history
+
+- Fork 1346a31 moves title failure/address observations to MM3 references
+  and corrects the shared-lock deadlock claim. Executable C tokens unchanged.
+- Full RTL ownership read retains caller-driven generic services, with explicit
+  diagnostic, shadow-lock and string/ABI correctness gaps. See
+  tools/reference/ownership_kernel_rtl.md. Broader audit remains open.

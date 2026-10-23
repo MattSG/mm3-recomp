@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "9dc9f370bc0f23b605f1a3783e3cd91326abb24e",
+  "fork_commit": "1346a31bbbbdb69b3f2d7a7a289e753b9ae491a4",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1812,9 +1812,17 @@
     },
     {
       "path": "src/kernel/kernel_rtl.c",
-      "sha256": "d88f189a09349eebd9a52fb72ffd84e6c875b7c31c43f7810d1a799401927d2f",
+      "sha256": "c7a3eff9de6c9d670e21a275ce817c12185120be473156022e29639f1f4c1b13",
       "mode": "100644",
-      "git_blob": "03f016f98e7b71caab613d1f21f38927a1e66a85"
+      "git_blob": "dfe5e39c4c54f0947ca2a53e5a2f378de2edbd01",
+      "ownership_review": {
+        "decision": "needs_generic_fix",
+        "reviewed_at_fork": "1346a31bbbbdb69b3f2d7a7a289e753b9ae491a4",
+        "scope": "Full source ownership read; move captured lock investigation history and correct shared-lock progress claim",
+        "evidence": "tools/reference/ownership_kernel_rtl.md; executable source token comparison unchanged",
+        "limit": "Unchecked diagnostic guest reads, concurrency/lifecycle/capacity, string and exception ABI gaps remain; no whole RTL certification",
+        "prior_review": null
+      }
     },
     {
       "path": "src/kernel/kernel_sync.c",
@@ -7468,7 +7476,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "04b2a33510ce66155c6b373c1bf641c2b88fac31",
+  "fork_tree": "bf27e05cbf11a7c83b068eaf8d6291dd7881000d",
   "coverage": {
     "tracked_files": 649,
     "tracked_src_files": 153,
