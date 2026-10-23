@@ -2692,3 +2692,19 @@ Fork checkpoint for this batch: `364d9d1`.
 - Read fb_present.h and pvideo_scanout.h in full as generic interfaces/helper;
   no executable changes or fresh display-fidelity claim. Decoder internals,
   resource lifecycle and the broader ownership audit remain open.
+
+
+### Keep APU diagnostics from changing device traffic
+
+- Fork a356fda fixes RECOMP_APU_TRACE performing an extra MMIO read after every
+  decode attempt, including writes and unsupported opcodes. Logging now uses
+  the value already serviced by the decoder. The actual-hook synthetic test
+  fails with tracing before the fix; traced/plain processes then pass 2/2 on
+  Windows and Linux. Both game builds pass. This is a useful generic runtime
+  correction, not a claim of complete decoder or hardware audio conformance.
+- Read audio support headers/shim and retained generic declarations, conversion
+  helpers and compatibility mechanisms with explicit partial-proof limits.
+  Corrected stale native-rate/WASAPI/test-tone claims; preserved their history
+  in tools/reference/legacy_apu_support_claims.md. Copyright/license notices,
+  including original project attribution, remain intact. Broader audio and
+  ownership review remains open.

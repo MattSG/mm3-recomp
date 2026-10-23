@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "68ad91aff759fca23a6bd346c8463d352120d486",
+  "fork_commit": "a356fda11ead0cfd775f2b044d607c1753a094de",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -701,9 +701,16 @@
     },
     {
       "path": "src/apu/apu.h",
-      "sha256": "cd9efac05accac123226b09a0c98b03bb3fcb2e78cd03d55e9e86d652da90e29",
+      "sha256": "270d1d309fd4efbdf886d251ea56e605ab130b38bf91b4e01deafcf754113417",
       "mode": "100644",
-      "git_blob": "f7b9f8fcb1e916fcc3686f4e207578a93a4d382a"
+      "git_blob": "b3a0c9cb96e60d63dd862636284fc198d606d3ea",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "a356fda11ead0cfd775f2b044d607c1753a094de",
+        "scope": "Generic APU MMIO trace now records decoder-serviced value without extra reads; support shim/public tone comments corrected and history migrated to MM3",
+        "evidence": "Actual-hook synthetic regression fails trace case before fix, then Windows and Linux each pass 2/2 CTests; both game builds pass. Support header/shim source read and copyright retained",
+        "limit": "Trace-side-effect contract only, not full instruction decoder, MMIO hardware timing, audio output or guest DSP fidelity. Compatibility resampler/SDL shims are partial; addressing, flags, bounds and concurrency remain separate audit work."
+      }
     },
     {
       "path": "src/apu/apu_core.c",
@@ -722,7 +729,14 @@
       "path": "src/apu/apu_debug.h",
       "sha256": "66b2d71143b9f3a4d4d7bd7ed54a5b83bcb0667e424a4b9ec44c9ee353454110",
       "mode": "100644",
-      "git_blob": "5e8988d74f4ce7ac673d2cbe7d1961359acbf273"
+      "git_blob": "5e8988d74f4ce7ac673d2cbe7d1961359acbf273",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "a356fda11ead0cfd775f2b044d607c1753a094de",
+        "scope": "Full source read: generic debug structures/mute placeholder, output submission declarations and numeric sample conversion helpers; no title selector identified",
+        "evidence": "Source-only ownership review; executable bytes unchanged",
+        "limit": "No fresh conversion, NaN/rounding, device-output, performance or complete audio correctness claim."
+      }
     },
     {
       "path": "src/apu/apu_dsp.c",
@@ -739,9 +753,16 @@
     },
     {
       "path": "src/apu/apu_mmio_hook.c",
-      "sha256": "9ce9c95724d3582d7c53eeb2f57a71c0cb11ebb46ad8fa13392e2150fab65d7e",
+      "sha256": "99cef66d5015aa997a2756d935282b8b1a06b664caafb0b78ab477fc634822c0",
       "mode": "100644",
-      "git_blob": "84eeb97485a3648b840828d212fb7ae111be7616"
+      "git_blob": "1c50b7d681e242676f6a8781ebc4fd5da293e723",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "a356fda11ead0cfd775f2b044d607c1753a094de",
+        "scope": "Generic APU MMIO trace now records decoder-serviced value without extra reads; support shim/public tone comments corrected and history migrated to MM3",
+        "evidence": "Actual-hook synthetic regression fails trace case before fix, then Windows and Linux each pass 2/2 CTests; both game builds pass. Support header/shim source read and copyright retained",
+        "limit": "Trace-side-effect contract only, not full instruction decoder, MMIO hardware timing, audio output or guest DSP fidelity. Compatibility resampler/SDL shims are partial; addressing, flags, bounds and concurrency remain separate audit work."
+      }
     },
     {
       "path": "src/apu/apu_regs.h",
@@ -751,9 +772,16 @@
     },
     {
       "path": "src/apu/apu_shim.h",
-      "sha256": "0e9365b9713ac5a434e9561b6473c63ec6681047cf3e8548653c97dd310232ca",
+      "sha256": "568e12de521a555d9c5737e1d044f833b9dd7687fa2149ae1968db9957ce0dc9",
       "mode": "100644",
-      "git_blob": "e18baa567c4a1319c7659859945c98bc48c5eb0a"
+      "git_blob": "29ce67dadc276be33e808b217844d00953be821b",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "a356fda11ead0cfd775f2b044d607c1753a094de",
+        "scope": "Generic APU MMIO trace now records decoder-serviced value without extra reads; support shim/public tone comments corrected and history migrated to MM3",
+        "evidence": "Actual-hook synthetic regression fails trace case before fix, then Windows and Linux each pass 2/2 CTests; both game builds pass. Support header/shim source read and copyright retained",
+        "limit": "Trace-side-effect contract only, not full instruction decoder, MMIO hardware timing, audio output or guest DSP fidelity. Compatibility resampler/SDL shims are partial; addressing, flags, bounds and concurrency remain separate audit work."
+      }
     },
     {
       "path": "src/apu/apu_state.h",
@@ -777,7 +805,14 @@
       "path": "src/apu/apu_xaudio2.h",
       "sha256": "bc4f180f5c2204dea6e78c58a39707b602535edaf79344816c514425ad194e69",
       "mode": "100644",
-      "git_blob": "afb1de1882239330c24894fcde12f1e4afae149e"
+      "git_blob": "afb1de1882239330c24894fcde12f1e4afae149e",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "a356fda11ead0cfd775f2b044d607c1753a094de",
+        "scope": "Full source read: generic debug structures/mute placeholder, output submission declarations and numeric sample conversion helpers; no title selector identified",
+        "evidence": "Source-only ownership review; executable bytes unchanged",
+        "limit": "No fresh conversion, NaN/rounding, device-output, performance or complete audio correctness claim."
+      }
     },
     {
       "path": "src/apu/dsp/COPYING.GPL-2",
@@ -926,7 +961,14 @@
       "path": "src/apu/fpconv.h",
       "sha256": "7bea5069da542c4b3270afb74d3ee5bc6a5be4fdca6c4e1b47c46e399db4581e",
       "mode": "100644",
-      "git_blob": "8216808c96e973a92b26be8f2a5fbb26ab839270"
+      "git_blob": "8216808c96e973a92b26be8f2a5fbb26ab839270",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "a356fda11ead0cfd775f2b044d607c1753a094de",
+        "scope": "Full source read: generic debug structures/mute placeholder, output submission declarations and numeric sample conversion helpers; no title selector identified",
+        "evidence": "Source-only ownership review; executable bytes unchanged",
+        "limit": "No fresh conversion, NaN/rounding, device-output, performance or complete audio correctness claim."
+      }
     },
     {
       "path": "src/audio/CMakeLists.txt",
@@ -2738,6 +2780,32 @@
       "mode": "100644",
       "git_blob": "f7576b01a2d69c10f3a3dc99b817e72b5e58479c",
       "sha256": "d6cbb2abdc1141fb124883117c302c43fae92fe8b28c4ede05b20c0f2b275067"
+    },
+    {
+      "path": "tests/apu_mmio/CMakeLists.txt",
+      "mode": "100644",
+      "git_blob": "9b16007ecfb6d1c4099f67e537c88a5354c3640c",
+      "sha256": "45baacaf5daab68c05192d4627d4c698ce9b8d80c60293a412d1bf86ce039f0f",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "a356fda11ead0cfd775f2b044d607c1753a094de",
+        "scope": "Generic APU MMIO trace now records decoder-serviced value without extra reads; support shim/public tone comments corrected and history migrated to MM3",
+        "evidence": "Actual-hook synthetic regression fails trace case before fix, then Windows and Linux each pass 2/2 CTests; both game builds pass. Support header/shim source read and copyright retained",
+        "limit": "Trace-side-effect contract only, not full instruction decoder, MMIO hardware timing, audio output or guest DSP fidelity. Compatibility resampler/SDL shims are partial; addressing, flags, bounds and concurrency remain separate audit work."
+      }
+    },
+    {
+      "path": "tests/apu_mmio/test_main.c",
+      "mode": "100644",
+      "git_blob": "e0d1575a9f64d949ebd8ac75b986ead0aa971eb0",
+      "sha256": "dc3250d57ded49b6253941a2bb63dc34bd7b7125f7e65e59d86470743a288999",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "a356fda11ead0cfd775f2b044d607c1753a094de",
+        "scope": "Generic APU MMIO trace now records decoder-serviced value without extra reads; support shim/public tone comments corrected and history migrated to MM3",
+        "evidence": "Actual-hook synthetic regression fails trace case before fix, then Windows and Linux each pass 2/2 CTests; both game builds pass. Support header/shim source read and copyright retained",
+        "limit": "Trace-side-effect contract only, not full instruction decoder, MMIO hardware timing, audio output or guest DSP fidelity. Compatibility resampler/SDL shims are partial; addressing, flags, bounds and concurrency remain separate audit work."
+      }
     },
     {
       "path": "tests/apu_phys/CMakeLists.txt",
@@ -6603,9 +6671,9 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "ec96ae459f701ff295a808b1533bc1ea4ecf21c6",
+  "fork_tree": "1a6326e6ef86d4f99cae26b6c459353fc61c85c5",
   "coverage": {
-    "tracked_files": 637,
+    "tracked_files": 639,
     "tracked_src_files": 153,
     "top_level_counts": {
       ".gitattributes": 1,
@@ -6623,7 +6691,7 @@
       "include": 2,
       "src": 153,
       "templates": 7,
-      "tests": 203,
+      "tests": 205,
       "tools": 224
     },
     "discovery": "FFF prefix inventory checked against git committed-tree metadata",
@@ -6649,7 +6717,9 @@
       "tools/rtti/test_rtti.py",
       "tests/video_pump/CMakeLists.txt",
       "tests/video_pump/test_main.c",
-      "tests/video_pump/test_stub.c"
+      "tests/video_pump/test_stub.c",
+      "tests/apu_mmio/CMakeLists.txt",
+      "tests/apu_mmio/test_main.c"
     ],
     "stale_fff_paths": [
       "docs/technical/burnout3-reunification.md",
