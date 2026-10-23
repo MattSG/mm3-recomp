@@ -2708,3 +2708,19 @@ Fork checkpoint for this batch: `364d9d1`.
   in tools/reference/legacy_apu_support_claims.md. Copyright/license notices,
   including original project attribution, remain intact. Broader audio and
   ownership review remains open.
+
+
+### Review generic output backends and retire captured audio guide
+
+- Fork 0e671bf fixes SDL byte-count multiplication occurring before input
+  validation. INT_MIN/INT_MAX cases extend the existing output tests. Actual
+  SDL dummy output reproduces overflow under UBSan before the fix and passes
+  1/1 afterward with halt_on_error; Windows output/monitor tests pass 2/2.
+- Read both output branches as generic host mechanisms. Replaced the broad
+  bring-up guide with concise interface/ownership/diagnostic documentation,
+  preserving the original in tools/reference/legacy_apu_guide.md. Captured
+  compiler timing comments moved there too; CMake commands are unchanged and
+  local guide links resolve. No source rights notices were removed.
+- This establishes scoped source/input/queue evidence, not physical endpoint,
+  COM/thread lifetime, timing, arbitrary audio fidelity or new driving proof.
+  The broader ownership audit remains open.

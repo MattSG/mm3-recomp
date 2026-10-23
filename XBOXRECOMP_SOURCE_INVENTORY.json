@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "a356fda11ead0cfd775f2b044d607c1753a094de",
+  "fork_commit": "0e671bfef1fa4ecc5d7a86a6c64492bb2a7a4f25",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -682,22 +682,36 @@
     },
     {
       "path": "src/apu/CMakeLists.txt",
-      "sha256": "d0f6f277ea777f4eb08b2fd47fc7fdfab358abc2ef99e67e25a50bce5c0f6db1",
+      "sha256": "dd7919b2f5ad23e1398a9dda25798d501d24f0f6804b584bc16f7af86a267db8",
       "ownership_review": {
-        "decision": "retain_generic",
-        "reviewed_at_fork": "fe49204bb7a60f9dd917a5b792fcaca48da955c6",
-        "scope": "APU target wiring and optional caller-supplied DSP program directory",
-        "evidence": "MM3 supplies game_files/dsp in parent CMake; toolkit generates into build output",
-        "limit": "Build/data ownership review, not complete audio correctness"
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "0e671bfef1fa4ecc5d7a86a6c64492bb2a7a4f25",
+        "scope": "Audio-output source read: generic XAudio2/SDL queue, gain and source-PCM diagnostics; SDL count validation before byte arithmetic; concise generic guide and archived captured build timings",
+        "evidence": "Linux actual SDL dummy queue test fails under UBSan at INT_MIN before fix, then passes 1/1 with halt_on_error; Windows mock output/monitor 2/2; original guide archived, relative links resolve and CMake command sequence unchanged",
+        "limit": "Ownership/source and input/queue contracts only. Not physical endpoint, COM/thread lifetime, real-time scheduling, full APU/DSP fidelity, Linux game-driver parity or fresh driving proof.",
+        "prior_review": {
+          "decision": "retain_generic",
+          "reviewed_at_fork": "fe49204bb7a60f9dd917a5b792fcaca48da955c6",
+          "scope": "APU target wiring and optional caller-supplied DSP program directory",
+          "evidence": "MM3 supplies game_files/dsp in parent CMake; toolkit generates into build output",
+          "limit": "Build/data ownership review, not complete audio correctness"
+        }
       },
       "mode": "100644",
-      "git_blob": "50730eb0b315b50da93640e075bc58feb9b6aa37"
+      "git_blob": "22727ff35c5bbfe5c49b927d9ed7f51c99fc1d80"
     },
     {
       "path": "src/apu/README.md",
-      "sha256": "ae1b32fee76b53fc358665dc9909b6decbc212ae7e5c8636af29f3b0b41a88ca",
+      "sha256": "0cf120dc0bf407bcbbe65dd02fa5a3fa59e140f1e6dbeea3e19d25e452ba1531",
       "mode": "100644",
-      "git_blob": "aedd17be0330019786769d95944460ec6e77b3fd"
+      "git_blob": "2b89a546e3d87c5f1cb121a601243ba908751db3",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "0e671bfef1fa4ecc5d7a86a6c64492bb2a7a4f25",
+        "scope": "Audio-output source read: generic XAudio2/SDL queue, gain and source-PCM diagnostics; SDL count validation before byte arithmetic; concise generic guide and archived captured build timings",
+        "evidence": "Linux actual SDL dummy queue test fails under UBSan at INT_MIN before fix, then passes 1/1 with halt_on_error; Windows mock output/monitor 2/2; original guide archived, relative links resolve and CMake command sequence unchanged",
+        "limit": "Ownership/source and input/queue contracts only. Not physical endpoint, COM/thread lifetime, real-time scheduling, full APU/DSP fidelity, Linux game-driver parity or fresh driving proof."
+      }
     },
     {
       "path": "src/apu/apu.h",
@@ -797,9 +811,16 @@
     },
     {
       "path": "src/apu/apu_xaudio2.c",
-      "sha256": "b9ba0e0f2eed2606596b94593b98b0a32c2229d70b22a9b3a5cd01c734c914ed",
+      "sha256": "a9a6b344145b9a6a3b31e85932bdd36b06ae2f777a215163e23e90feb835fe15",
       "mode": "100644",
-      "git_blob": "5fad46e04b7745693c881ceff075d67765364b23"
+      "git_blob": "91b31243879874746ab7fe02d8b0b9326361c436",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "0e671bfef1fa4ecc5d7a86a6c64492bb2a7a4f25",
+        "scope": "Audio-output source read: generic XAudio2/SDL queue, gain and source-PCM diagnostics; SDL count validation before byte arithmetic; concise generic guide and archived captured build timings",
+        "evidence": "Linux actual SDL dummy queue test fails under UBSan at INT_MIN before fix, then passes 1/1 with halt_on_error; Windows mock output/monitor 2/2; original guide archived, relative links resolve and CMake command sequence unchanged",
+        "limit": "Ownership/source and input/queue contracts only. Not physical endpoint, COM/thread lifetime, real-time scheduling, full APU/DSP fidelity, Linux game-driver parity or fresh driving proof."
+      }
     },
     {
       "path": "src/apu/apu_xaudio2.h",
@@ -4918,14 +4939,28 @@
     {
       "path": "tests/xaudio2/sdl_test.c",
       "mode": "100644",
-      "git_blob": "a156953fa39f20bc67e67ee685b95d07c62c1e1e",
-      "sha256": "0f2467355c78015a365b064b87cf59729ff484b973c23de9eb3a5dc0fd7c49c3"
+      "git_blob": "f49222d900de95ac460fe9313bd6fb5eb6278cb6",
+      "sha256": "7a7573f105f21ea419a8de240fc88f54375083179aea32a4121d2912b7c8560a",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "0e671bfef1fa4ecc5d7a86a6c64492bb2a7a4f25",
+        "scope": "Audio-output source read: generic XAudio2/SDL queue, gain and source-PCM diagnostics; SDL count validation before byte arithmetic; concise generic guide and archived captured build timings",
+        "evidence": "Linux actual SDL dummy queue test fails under UBSan at INT_MIN before fix, then passes 1/1 with halt_on_error; Windows mock output/monitor 2/2; original guide archived, relative links resolve and CMake command sequence unchanged",
+        "limit": "Ownership/source and input/queue contracts only. Not physical endpoint, COM/thread lifetime, real-time scheduling, full APU/DSP fidelity, Linux game-driver parity or fresh driving proof."
+      }
     },
     {
       "path": "tests/xaudio2/test_main.c",
       "mode": "100644",
-      "git_blob": "cb974920dfcc3e929c6297fe84f255ce9c300796",
-      "sha256": "3fc3cc986189a50d6e34490d94f26cc3ce4a6a71509b0ad07b955623ad2a491e"
+      "git_blob": "bff05b844b1c216568a3c3fadabdd5608aeeb3ed",
+      "sha256": "15779ea53274403ddafd54aa8a92145a687e59a97f24f4c7db437e1a792bb149",
+      "ownership_review": {
+        "decision": "retain_generic_boundary",
+        "reviewed_at_fork": "0e671bfef1fa4ecc5d7a86a6c64492bb2a7a4f25",
+        "scope": "Audio-output source read: generic XAudio2/SDL queue, gain and source-PCM diagnostics; SDL count validation before byte arithmetic; concise generic guide and archived captured build timings",
+        "evidence": "Linux actual SDL dummy queue test fails under UBSan at INT_MIN before fix, then passes 1/1 with halt_on_error; Windows mock output/monitor 2/2; original guide archived, relative links resolve and CMake command sequence unchanged",
+        "limit": "Ownership/source and input/queue contracts only. Not physical endpoint, COM/thread lifetime, real-time scheduling, full APU/DSP fidelity, Linux game-driver parity or fresh driving proof."
+      }
     },
     {
       "path": "tools/README.md",
@@ -6671,7 +6706,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "1a6326e6ef86d4f99cae26b6c459353fc61c85c5",
+  "fork_tree": "c60c0c1f1ca60c1812b388c5016428060e37d489",
   "coverage": {
     "tracked_files": 639,
     "tracked_src_files": 153,
