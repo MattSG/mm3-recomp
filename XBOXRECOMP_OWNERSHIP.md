@@ -3289,3 +3289,12 @@ Fork checkpoint for this batch: `364d9d1`.
 - Old publication test fails; final Windows/Linux interpreter test and both
   game builds pass. Full source ownership review and remaining semantic gaps
   are recorded in tools/reference/ownership_vsh_interpreter.md.
+
+
+### Review native synchronization service ownership
+
+- Full kernel_sync.c source read found generic caller-driven primitives and
+  callbacks, without embedded title data or scheduling policy. Source unchanged.
+- Native timeout/timer/DPC/state gaps remain needs_generic_fix; guest bridge
+  tests do not certify these separate paths. Findings and proof limits are in
+  tools/reference/ownership_kernel_sync.md. Broader audit remains active.

@@ -1851,7 +1851,14 @@
       "path": "src/kernel/kernel_sync.c",
       "sha256": "9a7998397fa7e86ba295728c3df679afeb6f669d92910502348e60769ee019bb",
       "mode": "100644",
-      "git_blob": "21f75d1fb1510ed8e6a83b66dddba81c9b18ae2b"
+      "git_blob": "21f75d1fb1510ed8e6a83b66dddba81c9b18ae2b",
+      "ownership_review": {
+        "decision": "needs_generic_fix",
+        "reviewed_at_fork": "44acaede094d0390f5e6c445926eedb2519d5a13",
+        "scope": "Full native kernel synchronization source ownership read; distinguish native services from guest bridge semantics",
+        "evidence": "tools/reference/ownership_kernel_sync.md; source unchanged",
+        "limit": "Finite timeout conversion, timer initialization/lifetime, DPC cancellation/exclusion, state reporting and namespace semantics remain partial; no fresh runtime test or full correctness certification"
+      }
     },
     {
       "path": "src/kernel/kernel_thread.c",
