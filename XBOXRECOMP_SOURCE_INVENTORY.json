@@ -1499,7 +1499,14 @@
       "path": "src/kernel/kernel_path.c",
       "sha256": "ed6f0493ed32732fbc9db90ff05242b25f76c7c56f346420817a101ecdddcc78",
       "mode": "100644",
-      "git_blob": "43dc760141d4845ad8b01fc2cb56742e969eef1c"
+      "git_blob": "43dc760141d4845ad8b01fc2cb56742e969eef1c",
+      "ownership_review": {
+        "decision": "needs_port_policy",
+        "reviewed_at_fork": "9613aea617af93c9ab77fb6535cc2f78931fc00a",
+        "scope": "Full path source read: static dashboard C/Y/Partition2 asset mapping still embedded; existing callback observes but cannot choose host mounts",
+        "evidence": "Actual production backend Windows probe confirms three aliases resolve to game root; details and migration requirements in tools/reference/ownership_path_mount_frontier.md",
+        "limit": "No runtime change. Mount/default migration, consumer audit, path bounds/containment and partition image policy remain open."
+      }
     },
     {
       "path": "src/kernel/kernel_pool.c",

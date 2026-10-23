@@ -2644,3 +2644,15 @@ Fork checkpoint for this batch: `364d9d1`.
   Relative links resolve; changes are Markdown only. No new DSP execution or
   hardware-conformance claim is made. Interpreter ownership/fidelity remains
   subject to the broader audit.
+
+
+### Identify embedded dashboard path-layout policy
+
+- Full kernel_path.c read and a compiled Windows production-backend probe
+  confirm C/Y/Partition2 asset paths select the game root. Existing guest
+  symbolic links are constrained by static target rules; the path callback
+  only observes. Recorded required host-mount separation and unresolved proof
+  in tools/reference/ownership_path_mount_frontier.md.
+- Marked this source needs_port_policy. No path behavior changed; this is not
+  a completed migration or filesystem-conformance claim. The broader audit
+  and the newly identified mount-policy work remain active.
