@@ -3160,3 +3160,17 @@ Fork checkpoint for this batch: `364d9d1`.
   unrelated-flag preservation. Both game builds pass.
 - Decoder validation/bounds remain open in the MMIO frontier; no complete
   decoder, native differential, live-device or whole-goal claim is made.
+
+
+### Validate bounded generic MMIO snapshots before side effects
+
+- Fork 8ffa9fe checks supported memory forms and full encoding length
+  before callbacks or context changes. The existing entry point snapshots bytes
+  through platform checked reads, including short readable page-end prefixes.
+  REX/legacy ordering and the 15-byte instruction limit are enforced.
+- Prior code fails 42 form/length assertions. Final snapshot/truncation/guard-
+  page checks pass Windows/Linux, and both game builds pass. The MMIO frontier
+  records proof and limits; no independent host memory subsystem was added.
+- Recorded shared decoder defects are addressed for the supported subset;
+  ownership decision is retain_generic_boundary. Full ISA/live-device/platform
+  fidelity and broader fork ownership completion are not claimed.

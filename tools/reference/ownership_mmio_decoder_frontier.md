@@ -44,3 +44,30 @@ semantics, not native CPU differential or live-device tests.
 The previously recorded lane/flag/MOVZX defects are addressed. General ModRM
 validation and prefix/instruction byte bounds remain open; needs_generic_fix
 stays in place for the shared source.
+
+
+## Bounded validation and checked instruction fetch
+
+Fork 8ffa9fe adds a bounded caller-owned snapshot decoder. Before
+callbacks/context mutation it verifies the supported opcode, memory ModRM,
+SIB/displacement/immediate length and 15-byte architectural limit. REX state
+is discarded when a later legacy prefix makes it ineffective. Unsupported
+encodings remain rejected rather than guessed.
+
+The existing fault-handler entry point snapshots up to 15 bytes through the
+platform ReadProcessMemory primitive. If a bulk read is refused entirely,
+byte reads recover the readable prefix. A valid instruction ending at a guard
+page remains serviceable; incomplete/unreadable instructions return failure.
+LastError from fetching is restored before device execution.
+
+Prior code fails 42 assertions covering 13 register-only forms and an overlong
+encoding. Final Windows/Linux checks pass those cases, every truncated prefix
+of four supported encodings, legacy-after-REX ordering, a maximum-length form,
+valid/truncated page-end instructions, unreadable memory and LastError
+preservation. Both game builds pass. Test target links the existing platform
+primitive; no second host memory reader was introduced.
+
+The recorded encoding/lane/flag/bounds defects are addressed for this supported
+subset. Source ownership now retains the generic mechanism. No full x86 ISA,
+native CPU differential, live device, macOS, concurrent code mutation or
+performance certification is claimed; the broader fork audit is incomplete.
