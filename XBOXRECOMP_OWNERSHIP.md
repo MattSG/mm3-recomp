@@ -3014,3 +3014,16 @@ Fork checkpoint for this batch: `364d9d1`.
 - This is source ownership proof, not GUI/concurrency certification. Shared
   volatile state, callback lifetime, multi-window routing, modifier pairing
   and teardown need separate correctness verification. Broader audit stays open.
+
+
+### Trace runtime ownership and unresolved generic read safety
+
+- Fork a3ac8cc moves migration history to
+  tools/reference/legacy_trace_migration_notes.md; executable code unchanged.
+  Full tracing source reviewed: generic diagnostics, no title address table.
+- tools/reference/ownership_trace_frontier.md records unchecked guest stack,
+  pointer and debug-string reads, fixed low-memory dump selection, shared
+  unsynchronized profile/budget state and borrowed-name lifetime concerns.
+  Existing platform exact-size checked reads were inspected as the reuse path.
+- The source is needs_generic_fix, not certified complete. No deliberate
+  crashing test or fresh build/runtime claim. The overall goal remains active.

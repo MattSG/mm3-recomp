@@ -1,6 +1,6 @@
 {
   "scope": "Complete committed fork tree with working-tree byte hashes; inventory coverage does not establish ownership-review completion",
-  "fork_commit": "4dc8b6fe6682216ee08d1094ca5ade55130f978f",
+  "fork_commit": "a3ac8cc0093e4a038a277e5b6afb7c41ba8be2d8",
   "hash_basis": "working-tree file bytes",
   "files": [
     {
@@ -1909,9 +1909,16 @@
     },
     {
       "path": "src/kernel/recomp_trace.c",
-      "sha256": "acfa81b9826f4d775c20c87e7b5dd08caae7623cf6ac7ac78fd18fa4f45b8cff",
+      "sha256": "704cff33ef7220aa0bb045e4dc919a7bfd74f35a59c8e6aeae555af35f7b0c2f",
       "mode": "100644",
-      "git_blob": "0b2d723d4f70ee76690349650de51f4832c437a3"
+      "git_blob": "5a18640959b704de865e961bcaf19cb95fdff82f",
+      "ownership_review": {
+        "decision": "needs_generic_fix",
+        "reviewed_at_fork": "a3ac8cc0093e4a038a277e5b6afb7c41ba8be2d8",
+        "scope": "Full source ownership read of function/profile/debug-service diagnostics; migration history moved to MM3",
+        "evidence": "tools/reference/ownership_trace_frontier.md and legacy_trace_migration_notes.md; only selected comment changed; platform checked read primitive inspected",
+        "limit": "Unchecked guest reads and fixed low-memory dump bounds remain; profile/budget initialization and shared tables are unsynchronized; borrowed name lifetime not enforced. No crashing experiment or runtime certification."
+      }
     },
     {
       "path": "src/kernel/xbox_memory_layout.c",
@@ -7086,7 +7093,7 @@
       "limit": "Other tooling files and complete DSP ISA/provenance fidelity are not covered"
     }
   ],
-  "fork_tree": "d357b97daa39b7be8873d08673f98134f1443941",
+  "fork_tree": "2cce18c447c274fc7f248db6c3e118f9b02a1c16",
   "coverage": {
     "tracked_files": 644,
     "tracked_src_files": 153,
