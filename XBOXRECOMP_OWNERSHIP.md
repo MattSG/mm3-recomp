@@ -2333,3 +2333,18 @@ Fork checkpoint for this batch: `364d9d1`.
   emulation is unimplemented. This closes this policy migration, not the wider
   ownership or renderer-fidelity audit. Inventory retains 627 paths,
   with 152 src paths after removing the shared shader and adding a synthetic test shader.
+
+
+### Clarify the retained NV2A register/shader boundary
+
+- Archived the old NV2A guide in tools/reference/legacy_nv2a_integration_guide.md;
+  its payload matches fork 1dce749 after newline normalization. The shared guide
+  now documents singleton/buffer lifetime, host-owned fault routing, separate
+  hook storage, unsupported decode handling and VRAM allocation limitations.
+  Removed stale LOC tables, complete-support claims and obsolete renderer advice.
+- Read the register core and remaining shared vertex/combiner shader logic.
+  Retain these generic guest-state mechanisms with scoped inventory decisions.
+  This is not certification of device timing, decoder safety, shader fidelity
+  or the whole fork. No executable source changed in this checkpoint.
+- All nine guide links resolve; fork diff is documentation only. Inventory
+  remains 627 tracked paths and 152 src paths. No new gameplay claim.
