@@ -5,6 +5,7 @@
 #include <string.h>
 #include "nv2a_d3d11.h"
 #include "mods.h"
+#include "piece_cluster.h"
 
 extern int mm3_map_texture_role(uint32_t address);
 extern int mm3_pause_ui_active(void);
@@ -130,82 +131,35 @@ static void sanitize_vertex_upload(uint8_t *copy, const NvD3DAttrib *uv,
             memset(copy + (size_t)i * uv->stride, 0, 4);
 }
 
+static int hud_route_skip(const void *route, uint32_t vertex)
+{
+    return map_route_vertex((const NvD3DAttrib *)route, vertex);
+}
+
+/* The HUD's pieces and clusters come from the fork's grouping; this title
+ * places each cluster by its own half of the 4:3 layout. */
 static int hud_split(const float (*pos)[4], uint32_t nv, const uint32_t *idx, uint32_t sub,
                      uint32_t ni, uint32_t per, float gw, float narrow, int follow, float *dx,
                      const NvD3DAttrib *route_uv)
 {
-    static uint32_t *root, *piece, cap;
-    static float (*box)[4];             /* per piece: x0 x1 y0 y1 */
-    uint32_t i, k, np = 0;
+    static uint32_t *cluster, cap;
+    static float (*box)[4];             /* per cluster: x0 x1 y0 y1 */
     float delta = (1.0f - narrow) * gw / (2.0f * narrow), half = gw * 0.5f;
     int moved = 0;
+    uint32_t i;
     if (nv > cap) {
-        uint32_t *r = realloc(root, (size_t)nv * sizeof *r);
-        uint32_t *pc = r ? realloc(piece, (size_t)nv * sizeof *pc) : NULL;
-        float (*b)[4] = pc ? realloc(box, (size_t)nv * sizeof *b) : NULL;
-        if (r) root = r;
-        if (pc) piece = pc;
+        uint32_t *c = realloc(cluster, (size_t)nv * sizeof *c);
+        float (*b)[4] = c ? realloc(box, (size_t)nv * sizeof *b) : NULL;
+        if (c) cluster = c;
         if (!b) return 0;
         box = b;
         cap = nv;
     }
-#define FIND(x) do { while (root[x] != x) x = root[x] = root[root[x]]; } while (0)
-    /* pieces: vertices joined by primitives */
-    for (i = 0; i < nv; i++) root[i] = i;
-    for (i = 0; i + per <= ni; i += per) {
-        if (map_route_vertex(route_uv, idx[i])) continue;
-        for (k = 1; k < per; k++) {
-            uint32_t a = idx[i] - sub, b = idx[i + k] - sub;
-            if (a >= nv || b >= nv) return 0;
-            FIND(a); FIND(b);
-            if (a != b) root[b] = a;
-        }
-    }
+    if (!recomp_piece_clusters(nv, pos, idx, sub, ni, per, gw, HUD_GAP, route_uv,
+                               hud_route_skip, cluster, box))
+        return 0;
     for (i = 0; i < nv; i++) {
-        uint32_t r = i;
-        FIND(r);
-        if (r == i) {
-            piece[i] = np;
-            box[np][0] = box[np][2] = 1e30f;
-            box[np][1] = box[np][3] = -1e30f;
-            np++;
-        }
-    }
-    for (i = 0; i < nv; i++) {
-        uint32_t r = i, n;
-        FIND(r);
-        n = piece[r];
-        piece[i] = n;
-        if (map_route_vertex(route_uv, sub + i)) continue;
-        if (pos[i][0] < box[n][0]) box[n][0] = pos[i][0];
-        if (pos[i][0] > box[n][1]) box[n][1] = pos[i][0];
-        if (pos[i][1] < box[n][2]) box[n][2] = pos[i][1];
-        if (pos[i][1] > box[n][3]) box[n][3] = pos[i][1];
-    }
-    /* clusters: pieces on one line within HUD_GAP (root[] reused per piece);
-     * ponytail: O(pieces^2), fine for HUD batches of a few hundred glyphs */
-    for (i = 0; i < np; i++) root[i] = i;
-    for (i = 0; i < np; i++)
-        for (k = i + 1; k < np; k++) {
-            uint32_t a = i, b = k;
-            /* a full-screen quad overlaps every piece: it stays its own */
-            if ((box[i][0] <= 0.5f && box[i][1] >= gw - 0.5f) ||
-                (box[k][0] <= 0.5f && box[k][1] >= gw - 0.5f))
-                continue;
-            if (box[i][2] > box[k][3] || box[k][2] > box[i][3] ||
-                box[i][0] > box[k][1] + HUD_GAP || box[k][0] > box[i][1] + HUD_GAP)
-                continue;
-            FIND(a); FIND(b);
-            if (a == b) continue;
-            root[b] = a;
-            if (box[b][0] < box[a][0]) box[a][0] = box[b][0];
-            if (box[b][1] > box[a][1]) box[a][1] = box[b][1];
-            if (box[b][2] < box[a][2]) box[a][2] = box[b][2];
-            if (box[b][3] > box[a][3]) box[a][3] = box[b][3];
-        }
-    for (i = 0; i < nv; i++) {
-        uint32_t c = piece[i];
-        FIND(c);
+        uint32_t c = cluster[i];
         dx[i] = 0.0f;
         if (map_route_vertex(route_uv, sub + i)) continue;
         if (follow) {
@@ -222,7 +176,6 @@ static int hud_split(const float (*pos)[4], uint32_t nv, const uint32_t *idx, ui
         } else if (box[c][1] <= half) { dx[i] = -delta; moved = 1; }
         else if (box[c][0] >= half) { dx[i] = delta; moved = 1; }
     }
-#undef FIND
     return moved;
 }
 
