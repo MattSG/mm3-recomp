@@ -5,12 +5,13 @@
 #include "recomp_types.h"
 #include "guest_state.h"
 #include "kb_spline.h"
+#include "road_graph.h"
 
 /* 201BCA publishes the native race's complete ordered checkpoint list once
  * per player HUD update, before hiding passed/inactive checkpoint icons.
  * Copy positions and identities; never dereference a saved guest object. */
 enum { RACE_PLAYERS = 2, RACE_CHECKPOINTS = 128 };
-typedef struct { float x, y, z; } RoadPoint;
+typedef GraphPoint RoadPoint;
 typedef struct { uint32_t object; RoadPoint position; } RaceCheckpoint;
 static struct {
     RaceCheckpoint checkpoints[RACE_CHECKPOINTS];
@@ -21,15 +22,8 @@ static struct {
 
 enum { ROAD_NODES = 65536, ROAD_EDGES = 262144, COURSE_POINTS = 16384,
        ACTIVE_POINTS = 4096, NO_NODE = UINT32_MAX };
-typedef struct { RoadPoint position; uint32_t first; } RoadNode;
-typedef struct { uint32_t to, next; float length; } RoadEdge;
-static struct {
-    RoadNode *nodes;
-    RoadEdge *edges;
-    float *distance;
-    uint32_t *previous, *heap, *heap_position;
-    unsigned node_count, edge_count, heap_count, generation;
-} s_roads;
+static RoadGraph *s_roads;
+static unsigned s_road_generation;
 static struct {
     RaceCheckpoint checkpoints[RACE_CHECKPOINTS];
     RoadPoint course[COURSE_POINTS], active[ACTIVE_POINTS], active_origin;
@@ -38,179 +32,39 @@ static struct {
     uint32_t active_target;
 } s_paths[RACE_PLAYERS];
 
-static float road_distance(RoadPoint a, RoadPoint b)
-{
-    float x = a.x - b.x, y = a.y - b.y, z = a.z - b.z;
-    return sqrtf(x*x + y*y + z*z);
-}
-
-static int road_point_valid(RoadPoint p)
-{
-    return isfinite(p.x) && isfinite(p.y) && isfinite(p.z) &&
-        fabsf(p.x) < 100000.0f && fabsf(p.y) < 100000.0f && fabsf(p.z) < 100000.0f;
-}
+#define road_distance graph_distance
+#define road_point_valid graph_point_valid
 
 static void road_graph_clear(void)
 {
-    unsigned generation = s_roads.generation + 1;
-    free(s_roads.nodes); free(s_roads.edges); free(s_roads.distance);
-    free(s_roads.previous); free(s_roads.heap); free(s_roads.heap_position);
-    memset(&s_roads, 0, sizeof s_roads);
-    s_roads.generation = generation;
+    road_graph_free(s_roads);
+    s_roads = NULL;
+    s_road_generation++;
     memset(s_paths, 0, sizeof s_paths);
 }
 
 static int road_graph_allocate(unsigned nodes)
 {
-    unsigned i;
     if (!nodes || nodes > ROAD_NODES) return 0;
-    s_roads.nodes = (RoadNode *)calloc(nodes, sizeof(RoadNode));
-    s_roads.edges = (RoadEdge *)malloc(ROAD_EDGES * sizeof(RoadEdge));
-    s_roads.distance = (float *)malloc(nodes * sizeof(float));
-    s_roads.previous = (uint32_t *)malloc(nodes * sizeof(uint32_t));
-    s_roads.heap = (uint32_t *)malloc(nodes * sizeof(uint32_t));
-    s_roads.heap_position = (uint32_t *)malloc(nodes * sizeof(uint32_t));
-    if (!s_roads.nodes || !s_roads.edges || !s_roads.distance || !s_roads.previous ||
-        !s_roads.heap || !s_roads.heap_position) { road_graph_clear(); return 0; }
-    s_roads.node_count = nodes;
-    for (i = 0; i < nodes; ++i) s_roads.nodes[i].first = NO_NODE;
-    return 1;
+    s_roads = road_graph_new(nodes, ROAD_EDGES);
+    return s_roads != NULL;
 }
 
 static int road_graph_edge(unsigned a, unsigned b)
 {
-    float length;
-    unsigned index;
-    if (a >= s_roads.node_count || b >= s_roads.node_count || a == b) return 0;
-    length = road_distance(s_roads.nodes[a].position, s_roads.nodes[b].position);
-    if (!isfinite(length)) return 0;
-    /* Zero-length joins are real when two road sections share an endpoint. */
-    if (length < .001f) length = .001f;
-    if (s_roads.edge_count + 2 > ROAD_EDGES) return 0;
-    index = s_roads.edge_count;
-    s_roads.edges[index].to = b; s_roads.edges[index].length = length;
-    s_roads.edges[index].next = s_roads.nodes[a].first;
-    s_roads.nodes[a].first = index;
-    s_roads.edges[index + 1].to = a; s_roads.edges[index + 1].length = length;
-    s_roads.edges[index + 1].next = s_roads.nodes[b].first;
-    s_roads.nodes[b].first = index + 1;
-    s_roads.edge_count += 2;
-    return 1;
+    return road_graph_connect(s_roads, a, b);
 }
 
-static void road_heap_update(unsigned node)
-{
-    unsigned position = s_roads.heap_position[node];
-    if (position == NO_NODE) position = s_roads.heap_count++;
-    while (position) {
-        unsigned parent = (position - 1) / 2, other = s_roads.heap[parent];
-        if (s_roads.distance[other] <= s_roads.distance[node]) break;
-        s_roads.heap[position] = other; s_roads.heap_position[other] = position;
-        position = parent;
-    }
-    s_roads.heap[position] = node; s_roads.heap_position[node] = position;
-}
-
-static unsigned road_heap_pop(void)
-{
-    unsigned result = s_roads.heap[0], node = s_roads.heap[--s_roads.heap_count];
-    unsigned position = 0;
-    if (s_roads.heap_count) {
-        while (position * 2 + 1 < s_roads.heap_count) {
-            unsigned child = position * 2 + 1;
-            if (child + 1 < s_roads.heap_count &&
-                s_roads.distance[s_roads.heap[child + 1]] < s_roads.distance[s_roads.heap[child]]) ++child;
-            if (s_roads.distance[node] <= s_roads.distance[s_roads.heap[child]]) break;
-            s_roads.heap[position] = s_roads.heap[child];
-            s_roads.heap_position[s_roads.heap[position]] = position;
-            position = child;
-        }
-        s_roads.heap[position] = node; s_roads.heap_position[node] = position;
-    }
-    s_roads.heap_position[result] = NO_NODE;
-    return result;
-}
-
-typedef struct { RoadPoint position; unsigned a, b; float t, length; } RoadSnap;
-
-static int road_snap(RoadPoint position, RoadSnap *snap)
-{
-    unsigned a, edge;
-    float best = FLT_MAX;
-    if (!road_point_valid(position)) return 0;
-    for (a = 0; a < s_roads.node_count; ++a)
-        for (edge = s_roads.nodes[a].first; edge != NO_NODE; edge = s_roads.edges[edge].next) {
-            unsigned b = s_roads.edges[edge].to;
-            RoadPoint p = s_roads.nodes[a].position, q = s_roads.nodes[b].position, projected;
-            float x, y, z, length2, t, score;
-            if (b <= a) continue;
-            x = q.x - p.x; y = q.y - p.y; z = q.z - p.z;
-            length2 = x*x + y*y + z*z;
-            if (length2 < .0001f) continue;
-            t = ((position.x - p.x)*x + (position.y - p.y)*y + (position.z - p.z)*z) / length2;
-            t = t < 0 ? 0 : (t > 1 ? 1 : t);
-            projected.x = p.x + t*x; projected.y = p.y + t*y; projected.z = p.z + t*z;
-            x = position.x - projected.x; y = position.y - projected.y; z = position.z - projected.z;
-            /* Height separates stacked roads and bridges from the street below. */
-            score = x*x + 9*y*y + z*z;
-            if (score < best) {
-                best = score; snap->position = projected; snap->a = a; snap->b = b;
-                snap->t = t; snap->length = sqrtf(length2);
-            }
-        }
-    /* An off-road checkpoint/player must not snap to an unrelated distant road. */
-    return best < 200.0f * 200.0f;
-}
-
+/* The fork snaps both ends to the graph with the title's height weight and
+ * snap distance, then runs the shortest path. */
 static unsigned road_path(RoadPoint start, RoadPoint finish, RoadPoint *points, unsigned capacity)
 {
-    RoadSnap from, to;
-    unsigned i, last = NO_NODE, count = 0;
-    float best = FLT_MAX;
-    if (capacity < 2 || !s_roads.edge_count || !road_snap(start, &from) || !road_snap(finish, &to)) return 0;
-    if (from.a == to.a && from.b == to.b) {
-        points[0] = from.position; points[1] = to.position;
-        return road_distance(points[0], points[1]) > .01f ? 2 : 0;
-    }
-    s_roads.heap_count = 0;
-    for (i = 0; i < s_roads.node_count; ++i) {
-        s_roads.distance[i] = FLT_MAX; s_roads.previous[i] = NO_NODE;
-        s_roads.heap_position[i] = NO_NODE;
-    }
-    s_roads.distance[from.a] = from.t * from.length;
-    s_roads.distance[from.b] = (1 - from.t) * from.length;
-    road_heap_update(from.a); road_heap_update(from.b);
-    while (s_roads.heap_count) {
-        unsigned node = road_heap_pop(), edge;
-        float distance = s_roads.distance[node], extra;
-        if (distance >= best) break;
-        if (node == to.a || node == to.b) {
-            extra = node == to.a ? to.t * to.length : (1 - to.t) * to.length;
-            if (distance + extra < best) { best = distance + extra; last = node; }
-        }
-        for (edge = s_roads.nodes[node].first; edge != NO_NODE; edge = s_roads.edges[edge].next) {
-            unsigned next = s_roads.edges[edge].to;
-            float candidate = distance + s_roads.edges[edge].length;
-            if (candidate < s_roads.distance[next]) {
-                s_roads.distance[next] = candidate; s_roads.previous[next] = node;
-                road_heap_update(next);
-            }
-        }
-    }
-    if (last == NO_NODE) return 0; /* Never substitute a line through buildings. */
-    for (i = last; i != NO_NODE; i = s_roads.previous[i]) {
-        if (count + 2 >= capacity) return 0;
-        points[count++] = s_roads.nodes[i].position;
-    }
-    for (i = 0; i < count / 2; ++i) {
-        RoadPoint swap = points[i]; points[i] = points[count - 1 - i]; points[count - 1 - i] = swap;
-    }
-    memmove(points + 1, points, count * sizeof *points);
-    points[0] = from.position; points[count + 1] = to.position;
-    /* Remove duplicated snapped endpoints, retaining every genuine road bend. */
-    for (i = 1, last = 1; i < count + 2; ++i)
-        if (road_distance(points[last - 1], points[i]) > .01f) points[last++] = points[i];
-    return last >= 2 ? last : 0;
+    GraphSnap from, to;
+    if (!s_roads || capacity < 2 ||
+        !road_graph_snap(s_roads, start, 9.0f, 200.0f * 200.0f, &from) ||
+        !road_graph_snap(s_roads, finish, 9.0f, 200.0f * 200.0f, &to))
+        return 0;
+    return road_graph_path(s_roads, &from, &to, points, capacity);
 }
 
 typedef struct {
@@ -298,14 +152,14 @@ void mm3_race_guidance_roads(uint32_t city, uint32_t loaded)
     if (!road_graph_allocate(total)) goto invalid;
     for (i = 0; i < junction_count; ++i) {
         uint32_t object = arrays[2] + i * 0xAC;
-        s_roads.nodes[i].position = road_control(object + 0x34, 0);
-        if (!road_point_valid(s_roads.nodes[i].position)) goto invalid;
+        s_roads->nodes[i].position = road_control(object + 0x34, 0);
+        if (!road_point_valid(s_roads->nodes[i].position)) goto invalid;
     }
     for (i = 0; i < road_count; ++i) {
         RoadCurve *curve = curves + i;
         for (j = 0; j <= curve->steps; ++j) {
-            s_roads.nodes[curve->first + j].position = road_curve_point(curve, (float)j / curve->steps);
-            if (!road_point_valid(s_roads.nodes[curve->first + j].position)) goto invalid;
+            s_roads->nodes[curve->first + j].position = road_curve_point(curve, (float)j / curve->steps);
+            if (!road_point_valid(s_roads->nodes[curve->first + j].position)) goto invalid;
             if (j && !road_graph_edge(curve->first + j - 1, curve->first + j)) goto invalid;
         }
     }
@@ -330,7 +184,7 @@ void mm3_race_guidance_roads(uint32_t city, uint32_t loaded)
         if (ids[0] != NO_NODE && ids[1] != NO_NODE && ids[0] != ids[1] && !road_graph_edge(ids[0], ids[1])) goto invalid;
     }
     fprintf(stderr, "[RACE_ROUTE] city=%08X roads=%u junctions=%u nodes=%u links=%u edges=%u\n",
-            city, road_count, junction_count, s_roads.node_count, MEM32(city + 0xB0), s_roads.edge_count / 2);
+            city, road_count, junction_count, s_roads->node_count, MEM32(city + 0xB0), s_roads->edge_count / 2);
     free(curves);
     return;
 invalid:
@@ -397,14 +251,14 @@ void mm3_race_guidance_end(uint32_t player)
 static void race_paths_update(unsigned player)
 {
     unsigned i, changed;
-    changed = s_paths[player].generation != s_roads.generation ||
+    changed = s_paths[player].generation != s_road_generation ||
         s_paths[player].count != s_race[player].count || s_paths[player].closed != s_race[player].closed;
     for (i = 0; !changed && i < s_race[player].count; ++i)
         changed = s_paths[player].checkpoints[i].object != s_race[player].checkpoints[i].object ||
             road_distance(s_paths[player].checkpoints[i].position, s_race[player].checkpoints[i].position) > .01f;
     if (changed) {
         unsigned routed = 0;
-        s_paths[player].generation = s_roads.generation;
+        s_paths[player].generation = s_road_generation;
         s_paths[player].count = s_race[player].count;
         s_paths[player].closed = s_race[player].closed;
         memcpy(s_paths[player].checkpoints, s_race[player].checkpoints,
@@ -594,7 +448,7 @@ void mm3_race_map_route(uint32_t node, uint32_t table,
     if (!node || !renderer || !layout || table < 0x407F78 ||
         table >= 0x407F78 + 0x10 * RACE_PLAYERS || ((table - 0x407F78) & 15)) return;
     player = (table - 0x407F78) / 0x10;
-    if (!s_race[player].valid || s_race[player].count < 2 || !s_roads.edge_count) return;
+    if (!s_race[player].valid || s_race[player].count < 2 || !s_roads || !s_roads->edge_count) return;
     scale = MEMF(node + 0x50); width = MEMF(node + 0x58) - MEMF(node + 0x54);
     angle = MEMF(node + 0x4C); cx = MEMF(node + 0x94); cy = MEMF(node + 0x98);
     radius = MEMF(layout + 8) * .5f - MEMF(node + 0xB4) * 8.0f;
