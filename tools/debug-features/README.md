@@ -53,7 +53,7 @@ The isolated instance is left running with the debug menu and HUD enabled for re
 
 `--graphics-preset Retail|Default|Max` selects baseline/enhanced/max quality. Max uses draw distance 4, 8x MSAA, 16x AF, 1920 internal lines. `--graphics RECOMP_MSAA=1` overrides a supported graphics option. `--capture-display` captures the final window composite; otherwise captures are at internal resolution. The D3D debug layer is optional via `--graphics RECOMP_D3D_DEBUG=1`; it is not a quality feature.
 
-For blank-frame or texture-dropout regression testing omit all developer overlay switches. Capture a sequence by writing N to capture.flag. Run `python tools/debug-features/analyze_frames.py <run-directory> --start <first-gameplay-frame>` to produce frame-analysis.json. It reports sampled black frames and adjacent image changes; visual inspection must distinguish scene motion from defects. `--self-test` checks the metrics.
+For blank-frame or texture-dropout regression testing omit all developer overlay switches. Capture a sequence by writing N to capture.flag. Run `python tools/xboxrecomp/tools/bench/analyze_frames.py <run-directory> --start <first-gameplay-frame>` to produce frame-analysis.json. It reports sampled black frames and adjacent image changes; visual inspection must distinguish scene motion from defects. `--self-test` checks the metrics.
 
 The current branch integrates committed vertex-fetch and sky/depth/fog fixes through toolkit merge 40598f1 (see git history for full hash). The original font/menu placement reverts remain.
 
