@@ -12,6 +12,17 @@
 #endif
 
 ptrdiff_t g_xbox_mem_offset;
+
+/* Test double for the fork's xbox_GuestMapped: the devkit window, with the whole
+ * range inside this fixture's 8 MB committed guest buffer. */
+#define CONTRACT_RAM_BYTES (8 * 1024 * 1024)
+int xbox_GuestMapped(uint32_t va, uint32_t bytes)
+{
+    uintptr_t host;
+    if (va < 0x10000u || va >= 0x08000000u || bytes > 0x08000000u - va) return 0;
+    host = (uintptr_t)va + (uintptr_t)g_xbox_mem_offset;
+    return host >= (uintptr_t)g_xbox_mem_offset && host + bytes <= (uintptr_t)g_xbox_mem_offset + CONTRACT_RAM_BYTES;
+}
 RECOMP_TLS uint32_t g_eax, g_ecx, g_edx, g_esp, g_ebx, g_esi, g_edi, g_seh_ebp;
 RECOMP_TLS uint32_t g_ebp;
 RECOMP_TLS double g_fp_stack[8];

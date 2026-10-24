@@ -23,7 +23,7 @@ def main():
         executable = folder / f"contract{cc.exe_suffix()}"
         subprocess.run(cc.compile_command(
             [ROOT / "tests/mm3_speedometer_dial_contract.c"], executable,
-            includes=[folder, ROOT / "tools/xboxrecomp/include"], std="c11", optimize="none",
+            includes=[folder, ROOT / "tools/xboxrecomp/include", ROOT / "tools/xboxrecomp/src/kernel", ROOT / "tools/xboxrecomp/src"], std="c11", optimize="none",
             warnings="normal", werror=True, obj=folder / "contract.obj"), check=True, cwd=folder)
         subprocess.run([str(executable), "missing"], check=True, cwd=folder)
         data = folder / "game_files/Data"

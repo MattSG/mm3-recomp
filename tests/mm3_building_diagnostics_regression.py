@@ -40,6 +40,17 @@ static void trace_log(const char *format,...){
 #include "mm3_building_diagnostics.c"
 
 ptrdiff_t g_xbox_mem_offset;
+/* Test double for the fork's xbox_GuestRead: the same host-checked read, over
+ * this fixture's guest RAM at g_xbox_mem_offset. */
+int xbox_GuestRead(uint32_t va, void *out, size_t size)
+{
+    SIZE_T copied = 0;
+    uintptr_t host;
+    if (va < 0x10000u || size > UINT32_MAX || va > UINT32_MAX - size) return 0;
+    host = (uintptr_t)va + (uintptr_t)g_xbox_mem_offset;
+    if (host > UINTPTR_MAX - size) return 0;
+    return ReadProcessMemory(GetCurrentProcess(), (const void *)host, out, size, &copied) && copied == size;
+}
 RECOMP_TLS uint32_t g_eax,g_ecx,g_edx,g_esp,g_ebx,g_esi,g_edi,g_ebp,g_seh_ebp,g_fs_base,g_eflags;
 RECOMP_TLS int g_fp_top,g_df,g_fp_cmp;
 RECOMP_TLS uint16_t g_fp_control_word,g_fp_cc;
@@ -238,7 +249,7 @@ def main():
         native = re.sub(r'\b(eax|ecx|edx|esp|ebx|esi|edi|ebp)\b', r'g_\1', native)
         source.write_text(SOURCE.replace('/* NATIVE_ALLOCATOR */', native))
         subprocess.run(cc.compile_command(
-            [source], executable, includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src'],
+            [source], executable, includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src', ROOT / 'tools/xboxrecomp/src/kernel'],
             defines=['_CRT_SECURE_NO_WARNINGS'], std='c11', optimize='none', warnings='high',
             obj=folder / 'contract.obj'), check=True, cwd=folder)
         for tracing in ('0', '1'):

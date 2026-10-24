@@ -18,7 +18,7 @@ def main():
         executable = folder / f"contract{cc.exe_suffix()}"
         subprocess.run(cc.compile_command(
             [ROOT / "tests/mm3_collision_cell_contract.c"], executable,
-            includes=[folder, ROOT / "tools/xboxrecomp/include"], std="c11",
+            includes=[folder, ROOT / "tools/xboxrecomp/include", ROOT / "tools/xboxrecomp/src/kernel", ROOT / "tools/xboxrecomp/src"], std="c11",
             optimize="speed", warnings="normal", werror=True,
             obj=folder / "contract.obj"), check=True, cwd=folder)
         subprocess.run([str(executable)], check=True, cwd=folder)

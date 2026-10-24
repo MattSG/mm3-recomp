@@ -5,6 +5,13 @@
 #include "recomp_types.h"
 
 ptrdiff_t g_xbox_mem_offset;
+
+/* Test double for the fork's xbox_GuestRangeInWindow: the devkit guest window
+ * formula, with no memory access. */
+int xbox_GuestRangeInWindow(uint32_t va, uint32_t bytes)
+{
+    return va >= 0x10000u && va < 0x08000000u && bytes <= 0x08000000u - va;
+}
 RECOMP_TLS uint32_t g_eax, g_esi, g_esp;
 static unsigned char memory[0x40000];
 static const uint32_t cell = 0x10000, header = 0x11000, list = 0x12000, grid = 0x13000;
