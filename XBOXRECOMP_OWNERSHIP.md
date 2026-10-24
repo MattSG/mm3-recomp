@@ -447,7 +447,7 @@ this goal complete from the spinner migration or a clean name search alone.
   the recompiler's data-section overrides; conventional section/XDK rules stay.
 - Function identification configures the supplied XBE in its public `run()`
   entry, covering direct callers as well as CLI use. The removed reference
-  layouts are recorded only in MM3 `tools/reference/legacy_section_layouts.json`.
+  layouts are recorded only in MM3 `tools/xboxrecomp/docs/reference/legacy_section_layouts.json`.
 - `analyze_unresolved.py` now requires the matching XBE and accepts explicit
   functions/symbol/output paths. It classifies resources from parsed code/data
   flags instead of treating every unfamiliar section as a library. No fixed
@@ -966,7 +966,7 @@ source area, final cumulative runtime checks and repository/publication inventor
 ### Generic target evaluation replaces title rankings and project-status claims
 
 - Moved the original candidate-game guide and README target/project sections
-  into tools/reference/legacy_candidate_games.md, with source commit and an
+  into tools/xboxrecomp/docs/reference/legacy_candidate_games.md, with source commit and an
   explicit historical/unverified status. This preserves the original text,
   including contradictory reference-title playability claims, without treating
   it as current toolkit compatibility evidence.
@@ -1002,7 +1002,7 @@ source area, final cumulative runtime checks and repository/publication inventor
   return-site hints, map lookups are nearest public symbols, frame CSVs are
   internal diagnostics and the PVIDEO fixture does not prove presentation.
 - Moved the old reference-title regeneration notes/loader filename example into
-  tools/reference/legacy_tool_regeneration_notes.md. The generic documentation
+  tools/xboxrecomp/docs/reference/legacy_tool_regeneration_notes.md. The generic documentation
   now describes source-owned overrides, lifter fixes and regeneration proof.
   Loader executable AST is unchanged excluding its edited function docstring;
   original notes are preserved and the new guide link resolves. Evidence:
@@ -1249,7 +1249,7 @@ source area, final cumulative runtime checks and repository/publication inventor
 
 - Preserved the full original device-context page, including captured Burnout 3
   addresses, offsets, per-entry stack cleanup and snapshot/forced-state bypasses,
-  in tools/reference/legacy_d3d8ltcg_device_context.md. The archive records source
+  in tools/xboxrecomp/docs/reference/legacy_d3d8ltcg_device_context.md. The archive records source
   commit/blob provenance; its original text was checked exactly.
 - Replaced the fork page at its existing path with a generic investigation guide:
   recover image-specific state ownership, queue/fence contracts and guest calling
@@ -1267,7 +1267,7 @@ source area, final cumulative runtime checks and repository/publication inventor
 ### Runtime setup follows shared APIs; captured bring-up history moves out
 
 - Archived the full original pipeline runtime guide in
-  tools/reference/legacy_runtime_setup.md with source commit/blob provenance.
+  tools/xboxrecomp/docs/reference/legacy_runtime_setup.md with source commit/blob provenance.
   Its captured title addresses/import/override counts, executable path and old
   memory/MMIO/heap claims are historical, not SDK guarantees. The original text
   matches after line-ending normalization.
@@ -1408,7 +1408,7 @@ source area, final cumulative runtime checks and repository/publication inventor
   compatibility response is explicitly port-owned; this does not claim a real
   kernel PE implementation or native MM3 feature-probe correctness.
 - Archived the full original memory guide and kernel initialization block in
-  tools/reference/legacy_memory_layout_guide.md. The replacement guide describes
+  tools/xboxrecomp/docs/reference/legacy_memory_layout_guide.md. The replacement guide describes
   current image/RAM/VA/physical-ID APIs, guest/application state boundaries,
   owned probe storage, diagnostics and teardown. Original guide text matches
   after line-ending normalization; replacement local links resolve.
@@ -1433,7 +1433,7 @@ source area, final cumulative runtime checks and repository/publication inventor
 - This matches the existing inline DPC/IRQL state layout and is corroborated by
   the Cxbx Xbox KPCR/KPRCB declarations (linked in the reference archive).
   The old captured bootstrap is preserved as normalized text in
-  tools/reference/legacy_prcb_standin.md. No application selection or callback
+  tools/xboxrecomp/docs/reference/legacy_prcb_standin.md. No application selection or callback
   was needed: this is a generic pointer/state consistency defect.
 - Both worker layout/state cases fail against the old code. New checks verify
   own-worker pointers, main inline storage, pointer/inline DpcRoutineActive
@@ -1453,7 +1453,7 @@ source area, final cumulative runtime checks and repository/publication inventor
 - Found fixed TLS/thread-data buffers 512 bytes apart in shared startup. A larger
   template overlapped the thread data, and a loaded section at those addresses
   was overwritten before its TLS bytes were copied. Archived the full original
-  bootstrap in tools/reference/legacy_fixed_tls_storage.md.
+  bootstrap in tools/xboxrecomp/docs/reference/legacy_fixed_tls_storage.md.
 - Main TLS and slot-zero thread data now share one owned heap allocation outside
   loaded image/reservation/stack ranges, using the existing allocator. Directory
   and template ranges and size arithmetic are checked before access/allocation;
@@ -1534,7 +1534,7 @@ source area, final cumulative runtime checks and repository/publication inventor
   it now supplies valid metadata and stops before accessing guest memory if
   initialization fails. Its reserve/ABI assertions remain intact.
 - Captured title sizing/CRT stories and obsolete heap/thread/bootstrap claims in
-  the memory header moved to tools/reference/legacy_memory_header_notes.md,
+  the memory header moved to tools/xboxrecomp/docs/reference/legacy_memory_header_notes.md,
   together with the old truncated-section handling. Replacement comments match
   the current mapped-span/image/allocation distinction. Header declarations and
   numeric macro tokens are unchanged with comments/whitespace removed; this
@@ -1566,7 +1566,7 @@ source area, final cumulative runtime checks and repository/publication inventor
   failure. Only this test project now requires a C++ compiler. It does not
   claim to verify thread scheduling or allocation behavior.
 - Eight captured loader/device comment blocks moved unchanged as normalized
-  text to `tools/reference/legacy_loader_device_notes.md`. These include image
+  text to `tools/xboxrecomp/docs/reference/legacy_loader_device_notes.md`. These include image
   section addresses, debug-thunk observations, title-specific physical/device
   failure stories, obsolete audio readiness explanations and old aliasing
   observations. Replacement comments describe the current mechanism and its
@@ -1696,7 +1696,7 @@ Fork checkpoint for this batch: `364d9d1`.
   511 mapped to implemented canonical 151. Function and data cases now pass for
   both paths; a second mapping catches accidental recursive translation.
 - Captured title/XDK narratives from the bridge, API and generator/tests move
-  verbatim as normalized text to `tools/reference/legacy_ordinal_remap_notes.md`.
+  verbatim as normalized text to `tools/xboxrecomp/docs/reference/legacy_ordinal_remap_notes.md`.
   All four blocks match fork 364d9d1. The generator remains generic explicit
   name-based policy, reports unresolved imports without claiming ABI agreement,
   and reads/writes UTF-8. Matching parser labels do not certify actual imports.
@@ -1723,7 +1723,7 @@ Fork checkpoint for this batch: `364d9d1`.
 
 - The bridge no longer reads RECOMP_CMDLINE or invents title ID 0x45410091.
   Both original source blocks are retained unchanged as normalized reference
-  text in `tools/reference/legacy_launch_data_policy.md`, checked against fork
+  text in `tools/xboxrecomp/docs/reference/legacy_launch_data_policy.md`, checked against fork
   5a36559. The existing host LaunchDataPage export is sufficient generic input;
   no new configuration API was needed. Absent input is NULL. A supplied page is
   copied in full to a 4096-byte-aligned guest heap allocation, without runtime
@@ -2067,7 +2067,7 @@ Fork checkpoint for this batch: `364d9d1`.
   a title asset directory, obsolete source LOC and bump-allocator API claims,
   and broad replacement/full-synchronization claims unsupported by route tests.
   The original guide from fork a66c66c is preserved verbatim after newline
-  normalization in tools/reference/legacy_kernel_integration_guide.md.
+  normalization in tools/xboxrecomp/docs/reference/legacy_kernel_integration_guide.md.
 - The shared guide now points to current public headers and memory ownership
   guidance. Image-derived layout and port configuration replace edits to shared
   header constants. Native versus guest contracts, initialization/lifetimes,
@@ -2082,7 +2082,7 @@ Fork checkpoint for this batch: `364d9d1`.
 ### Generic register-model guide
 
 - Captured title function/SEH/global addresses and function-count/performance
-  claims are archived from fork 72f7e88 in tools/reference/legacy_register_model.md.
+  claims are archived from fork 72f7e88 in tools/xboxrecomp/docs/reference/legacy_register_model.md.
   The snapshot matches the original after newline normalization.
 - The shared guide now describes per-thread register state, local EBP and
   selected shared frame inheritance, runtime stack placement, real guest return
@@ -2100,7 +2100,7 @@ Fork checkpoint for this batch: `364d9d1`.
 ### Runtime-template commentary ownership
 
 - Eleven original comment blocks from fork e3bd6bd are retained in
-  tools/reference/legacy_runtime_template_comments.md. They mix captured title
+  tools/xboxrecomp/docs/reference/legacy_runtime_template_comments.md. They mix captured title
   failures/counts/addresses with obsolete process-global/EBP/ABI descriptions.
   The shared header now keeps generic integration requirements and states the
   actual limits of coarse code bounds, local/shared EBP, ABI diagnostics,
@@ -2386,7 +2386,7 @@ Fork checkpoint for this batch: `364d9d1`.
 ### Archive captured APU device observations
 
 - Moved four Burnout/Wreckless observation blocks from apu_core.c comments
-  to tools/reference/legacy_apu_device_observations.md. The shared comments
+  to tools/xboxrecomp/docs/reference/legacy_apu_device_observations.md. The shared comments
   explain bus aliases, interrupt vector, register startup and lock scheduling
   without captured guest addresses or title debugging narratives. Copyright
   and license notices remain untouched.
@@ -2400,7 +2400,7 @@ Fork checkpoint for this batch: `364d9d1`.
 ### Move captured support reports and development retrospective
 
 - Archived the complete legacy gap-analysis and lessons-learned documents in
-  tools/reference/legacy_gap_analysis.md and legacy_lessons_learned.md. These
+  tools/xboxrecomp/docs/reference/legacy_gap_analysis.md and legacy_lessons_learned.md. These
   contain title priorities, captured addresses, development-session history and
   stale DONE claims; they are retained as history, not current support proof.
 - Existing shared paths now contain generic integration review criteria and
@@ -2419,7 +2419,7 @@ Fork checkpoint for this batch: `364d9d1`.
   caller-supplied donors/target analysis or textures; no captured assets or
   title addresses drive their implementation. Retain the mechanisms.
 - Archived both symbol-tool module docstrings in
-  tools/reference/legacy_symbol_port_observations.md and replaced title
+  tools/xboxrecomp/docs/reference/legacy_symbol_port_observations.md and replaced title
   results/unproven cross-version generalizations with usage and matching limits.
   Both archives match normalized prior text; executable Python ASTs are
   unchanged after excluding module documentation.
@@ -2462,7 +2462,7 @@ Fork checkpoint for this batch: `364d9d1`.
   mapping, and game_vehicle for the MM3 mapping on identical input. Evidence:
   conformance_tmp/ownership-func-keywords-check.py and ownership-func-keywords/.
 - Updated the shared usage/options and moved its captured output example to
-  tools/reference/legacy_function_id_output_example.md. MM3 opt-in usage is in
+  tools/xboxrecomp/docs/reference/legacy_function_id_output_example.md. MM3 opt-in usage is in
   tools/reference/mm3_function_keywords.md. No game runtime files changed.
   Scope is this policy boundary, not complete function-identification accuracy
   or full-file ownership certification. Inventory: 630 paths / 153 src paths.
@@ -2510,7 +2510,7 @@ Fork checkpoint for this batch: `364d9d1`.
 - The RW source-ID parser used a literal RW36Active path and the header
   described a captured count of 67 strings. It now accepts numeric RW version
   tags in the same ID envelope; captured header/layout history is archived with
-  the old pipeline guide in tools/reference/legacy_function_identification_guide.md.
+  the old pipeline guide in tools/xboxrecomp/docs/reference/legacy_function_identification_guide.md.
   Config executable AST is unchanged; its title-specific history is now in MM3.
 - RW37 input fails the old parser's public classifier. Six focused tests now
   pass across versions, malformed/unrelated tags and caller keyword policy.
@@ -2536,7 +2536,7 @@ Fork checkpoint for this batch: `364d9d1`.
   with two subtests and the POSIX shell fixture is skipped. bash -n passes.
   Evidence includes conformance_tmp/ownership-ghidra-base-check.py.
 - Archived previous builder documentation and complete naming guide, including
-  captured title counts/results, in tools/reference/legacy_ghidra_import_assumptions.md.
+  captured title counts/results, in tools/xboxrecomp/docs/reference/legacy_ghidra_import_assumptions.md.
   Historical guide matches normalized old source; 3 replacement-guide links
   resolve. No live Ghidra analysis was run, and IMPORT=0 does not validate or
   rebase an existing program. No game runtime changed. Inventory now covers
@@ -2548,7 +2548,7 @@ Fork checkpoint for this batch: `364d9d1`.
 - Read source attribution, CLI and tests. The mechanism uses caller function
   ranges/string references; no captured title path drives runtime behavior.
   Archived the old Halo guide/results and source/test examples in
-  tools/reference/legacy_debug_symbol_recovery.md. Guide payload matches prior
+  tools/xboxrecomp/docs/reference/legacy_debug_symbol_recovery.md. Guide payload matches prior
   text after newline/trailing-space normalization.
 - Shared documentation now describes tentative direct votes/interpolation,
   actual JSON wrapper and application behavior. Replaced title-specific test
@@ -2705,7 +2705,7 @@ Fork checkpoint for this batch: `364d9d1`.
 - Read audio support headers/shim and retained generic declarations, conversion
   helpers and compatibility mechanisms with explicit partial-proof limits.
   Corrected stale native-rate/WASAPI/test-tone claims; preserved their history
-  in tools/reference/legacy_apu_support_claims.md. Copyright/license notices,
+  in tools/xboxrecomp/docs/reference/legacy_apu_support_claims.md. Copyright/license notices,
   including original project attribution, remain intact. Broader audio and
   ownership review remains open.
 
@@ -2718,7 +2718,7 @@ Fork checkpoint for this batch: `364d9d1`.
   1/1 afterward with halt_on_error; Windows output/monitor tests pass 2/2.
 - Read both output branches as generic host mechanisms. Replaced the broad
   bring-up guide with concise interface/ownership/diagnostic documentation,
-  preserving the original in tools/reference/legacy_apu_guide.md. Captured
+  preserving the original in tools/xboxrecomp/docs/reference/legacy_apu_guide.md. Captured
   compiler timing comments moved there too; CMake commands are unchanged and
   local guide links resolve. No source rights notices were removed.
 - This establishes scoped source/input/queue evidence, not physical endpoint,
@@ -2886,7 +2886,7 @@ Fork checkpoint for this batch: `364d9d1`.
 
 - Fork 6cb804a removes concrete triage output addresses and a captured
   function count. Original snippets are preserved in MM3 at
-  tools/reference/legacy_ghidra_run_notes.md. The generic argument-driven
+  tools/xboxrecomp/docs/reference/legacy_ghidra_run_notes.md. The generic argument-driven
   classification and seeding behavior is unchanged.
 - Read all of ClassifyTargets, SeedFunctions, DumpEntries and SetAnalysisOptions.
   They use caller/program data and generic Ghidra operations; no title policy
@@ -2917,7 +2917,7 @@ Fork checkpoint for this batch: `364d9d1`.
   caller-supplied --image-base validation. Absolute database addresses are
   exported unchanged. The guide uses header-derived sections.json metadata.
   Captured image size/donor naming counts and prior import advice moved to
-  tools/reference/legacy_ida_naming_notes.md in MM3.
+  tools/xboxrecomp/docs/reference/legacy_ida_naming_notes.md in MM3.
 - Full exporter/guide source reviewed. Mocked IDA check accepts non-reference
   bases, checks explicit expected bases, rejects mismatches before writing,
   and verifies JSON shape. Five merge_names checks pass. No live IDA claim.
@@ -3077,7 +3077,7 @@ Fork checkpoint for this batch: `364d9d1`.
   zeroing and heap exclusion. The unconstrained API delegates to full bounds.
 - MmAllocateContiguousMemoryEx now uses the same owned path for every range;
   the Halo-derived narrow-range shortcut is gone. Original title evidence and
-  allocator stories moved to tools/reference/legacy_pinned_contiguous_policy.md.
+  allocator stories moved to tools/xboxrecomp/docs/reference/legacy_pinned_contiguous_policy.md.
 - Original bridge reproduced duplicate issuance of an already-owned exact
   range. Restored source rejects it; new constrained allocations are tracked.
   Exact/invalid/reuse/heap/bridge checks pass on Windows/Linux. Full suites pass
@@ -3128,7 +3128,7 @@ Fork checkpoint for this batch: `364d9d1`.
 ### Review generic NV2A combiner and vertex interfaces
 
 - Fork 693fb08 moves title/migration/performance narratives to
-  tools/reference/legacy_nv2a_interface_notes.md and describes raw vertex
+  tools/xboxrecomp/docs/reference/legacy_nv2a_interface_notes.md and describes raw vertex
   outputs and the actual sixteen-input interface. Executable tokens unchanged.
 - Full combiner C/header and vertex header read; generic register/program
   mechanisms retained. Scope/limits are in the combiner-interface review.
@@ -3146,7 +3146,7 @@ Fork checkpoint for this batch: `364d9d1`.
   Windows/Linux. Both game builds pass. Extraction history moved into MM3.
 - Full source read found generic callback-based mechanisms. Remaining high-byte,
   flags, MOVZX and validation gaps are recorded in
-  tools/reference/ownership_mmio_decoder_frontier.md; source stays needs_generic_fix.
+  tools/xboxrecomp/docs/reference/ownership_mmio_decoder_frontier.md; source stays needs_generic_fix.
   No full MMIO/decoder or goal-completion claim is made.
 
 

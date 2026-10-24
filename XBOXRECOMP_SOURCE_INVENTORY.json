@@ -2570,19 +2570,19 @@
           "decision": "retain_generic_boundary",
           "reviewed_at_fork": "8ffa9feef6ba84daaf12dde5b9e6ac6ba3a26522",
           "scope": "Full shared decoder source ownership review; bounded snapshot prevalidation, complete supported memory-form checks, 15-byte limit, REX ordering and checked fault-handler fetch",
-          "evidence": "42 pre-fix assertions fail for 13 register-only forms and overlong encoding; snapshots/truncation/guard-page tests pass Windows/Linux; both game builds pass; tools/reference/ownership_mmio_decoder_frontier.md",
+          "evidence": "42 pre-fix assertions fail for 13 register-only forms and overlong encoding; snapshots/truncation/guard-page tests pass Windows/Linux; both game builds pass; tools/xboxrecomp/docs/reference/ownership_mmio_decoder_frontier.md",
           "limit": "Supported host x86-64 subset only; no full ISA/native CPU differential/live MMIO or macOS proof. Snapshot fetch adds host read overhead; concurrent instruction modification remains caller lifecycle responsibility.",
           "prior_review": {
             "decision": "needs_generic_fix",
             "reviewed_at_fork": "eb5e2e4175ae756265d9120e722aa73cced0a4f9",
             "scope": "Shared MMIO register lane, MOVZX destination and defined status flag semantics across supported MOV/TEST/CMP/OR/AND paths",
-            "evidence": "Eight new pre-fix failures; actual-header checks pass Windows/Linux including 20 CMP edge cases across byte/word/dword/qword; both game builds pass; tools/reference/ownership_mmio_decoder_frontier.md",
+            "evidence": "Eight new pre-fix failures; actual-header checks pass Windows/Linux including 20 CMP edge cases across byte/word/dword/qword; both game builds pass; tools/xboxrecomp/docs/reference/ownership_mmio_decoder_frontier.md",
             "limit": "General ModRM form validation and prefix/instruction-byte bounds remain incomplete. No complete decoder/native CPU differential or live MMIO certification; logical AF is undefined and preserved.",
             "prior_review": {
               "decision": "needs_generic_fix",
               "reviewed_at_fork": "ae79ef6118a9419fbdf552ba50423b4f8c05a61a",
               "scope": "Full shared MMIO decoder source ownership read; SIB no-base displacement, immediate size/sign extension, REX.W precedence and C6/C7 form validation fixes",
-              "evidence": "tools/reference/ownership_mmio_decoder_frontier.md; six pre-fix failures; existing/new actual-header checks pass Windows/Linux; both game builds pass; migration narrative moved to legacy_mmio_decoder_notes.md",
+              "evidence": "tools/xboxrecomp/docs/reference/ownership_mmio_decoder_frontier.md; six pre-fix failures; existing/new actual-header checks pass Windows/Linux; both game builds pass; migration narrative moved to legacy_mmio_decoder_notes.md",
               "limit": "High-byte register semantics, complete flags, 16-bit MOVZX destination, general ModRM validation and instruction-byte/prefix bounds remain incomplete. No full decoder, live MMIO or hardware certification."
             }
           }
@@ -4886,13 +4886,13 @@
           "decision": "retain_generic_boundary",
           "reviewed_at_fork": "8ffa9feef6ba84daaf12dde5b9e6ac6ba3a26522",
           "scope": "Full shared decoder source ownership review; bounded snapshot prevalidation, complete supported memory-form checks, 15-byte limit, REX ordering and checked fault-handler fetch",
-          "evidence": "42 pre-fix assertions fail for 13 register-only forms and overlong encoding; snapshots/truncation/guard-page tests pass Windows/Linux; both game builds pass; tools/reference/ownership_mmio_decoder_frontier.md",
+          "evidence": "42 pre-fix assertions fail for 13 register-only forms and overlong encoding; snapshots/truncation/guard-page tests pass Windows/Linux; both game builds pass; tools/xboxrecomp/docs/reference/ownership_mmio_decoder_frontier.md",
           "limit": "Supported host x86-64 subset only; no full ISA/native CPU differential/live MMIO or macOS proof. Snapshot fetch adds host read overhead; concurrent instruction modification remains caller lifecycle responsibility.",
           "prior_review": {
             "decision": "retain_generic_boundary",
             "reviewed_at_fork": "ae79ef6118a9419fbdf552ba50423b4f8c05a61a",
             "scope": "Full shared MMIO decoder source ownership read; SIB no-base displacement, immediate size/sign extension, REX.W precedence and C6/C7 form validation fixes",
-            "evidence": "tools/reference/ownership_mmio_decoder_frontier.md; six pre-fix failures; existing/new actual-header checks pass Windows/Linux; both game builds pass; migration narrative moved to legacy_mmio_decoder_notes.md",
+            "evidence": "tools/xboxrecomp/docs/reference/ownership_mmio_decoder_frontier.md; six pre-fix failures; existing/new actual-header checks pass Windows/Linux; both game builds pass; migration narrative moved to legacy_mmio_decoder_notes.md",
             "limit": "High-byte register semantics, complete flags, 16-bit MOVZX destination, general ModRM validation and instruction-byte/prefix bounds remain incomplete. No full decoder, live MMIO or hardware certification."
           }
         }
@@ -4933,19 +4933,19 @@
           "decision": "retain_generic_boundary",
           "reviewed_at_fork": "8ffa9feef6ba84daaf12dde5b9e6ac6ba3a26522",
           "scope": "Full shared decoder source ownership review; bounded snapshot prevalidation, complete supported memory-form checks, 15-byte limit, REX ordering and checked fault-handler fetch",
-          "evidence": "42 pre-fix assertions fail for 13 register-only forms and overlong encoding; snapshots/truncation/guard-page tests pass Windows/Linux; both game builds pass; tools/reference/ownership_mmio_decoder_frontier.md",
+          "evidence": "42 pre-fix assertions fail for 13 register-only forms and overlong encoding; snapshots/truncation/guard-page tests pass Windows/Linux; both game builds pass; tools/xboxrecomp/docs/reference/ownership_mmio_decoder_frontier.md",
           "limit": "Supported host x86-64 subset only; no full ISA/native CPU differential/live MMIO or macOS proof. Snapshot fetch adds host read overhead; concurrent instruction modification remains caller lifecycle responsibility.",
           "prior_review": {
             "decision": "retain_generic_boundary",
             "reviewed_at_fork": "eb5e2e4175ae756265d9120e722aa73cced0a4f9",
             "scope": "Shared MMIO register lane, MOVZX destination and defined status flag semantics across supported MOV/TEST/CMP/OR/AND paths",
-            "evidence": "Eight new pre-fix failures; actual-header checks pass Windows/Linux including 20 CMP edge cases across byte/word/dword/qword; both game builds pass; tools/reference/ownership_mmio_decoder_frontier.md",
+            "evidence": "Eight new pre-fix failures; actual-header checks pass Windows/Linux including 20 CMP edge cases across byte/word/dword/qword; both game builds pass; tools/xboxrecomp/docs/reference/ownership_mmio_decoder_frontier.md",
             "limit": "General ModRM form validation and prefix/instruction-byte bounds remain incomplete. No complete decoder/native CPU differential or live MMIO certification; logical AF is undefined and preserved.",
             "prior_review": {
               "decision": "retain_generic_boundary",
               "reviewed_at_fork": "ae79ef6118a9419fbdf552ba50423b4f8c05a61a",
               "scope": "Full shared MMIO decoder source ownership read; SIB no-base displacement, immediate size/sign extension, REX.W precedence and C6/C7 form validation fixes",
-              "evidence": "tools/reference/ownership_mmio_decoder_frontier.md; six pre-fix failures; existing/new actual-header checks pass Windows/Linux; both game builds pass; migration narrative moved to legacy_mmio_decoder_notes.md",
+              "evidence": "tools/xboxrecomp/docs/reference/ownership_mmio_decoder_frontier.md; six pre-fix failures; existing/new actual-header checks pass Windows/Linux; both game builds pass; migration narrative moved to legacy_mmio_decoder_notes.md",
               "limit": "High-byte register semantics, complete flags, 16-bit MOVZX destination, general ModRM validation and instruction-byte/prefix bounds remain incomplete. No full decoder, live MMIO or hardware certification."
             }
           }
@@ -6633,7 +6633,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "6cb804af68e63bcc03f45dac5576e83d7ebb9e03",
         "scope": "Full source read of argument-driven Ghidra triage, function seeding, entry export and analysis option scripts; captured run commentary moved to MM3",
-        "evidence": "tools/reference/legacy_ghidra_run_notes.md; edited Java executable body and Python token equality; four merge_names checks pass",
+        "evidence": "tools/xboxrecomp/docs/reference/legacy_ghidra_run_notes.md; edited Java executable body and Python token equality; four merge_names checks pass",
         "limit": "No Ghidra/Jython execution or analyzer API compatibility certification; source ownership only"
       }
     },
@@ -6646,7 +6646,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "6cb804af68e63bcc03f45dac5576e83d7ebb9e03",
         "scope": "Full source read of argument-driven Ghidra triage, function seeding, entry export and analysis option scripts; captured run commentary moved to MM3",
-        "evidence": "tools/reference/legacy_ghidra_run_notes.md; edited Java executable body and Python token equality; four merge_names checks pass",
+        "evidence": "tools/xboxrecomp/docs/reference/legacy_ghidra_run_notes.md; edited Java executable body and Python token equality; four merge_names checks pass",
         "limit": "No Ghidra/Jython execution or analyzer API compatibility certification; source ownership only"
       }
     },
@@ -6672,7 +6672,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "6cb804af68e63bcc03f45dac5576e83d7ebb9e03",
         "scope": "Full source read of argument-driven Ghidra triage, function seeding, entry export and analysis option scripts; captured run commentary moved to MM3",
-        "evidence": "tools/reference/legacy_ghidra_run_notes.md; edited Java executable body and Python token equality; four merge_names checks pass",
+        "evidence": "tools/xboxrecomp/docs/reference/legacy_ghidra_run_notes.md; edited Java executable body and Python token equality; four merge_names checks pass",
         "limit": "No Ghidra/Jython execution or analyzer API compatibility certification; source ownership only"
       }
     },
@@ -6685,7 +6685,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "6cb804af68e63bcc03f45dac5576e83d7ebb9e03",
         "scope": "Full source read of argument-driven Ghidra triage, function seeding, entry export and analysis option scripts; captured run commentary moved to MM3",
-        "evidence": "tools/reference/legacy_ghidra_run_notes.md; edited Java executable body and Python token equality; four merge_names checks pass",
+        "evidence": "tools/xboxrecomp/docs/reference/legacy_ghidra_run_notes.md; edited Java executable body and Python token equality; four merge_names checks pass",
         "limit": "No Ghidra/Jython execution or analyzer API compatibility certification; source ownership only"
       }
     },
