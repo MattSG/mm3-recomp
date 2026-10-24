@@ -9,7 +9,12 @@
  * the remaining dispatch/epilogue corrupts the caller's saved registers and
  * returns with ESP 28 bytes too low on the 0x1110-byte Cruise resource.
  * Translate that copy contract directly, without skipping resource data.
- * RECOMP_STREAM_COPY_ORIGINAL selects the generated body for diagnosis. */
+ * RECOMP_STREAM_COPY_ORIGINAL selects the generated body for diagnosis.
+ *
+ * tests/mm3_cruise_copy_regression.py runs the generated 0x145DC with its lifted
+ * helpers against this contract for every count up to 0x2FFF and passes. The
+ * in-game fault this override was written for is not reproduced there, so the
+ * override stays until a game run shows the generated body is safe to use. */
 void mm3_stream_read_copy(void)
 {
     uint32_t stream = g_ecx;
