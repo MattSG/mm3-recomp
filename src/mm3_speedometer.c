@@ -10,6 +10,7 @@
 #include "recomp_types.h"
 #include "mm3_speedometer.h"
 #include "string_ci.h"
+#include "thick_line.h"
 
 /* The shared header exposes MMX only to generated translation units. Its
  * eight-byte representation is also needed here for complete preservation. */
@@ -156,12 +157,8 @@ static void box(const Dial *dial, float x, float y, float w, float h,
 static void line(const Dial *dial, float x1, float y1, float x2, float y2,
                  float width, float r, float g, float b)
 {
-    float dx = x2 - x1, dy = y2 - y1, length = sqrtf(dx * dx + dy * dy);
-    float nx, ny, xy[8];
-    if (length <= 0.0f) return;
-    nx = dy * width * 0.5f / length; ny = -dx * width * 0.5f / length;
-    xy[0] = x1 + nx; xy[1] = y1 + ny; xy[2] = x2 + nx; xy[3] = y2 + ny;
-    xy[4] = x2 - nx; xy[5] = y2 - ny; xy[6] = x1 - nx; xy[7] = y1 - ny;
+    float xy[8];
+    if (!thick_line_quad(xy, x1, y1, x2, y2, width)) return;
     quad(dial, xy, r, g, b);
 }
 
