@@ -27,7 +27,7 @@ REPO = Path(__file__).resolve().parents[1]
 # carries the fixes this project used to patch in here (fld tbyte, flag joins,
 # dead branches). Pair any pin change with a game-validated regeneration.
 # MM3_GENERATOR_DIR points at another checkout for isolated comparisons.
-GENERATOR_COMMIT = 'a3d995248fe0daceddeae0970689fcdeb4d90c89'
+GENERATOR_COMMIT = '3f006956dd702d9f2a6dfadb2484405d75604b7b'
 
 
 def generator_dir():
@@ -57,6 +57,9 @@ def setup_toolkit():
 # Computed reverse-copy entries share 0x93860's frame and end at its epilogue.
 MEMMOVE_TAILS = (0x93B04, 0x93B58, 0x93B60, 0x93B70, 0x93B84)
 MEMMOVE_END = 0x93B9D
+# Remainder entries inside the 0x93B04 tail: reverse_memmove's jump table and
+# the tails above reach them directly, so each is a resume entry of that tail.
+MEMMOVE_RESUME = (0x93B0C, 0x93B14, 0x93B1C, 0x93B24, 0x93B2C, 0x93B3F)
 # Bodies recomp_manual.c wraps (sub_X calls sub_X_gen): CRT functions on the
 # alternate SEH prolog and FPO helpers whose callee-save contract is enforced.
 SEH_OVERLAYS = (0x83FBB, 0x84020, 0x8427E, 0x842EA, 0x854CF, 0x858F3, 0x860AA,
@@ -132,8 +135,11 @@ def main():
     write_tail_functions(tails)
     for address in MEMMOVE_TAILS:
         name = f'sub_{address:08X}'
+        resume = []
+        if address == 0x93B04:
+            resume = [arg for entry in MEMMOVE_RESUME for arg in ('--resume-entry', hex(entry))]
         body = py('-m', 'tools.recomp', XBE, '--function', hex(address), '--functions', tails,
-                  '--seh-prolog', '0x00097AA4', '--skip-binary-check',
+                  '--seh-prolog', '0x00097AA4', '--skip-binary-check', *resume,
                   capture_output=True, text=True).stdout
         body = body.replace(f'void {name}(void)', f'void {name}_gen(void)')
         (out / f'recomp_{address:08x}_tail.c').write_text(PRELUDE.format('') + body)
