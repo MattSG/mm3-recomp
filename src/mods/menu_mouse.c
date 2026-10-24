@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "recomp_funcs.h"
+#include "guest_state.h"
 #include "nv2a_d3d11.h"
 #include "mods.h"
 #include "fb_present.h"
@@ -374,43 +375,15 @@ static int take_click(MenuClick *click)
     return pending;
 }
 
-typedef struct {
-    uint32_t regs[9];
-    double fp[8];
-    int top, cmp, df;
-    uint16_t cc, control;
-    RecompXmm xmm[8];
-} GuestState;
-
-static GuestState save_guest(void)
-{
-    GuestState s = {{g_eax, g_ecx, g_edx, g_esp, g_ebx, g_esi, g_edi, g_seh_ebp, g_ebp},
-        {0}, g_fp_top, g_fp_cmp, g_df, g_fp_cc, g_fp_control_word,
-        {g_xmm0, g_xmm1, g_xmm2, g_xmm3, g_xmm4, g_xmm5, g_xmm6, g_xmm7}};
-    memcpy(s.fp, g_fp_stack, sizeof s.fp);
-    return s;
-}
-
-static void restore_guest(const GuestState *s)
-{
-    g_eax = s->regs[0]; g_ecx = s->regs[1]; g_edx = s->regs[2]; g_esp = s->regs[3];
-    g_ebx = s->regs[4]; g_esi = s->regs[5]; g_edi = s->regs[6];
-    g_seh_ebp = s->regs[7]; g_ebp = s->regs[8];
-    memcpy(g_fp_stack, s->fp, sizeof s->fp);
-    g_fp_top = s->top; g_fp_cmp = s->cmp; g_df = s->df;
-    g_fp_cc = s->cc; g_fp_control_word = s->control;
-    g_xmm0 = s->xmm[0]; g_xmm1 = s->xmm[1]; g_xmm2 = s->xmm[2]; g_xmm3 = s->xmm[3];
-    g_xmm4 = s->xmm[4]; g_xmm5 = s->xmm[5]; g_xmm6 = s->xmm[6]; g_xmm7 = s->xmm[7];
-}
-
 static void queue_button(uint32_t context, unsigned button)
 {
     recomp_func_t fn = recomp_lookup_manual(0x001C58FC);
     if (!fn) fn = recomp_lookup(0x001C58FC);
     if (!fn) return;
-    GuestState s = save_guest();
+    xbox_guest_state s;
+    xbox_guest_state_save(&s);
     for (int down = 1; down >= 0; down--) {
-        g_esp = s.regs[3] - 0x100;
+        g_esp = s.esp - 0x100;
         g_esp -= 4; MEMF(g_esp) = 0;
         g_esp -= 4; MEMF(g_esp) = (float)down;
         g_esp -= 4; MEMF(g_esp) = (float)button;
@@ -421,7 +394,7 @@ static void queue_button(uint32_t context, unsigned button)
         PUSH32(g_esp, 0);
         fn();
     }
-    restore_guest(&s);
+    xbox_guest_state_restore(&s, s.eax);
     if (trace_native()) {
         static unsigned reports;
         if (reports++ < 64)
@@ -545,7 +518,8 @@ static int pick_native(MenuLayout *frame, const MenuClick *click)
         queue_button(frame->root, arrow_hit->button);
         return 0;
     }
-    GuestState s = save_guest();
+    xbox_guest_state s;
+    xbox_guest_state_save(&s);
     for (unsigned i = 0; i < frame->count; ++i) {
         MenuTab *tab = &frame->tabs[i];
         float area = tab->w * tab->h;
@@ -558,7 +532,7 @@ static int pick_native(MenuLayout *frame, const MenuClick *click)
             !isfinite(area) || area > best_area ||
             (!track_tab && !arrow_tab && (x < tab->x || x >= tab->x + tab->w || y < tab->y || y >= tab->y + tab->h ||
             !over_control(tab, x, y)))) continue;
-        g_esp = s.regs[3] - 0x100;
+        g_esp = s.esp - 0x100;
         PUSH32(g_esp, tab->context);
         if (call_virtual(tab->node, 0xC0) && (g_eax & 0xFF)) {
             hit = tab;
@@ -569,7 +543,7 @@ static int pick_native(MenuLayout *frame, const MenuClick *click)
         float fx = hit->x + hit->w * 0.5f, fy = hit->y + hit->h * 0.5f;
         if (MEMF(hit->context+0x34) != fx || MEMF(hit->context+0x38) != fy) {
             changed_focus = 1;
-            g_esp = s.regs[3] - 0x100;
+            g_esp = s.esp - 0x100;
             g_esp -= 4; MEMF(g_esp) = fy;
             g_esp -= 4; MEMF(g_esp) = fx;
             int applied = call_virtual(hit->context, 0x54);
@@ -578,7 +552,7 @@ static int pick_native(MenuLayout *frame, const MenuClick *click)
                         frame->root, hit->context, hit->node, x, y, fx, fy, applied, GetTickCount64());
         }
     }
-    restore_guest(&s);
+    xbox_guest_state_restore(&s, s.eax);
     if (click && hit &&
         (MEMF(hit->context+0x34) != hit->x + hit->w*0.5f ||
          MEMF(hit->context+0x38) != hit->y + hit->h*0.5f)) return 0;
@@ -847,14 +821,15 @@ void sub_0010553A(void)
         if (!next.locked && next.index != painting_colors->current &&
             over_native_rect(painting_colors->context, next.x, next.y, next.w, next.h)) {
             /* Reuse the native selected-swatch ring, with orange RGB. */
-            GuestState state = save_guest();
+            xbox_guest_state state;
+            xbox_guest_state_save(&state);
             float rgb[12];
             for (unsigned v = 0; v < 4; ++v) for (unsigned c = 0; c < 3; ++c) {
                 uint32_t color = quad+0x20+v*0x24+c*4;
                 rgb[v*3+c] = MEMF(color);
                 MEMF(color) = menu_orange[c];
             }
-            g_esp = state.regs[3]-0x100;
+            g_esp = state.esp-0x100;
             PUSH32(g_esp, quad);
             PUSH32(g_esp, MEM32(painting_colors->node+0x14));
             PUSH32(g_esp, 0);
@@ -862,7 +837,7 @@ void sub_0010553A(void)
             sub_001C1585_original();
             for (unsigned v = 0; v < 4; ++v) for (unsigned c = 0; c < 3; ++c)
                 MEMF(quad+0x20+v*0x24+c*4) = rgb[v*3+c];
-            restore_guest(&state);
+            xbox_guest_state_restore(&state, state.eax);
         }
     }
 }

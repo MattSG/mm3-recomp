@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #ifdef _WIN32
 #include <windows.h>
+#include "guest_state.h"
 #include "xbox_memory_layout.h"
 #endif
 #include <stdio.h>
@@ -124,53 +125,9 @@ static int player_alias(char alias[32])
 }
 
 typedef struct {
-    uint32_t regs[10];
-    double fp[8];
-    int top, cmp, df;
-    uint16_t cc, control;
-    RecompXmm xmm[8];
-    RecompMmx mmx[8];
-} GuestState;
-
-static void save_state(GuestState *state)
-{
-    const uint32_t regs[] = {g_eax, g_ecx, g_edx, g_esp, g_ebx, g_esi,
-        g_edi, g_ebp, g_seh_ebp, g_fs_base};
-    const RecompXmm xmm[] = {g_xmm0, g_xmm1, g_xmm2, g_xmm3,
-        g_xmm4, g_xmm5, g_xmm6, g_xmm7};
-    const RecompMmx mmx[] = {g_mm0, g_mm1, g_mm2, g_mm3,
-        g_mm4, g_mm5, g_mm6, g_mm7};
-    memcpy(state->regs, regs, sizeof regs);
-    memcpy(state->fp, g_fp_stack, sizeof state->fp);
-    memcpy(state->xmm, xmm, sizeof xmm);
-    memcpy(state->mmx, mmx, sizeof mmx);
-    state->top = g_fp_top; state->cmp = g_fp_cmp; state->df = g_df;
-    state->cc = g_fp_cc; state->control = g_fp_control_word;
-}
-
-static void restore_state(const GuestState *state)
-{
-    g_eax = state->regs[0]; g_ecx = state->regs[1]; g_edx = state->regs[2];
-    g_esp = state->regs[3]; g_ebx = state->regs[4]; g_esi = state->regs[5];
-    g_edi = state->regs[6]; g_ebp = state->regs[7]; g_seh_ebp = state->regs[8];
-    g_fs_base = state->regs[9];
-    memcpy(g_fp_stack, state->fp, sizeof state->fp);
-    g_fp_top = state->top; g_fp_cmp = state->cmp; g_df = state->df;
-    g_fp_cc = state->cc; g_fp_control_word = state->control;
-    g_xmm0 = state->xmm[0]; g_xmm1 = state->xmm[1];
-    g_xmm2 = state->xmm[2]; g_xmm3 = state->xmm[3];
-    g_xmm4 = state->xmm[4]; g_xmm5 = state->xmm[5];
-    g_xmm6 = state->xmm[6]; g_xmm7 = state->xmm[7];
-    g_mm0 = state->mmx[0]; g_mm1 = state->mmx[1];
-    g_mm2 = state->mmx[2]; g_mm3 = state->mmx[3];
-    g_mm4 = state->mmx[4]; g_mm5 = state->mmx[5];
-    g_mm6 = state->mmx[6]; g_mm7 = state->mmx[7];
-}
-
-typedef struct {
     uint32_t scratch, renderer, effects, frame;
     float cx, cy;
-    const GuestState *state;
+    const xbox_guest_state *state;
 } Dial;
 
 static void quad(const Dial *dial, const float xy[8], float r, float g, float b)
@@ -180,7 +137,7 @@ static void quad(const Dial *dial, const float xy[8], float r, float g, float b)
     unsigned i;
     /* Each native draw starts with the same complete guest state. The effect
      * chain can use more than its visible integer argument registers. */
-    restore_state(dial->state);
+    xbox_guest_state_restore(dial->state, dial->state->eax);
     memset((void *)XBOX_PTR(data), 0, 0xA0);
     MEMF(rectangle) = dial->cx - 66.0f;
     MEMF(rectangle + 4) = dial->cy - 66.0f;
@@ -198,7 +155,7 @@ static void quad(const Dial *dial, const float xy[8], float r, float g, float b)
     g_eax = dial->effects; g_edx = dial->renderer;
     PUSH32(g_esp, data); PUSH32(g_esp, 0); PUSH32(g_esp, 0x0023FAD2u);
     RECOMP_ABI_CALL(0x001C1585u, sub_001C1585);
-    restore_state(dial->state);
+    xbox_guest_state_restore(dial->state, dial->state->eax);
 }
 
 static void box(const Dial *dial, float x, float y, float w, float h,
@@ -332,7 +289,7 @@ int mm3_speedometer_draw(uint32_t node, uint32_t frame, double speed_kmh)
     double start, end, value, angle;
     const float (*directions)[2];
     float needle_c, needle_s;
-    GuestState state;
+    xbox_guest_state state;
     Dial dial;
     if (!mapped(node, 0x34) || !mapped(frame - 352u, 0x180) ||
         MEM32(frame - 344u) == 1u) return 0;
@@ -360,7 +317,7 @@ int mm3_speedometer_draw(uint32_t node, uint32_t frame, double speed_kmh)
     dial.cy = MEMF(frame - 72u) + 81.0f;
     if (!isfinite(start) || !isfinite(end) || end <= start || end - start > 360.0 ||
         !isfinite(dial.cx) || !isfinite(dial.cy)) return 0;
-    save_state(&state);
+    xbox_guest_state_save(&state);
     dial.scratch = g_esp - 0x500u; dial.renderer = g_esi;
     dial.effects = MEM32(frame + 0x18u); dial.frame = frame; dial.state = &state;
     disk(&dial);
@@ -383,7 +340,7 @@ int mm3_speedometer_draw(uint32_t node, uint32_t frame, double speed_kmh)
          dial.cx + 64.0f * needle_c, dial.cy + 64.0f * needle_s,
          1.6f, 1.0f, .26f, .10f);
     box(&dial, dial.cx - 2.0f, dial.cy - 2.0f, 4.0f, 4.0f, .87f, .91f, .96f);
-    restore_state(&state);
+    xbox_guest_state_restore(&state, state.eax);
     if (!same_alias(last_alias, alias) || maximum != last_maximum || metric != last_metric) {
         fprintf(stderr, "[SPEEDOMETER] alias=%s maximum=%.9g units=%s type=%u\n",
                 alias, maximum, metric ? "km/h" : "mph", type);
