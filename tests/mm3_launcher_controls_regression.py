@@ -39,7 +39,9 @@ def main():
     parts = [
         "#include <windows.h>\n#include <stdio.h>\n#include <stdlib.h>\n"
         "#include <string.h>\n#include <ctype.h>\n#include <string>\n#include <vector>\n"
-        "namespace Rml { using String = std::string; template<class T> using Vector = std::vector<T>; }\n",
+        "namespace Rml { using String = std::string; template<class T> using Vector = std::vector<T>; }\n"
+        "#include \"keymap_spec.h\"\n"
+        "#include \"" + (ROOT / "tools/xboxrecomp/src/input/keymap_spec.c").as_posix() + "\"\n",
         declaration(source, r"struct Bind\s*{"),
         declaration(source, r"Rml::Vector<Bind> g_binds\s*="),
     ]
@@ -80,7 +82,8 @@ int main(int argc, char **argv) {
         input_exe = folder / f"input_contract{cc.exe_suffix()}"
         subprocess.run(cc.compile_command(
             [utility], maps_exe, std="c++17", optimize="speed", warnings="normal",
-            defines=["_CRT_SECURE_NO_WARNINGS"], libs=["user32"], obj=folder / "launcher_maps.obj"),
+            defines=["_CRT_SECURE_NO_WARNINGS"], includes=[ROOT / "tools/xboxrecomp/src/input"],
+            libs=["user32"], obj=folder / "launcher_maps.obj"),
             cwd=folder, check=True)
         subprocess.run(cc.compile_command(
             [ROOT / "tests/mm3_input_contract.c"], input_exe, std="c11", optimize="speed",

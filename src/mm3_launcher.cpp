@@ -10,6 +10,7 @@
 #include <ctype.h>
 #include <stdint.h>
 #include "mods/mods.h"
+#include "keymap_spec.h"
 #include "ui/rmlui_host.h"
 
 #if defined(XBOXRECOMP_SDL3)
@@ -569,12 +570,19 @@ void set_key(Bind &b, int vk)
         b.key = key_name(vk);
 }
 
-/* NAME:VK,... with VK in hex, as the runtime reads RECOMP_KEYMAP. */
+/* NAME:VK,... with VK in hex, as the runtime reads RECOMP_KEYMAP (the fork's
+ * keymap_spec); RECOMP_PADMAP names its sources instead. */
 void parse_keymap(const char *env, const char *p)
 {
     for (Bind &b : g_binds) {
         if (b.env != env)
             continue;
+        if (!pad_bind(b)) {
+            unsigned vk;
+            if (keymap_spec_find(p, b.name.c_str(), &vk))
+                set_key(b, (int)(vk & 0xFF));
+            continue;
+        }
         const char *at = strstr(p, (b.name + ":").c_str());
         /* Names are matched whole: LX- must not match inside RLX-. */
         while (at && at != p && at[-1] != ',')
@@ -582,10 +590,6 @@ void parse_keymap(const char *env, const char *p)
         if (!at)
             continue;
         const char *v = at + b.name.size() + 1;
-        if (!pad_bind(b)) {
-            set_key(b, (int)strtoul(v, NULL, 16) & 0xFF);
-            continue;
-        }
         for (int s = 0; s < 16; s++) { /* NAME:SOURCE, the source by name */
             size_t n = strlen(kPadSources[s]);
             if (!strncmp(v, kPadSources[s], n) && (v[n] == ',' || !v[n]))
@@ -597,19 +601,21 @@ void parse_keymap(const char *env, const char *p)
 Rml::String keymap(const char *env)
 {
     Rml::String out;
+    char spec[4096] = "";
     char item[32];
     for (const Bind &b : g_binds) {
         if (b.env != env)
             continue;
-        if (pad_bind(b) && (b.vk < 1 || b.vk > 16))
+        if (!pad_bind(b)) {
+            keymap_spec_append(spec, sizeof spec, b.name.c_str(), (unsigned)b.vk);
             continue;
-        if (pad_bind(b))
-            snprintf(item, sizeof item, "%s%s:%s", out.empty() ? "" : ",", b.name.c_str(), kPadSources[b.vk - 1]);
-        else
-            snprintf(item, sizeof item, "%s%s:%X", out.empty() ? "" : ",", b.name.c_str(), b.vk);
+        }
+        if (b.vk < 1 || b.vk > 16)
+            continue;
+        snprintf(item, sizeof item, "%s%s:%s", out.empty() ? "" : ",", b.name.c_str(), kPadSources[b.vk - 1]);
         out += item;
     }
-    return out;
+    return out.empty() ? Rml::String(spec) : out;
 }
 
 void reset_all()
