@@ -4,6 +4,7 @@
 #include "recomp_types.h"
 #include "mods.h"
 #include "camera_math.h"
+#include "slot_publish.h"
 
 /* Widescreen (Hor+). MM3 has no 16:9 mode: every 3D camera builds its
  * projection through 0x25968E, D3DXMatrixPerspectiveFovLH(out, fovy, aspect,
@@ -33,19 +34,13 @@ static struct {
 
 static uint32_t map_atomic_read(volatile uint32_t *word)
 {
-    return RECOMP_ATOMIC_ADD32(word, 0);
+    return xbox_slot_read(word);
 }
 
 static void map_publish(unsigned slot, uint32_t owner, const uint32_t *textures)
 {
-    unsigned i;
-    RECOMP_ATOMIC_ADD32(&s_map_owners[slot].sequence, 1); /* odd: unpublished */
-    for (i = 0; i < MAP_TEXTURE_COUNT; ++i)
-        RECOMP_ATOMIC_CAS32(&s_map_owners[slot].textures[i],
-                           map_atomic_read(&s_map_owners[slot].textures[i]),
-                           textures ? textures[i] : 0);
-    s_map_owners[slot].owner = owner;
-    RECOMP_ATOMIC_ADD32(&s_map_owners[slot].sequence, 1); /* even: complete */
+    xbox_slot_publish(&s_map_owners[slot].sequence, s_map_owners[slot].textures,
+                      MAP_TEXTURE_COUNT, textures, &s_map_owners[slot].owner, owner);
 }
 
 static void map_forget(uint32_t owner)
