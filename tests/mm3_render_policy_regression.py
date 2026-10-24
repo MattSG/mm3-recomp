@@ -12,5 +12,7 @@ def main():
         subprocess.run(cc.compile_command([ROOT / "tests/mm3_render_policy_contract.c"], exe,
             includes=[ROOT / "tools/xboxrecomp/src/video"], defines=["_CRT_SECURE_NO_WARNINGS"], std="c11", optimize="none",
             warnings="high", obj=folder / "contract.obj"), check=True, cwd=folder)
+        # The loading-spinner setting is read once per process: run the off case alone.
         subprocess.run([str(exe)], check=True)
+        subprocess.run([str(exe), "spinner-off"], check=True)
 if __name__ == "__main__": main()

@@ -79,6 +79,9 @@ void sub_00170ED1(void) {
 #define RECOMP_ICALL_SAFE_AT(target, saved, site) fake_icall(target)
 #undef RECOMP_ICALL_SAFE
 #define RECOMP_ICALL_SAFE(target, saved) fake_icall(target)
+/* Caller-cleanup call sites (the generated 0x93DD3 formatter) use this form. */
+#undef RECOMP_ICALL_SAFE_CC
+#define RECOMP_ICALL_SAFE_CC(target, saved) fake_icall(target)
 #define eax g_eax
 #define ecx g_ecx
 #define edx g_edx

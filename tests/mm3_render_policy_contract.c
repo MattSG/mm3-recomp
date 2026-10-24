@@ -11,8 +11,16 @@ const float (*nv2a_vsh_constants(uint32_t *version))[4] { (void)version; return 
 
 static int enabled = 1;
 int mm3_mod_on(int mod) { (void)mod; return enabled; }
-int main(void)
+int main(int argc, char **argv)
 {
+    /* The spinner setting is read once per process: the off case runs alone,
+     * before any idle call can cache the default. */
+    if (argc == 2 && !strcmp(argv[1], "spinner-off")) {
+        _putenv_s("RECOMP_LOADING_SPINNER", "0");
+        assert(!mm3_render_idle(1250, 1000, 0));
+        puts("PASS: loading spinner off");
+        return 0;
+    }
     for (unsigned target = 0; target < 4; ++target) {
         float snap = 1, offset = 0;
         uint32_t width = target < 2 ? 640 : 128;
@@ -26,9 +34,6 @@ int main(void)
     assert(mm3_render_idle(1250,701,0) && mm3_loading_phase()==1.25f);
     assert(!mm3_render_idle(1250,701,1) && mm3_loading_phase()==0);
     assert(!mm3_render_idle(1250,0,0) && mm3_loading_phase()==0);
-    _putenv_s("RECOMP_LOADING_SPINNER", "0");
-    assert(!mm3_render_idle(1250,1000,0));
-    _putenv_s("RECOMP_LOADING_SPINNER", "");
     NvD3DState base = {0}, changed;
     unsigned i;
     base.tex_used = 1; base.blend_enable = 1;

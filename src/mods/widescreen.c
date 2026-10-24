@@ -148,6 +148,23 @@ static float camera_fov_degrees(void)
     return degrees;
 }
 
+/* MM3_FOV is read once: the camera projection runs every race frame. */
+static float camera_fov_percent(void)
+{
+    static int loaded;
+    static float scale = 1.0f;
+    if (!loaded) {
+        const char *value = getenv("MM3_FOV");
+        if (value) {
+            scale = (float)atof(value) / 100.0f;
+            if (!isfinite(scale) || scale < 1.0f) scale = 1.0f;
+            if (scale > 1.5f) scale = 1.5f;
+        }
+        loaded = 1;
+    }
+    return scale;
+}
+
 extern void sub_001EEC53_original(void);
 void sub_001EEC53(void)
 {
@@ -227,10 +244,7 @@ void sub_0025968E(void)
     /* The launcher's percentage FOV widens the stock view. Explicit
      * horizontal degrees from scripts/play.py take priority, so they never stack. */
     if (race && !camera_fov_degrees() && mm3_mod_on(MM3_MOD_FOV)) {
-        const char *value = getenv("MM3_FOV");
-        float scale = value ? (float)atof(value) / 100.0f : 1.0f;
-        if (!isfinite(scale) || scale < 1.0f) scale = 1.0f;
-        if (scale > 1.5f) scale = 1.5f;
+        float scale = camera_fov_percent();
         if (scale > 1.0f) {
             float fovy = 2.0f * atanf(tanf(MEMF(g_esp + 8) * 0.5f) * scale);
             MEMF(g_esp + 8) = fovy;

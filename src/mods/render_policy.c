@@ -84,8 +84,13 @@ static float loading_phase;
 float mm3_loading_phase(void) { return loading_phase; }
 int mm3_render_idle(uint32_t now_ms, uint32_t idle_ms, int movie)
 {
-    const char *enabled = getenv("RECOMP_LOADING_SPINNER");
-    loading_phase = (!enabled || atoi(enabled) != 0) && !movie && idle_ms > 700
+    /* Read once: the renderer asks on every idle present. */
+    static int spinner = -1;
+    if (spinner < 0) {
+        const char *enabled = getenv("RECOMP_LOADING_SPINNER");
+        spinner = !enabled || atoi(enabled) != 0;
+    }
+    loading_phase = spinner && !movie && idle_ms > 700
         ? 1.f + (float)(now_ms % 1000) / 1000.f : 0.f;
     return loading_phase > 0;
 }
