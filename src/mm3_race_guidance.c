@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "recomp_types.h"
 #include "guest_state.h"
+#include "kb_spline.h"
 
 /* 201BCA publishes the native race's complete ordered checkpoint list once
  * per player HUD update, before hiding passed/inactive checkpoint icons.
@@ -230,26 +231,21 @@ static RoadPoint road_curve_point(const RoadCurve *curve, float t)
 {
     /* Native sub_000C191C: Kochanek–Bartels Hermite, with two ghost controls.
      * sub_00154FC8 uses this exact spline at zero lateral/vertical offset for
-     * the road centre, including hills and overpasses. */
-    float s = (curve->control_count - 3) * t, u, h00, h10, h01, h11;
-    float out0, out1, in0, in1, factor = .5f * (1 - curve->tension);
+     * the road centre, including hills and overpasses. The segment's Hermite
+     * evaluation is the fork's kb_segment_point. */
+    float s = (curve->control_count - 3) * t, u;
     unsigned segment = (unsigned)s;
-    RoadPoint p[4], result;
+    RoadPoint result;
+    KbPoint p[4], q;
     unsigned i;
     if (segment >= curve->control_count - 3) { segment = curve->control_count - 4; u = 1; }
     else u = s - segment;
-    for (i = 0; i < 4; ++i) p[i] = road_control(curve->controls, segment + i);
-    out0 = factor * (1 + curve->bias) * (1 + curve->continuity);
-    out1 = factor * (1 - curve->bias) * (1 - curve->continuity);
-    in0 = factor * (1 + curve->bias) * (1 - curve->continuity);
-    in1 = factor * (1 - curve->bias) * (1 + curve->continuity);
-    h00 = 2*u*u*u - 3*u*u + 1; h10 = u*u*u - 2*u*u + u;
-    h01 = -2*u*u*u + 3*u*u; h11 = u*u*u - u*u;
-#define ROAD_COMPONENT(axis) \
-    result.axis = h00*p[1].axis + h10*(out0*(p[1].axis-p[0].axis) + out1*(p[2].axis-p[1].axis)) + \
-                  h01*p[2].axis + h11*(in0*(p[2].axis-p[1].axis) + in1*(p[3].axis-p[2].axis))
-    ROAD_COMPONENT(x); ROAD_COMPONENT(y); ROAD_COMPONENT(z);
-#undef ROAD_COMPONENT
+    for (i = 0; i < 4; ++i) {
+        RoadPoint c = road_control(curve->controls, segment + i);
+        p[i].x = c.x; p[i].y = c.y; p[i].z = c.z;
+    }
+    q = kb_segment_point(p, u, curve->bias, curve->tension, curve->continuity);
+    result.x = q.x; result.y = q.y; result.z = q.z;
     return result;
 }
 
