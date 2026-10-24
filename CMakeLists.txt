@@ -395,7 +395,6 @@ add_executable(${PROJECT_NAME}
  src/mm3_memory_tails.c
  src/mm3_runtime_entries.c
  src/mm3_asset_trace.c
- src/mm3_stream_compat.c
  src/recomp_manual.c
  src/mm3_map_zoom.c
  src/mm3_race_guidance.c

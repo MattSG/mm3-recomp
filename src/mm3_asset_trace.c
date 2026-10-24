@@ -6,7 +6,6 @@
 void sub_00170E5D_original(void);
 void sub_000145DC_original(void);
 void sub_001F02AD_original(void);
-void mm3_stream_read_copy(void);
 
 static int asset_trace_enabled(void)
 {
@@ -56,15 +55,12 @@ static void trace_copy(uint32_t va, void (*body)(void), unsigned cleanup)
     }
 }
 
+/* The lifted Cruise stream copy runs as generated. Its hand-written override was
+ * removed after an in-game run with the generated body: 48 Cruise copies, no ABI
+ * violations, and the driving scenario passed. */
 void sub_000145DC(void)
 {
-    static int initialized, original;
-    if (!initialized) {
-        const char *value = getenv("RECOMP_STREAM_COPY_ORIGINAL");
-        original = (value && *value && *value != '0') || !mm3_mod_on(MM3_MOD_TRANSLATION);
-        initialized = 1;
-    }
-    trace_copy(0x145DCu, original ? sub_000145DC_original : mm3_stream_read_copy, 12);
+    trace_copy(0x145DCu, sub_000145DC_original, 12);
 }
 void sub_001F02AD(void) { trace_copy(0x1F02ADu, sub_001F02AD_original, 8); }
 
