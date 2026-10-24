@@ -4,6 +4,8 @@
 #include "recomp_types.h"
 #include "nv2a_d3d11.h"
 #include "mods.h"
+#include "fixed_step.h"
+#include "guest_call.h"
 
 /* The console-rate mod: the game's simulation runs at the console's rate,
  * whatever the frame rate. MM3 presents with D3DPRESENT_INTERVAL_TWO_OR_
@@ -54,27 +56,6 @@ static float tick(void)
 }
 #define TICK tick()
 
-/* Call `fn` `n` times as the main loop called it once: the guest stack's
- * return address and `nargs` arguments back in place each time, and the
- * registers the main loop keeps. ret_pop is what the callee pops. */
-static void repeat(void (*fn)(void), int n, int nargs, uint32_t ret_pop)
-{
-    uint32_t esp0 = g_esp, saved[4], eax = g_eax, ecx = g_ecx, edx = g_edx;
-    uint32_t ebx = g_ebx, esi = g_esi, edi = g_edi, ebp = g_ebp;
-    int i, a;
-    for (a = 0; a <= nargs; a++)
-        saved[a] = MEM32(esp0 + 4u * a);
-    for (i = 0; i < n; i++) {
-        g_esp = esp0;
-        for (a = 0; a <= nargs; a++)
-            MEM32(esp0 + 4u * a) = saved[a];
-        g_eax = eax; g_ecx = ecx; g_edx = edx;
-        g_ebx = ebx; g_esi = esi; g_edi = edi; g_ebp = ebp;
-        fn();
-    }
-    if (n == 0) { g_eax = eax; g_ebx = ebx; g_esi = esi; g_edi = edi; g_ebp = ebp; }
-    g_esp = esp0 + ret_pop;
-}
 
 /* How far the clock is into the next tick, 0..1. */
 static float s_alpha;
@@ -82,18 +63,8 @@ static float s_alpha;
 /* Whole ticks in this frame's dt, the remainder carried to the next. */
 static int ticks_for(float dt)
 {
-    static float clock;
-    int n;
-    if (!(dt > 0.0f) || dt > 1.0f) dt = TICK;   /* loading, a reset timer */
-    clock += dt;
-    n = (int)(clock / TICK);
-    if (n > MAX_TICKS) {
-        n = MAX_TICKS;
-        clock = (float)MAX_TICKS * TICK;
-    }
-    clock -= (float)n * TICK;
-    s_alpha = clock / TICK;
-    return n;
+    static FixedStepClock clock;
+    return fixed_step_take(&clock, dt, TICK, MAX_TICKS, &s_alpha);
 }
 
 /* The race AI's update (0x22DBBF: ecx the AI module, dt and a flag, ret 8).
@@ -149,7 +120,7 @@ void sub_001E7590(void)
     MEMD(game + 0x30) = TICK;
     MEMF(game + 0x4C) = TICK;
     MEMF(game + 0x54) = TICK;
-    repeat(sub_001E7590_original, n, 1, 8);
+    xbox_guest_call_repeated(sub_001E7590_original, n, 1, 8);
     MEMD(game + 0x30) = raw;
     MEMF(game + 0x4C) = clamped;
     MEMF(game + 0x54) = dt;
