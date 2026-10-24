@@ -18,6 +18,7 @@
 #include "recomp_types.h"
 #include "teleport.h"
 #include "guest_state.h"
+#include "platform/line_server.h"
 
 #if !defined(_WIN32)
 /* Bounds-checked strcpy_s is MSVC-only; the replies here are NUL-terminated. */
@@ -310,8 +311,8 @@ int mm3_teleport_queue(float x, float z, float heading)
     return accepted;
 }
 
-/* One request in, one JSON reply out. Both transports (pipe on Windows,
- * Unix socket elsewhere) call this, so the protocol lives in one place. */
+/* One request in, one JSON reply out. The line server (fork platform/line_server)
+ * calls this for both its named pipe and its Unix socket. */
 static void teleport_answer(const char *command, char *reply, size_t size)
 {
     char extra;
@@ -354,130 +355,14 @@ static void teleport_answer(const char *command, char *reply, size_t size)
     } else strcpy_s(reply, size, "{\"error\":\"use position or teleport X Z [heading radians]; height is automatic; coordinates must be finite\"}");
 }
 
-#if defined(_WIN32)
-static DWORD WINAPI pipe_thread(void *unused)
-{
-    char name[80];
-    (void)unused;
-    snprintf(name, sizeof(name), "\\\\.\\pipe\\MM3Teleport-%lu", GetCurrentProcessId());
-    for (;;) {
-        HANDLE pipe = CreateNamedPipeA(name, PIPE_ACCESS_DUPLEX,
-            PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
-            1, 2048, 2048, 0, NULL);
-        if (pipe == INVALID_HANDLE_VALUE) return 1;
-        if (ConnectNamedPipe(pipe, NULL) || GetLastError() == ERROR_PIPE_CONNECTED) {
-            char command[128] = {0}, reply[2048];
-            DWORD bytes;
-            if (ReadFile(pipe, command, sizeof(command) - 1, &bytes, NULL)) {
-                command[bytes] = 0;
-                teleport_answer(command, reply, sizeof(reply));
-                if (WriteFile(pipe, reply, (DWORD)strlen(reply), &bytes, NULL))
-                    FlushFileBuffers(pipe); /* do not discard an unread reply on disconnect */
-            }
-        }
-        DisconnectNamedPipe(pipe);
-        CloseHandle(pipe);
-    }
-}
-#else
-/* $XDG_RUNTIME_DIR/MM3Teleport-<pid>.sock, else /tmp. Set once at init. */
-static char socket_path[sizeof(((struct sockaddr_un *)0)->sun_path)];   /* 108 on Linux, 104 on macOS */
-
-static void socket_unlink(void)
-{
-    unlink(socket_path);
-}
-
-static int socket_path_init(void)
-{
-    const char *dir = getenv("XDG_RUNTIME_DIR");
-    int n;
-    if (!dir || !*dir) dir = "/tmp";
-    n = snprintf(socket_path, sizeof(socket_path), "%s/MM3Teleport-%lu.sock",
-                 dir, (unsigned long)getpid());
-    if (n < 0 || (size_t)n >= sizeof(socket_path)) return 0;
-    atexit(socket_unlink);
-    return 1;
-}
-
-/* Request: bytes up to the first newline, or until the client half-closes.
- * Reply: the JSON, then the connection closes (the client reads to EOF). */
-static void serve_connection(int fd)
-{
-    char command[128] = {0}, reply[2048];
-    size_t used = 0, sent = 0, len;
-    ssize_t got;
-    /* A client that sends neither a newline nor a half-close must not hold the
-     * single accept loop; the timeout drops it. */
-    struct timeval idle = {2, 0};
-    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &idle, sizeof idle);
-    while (used < sizeof(command) - 1 &&
-           (got = recv(fd, command + used, sizeof(command) - 1 - used, 0)) != 0) {
-        if (got < 0) {
-            if (errno == EINTR) continue;
-            break;
-        }
-        used += (size_t)got;
-        if (memchr(command, '\n', used)) break;
-    }
-    command[used] = 0;
-    command[strcspn(command, "\r\n")] = 0;
-    teleport_answer(command, reply, sizeof(reply));
-    len = strlen(reply);
-    while (sent < len) {
-        ssize_t w = send(fd, reply + sent, len - sent, MSG_NOSIGNAL);
-        if (w < 0 && errno == EINTR) continue;
-        if (w <= 0) break;
-        sent += (size_t)w;
-    }
-}
-
-static DWORD WINAPI socket_thread(void *unused)
-{
-    struct sockaddr_un addr;
-    int listener;
-    (void)unused;
-    listener = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (listener < 0) return 1;
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", socket_path);
-    unlink(socket_path); /* stale file, if a dead process left one behind */
-    if (bind(listener, (struct sockaddr *)&addr, sizeof(addr)) != 0 || listen(listener, 4) != 0) {
-        close(listener);
-        return 1;
-    }
-    for (;;) {
-        int fd = accept(listener, NULL, NULL);
-        if (fd < 0) {
-            if (errno == EINTR || errno == ECONNABORTED) continue;
-            close(listener);
-            return 1;
-        }
-        serve_connection(fd);
-        close(fd);
-    }
-}
-#endif
-
 void mm3_debug_teleport_init(void)
 {
     const char *opt = getenv("MM3_DEBUG_TELEPORT");
     const char *overlay = getenv("MM3_DEBUG_OVERLAY");
-    HANDLE thread;
     int with_overlay = overlay && *overlay && strcmp(overlay, "0") != 0;   /* as mm3_mod_on */
     if ((!opt || strcmp(opt, "1") != 0) && !with_overlay) return;
-#if !defined(_WIN32)
-    if (!socket_path_init()) return;
-#endif
     finished = CreateEventA(NULL, TRUE, FALSE, NULL);
     if (!finished) return;
     enabled = 1;
-#if defined(_WIN32)
-    thread = CreateThread(NULL, 0, pipe_thread, NULL, 0, NULL);
-#else
-    thread = CreateThread(NULL, 0, socket_thread, NULL, 0, NULL);
-#endif
-    if (!thread) { enabled = 0; CloseHandle(finished); return; }
-    CloseHandle(thread);
+    if (!line_server_start("MM3Teleport", teleport_answer)) { enabled = 0; CloseHandle(finished); return; }
 }

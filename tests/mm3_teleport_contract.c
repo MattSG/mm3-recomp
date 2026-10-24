@@ -251,13 +251,8 @@ int main(int argc, char **argv) {
     assert(position[0] == 9);
     serial = completed = 0;
     if (argc == 2 && strcmp(argv[1], "--serve") == 0) {
-        /* Same transport choice as teleport.c: named pipe on Windows, socket elsewhere. */
-#if defined(_WIN32)
-        HANDLE server = CreateThread(NULL, 0, pipe_thread, NULL, 0, NULL);
-#else
-        HANDLE server = CreateThread(NULL, 0, socket_thread, NULL, 0, NULL);
-#endif
-        assert(server); CloseHandle(server);
+        /* Same server as the game: the fork's line server, named pipe on Windows, socket elsewhere. */
+        assert(line_server_start("MM3Teleport", teleport_answer));
         for (unsigned i = 0; i < 500; ++i) { sub_002203E5(); Sleep(20); }
         return 0;
     }

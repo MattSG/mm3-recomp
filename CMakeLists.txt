@@ -455,7 +455,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${rmlui_SOURCE_DIR}/Backends)
 foreach(check teleport dev_tools draw_distance)
     add_executable(mm3_${check}_contract EXCLUDE_FROM_ALL tests/mm3_${check}_contract.c)
     target_include_directories(mm3_${check}_contract PRIVATE src src/recomp ${RECOMP_GEN_DIR}
-        ${XBOXRECOMP_DIR}/include ${XBOXRECOMP_DIR}/src/video)
+        ${XBOXRECOMP_DIR}/include ${XBOXRECOMP_DIR}/src/video ${XBOXRECOMP_DIR}/src/kernel)
     target_link_libraries(mm3_${check}_contract PRIVATE platform ${MM3_WIN32_LIBS} ${MM3_LIBM})
     if(MSVC)
         target_compile_options(mm3_${check}_contract PRIVATE /UNDEBUG)
