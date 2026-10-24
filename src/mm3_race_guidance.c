@@ -6,6 +6,7 @@
 #include "guest_state.h"
 #include "kb_spline.h"
 #include "road_graph.h"
+#include "polyline.h"
 
 /* 201BCA publishes the native race's complete ordered checkpoint list once
  * per player HUD update, before hiding passed/inactive checkpoint icons.
@@ -362,41 +363,14 @@ typedef struct { float x, y; } RoutePoint;
 static struct {
     RoutePoint points[COURSE_POINTS];
     unsigned char keep[COURSE_POINTS];
-    struct { unsigned first, last; } ranges[COURSE_POINTS];
+    PolylineRange ranges[COURSE_POINTS];
 } s_route_draw;
 
 static void route_simplify(unsigned count)
 {
-    unsigned pending = 1, inspected = 0;
-    memset(s_route_draw.keep, 0, count);
-    s_route_draw.keep[0] = s_route_draw.keep[count - 1] = 1;
-    s_route_draw.ranges[0].first = 0; s_route_draw.ranges[0].last = count - 1;
-    while (pending) {
-        unsigned first = s_route_draw.ranges[--pending].first;
-        unsigned last = s_route_draw.ranges[pending].last, i, furthest = first;
-        RoutePoint a = s_route_draw.points[first], b = s_route_draw.points[last];
-        double dx = (double)b.x - a.x, dy = (double)b.y - a.y;
-        double length2 = dx*dx + dy*dy, best = .25 * .25;
-        for (i = first + 1; i < last; ++i) {
-            double x = (double)s_route_draw.points[i].x - a.x;
-            double y = (double)s_route_draw.points[i].y - a.y;
-            double t = length2 ? (x*dx + y*dy) / length2 : 0, distance;
-            /* RDP can be quadratic on a pathological zigzag. Bound the
-             * extra CPU work, then safely draw all original samples. */
-            if (++inspected > count * 64) {
-                memset(s_route_draw.keep, 1, count); return;
-            }
-            t = t < 0 ? 0 : (t > 1 ? 1 : t);
-            x -= t*dx; y -= t*dy; distance = x*x + y*y;
-            if (distance > best) { best = distance; furthest = i; }
-        }
-        if (furthest == first) continue;
-        s_route_draw.keep[furthest] = 1;
-        s_route_draw.ranges[pending].first = first;
-        s_route_draw.ranges[pending++].last = furthest;
-        s_route_draw.ranges[pending].first = furthest;
-        s_route_draw.ranges[pending++].last = last;
-    }
+    /* Quarter-unit tolerance on the course map; 64 distance tests per sample. */
+    polyline_simplify_2d((const float *)s_route_draw.points, count, .25f, count * 64u,
+                         s_route_draw.keep, s_route_draw.ranges);
 }
 
 static void route_polyline(uint32_t renderer, uint32_t clip, const RoadPoint *points,
