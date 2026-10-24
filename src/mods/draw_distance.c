@@ -6,6 +6,7 @@
 #include "nv2a_pb_reserve.h"
 #include "mods.h"
 #include "render_commands.h"
+#include "env_range.h"
 
 /* PAL MM3: increase the title's own visibility/LOD distances before its
  * native D3D11 translation sees geometry. Keep the original fade fractions,
@@ -18,14 +19,7 @@
  *     A smooth per-pixel depth haze replaces the distance-fog texture pass. */
 static float env_scale(const char *name, float fallback)
 {
-    const char *env = getenv(name);
-    char *end = NULL;
-    float value = env ? strtof(env, &end) : fallback;
-    if (env && (end == env || *end || !isfinite(value) || value < 1.0f || value > 4.0f)) {
-        fprintf(stderr, "[MM3_DISTANCE] invalid %s; expected 1..4, using %g\n", name, fallback);
-        value = fallback;
-    }
-    return value;
+    return recomp_env_float_in_range("MM3_DISTANCE", name, fallback, 1.0f, 4.0f);
 }
 
 static float distance_scale(void)
@@ -208,16 +202,8 @@ extern void sub_002256C7_original(void);
 static unsigned particle_budget(void)
 {
     static unsigned budget;
-    if (!budget) {
-        const char *env = getenv("MM3_PARTICLE_MAX_OVERDRAW");
-        char *end = NULL;
-        long value = env && *env ? strtol(env, &end, 10) : 255;
-        if (env && *env && (end == env || *end || value < 1 || value > 255)) {
-            fprintf(stderr, "[MM3_DISTANCE] invalid MM3_PARTICLE_MAX_OVERDRAW; expected 1..255, using 255\n");
-            value = 255;
-        }
-        budget = (unsigned)value;
-    }
+    if (!budget)
+        budget = (unsigned)recomp_env_long_in_range("MM3_DISTANCE", "MM3_PARTICLE_MAX_OVERDRAW", 255, 1, 255);
     return budget;
 }
 
