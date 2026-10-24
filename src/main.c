@@ -8,6 +8,7 @@
 
 #include "recomp_types.h"
 #include "recomp_funcs.h"
+#include "crash_report.h"
 #include "mods/teleport.h"
 #include "mm3_asset_cache.h"
 #include "mm3_pb_recovery.h"
@@ -173,48 +174,14 @@ void sub_00083A6C(void)
 
 static LONG WINAPI mm3_crash_report(EXCEPTION_POINTERS *info)
 {
-    const EXCEPTION_RECORD *record = info ? info->ExceptionRecord : NULL;
-    const CONTEXT *context = info ? info->ContextRecord : NULL;
-    ULONG_PTR fault = record && record->NumberParameters > 1
-        ? record->ExceptionInformation[1] : 0;
-    uintptr_t module_base = (uintptr_t)GetModuleHandleW(NULL);
-    fprintf(stderr, "[CRASH] code=0x%08lX address=%p guest_esp=0x%08X eax=0x%08X\n",
-            record ? record->ExceptionCode : 0,
-            record ? record->ExceptionAddress : NULL,
-            g_esp, g_eax);
-    fprintf(stderr, "[CRASH] fault=%p rip=%p rsp=%p rax=%llX rdx=%llX\n",
-            (void *)fault,
-            context ? (void *)context->Rip : NULL,
-            context ? (void *)context->Rsp : NULL,
-            context ? context->Rax : 0,
-            context ? context->Rdx : 0);
-    {
-        void *frames[16];
-        USHORT count = CaptureStackBackTrace(0, 16, frames, NULL);
-        USHORT i;
-        for (i = 0; i < count; ++i)
-            fprintf(stderr, "[CRASH_NATIVE] frame=%u rva=0x%llX\n",
-                    (unsigned)i,
-                    (unsigned long long)((uintptr_t)frames[i] - module_base));
-        if (g_ebp >= 0x10000u && g_ebp < MM3_MEMORY_MAP_SIZE - 8u)
-            fprintf(stderr, "[CRASH_CALLER] frame=%08X parent=%08X return=%08X\n",
-                    g_ebp, MEM32(g_ebp), MEM32(g_ebp + 4u));
-    }
-   fprintf(stderr, "[CRASH] module=%p rip_rva=0x%llX\n",
-            (void *)module_base,
-            context ? (unsigned long long)((uintptr_t)context->Rip - module_base) : 0);
-    fprintf(stderr, "[CRASH] xbox_mem_offset=%lld memory_base=%p\n",
-            (long long)g_xbox_mem_offset, xbox_GetMemoryBase());
-    fprintf(stderr, "[CRASH] guest fs=0x%08X ebp=0x%08X seh_ebp=0x%08X ecx=0x%08X ebx=0x%08X esi=0x%08X edi=0x%08X\n",
-            g_fs_base, g_ebp, g_seh_ebp, g_ecx, g_ebx, g_esi, g_edi);
+    /* Generic host, native and guest register lines come from the fork. */
+    xbox_CrashReport(info);
     fprintf(stderr, "[CRASH] frame+8=0x%08X frame+c=0x%08X frame+10=0x%08X obj+18=0x%08X obj+580=0x%08X callback=0x%08X fs+20=0x%08X fs20+250=0x%08X\n",
             MEM32(g_seh_ebp + 8), MEM32(g_seh_ebp + 0x0C),
             MEM32(g_seh_ebp + 0x10), MEM32(MEM32(g_seh_ebp + 8) + 0x18),
             MEM32(MEM32(g_seh_ebp + 8) + 0x580),
             MEM32(0x00362018),
             MEM32(g_fs_base + 0x20), MEM32(MEM32(g_fs_base + 0x20) + 0x250));
-    fprintf(stderr, "[CRASH] stack=0x%08X +4=0x%08X +8=0x%08X\n",
-            MEM32(g_esp), MEM32(g_esp + 4), MEM32(g_esp + 8));
     if (g_esi < MM3_MEMORY_MAP_SIZE - 0x580u) {
         fprintf(stderr, "[CRASH] heap=0x%08X bucket=%u\n", g_esi, g_edi);
         for (uint32_t i = 0; i < 5; ++i) {
