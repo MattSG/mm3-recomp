@@ -1,6 +1,7 @@
 #include <string.h>
 #include "recomp_types.h"
 #include "guest_state.h"
+#include "guest_strings.h"
 
 extern void sub_0011C194_original(void);
 extern void sub_00016148(void);
@@ -55,16 +56,11 @@ void sub_0011C194(void)
 
     /* The guest key is NUL-terminated by the existing locale API. Prefix
      * matching bounds every read to the exact custom key, including its NUL. */
-    for (i = 0; i < sizeof car_names / sizeof car_names[0]; ++i) {
-        size_t j, length = strlen(car_names[i].key);
-        for (j = 0; j <= length; ++j)
-            if (MEM8(key + (uint32_t)j) != (unsigned char)car_names[i].key[j])
-                break;
-        if (j > length) {
+    for (i = 0; i < sizeof car_names / sizeof car_names[0]; ++i)
+        if (xbox_guest_cstring_equals(key, car_names[i].key)) {
             value = car_names[i].value;
             break;
         }
-    }
     if (!value) {
         sub_0011C194_original();
         return;
@@ -73,13 +69,11 @@ void sub_0011C194(void)
     {
         xbox_guest_state guest;
         uint32_t text = entry_sp - 64u;
-        size_t length = strlen(value);
 
         xbox_guest_state_save(&guest);
         /* Reserve the text above the helper's argument/callee frames. */
         g_esp = text;
-        for (i = 0; i <= length; ++i)
-            MEM16(text + (uint32_t)i * 2u) = (unsigned char)value[i];
+        xbox_guest_write_utf16_ascii(text, value);
         g_eax = output;
         PUSH32(g_esp, text);
         PUSH32(g_esp, 0x0011C1BEu); /* original UTF-16 constructor return site */
