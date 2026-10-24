@@ -368,6 +368,10 @@ static void default_driving_contract(void)
 }
 #endif
 
+#ifdef MM3_FACTORY_WINDOWS_MAPPING
+ptrdiff_t xbox_GetMemoryOffset(void) { return g_xbox_mem_offset; }
+#endif
+
 int main(void)
 {
 #ifdef MM3_FACTORY_DEFAULTS

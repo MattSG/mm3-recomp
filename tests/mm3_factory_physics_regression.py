@@ -101,11 +101,25 @@ def main():
         defines = ["MM3_FACTORY_WINDOWS_MAPPING"] if windows_mapping else []
         if "--defaults" in sys.argv:
             defines.append("MM3_FACTORY_DEFAULTS")
+        sources = [ROOT / "tests/mm3_factory_physics_contract.c"]
+        includes = [folder, ROOT / "tools/xboxrecomp/include"]
+        if windows_mapping:
+            # Production mapping is the fork's xbox_GuestMapped.
+            # Only the mapping probe is compiled: the full kernel layout module
+            # drags in the whole runtime and duplicates the harness globals.
+            kernel = ROOT / "tools/xboxrecomp/src/kernel"
+            text = (kernel / "xbox_memory_layout.c").read_text(encoding="utf-8")
+            start = text.index("int xbox_GuestRangeInWindow(")
+            end = text.index("size_t xbox_GetMappedSize(void)")
+            probe = folder / "guest_mapped_probe.c"
+            probe.write_text('#include "xbox_memory_layout.h"\n' + text[start:end], encoding="utf-8")
+            sources.append(probe)
+            includes += [ROOT / "tools/xboxrecomp/src", kernel]
         subprocess.run(cc.compile_command(
-            [ROOT / "tests/mm3_factory_physics_contract.c"], executable,
-            includes=[folder, ROOT / "tools/xboxrecomp/include"], defines=defines, std="c11",
+            sources, executable,
+            includes=includes, defines=defines, std="c11",
             optimize="speed" if windows_mapping else "none", warnings="normal", werror=True,
-            disable_warnings=("4102",), obj=folder / "contract.obj"), check=True, cwd=folder)
+            disable_warnings=("4102", "4996"), obj=None if windows_mapping else folder / "contract.obj"), check=True, cwd=folder)
         result = subprocess.run([str(executable)], capture_output=True, text=True, cwd=folder)
         print(result.stdout, end="")
         if result.returncode:
