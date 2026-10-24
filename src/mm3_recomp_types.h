@@ -6,10 +6,6 @@
 
 #include <stdint.h>
 
-/* MM3's CPUID sites: the translator leaves these three instructions unimplemented,
- * and the title answers them with the Xbox CPUID values. */
-#define RECOMP_UNIMPL(_text, _va) do {     if ((uint32_t)(_va) == 0x0009379Eu ||         (uint32_t)(_va) == 0x000A4FEDu ||         (uint32_t)(_va) == 0x000A504Bu)         recomp_cpuid(eax, ecx, &eax, &ebx, &ecx, &edx);     else         recomp_unimpl((_text), (_va)); } while (0)
-
 /* MM3's rep movs copies go through the hardware-window-safe memcpy. */
 #define RECOMP_GUEST_MEMCPY 1
 
