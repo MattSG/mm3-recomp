@@ -4,6 +4,7 @@
 #include "platform/xbox_winnt.h"
 #include "recomp_types.h"
 #include "mods.h"
+#include "xbox_std_string.h"
 
 /* The skip-intro mod: the boot movies (dice, msgs, intro) end at their
  * first frame, the way a press of Start ends them -- the movie loop at
@@ -19,17 +20,6 @@ void sub_001F443D_original(void);
 uint32_t mm3_movie_total, mm3_movie_frame;   /* the playing movie, frames */
 static int s_skip;                            /* this movie is a boot movie */
 
-static void movie_name(uint32_t str, char *out, size_t cap)
-{
-    uint32_t len = MEM32(str + 20), res = MEM32(str + 24);
-    uint32_t text = res >= 16 ? MEM32(str + 4) : str + 4;
-    size_t i;
-    if (len >= cap)
-        len = (uint32_t)cap - 1;
-    for (i = 0; i < len && text; i++)
-        out[i] = (char)MEM8(text + i);
-    out[i] = 0;
-}
 
 /* The game names movies by stem ("dice"); a path or ".bik" is allowed for. */
 static int boot_movie(const char *name)
@@ -50,7 +40,7 @@ static int boot_movie(const char *name)
 void sub_001DB6E8(void)
 {
     char name[96];
-    movie_name(MEM32(g_esp + 8), name, sizeof name);
+    xbox_read_msvc_std_string(MEM32(g_esp + 8), name, sizeof name);
     mm3_movie_total = mm3_movie_frame = 0;
     s_skip = mm3_mod_on(MM3_MOD_SKIP_INTRO) && boot_movie(name);
     if (s_skip) {
