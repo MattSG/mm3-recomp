@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #if defined(_WIN32)
 #include <windows.h>
+#include "xbox_memory_layout.h"
 #else
 #include "platform/xbox_winnt.h"
 #include <errno.h>
@@ -82,18 +83,7 @@ int mm3_keyboard_driving(void)
  * the game thread only). */
 static int mapped(uint32_t va, size_t size)
 {
-    static uintptr_t good_lo, good_hi;
-    MEMORY_BASIC_INFORMATION info;
-    uintptr_t p = XBOX_PTR(va);
-    if (va < 0x10000u || va > 0x07FFFFFFu || size > 0x08000000u - va)
-        return 0;
-    if (p >= good_lo && p + size <= good_hi)
-        return 1;
-    if (!VirtualQuery((void *)p, &info, sizeof(info)) || info.State != MEM_COMMIT ||
-        (info.Protect & (PAGE_NOACCESS | PAGE_GUARD))) return 0;
-    good_lo = (uintptr_t)info.BaseAddress;
-    good_hi = good_lo + info.RegionSize;
-    return p + size <= good_hi;
+    return size <= UINT32_MAX && xbox_GuestMapped(va, (uint32_t)size);
 }
 
 static uint32_t primary_player(void)

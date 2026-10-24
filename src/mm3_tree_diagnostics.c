@@ -1,4 +1,5 @@
 #define WIN32_LEAN_AND_MEAN
+#include "xbox_memory_layout.h"
 #include "platform/xbox_winnt.h"
 #include <math.h>
 #include <stdio.h>
@@ -64,12 +65,7 @@ static int tree_enabled(void)
 
 static int tree_read(uint32_t address, void *out, size_t size)
 {
-    SIZE_T copied = 0;
-    uintptr_t host;
-    if (address < 0x10000u || size > UINT32_MAX || address > UINT32_MAX - size) return 0;
-    host = (uintptr_t)address + (uintptr_t)g_xbox_mem_offset;
-    if (host > UINTPTR_MAX - size) return 0;
-    return ReadProcessMemory(GetCurrentProcess(), (const void *)host, out, size, &copied) && copied == size;
+    return xbox_GuestRead(address, out, size);
 }
 
 static uint32_t tree_word(uint32_t address)

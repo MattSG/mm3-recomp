@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #ifdef _WIN32
 #include <windows.h>
+#include "xbox_memory_layout.h"
 #endif
 #include <stdio.h>
 #include <math.h>
@@ -32,34 +33,7 @@ static int initialized;
 
 static int mapped(uint32_t va, size_t size)
 {
-    static uintptr_t good_lo, good_hi;
-    uintptr_t p;
-    if (va < 0x10000u || va >= 0x08000000u || size > 0x08000000u - va)
-        return 0;
-    p = XBOX_PTR(va);
-    if (p >= good_lo && p + size <= good_hi) return 1;
-#ifdef _WIN32
-    MEMORY_BASIC_INFORMATION info;
-    if (!VirtualQuery((void *)p, &info, sizeof info) || info.State != MEM_COMMIT ||
-        (info.Protect & (PAGE_NOACCESS | PAGE_GUARD))) return 0;
-    good_lo = (uintptr_t)info.BaseAddress;
-    good_hi = good_lo + info.RegionSize;
-    return p + size <= good_hi;
-#else
-    FILE *maps = fopen("/proc/self/maps", "r");
-    char line[256], access[5];
-    unsigned long long lo, hi;
-    if (!maps) return 0;
-    while (fgets(line, sizeof line, maps))
-        if (sscanf(line, "%llx-%llx %4s", &lo, &hi, access) == 3 &&
-            access[0] == 'r' && access[1] == 'w' && p >= lo && p + size <= hi) {
-            good_lo = (uintptr_t)lo; good_hi = (uintptr_t)hi;
-            fclose(maps);
-            return 1;
-        }
-    fclose(maps);
-    return 0;
-#endif
+    return size <= UINT32_MAX && xbox_GuestMapped(va, (uint32_t)size);
 }
 
 static unsigned ascii_lower(unsigned c)

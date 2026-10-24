@@ -1,4 +1,5 @@
 #include "recomp_types.h"
+#include "xbox_memory_layout.h"
 
 /* Collision cells (PAL MM3). sub_0015A929 brings a cell into the collision
  * cache, decompressing it into a slot on a miss. The cell header holds the
@@ -22,7 +23,7 @@ extern void sub_0015A929_original(void);
 
 static int ok_range(uint32_t a, uint32_t bytes)
 {
-    return a >= 0x10000u && a < 0x08000000u && bytes <= 0x08000000u - a;
+    return xbox_GuestRangeInWindow(a, bytes);
 }
 
 static void sanitize(uint32_t hdr)
