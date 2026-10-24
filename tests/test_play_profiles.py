@@ -61,6 +61,9 @@ class PlayLauncherTest(unittest.TestCase):
         (self.folder / "game_files/default.xbe").write_bytes(b"fixture marker only")
         self.launcher = self.folder / "scripts/play.py"
         shutil.copyfile(ROOT / "scripts/play.py", self.launcher)
+        support = self.folder / "tools/xboxrecomp/tools/launch"
+        support.mkdir(parents=True)
+        shutil.copyfile(ROOT / "tools/xboxrecomp/tools/launch/process_support.py", support / "process_support.py")
         self.collector = self.folder / "collect settings.py"
         self.collector.write_text(COLLECTOR, encoding="utf-8")
         self.collected = self.folder / "settings.jsonl"

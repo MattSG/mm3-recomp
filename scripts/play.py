@@ -10,7 +10,6 @@ output and launch metadata under logs/. Only the child process gets the
 defaults; the caller's environment is never modified.
 """
 import argparse
-import csv
 import datetime as dt
 import hashlib
 import json
@@ -24,13 +23,10 @@ import threading
 import uuid
 from contextlib import ExitStack
 
-if os.name == "nt":
-    import msvcrt
-else:
-    import fcntl
-
 IS_WINDOWS = os.name == "nt"
 REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+sys.path.insert(0, os.path.join(REPO, "tools", "xboxrecomp", "tools", "launch"))
+from process_support import RunLog, acquire_lock, pump, running_pids
 CONSOLE_KEY = re.compile(r"^RECOMP_XBOX_(HDKEY|SIGKEY|LANKEY)$")
 CMAKE_OPTION = re.compile(r"^((?:MM3_|RECOMP_|CMAKE_(?:C_COMPILER|C_FLAGS|BUILD_TYPE|CONFIGURATION_TYPES|GENERATOR|PROJECT_VERSION|EXE_LINKER_FLAGS))[^:]*):[^=]+=(.*)$")
 GAME_PROCESS = "mm3_recomp"
@@ -168,98 +164,19 @@ def save_metadata_or_warn(path, metadata):
         print(f"Warning: Cannot update launch metadata: {error}", file=sys.stderr)
 
 
-def running_game_pids():
-    if IS_WINDOWS:
-        # Localized "INFO:" text can be in a code page the locale decoder rejects.
-        result = subprocess.run(["tasklist", "/FO", "CSV", "/NH"], capture_output=True, text=True,
-                                errors="replace")
-        rows = csv.reader(result.stdout.splitlines())
-        pids = [row[1] for row in rows if len(row) > 1 and row[0].lower() == "mm3_recomp.exe"]
-    else:
-        try:
-            result = subprocess.run(["pgrep", "-x", GAME_PROCESS], capture_output=True, text=True)
-            pids = result.stdout.split()
-        except FileNotFoundError:
-            pids = []
-            for entry in os.listdir("/proc") if os.path.isdir("/proc") else []:
-                if not entry.isdigit():
-                    continue
-                try:
-                    with open(f"/proc/{entry}/comm", encoding="utf-8") as handle:
-                        if handle.read().strip() == GAME_PROCESS:
-                            pids.append(entry)
-                except OSError:
-                    continue
-    return sorted(int(pid) for pid in pids)
-
-
-def try_lock(fd):
-    try:
-        if IS_WINDOWS:
-            os.lseek(fd, 0, os.SEEK_SET)
-            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
-        else:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        return True
-    except OSError:
-        return False
-
-
 def acquire_launcher_lock():
     """Return a locked fd, or None when another launcher holds it. Closing the fd releases it."""
-    fd = os.open(os.path.join(tempfile.gettempdir(), "mm3-recomp-launcher.lock"), os.O_RDWR | os.O_CREAT, 0o644)
-    if try_lock(fd):
-        return fd
-    os.close(fd)
-    return None
+    return acquire_lock(os.path.join(tempfile.gettempdir(), "mm3-recomp-launcher.lock"))
 
 
 def lock_save_root(root):
     os.makedirs(root, exist_ok=True)
-    fd = os.open(os.path.join(root, ".mm3-launch.lock"), os.O_RDWR | os.O_CREAT, 0o644)
-    if not try_lock(fd):
-        os.close(fd)
+    fd = acquire_lock(os.path.join(root, ".mm3-launch.lock"))
+    if fd is None:
         raise LaunchError(
             f"Another Midtown Madness 3 launcher is using save directory '{root}'. "
             "Use a distinct MM3_SAVE_DIR so writable cache files are not shared.")
     return fd
-
-
-def echo(text):
-    try:
-        sys.stdout.write(text + "\n")
-        sys.stdout.flush()
-    except (OSError, ValueError):
-        pass
-
-
-class RunLog:
-    """Serialises lines from both pipes into one log, flushing each line."""
-
-    def __init__(self, path):
-        self.handle = open(path, "x", encoding="utf-8", newline="\n")
-        self.lock = threading.Lock()
-        self.capture_error = None
-
-    def write(self, source, raw):
-        text = raw.decode("utf-8", "replace").rstrip("\r\n")
-        stamp = dt.datetime.now(dt.timezone.utc).isoformat(timespec="microseconds")
-        with self.lock:
-            try:
-                self.handle.write(f"{stamp} [{source}] {text}\n")
-                self.handle.flush()
-            except (OSError, ValueError) as error:
-                if self.capture_error is None:
-                    self.capture_error = repr(error)
-            echo(text)
-
-
-def pump(stream, source, log):
-    try:
-        for raw in iter(stream.readline, b""):
-            log.write(source, raw)
-    finally:
-        stream.close()
 
 
 def launch(args):
@@ -295,7 +212,7 @@ def launch(args):
                 lock_fd = acquire_launcher_lock()
                 if lock_fd is not None:
                     stack.callback(os.close, lock_fd)
-                running = running_game_pids()
+                running = running_pids(GAME_PROCESS)
                 if running:
                     pids = ", ".join(str(pid) for pid in running)
                     raise LaunchError(
