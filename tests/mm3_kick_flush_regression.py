@@ -1,4 +1,9 @@
-"""Exercise the production XDK cache-flush handshake with an acknowledging thread."""
+"""Exercise the production XDK cache-flush handshake with an acknowledging thread.
+
+The runtime helper (xbox_Nv2aWbcFlush, in the fork) is compiled directly; the
+title's sub_00344AB0 wrapper is extracted from src/recomp_manual.c and runs
+against it.
+"""
 from pathlib import Path
 import subprocess
 import tempfile
@@ -10,8 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     cc.require_compiler()
     source = (ROOT / "src/recomp_manual.c").read_text(encoding="utf-8")
-    start = source.index("static void mm3_kick_wait_ack(")
-    kick = source.index("void sub_00344AB0(", start)
+    kick = source.index("void sub_00344AB0(void)\n{")
     end = source.index("\n}\n", kick) + 3
     fixture = r'''
 #include <windows.h>
@@ -20,11 +24,14 @@ def main():
 #include <assert.h>
 #include <immintrin.h>
 static unsigned char ram[0x360000];
+static ptrdiff_t g_xbox_mem_offset;
+ptrdiff_t xbox_GetMemoryOffset(void) { return g_xbox_mem_offset; }
 #define MEM32(a) (*(volatile uint32_t *)(ram + (a)))
 static uint32_t g_eax, g_ecx, g_esp;
 static unsigned watch_calls;
 void recomp_sampler_watch_current_thread(void) { ++watch_calls; }
-''' + source[start:end] + r'''
+#include "nv2a_wbc_flush.c"
+''' + source[kick:end] + r'''
 static volatile LONG observed;
 static DWORD WINAPI acknowledge(void *unused)
 {
@@ -42,6 +49,7 @@ int main(void)
     const uint32_t positions[][2] = {{0x20000,0x20000},{0x30000,0x20000},
                                      {0x90000,0x10000},{0x10000,0x90000}};
     unsigned i;
+    g_xbox_mem_offset = (ptrdiff_t)ram;
     MEM32(0x351F48)=0x2000; MEM32(0x2000+0x17C8)=0x10000;
     MEM32(0x2000+0x17C0)=0x3000;
     for (i=0; i<4; ++i) {
@@ -64,8 +72,12 @@ int main(void)
         cfile = folder / "flush.c"
         cfile.write_text(fixture, encoding="utf-8")
         exe = folder / "flush.exe"
+        includes = [ROOT / "tools/xboxrecomp/src/kernel", ROOT / "tools/xboxrecomp/src",
+                    ROOT / "tools/xboxrecomp/src/nv2a", ROOT / "tools/xboxrecomp/templates/runtime",
+                    ROOT / "tools/xboxrecomp/include"]
         subprocess.run(cc.compile_command([cfile], exe, std="c11", optimize="none",
-                        warnings="high", obj=folder / "flush.obj"), check=True, cwd=folder)
+                        warnings="high", includes=includes, obj=folder / "flush.obj"),
+                       check=True, cwd=folder)
         subprocess.run([str(exe)], check=True, timeout=10)
 
 

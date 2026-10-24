@@ -48,12 +48,6 @@ def game_exe(build_dir, config):
     return os.path.join(build_dir, config, "mm3_recomp.exe" if os.name == "nt" else "mm3_recomp")
 
 
-
-
-
-
-
-
 _PROCESS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "xboxrecomp", "tools", "bench", "process.py")
 _process_spec = importlib.util.spec_from_file_location("bench_process", _PROCESS)
 _process = importlib.util.module_from_spec(_process_spec)
@@ -75,8 +69,6 @@ def last_csv_line(path):
     with open(path, encoding="utf-8", errors="replace") as f:
         lines = f.read().splitlines()
     return lines[-1] if lines else ""
-
-
 
 
 def main():

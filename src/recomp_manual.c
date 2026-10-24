@@ -9,6 +9,7 @@
 
 #include "recomp_types.h"
 #include "mods/mods.h"
+#include "nv2a_wbc_flush.h"
 
 typedef void (*recomp_func_t)(void);
 
@@ -1284,34 +1285,9 @@ void sub_00317F5B(void) {}
 void sub_00319630(void) {}
 void sub_00358FAC(void) {}
 
-/* XDK write-back-cache flush. The retail routine at 0x00344AB0 fences
- * writes, sets NV_PFB_WBC_FLUSH and waits for acknowledgement on every
- * kick. A byte-lag threshold cannot prove the executor has consumed a
- * reused vertex buffer or produced a GPU result the guest is about to read. */
-
-/* The ack thread clears the bit between segments. A dead thread would
- * spin forever with no sign in the log, so report the wait every two
- * seconds. It keeps waiting: leaving early would let the title reuse
- * push-buffer space the executor has not read yet. */
-static void mm3_kick_wait_ack(uint32_t flag_va)
-{
-    LARGE_INTEGER freq, start, now;
-    LONGLONG last;
-    unsigned reports = 0;
-    QueryPerformanceFrequency(&freq);
-    QueryPerformanceCounter(&start);
-    last = start.QuadPart;
-    while (MEM32(flag_va) & 0x10000u) {
-        QueryPerformanceCounter(&now);
-        if (now.QuadPart - last >= 2 * freq.QuadPart) {
-            last = now.QuadPart;
-            fprintf(stderr, "[KICK_WAIT] ack bit 0x10000 at 0x%08X still set after %.1f s (report %u)\n",
-                    flag_va, (double)(now.QuadPart - start.QuadPart) / freq.QuadPart,
-                    ++reports);
-        }
-    }
-}
-
+/* XDK write-back-cache flush. The runtime owns the fence, the flush bit and the
+ * acknowledgement wait for every kick (xbox_Nv2aWbcFlush); this title binds the
+ * device global at 0x00351F48 and keeps its one-time render-thread sampler watch. */
 void sub_00344AB0(void)
 {
     {   /* D3D's kick runs on the game's render thread: the one spike
@@ -1320,10 +1296,11 @@ void sub_00344AB0(void)
         static int watched;
         if (!watched) { watched = 1; recomp_sampler_watch_current_thread(); }
     }
-    g_eax = MEM32(MEM32(0x351F48u) + 0x17C8u);
-    _mm_sfence();
-    g_ecx = MEM32(g_eax + 0x100410u) | 0x10000u;
-    MEM32(g_eax + 0x100410u) = g_ecx;
-    mm3_kick_wait_ack(g_eax + 0x100410u);
+    {
+        uint32_t object, value;
+        xbox_Nv2aWbcFlush(0x00351F48u, &object, &value);
+        g_eax = object;
+        g_ecx = value;
+    }
     g_esp += 4;
 }
