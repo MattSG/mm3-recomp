@@ -1249,7 +1249,7 @@ source area, final cumulative runtime checks and repository/publication inventor
 
 - Preserved the full original device-context page, including captured Burnout 3
   addresses, offsets, per-entry stack cleanup and snapshot/forced-state bypasses,
-  in tools/xboxrecomp/docs/reference/legacy_d3d8ltcg_device_context.md. The archive records source
+  in tools/reference/legacy_d3d8ltcg_device_context.md. The archive records source
   commit/blob provenance; its original text was checked exactly.
 - Replaced the fork page at its existing path with a generic investigation guide:
   recover image-specific state ownership, queue/fence contracts and guest calling
