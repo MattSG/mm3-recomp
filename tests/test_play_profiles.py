@@ -70,6 +70,7 @@ class PlayLauncherTest(unittest.TestCase):
         self.environment = {key: value for key, value in os.environ.items()
                             if not key.startswith(("MM3_", "RECOMP_"))}
         self.environment["PLAY_TEST_COLLECTED"] = str(self.collected)
+        self.environment["PYTHONHOME"] = sys.base_prefix
         self.parent_environment = dict(os.environ)
 
     def tearDown(self):
@@ -226,10 +227,14 @@ class PlayLauncherTest(unittest.TestCase):
 
     def make_game_fixture(self):
         self.game_fixture = self.folder / GAME_NAME
+        # The base interpreter, not a virtualenv launcher, which needs pyvenv.cfg beside it.
+        interpreter = Path(getattr(sys, "_base_executable", sys.executable))
         if os.name == "nt":
-            shutil.copy2(sys.executable, self.game_fixture)
+            shutil.copy2(interpreter, self.game_fixture)
+            for dll in interpreter.parent.glob("*.dll"):
+                shutil.copy2(dll, self.folder / dll.name)
         else:
-            os.symlink(sys.executable, self.game_fixture)
+            os.symlink(interpreter, self.game_fixture)
 
     @staticmethod
     def wait_ready(process, ready):
