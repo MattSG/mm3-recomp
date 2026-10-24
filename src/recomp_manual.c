@@ -8,6 +8,7 @@
 #include "platform/xbox_winnt.h"
 
 #include "recomp_types.h"
+#include "guest_state.h"
 #include "mods/mods.h"
 #include "nv2a_wbc_flush.h"
 #include "icall_diagnostics.h"
@@ -179,19 +180,11 @@ void sub_000252DF(void)
 void sub_0002539A(void)
 {
     uint32_t esp = g_esp;
-    uint32_t ebp = g_ebp;
-    uint32_t seh_ebp = g_seh_ebp;
-    uint32_t ebx = g_ebx;
-    uint32_t esi = g_esi;
-    uint32_t edi = g_edi;
+    xbox_callee_saved saved;
 
+    xbox_callee_saved_save(&saved);
     sub_0002539A_gen();
-
-    g_ebp = ebp;
-    g_seh_ebp = seh_ebp;
-    g_ebx = ebx;
-    g_esi = esi;
-    g_edi = edi;
+    xbox_callee_saved_restore(&saved);
     g_esp = esp + 4;
 }
 
@@ -200,23 +193,15 @@ void sub_0002539A(void)
  * generated, but compile that one function with the correct helper selected. */
 static void call_alternate_seh_preserving(recomp_func_t body)
 {
-    uint32_t ebx = g_ebx;
-    uint32_t esi = g_esi;
-    uint32_t edi = g_edi;
-    uint32_t ebp = g_ebp;
-    uint32_t seh_ebp = g_seh_ebp;
+    xbox_callee_saved saved;
 
     if (!mm3_mod_on(MM3_MOD_TRANSLATION)) {     /* the generated body as it is */
         body();
         return;
     }
+    xbox_callee_saved_save(&saved);
     body();
-
-    g_ebx = ebx;
-    g_esi = esi;
-    g_edi = edi;
-    g_ebp = ebp;
-    g_seh_ebp = seh_ebp;
+    xbox_callee_saved_restore(&saved);
 }
 
 void sub_00083FBB(void)
