@@ -9,6 +9,7 @@
 #include <string.h>
 #include "recomp_types.h"
 #include "mm3_speedometer.h"
+#include "string_ci.h"
 
 /* The shared header exposes MMX only to generated translation units. Its
  * eight-byte representation is also needed here for complete preservation. */
@@ -37,19 +38,6 @@ static int mapped(uint32_t va, size_t size)
     return size <= UINT32_MAX && xbox_GuestMapped(va, (uint32_t)size);
 }
 
-static unsigned ascii_lower(unsigned c)
-{
-    return c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c;
-}
-
-static int same_alias(const char *a, const char *b)
-{
-    for (; *a && *b; ++a, ++b)
-        if (ascii_lower((unsigned char)*a) != ascii_lower((unsigned char)*b))
-            return 0;
-    return *a == *b;
-}
-
 static int original_alias(const char *alias)
 {
     static const char *const names[] = {
@@ -59,7 +47,7 @@ static int original_alias(const char *alias)
     };
     unsigned i;
     for (i = 0; i < sizeof names / sizeof names[0]; ++i)
-        if (same_alias(names[i], alias)) return 1;
+        if (recomp_strings_equal_ci(names[i], alias)) return 1;
     return 0;
 }
 
@@ -92,7 +80,7 @@ static void load_ranges(void)
             kmh < 100.0f || kmh > 1200.0f || mph < 60.0f || mph > 750.0f)
             continue;
         for (i = 0; i < range_count; ++i)
-            if (same_alias(ranges[i].alias, alias)) break;
+            if (recomp_strings_equal_ci(ranges[i].alias, alias)) break;
         if (i == range_count && range_count == sizeof ranges / sizeof ranges[0])
             continue;
         if (i == range_count) ++range_count;
@@ -303,7 +291,7 @@ int mm3_speedometer_draw(uint32_t node, uint32_t frame, double speed_kmh)
     load_ranges();
     if (!range_count) return 0;
     for (i = 0; i < range_count; ++i)
-        if (same_alias(ranges[i].alias, alias)) break;
+        if (recomp_strings_equal_ci(ranges[i].alias, alias)) break;
     if (i == range_count) return 0;
     metric = MEM8(frame + 0x13u) != 0;
     maximum = metric ? ranges[i].kmh : ranges[i].mph;
@@ -341,7 +329,7 @@ int mm3_speedometer_draw(uint32_t node, uint32_t frame, double speed_kmh)
          1.6f, 1.0f, .26f, .10f);
     box(&dial, dial.cx - 2.0f, dial.cy - 2.0f, 4.0f, 4.0f, .87f, .91f, .96f);
     xbox_guest_state_restore(&state, state.eax);
-    if (!same_alias(last_alias, alias) || maximum != last_maximum || metric != last_metric) {
+    if (!recomp_strings_equal_ci(last_alias, alias) || maximum != last_maximum || metric != last_metric) {
         fprintf(stderr, "[SPEEDOMETER] alias=%s maximum=%.9g units=%s type=%u\n",
                 alias, maximum, metric ? "km/h" : "mph", type);
         strcpy(last_alias, alias); last_maximum = maximum; last_metric = metric;

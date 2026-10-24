@@ -19,6 +19,7 @@
 #include <windows.h>
 #endif
 #include "recomp_types.h"
+#include "string_ci.h"
 #ifndef MM3_FACTORY_CONTRACT
 #include "xbox_memory_layout.h"
 #endif
@@ -57,13 +58,6 @@ static int mapped(uint32_t va, size_t size)
 #endif
 }
 
-static int alias_equal(const char *a, const char *b)
-{
-    while (*a && *b) {
-        if (tolower((unsigned char)*a++) != tolower((unsigned char)*b++)) return 0;
-    }
-    return *a == *b;
-}
 
 static int allowed_alias(const char *alias)
 {
@@ -71,7 +65,7 @@ static int allowed_alias(const char *alias)
         "Ford_GTcar", "Senna_Road", "Senna_GTR1", "FXXK_Racer", "Regera_GT1", "AventadorX"};
     unsigned i;
     for (i = 0; i < sizeof names / sizeof names[0]; ++i)
-        if (alias_equal(alias, names[i])) return 1;
+        if (recomp_strings_equal_ci(alias, names[i])) return 1;
     return 0;
 }
 
@@ -130,7 +124,7 @@ static void load_profiles(void)
         if (!strchr(line, '\n') && !feof(file)) break; /* Never parse a truncated line. */
         if (!parse_profile(line, &profile)) continue;
         for (i = 0; i < profile_count; ++i)
-            if (alias_equal(profile.alias, profiles[i].alias)) break;
+            if (recomp_strings_equal_ci(profile.alias, profiles[i].alias)) break;
         if (i == profile_count && profile_count == PROFILE_LIMIT) continue;
         if (i == profile_count) ++profile_count;
         profiles[i] = profile;
@@ -200,7 +194,7 @@ static void bind_player(uint32_t player)
     if (!player_alias(player, alias)) return;
     load_profiles();
     for (i = 0; i < profile_count; ++i)
-        if (alias_equal(alias, profiles[i].alias)) { value.profile = &profiles[i]; break; }
+        if (recomp_strings_equal_ci(alias, profiles[i].alias)) { value.profile = &profiles[i]; break; }
     if (!value.profile) return;
     value.player = player;
     value.bridge = MEM32(player + 0x19C); value.parameters = MEM32(player + 0x1A4);
