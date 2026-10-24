@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "mm3_recomp_types.h"
+#include "vec3_rotate.h"
 
 extern void sub_0016AEDB_original(void);
 extern void sub_000E1F49_original(void);
@@ -274,14 +275,6 @@ uint32_t mm3_tree_render_mask(uint32_t primitive, uint32_t mask, unsigned type)
     return mask;
 }
 
-static void tree_rotate(float out[3], const float in[3], float dx, float dz, float c, float s)
-{
-    /* Rodrigues rotation about cross(up, impact direction)=(dz,0,-dx). */
-    float dot = dz * in[0] - dx * in[2];
-    out[0] = c * in[0] + s * dx * in[1] + (1.0f - c) * dz * dot;
-    out[1] = c * in[1] - s * (dx * in[0] + dz * in[2]);
-    out[2] = c * in[2] + s * dz * in[1] - (1.0f - c) * dx * dot;
-}
 
 static int tree_fall_model(const TreeFall *fall, uint32_t object)
 {
@@ -345,8 +338,8 @@ static int tree_fall_transform(uint32_t object, uint32_t id, uint32_t transform,
         angle -= fall->rebound * sinf((age - fall->fall_seconds) / 0.55f * 3.141592654f);
     c = cosf(angle); s = sinf(angle);
     for (i = 0; i < 3; ++i)
-        tree_rotate(matrix + i * 3, saved + i * 3, fall->direction[0], fall->direction[1], c, s);
-    tree_rotate(rotated, offset, fall->direction[0], fall->direction[1], c, s);
+        vec3_rotate_about_horizontal(matrix + i * 3, saved + i * 3, fall->direction[0], fall->direction[1], c, s);
+    vec3_rotate_about_horizontal(rotated, offset, fall->direction[0], fall->direction[1], c, s);
     slide = age / (fall->fall_seconds + 0.45f); if (slide > 1.0f) slide = 1.0f;
     slide = fall->slide_distance * slide * (2.0f - slide);
     pivot[0] += fall->direction[0] * slide;
