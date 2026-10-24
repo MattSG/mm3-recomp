@@ -378,6 +378,7 @@ add_executable(${PROJECT_NAME}
     src/mm3_pb_recovery.c
     src/mm3_host_video.c
     src/mm3_launcher.cpp
+    ${XBOXRECOMP_DIR}/src/ui/rmlui_host.cpp
     ${MM3_RMLUI_BACKEND}
     src/mods/mods.c
     src/mods/render_commands.c
@@ -416,7 +417,7 @@ if(WIN32)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3.rc)
 endif()
 if(XBOXRECOMP_RENDERER STREQUAL "SDL3_GPU")
-    set_property(SOURCE ${MM3_RMLUI_BACKEND} src/mm3_launcher.cpp APPEND PROPERTY
+    set_property(SOURCE ${MM3_RMLUI_BACKEND} src/mm3_launcher.cpp ${XBOXRECOMP_DIR}/src/ui/rmlui_host.cpp APPEND PROPERTY
         COMPILE_DEFINITIONS RMLUI_SDL_VERSION_MAJOR=3)
 endif()
 

@@ -10,6 +10,7 @@
 #include <ctype.h>
 #include <stdint.h>
 #include "mods/mods.h"
+#include "ui/rmlui_host.h"
 
 #if defined(XBOXRECOMP_SDL3)
 /* The SDL3 GPU build (also Linux) has no Win32 or XInput. The launcher's
@@ -18,8 +19,6 @@
  * RmlUi identifiers, so the SDL build's keyboard capture maps them to the
  * Windows virtual-key codes the saved keymap uses (vk_of_key). */
 #include <SDL3/SDL.h>
-extern "C" int xbox_FramebufferStartHidden(void);
-extern "C" void xbox_FramebufferSdlHints(void);
 #if defined(_WIN32)
 #include <direct.h>
 #define launcher_chdir _chdir
@@ -212,7 +211,6 @@ static int vk_of_key(Rml::Input::KeyIdentifier k)
     }
 }
 #else
-#include <RmlUi_Renderer_DX11.h>
 #include <windows.h>
 #include <dwmapi.h>
 #include <Xinput.h>
@@ -1056,30 +1054,6 @@ void poll_mouse()
     show_focus();
 }
 
-#if !defined(XBOXRECOMP_SDL3)
-/* A dark title bar in the launcher's colour instead of the light default. */
-void dark_title_bar()
-{
-    HWND hwnd = NULL;
-    EnumThreadWindows(GetCurrentThreadId(), [](HWND h, LPARAM p) -> BOOL {
-        if (!IsWindowVisible(h))
-            return TRUE;
-        *(HWND *)p = h;
-        return FALSE;
-    }, (LPARAM)&hwnd);
-    if (!hwnd)
-        return;
-    const BOOL dark = TRUE;
-    const COLORREF caption = RGB(0x12, 0x14, 0x18);
-    DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &dark, sizeof dark);
-    DwmSetWindowAttribute(hwnd, 35 /* DWMWA_CAPTION_COLOR, Windows 11 */, &caption, sizeof caption);
-    /* The backend's class has the stock icon; ours is resource 1 (mm3.rc). */
-    if (HICON icon = LoadIconA(GetModuleHandleA(NULL), MAKEINTRESOURCEA(1))) {
-        SendMessageA(hwnd, WM_SETICON, ICON_BIG, (LPARAM)icon);
-        SendMessageA(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)icon);
-    }
-}
-#endif
 
 bool list_ready(Rml::Context *ctx)
 {
@@ -1265,6 +1239,86 @@ bool bind_model(Rml::Context *ctx)
 } // namespace
 
 /* 1 = play with the chosen settings exported, 0 = the user quit. */
+static void launcher_bind_system(void *)
+{
+    g_system.base = Backend::GetSystemInterface();
+}
+
+static void launcher_prepare(void *)
+{
+    load_fonts();
+}
+
+static int launcher_load(Rml::Context *ctx, void *)
+{
+    if (!bind_model(ctx))
+        return 0;
+    if (Rml::ElementDocument *doc = ctx->LoadDocumentFromMemory(kDocument))
+        doc->Show();
+    return 1;
+}
+
+static int launcher_keep_running(void *)
+{
+    return g_result < 0;
+}
+
+static void launcher_before_update(Rml::Context *, double now, void *)
+{
+    tick_splash(now);
+    poll_capture();
+    poll_pad(now);
+    poll_mouse();
+}
+
+static void launcher_after_update(Rml::Context *ctx, void *)
+{
+    static int shown_tab = -1;
+    static bool scrolled;
+    Rml::ElementDocument *doc = ctx->GetDocument(0);
+    if (shown_tab < 0)
+        shown_tab = g_tab;
+    if (g_tab != shown_tab && doc) { /* a new tab starts at its top */
+        shown_tab = g_tab;
+        g_row = 0;
+        show_focus();
+        if (Rml::Element *list = doc->GetElementById("list"))
+            list->SetScrollTop(0);
+        ctx->Update();
+    }
+    if (g_type >= 0 && doc) { /* A or Space on a text row: type in it */
+        Rml::ElementList fields;
+        if (Rml::Element *row = doc->GetElementById("o" + Rml::ToString(g_type)))
+            row->GetElementsByTagName(fields, "input");
+        if (!fields.empty())
+            fields[0]->Focus();
+        g_type = -1;
+    }
+    if (g_scroll && doc) {
+        g_scroll = false;
+        const Rml::String id = (g_fb >= 0 ? "b" : "o") + Rml::ToString(g_fb >= 0 ? g_fb : g_fo);
+        if (Rml::Element *row = doc->GetElementById(id))
+            row->ScrollIntoView(Rml::ScrollIntoViewOptions(Rml::ScrollAlignment::Nearest,
+                Rml::ScrollAlignment::Nearest, Rml::ScrollBehavior::Smooth, Rml::ScrollParentage::Closest));
+    }
+    /* MM3_LAUNCHER_SCROLL=1 shows the end of the list (screenshots, tests). */
+    if (!scrolled && getenv("MM3_LAUNCHER_SCROLL") && ctx->GetDocument(0)) {
+        if (Rml::Element *list = ctx->GetDocument(0)->GetElementById("list"))
+            list->SetScrollTop(list->GetScrollHeight());
+        scrolled = list_ready(ctx);
+    }
+}
+
+static int launcher_frame_ok(void *)
+{
+    return !g_system.errors;
+}
+
+static void launcher_unavailable(void *)
+{
+    save_and_export(); /* no launcher: play with the saved settings */
+}
+
 extern "C" int mm3_launcher(void)
 {
 #if !defined(XBOXRECOMP_SDL3)
@@ -1281,133 +1335,20 @@ extern "C" int mm3_launcher(void)
     if (const char *tab = getenv("MM3_LAUNCHER_TAB"))
         g_tab = atoi(tab) >= 0 && atoi(tab) <= 2 ? atoi(tab) : 0;
 
-#if defined(XBOXRECOMP_SDL3)
-    /* 760x720, within 90% of the usable display area (the backend's own
-     * video init is reference-counted on top of this one). */
-    SDL_Rect work = {0, 0, 760 * 10 / 9, 720 * 10 / 9};
-    xbox_FramebufferSdlHints();   /* the same video driver choice as the game */
-    if (SDL_InitSubSystem(SDL_INIT_VIDEO))
-        SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &work);
-    const int width = Rml::Math::Min(760, work.w * 9 / 10);
-    const int height = Rml::Math::Min(720, work.h * 9 / 10);
-    /* The SDL GPU backend ships SPIR-V shaders only, which only Vulkan takes on Windows. */
-    SDL_SetHint(SDL_HINT_GPU_DRIVER, "vulkan");
-#else
-    /* Not DPI-aware yet, so the work area is in the backend's 96-dpi units. */
-    RECT work = {0, 0, 760, 720};
-    SystemParametersInfoA(SPI_GETWORKAREA, 0, &work, 0);
-    const int width = Rml::Math::Min(760, (int)(work.right - work.left) * 9 / 10);
-    const int height = Rml::Math::Min(720, (int)(work.bottom - work.top) * 9 / 10);
-#endif
-    if (!Backend::Initialize("Midtown Madness 3", width, height, false)) {
-        save_and_export(); /* no launcher: play with the saved settings */
+    RmlUiHostOptions options = {"Midtown Madness 3", 760, 720, 1, 1, "launcher"};
+    RmlUiHostClient client = {};
+    client.bind_system = launcher_bind_system;
+    client.system = &g_system;
+    client.prepare = launcher_prepare;
+    client.load = launcher_load;
+    client.on_key = on_key;
+    client.keep_running = launcher_keep_running;
+    client.before_update = launcher_before_update;
+    client.after_update = launcher_after_update;
+    client.frame_ok = launcher_frame_ok;
+    client.unavailable = launcher_unavailable;
+    if (!rmlui_host_run(&options, &client))
         return 1;
-    }
-#if !defined(XBOXRECOMP_SDL3)
-    dark_title_bar();
-#else
-    /* A hidden start (scripts, tests), which the Win32 backend's first
-     * ShowWindow honours and SDL's window does not. */
-    if (xbox_FramebufferStartHidden()) {
-        {
-            int count = 0;
-            SDL_Window **windows = SDL_GetWindows(&count);
-            for (int i = 0; i < count; i++)
-                SDL_HideWindow(windows[i]);
-            SDL_free(windows);
-        }
-    }
-#endif
-    g_system.base = Backend::GetSystemInterface();
-    Rml::SetSystemInterface(&g_system);
-    Rml::SetRenderInterface(Backend::GetRenderInterface());
-    Rml::Initialise();
-    load_fonts();
-
-    Rml::Context *ctx = Rml::CreateContext("launcher", Rml::Vector2i(width, height));
-    if (ctx && bind_model(ctx)) {
-        if (Rml::ElementDocument *doc = ctx->LoadDocumentFromMemory(kDocument))
-            doc->Show();
-        g_result = -1;
-        int shown_tab = g_tab;
-        bool rendered = false;
-        /* Waits for messages only in the background: in front, the controller
-         * is polled every frame (the backend presents with v-sync). */
-        while (g_result < 0 && Backend::ProcessEvents(ctx, on_key, !GetActiveWindow())) {
-            const double now = Rml::GetSystemInterface()->GetElapsedTime();
-            tick_splash(now);
-            poll_capture();
-            poll_pad(now);
-            poll_mouse();
-            ctx->Update();
-            Rml::ElementDocument *doc = ctx->GetDocument(0);
-            if (g_tab != shown_tab && doc) { /* a new tab starts at its top */
-                shown_tab = g_tab;
-                g_row = 0;
-                show_focus();
-                if (Rml::Element *list = doc->GetElementById("list"))
-                    list->SetScrollTop(0);
-                ctx->Update();
-            }
-            if (g_type >= 0 && doc) { /* A or Space on a text row: type in it */
-                Rml::ElementList fields;
-                if (Rml::Element *row = doc->GetElementById("o" + Rml::ToString(g_type)))
-                    row->GetElementsByTagName(fields, "input");
-                if (!fields.empty())
-                    fields[0]->Focus();
-                g_type = -1;
-            }
-            if (g_scroll && doc) {
-                g_scroll = false;
-                const Rml::String id = (g_fb >= 0 ? "b" : "o") + Rml::ToString(g_fb >= 0 ? g_fb : g_fo);
-                if (Rml::Element *row = doc->GetElementById(id))
-                    row->ScrollIntoView(Rml::ScrollIntoViewOptions(Rml::ScrollAlignment::Nearest,
-                        Rml::ScrollAlignment::Nearest, Rml::ScrollBehavior::Smooth, Rml::ScrollParentage::Closest));
-            }
-            /* MM3_LAUNCHER_SCROLL=1 shows the end of the list (screenshots, tests). */
-            static bool scrolled;
-            if (!scrolled && getenv("MM3_LAUNCHER_SCROLL") && ctx->GetDocument(0)) {
-                if (Rml::Element *list = ctx->GetDocument(0)->GetElementById("list"))
-                    list->SetScrollTop(list->GetScrollHeight());
-                scrolled = list_ready(ctx);
-            }
-            /* The first WM_SIZE can precede creation of the backend renderer.
-             * A hidden startup need not send another one: seed its viewport
-             * from the context's actual pixel size before drawing. */
-            const Rml::Vector2i dimensions = ctx->GetDimensions();
-#if !defined(XBOXRECOMP_SDL3)
-            static_cast<RenderInterface_DX11 *>(Backend::GetRenderInterface())->SetViewport(
-                dimensions.x, dimensions.y);
-#endif
-#if defined(XBOXRECOMP_SDL3)
-            /* No swapchain image while hidden or minimized, and RmlUi's SDL GPU
-             * backend then submits a cancelled command buffer: skip the frame. */
-            {
-                int count = 0;
-                SDL_Window **windows = SDL_GetWindows(&count);
-                bool drawable = count > 0 && !(SDL_GetWindowFlags(windows[0]) &
-                                               (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED));
-                SDL_free(windows);
-                if (!drawable) {
-                    SDL_Delay(16);
-                    continue;
-                }
-            }
-#endif
-            /* The SDL GPU renderer takes its viewport from each swapchain image. */
-            Backend::BeginFrame();
-            ctx->Render();
-            Backend::PresentFrame();
-            if (!rendered && !g_system.errors) {
-                fprintf(stderr, "[launcher] first frame rendered: %dx%d\n", dimensions.x, dimensions.y);
-                fflush(stderr);
-                rendered = true;
-            }
-        }
-    }
-    Rml::Shutdown();
-    Backend::Shutdown();
-
     if (g_result != 1)
         return 0;
     save_and_export();
