@@ -101,6 +101,7 @@ static DWORD test_attributes(LPCWSTR path)
 #define CreateFileW test_create
 #define GetFileInformationByHandle test_info
 #define CloseHandle test_close
+#include "../tools/xboxrecomp/src/kernel/derived_cache.c"
 #include "../src/mm3_asset_cache.c"
 #undef ReadFile
 #undef DeleteFileW
@@ -123,7 +124,7 @@ BOOL xbox_translate_path(const char *path, xbox_host_char *out, DWORD length)
 
 static void write_file(const wchar_t *path, int changed, int shorter)
 {
-    static unsigned char data[2 * MM3_CACHE_BLOCK_SIZE + 19];
+    static unsigned char data[2 * DERIVED_CACHE_BLOCK_SIZE + 19];
     HANDLE file = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
                               FILE_ATTRIBUTE_NORMAL, NULL);
     DWORD written;
