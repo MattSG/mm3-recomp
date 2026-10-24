@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "recomp_types.h"
+#include "nv2a_pb_reserve.h"
 #include "mods.h"
 #include "render_commands.h"
 
@@ -238,23 +239,27 @@ void sub_002256C7(void)
  * The camera supplies the W-buffer scale and sky colour, never a fog texture. */
 extern void sub_000F8DCE_original(void);
 extern void sub_00344770(void);
+
+/* The native D3D rollover runs with the caller's registers restored after it. */
+static void fog_pb_rollover(void *user)
+{
+    uint32_t eax=g_eax, ecx=g_ecx, edx=g_edx, ebp=g_ebp, seh=g_seh_ebp;
+    uint32_t bytes=MEM32(0x352E00);
+    (void)user;
+    PUSH32(g_esp,bytes); PUSH32(g_esp,bytes>>1); PUSH32(g_esp,0);
+    sub_00344770();
+    g_eax=eax; g_ecx=ecx; g_edx=edx; g_ebp=ebp; g_seh_ebp=seh;
+}
+
 void sub_000F8DCE(void)
 {
     if (!mm3_mod_on(MM3_MOD_DRAW_DISTANCE)) { sub_000F8DCE_original(); return; }
     uint32_t camera = MEM32(g_ecx+0xC), device = MEM32(0x351F48);
-    uint32_t cursor = MEM32(device), limit = MEM32(device+4);
     float depth_scale = MEMF(camera+0x1ED8), far_clip = MEMF(camera+0x1FB0);
-    /* The native D3D cursor may already be beyond its soft limit. Reserve
-     * through its normal rollover path instead of omitting the sky mask. */
-    if (cursor && !(cursor&3) && (limit < cursor || limit-cursor < MM3_FOG_WORDS*4)) {
-        uint32_t eax=g_eax, ecx=g_ecx, edx=g_edx, ebp=g_ebp, seh=g_seh_ebp;
-        uint32_t bytes=MEM32(0x352E00);
-        PUSH32(g_esp,bytes); PUSH32(g_esp,bytes>>1); PUSH32(g_esp,0);
-        sub_00344770();
-        g_eax=eax; g_ecx=ecx; g_edx=edx; g_ebp=ebp; g_seh_ebp=seh;
-        cursor=MEM32(device); limit=MEM32(device+4);
-    }
-    if (cursor && !(cursor&3) && limit >= cursor && limit-cursor >= MM3_FOG_WORDS*4) {
+    /* The fork reserves the record, rolling the native cursor over first when
+     * its soft limit is too close. A missing reservation omits the sky mask. */
+    uint32_t cursor = xbox_pb_reserve(device, MM3_FOG_WORDS*4, fog_pb_rollover, NULL);
+    if (cursor) {
         MEM32(cursor) = MM3_FOG_HEADER; /* Eleven non-increasing NV097_NO_OPERATION parameters. */
         MEM32(cursor+4) = MM3_FOG_TAG;
         MEMF(cursor+8) = 1.f/depth_scale;
@@ -269,7 +274,6 @@ void sub_000F8DCE(void)
         MEMF(cursor+36) = MEMF(camera+0x1F38)*depth_scale/MEMF(camera+0x1EF8);
         MEMF(cursor+40) = MEMF(camera+0x1F3C);
         MEMF(cursor+44) = 1.f/.16f;
-        MEM32(device) = cursor+MM3_FOG_WORDS*4;
     }
     g_eax = (g_eax & 0xFFFFFF00u) | 1;
     g_esp += 16;
