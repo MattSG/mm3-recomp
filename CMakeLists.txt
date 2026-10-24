@@ -375,8 +375,7 @@ endforeach()
 add_executable(${PROJECT_NAME}
     src/main.c
     src/mm3_asset_cache.c
-    src/mm3_pb_recovery.c
-    src/mm3_host_video.c
+       src/mm3_host_video.c
     src/mm3_launcher.cpp
     ${XBOXRECOMP_DIR}/src/ui/rmlui_host.cpp
     ${MM3_RMLUI_BACKEND}

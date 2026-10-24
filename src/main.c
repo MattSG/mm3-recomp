@@ -11,7 +11,7 @@
 #include "crash_report.h"
 #include "mods/teleport.h"
 #include "mm3_asset_cache.h"
-#include "mm3_pb_recovery.h"
+#include "nv2a_pb_recovery.h"
 #include "mm3_performance_profile.h"
 #include "mods/mods.h"
 #include <xbox_host.h>
@@ -383,7 +383,7 @@ int main(void)
         xbox_kernel_shutdown(); xbox_MemoryLayoutShutdown(); free(xbe_data); return 1;
     }
     xbox_kernel_bridge_init();
-    nv2a_pb_set_stop_handler(mm3_pb_recover_stop);
+    nv2a_pb_set_stop_handler(nv2a_pb_recover_semaphore_stop);
     if (xbox_Nv2aMirrorFence(0x00351F48u, 0x2Cu, 0x30u) != 0 ||
         xbox_Nv2aCommandFence(0x00351F48u, 0xCu, 0u) != 0) {
         fprintf(stderr, "NV2A command fence registration failed\n");
