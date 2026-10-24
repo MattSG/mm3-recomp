@@ -1,6 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include "xbox_memory_layout.h"
 #include "guest_state.h"
+#include "recomp_log_budget.h"
 #include "platform/xbox_winnt.h"
 #include <math.h>
 #include <stdio.h>
@@ -30,12 +31,10 @@ extern void sub_0016CABD(void);
 #define TREE_NAME_SIZE 48u
 #define TREE_BREAK_SPEED 5.0f /* metres/second: gentle nudges remain solid */
 static volatile LONG s_tree_enabled = -1;
-static RECOMP_TLS uint64_t s_tree_second;
-static RECOMP_TLS unsigned s_tree_lines, s_tree_suppressed;
+static RECOMP_TLS RecompLogBudget s_tree_budget;
 static RECOMP_TLS unsigned s_tree_render_depth;
 static RECOMP_TLS int s_tree_fall_drawing;
-static RECOMP_TLS uint64_t s_tree_contact_second;
-static RECOMP_TLS unsigned s_tree_contact_lines;
+static RECOMP_TLS RecompLogBudget s_tree_contact_budget;
 static RECOMP_TLS uint32_t s_tree_contact_car, s_tree_contact_body, s_tree_contact_before_count;
 static RECOMP_TLS uint32_t s_tree_contact_record, s_tree_contact_metadata;
 static RECOMP_TLS uint16_t s_tree_contact_flags;
@@ -116,16 +115,11 @@ static int tree_name(uint32_t address, char out[TREE_NAME_SIZE])
 
 static int tree_budget(void)
 {
-    uint64_t second = MM3_TREE_CLOCK() / 1000;
-    if (second != s_tree_second) {
-        if (s_tree_suppressed)
-            MM3_TREE_LOG("[TREE_TRACE] suppressed=%u previous_second=%llu\n", s_tree_suppressed, (unsigned long long)s_tree_second);
-        s_tree_second = second;
-        s_tree_lines = s_tree_suppressed = 0;
-    }
-    if (s_tree_lines == TREE_LINES_PER_SECOND) { ++s_tree_suppressed; return 0; }
-    ++s_tree_lines;
-    return 1;
+    RecompLogRoll rolled;
+    int allowed = recomp_log_budget_take(&s_tree_budget, MM3_TREE_CLOCK(), TREE_LINES_PER_SECOND, &rolled);
+    if (rolled.suppressed)
+        MM3_TREE_LOG("[TREE_TRACE] suppressed=%u previous_second=%llu\n", rolled.suppressed, (unsigned long long)rolled.second);
+    return allowed;
 }
 
 static int local_object_tree(const unsigned char local[52], char sound[TREE_NAME_SIZE])
@@ -397,12 +391,7 @@ static void tree_draw_original(void)
 
 static int tree_contact_budget(void)
 {
-    uint64_t second = MM3_TREE_CLOCK() / 1000;
-    if (second != s_tree_contact_second) {
-        s_tree_contact_second = second;
-        s_tree_contact_lines = 0;
-    }
-    return s_tree_contact_lines++ < TREE_LINES_PER_SECOND;
+    return recomp_log_budget_take(&s_tree_contact_budget, MM3_TREE_CLOCK(), TREE_LINES_PER_SECOND, NULL);
 }
 
 int mm3_tree_use_solid_contact(uint32_t record, float speed)
