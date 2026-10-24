@@ -10,7 +10,7 @@ MOV oPos.xyzw, c[191].xyzw instruction, final, is encoded as:
 
     00000000 0037E01B 0C000000 0000F801
 
-The probe tools/reference/ownership_vsh_encoding_probe.c uses the production
+The probe tools/xboxrecomp/docs/reference/ownership_vsh_encoding_probe.c uses the production
 parser through the existing test host stubs, without constructing instructions
 with its own field macros. It compiles successfully and exits 1 with:
 

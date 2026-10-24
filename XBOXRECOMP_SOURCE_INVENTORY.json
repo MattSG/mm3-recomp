@@ -870,7 +870,7 @@
       "ownership_review": {
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "9613aea617af93c9ab77fb6535cc2f78931fc00a",
-        "scope": "Full document read: preserve source licensing/origins and architectural guidance; move stale snapshots and captured audit/test history into MM3 tools/reference/legacy_dsp_*",
+        "scope": "Full document read: preserve source licensing/origins and architectural guidance; move stale snapshots and captured audit/test history into MM3 tools/xboxrecomp/docs/reference/legacy_dsp_*",
         "evidence": "Four original document archives compared with prior committed text; provenance/license header identical; local documentation links resolve; committed changes limited to Markdown",
         "limit": "Documentation ownership only; interpreter, DMA, stack and SA implementation conformance remain unaudited by this checkpoint."
       }
@@ -883,7 +883,7 @@
       "ownership_review": {
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "9613aea617af93c9ab77fb6535cc2f78931fc00a",
-        "scope": "Full document read: preserve source licensing/origins and architectural guidance; move stale snapshots and captured audit/test history into MM3 tools/reference/legacy_dsp_*",
+        "scope": "Full document read: preserve source licensing/origins and architectural guidance; move stale snapshots and captured audit/test history into MM3 tools/xboxrecomp/docs/reference/legacy_dsp_*",
         "evidence": "Four original document archives compared with prior committed text; provenance/license header identical; local documentation links resolve; committed changes limited to Markdown",
         "limit": "Documentation ownership only; interpreter, DMA, stack and SA implementation conformance remain unaudited by this checkpoint."
       }
@@ -896,7 +896,7 @@
       "ownership_review": {
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "9613aea617af93c9ab77fb6535cc2f78931fc00a",
-        "scope": "Full document read: preserve source licensing/origins and architectural guidance; move stale snapshots and captured audit/test history into MM3 tools/reference/legacy_dsp_*",
+        "scope": "Full document read: preserve source licensing/origins and architectural guidance; move stale snapshots and captured audit/test history into MM3 tools/xboxrecomp/docs/reference/legacy_dsp_*",
         "evidence": "Four original document archives compared with prior committed text; provenance/license header identical; local documentation links resolve; committed changes limited to Markdown",
         "limit": "Documentation ownership only; interpreter, DMA, stack and SA implementation conformance remain unaudited by this checkpoint."
       }
@@ -909,7 +909,7 @@
       "ownership_review": {
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "9613aea617af93c9ab77fb6535cc2f78931fc00a",
-        "scope": "Full document read: preserve source licensing/origins and architectural guidance; move stale snapshots and captured audit/test history into MM3 tools/reference/legacy_dsp_*",
+        "scope": "Full document read: preserve source licensing/origins and architectural guidance; move stale snapshots and captured audit/test history into MM3 tools/xboxrecomp/docs/reference/legacy_dsp_*",
         "evidence": "Four original document archives compared with prior committed text; provenance/license header identical; local documentation links resolve; committed changes limited to Markdown",
         "limit": "Documentation ownership only; interpreter, DMA, stack and SA implementation conformance remain unaudited by this checkpoint."
       }

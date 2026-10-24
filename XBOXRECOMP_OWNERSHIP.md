@@ -1172,7 +1172,7 @@ source area, final cumulative runtime checks and repository/publication inventor
 
 - Moved five complete original documents (single-title recompiler analysis,
   codegen teardown, four-title corpus, Crimson adoption plan and measured SVOD
-  extraction notes) into tools/reference/legacy_fusion_docs. Its README records
+  extraction notes) into tools/xboxrecomp/docs/reference/legacy_fusion_docs. Its README records
   source commit/blob identities and original runtime feedback provenance.
   Historical claims/status/relative references are not asserted current.
 - The fork now has one generic fusion-analysis guide derived from current
