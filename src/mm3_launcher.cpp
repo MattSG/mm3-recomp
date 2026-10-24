@@ -1109,32 +1109,11 @@ bool on_key(Rml::Context *ctx, Rml::Input::KeyIdentifier key, int mods, float, b
 }
 
 #if defined(XBOXRECOMP_SDL3)
-/* The document asks for Segoe UI. Off Windows the first installed sans pair
- * is registered under that family name (regular and bold), and as the
- * fallback face for glyphs it lacks. */
+/* The document asks for Segoe UI; the host registers the first installed
+ * sans-serif pair under that name (regular and bold). */
 void load_fonts()
 {
-    static const char *const faces[][2] = {
-        {"C:/Windows/Fonts/segoeui.ttf", "C:/Windows/Fonts/segoeuib.ttf"},
-        {"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"},
-        {"/usr/share/fonts/TTF/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf"},
-        {"/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"},
-        {"/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-         "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"},
-        {"/System/Library/Fonts/Supplemental/Arial.ttf",
-         "/System/Library/Fonts/Supplemental/Arial Bold.ttf"},
-    };
-    for (const auto &pair : faces)
-        if (file_exists(pair[0])) {
-            Rml::LoadFontFace(pair[0], "Segoe UI", Rml::Style::FontStyle::Normal,
-                              Rml::Style::FontWeight::Normal, true);
-            if (file_exists(pair[1]))
-                Rml::LoadFontFace(pair[1], "Segoe UI", Rml::Style::FontStyle::Normal,
-                                  Rml::Style::FontWeight::Bold);
-            break;
-        }
+    rmlui_host_load_sans_fonts("Segoe UI");
 }
 #else
 void load_fonts()
