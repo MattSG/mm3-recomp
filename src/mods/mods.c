@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "mods.h"
+#include "feature_switch.h"
 #include "render_commands.h"
 
 const Mm3Mod mm3_mods[MM3_MOD_COUNT] = {
@@ -41,13 +42,8 @@ const Mm3Mod mm3_mods[MM3_MOD_COUNT] = {
 int mm3_mod_on(int mod)
 {
     static int state[MM3_MOD_COUNT];             /* 0 unread, 1 off, 2 on */
-    if (mm3_mods[mod].required)
-        return 1;
-    if (!state[mod]) {
-        const char *v = getenv(mm3_mods[mod].env);
-        state[mod] = (v && *v ? strcmp(v, "0") != 0 : mm3_mods[mod].default_on) ? 2 : 1;
-    }
-    return state[mod] == 2;
+    return feature_switch_on(mm3_mods[mod].env, mm3_mods[mod].default_on,
+                             mm3_mods[mod].required, &state[mod]);
 }
 
 /* Input follows the primary car's live state. The pause/movie singletons

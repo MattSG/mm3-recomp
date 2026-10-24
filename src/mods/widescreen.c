@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include "recomp_types.h"
 #include "mods.h"
+#include "camera_math.h"
 
 /* Widescreen (Hor+). MM3 has no 16:9 mode: every 3D camera builds its
  * projection through 0x25968E, D3DXMatrixPerspectiveFovLH(out, fovy, aspect,
@@ -231,8 +232,7 @@ void sub_0025968E(void)
              * The matrix and the camera's visibility frustum must agree.
              * This explicit renderSetFov call excludes menu turntables,
              * mirrors, cubemaps and temporary projection save/restores. */
-            float fovy = 2.0f * atanf(tanf(degrees * (3.14159265358979323846f / 360.0f)) /
-                                     MEMF(g_esp + 0xC));
+            float fovy = xbox_fovy_from_horizontal_degrees(degrees, MEMF(g_esp + 0xC));
             MEMF(g_esp + 8) = fovy;
             MEMF(g_ebp + 8) = fovy;
         } else if (widescreen && fabsf(aspect - wide) < 1e-4f && fabsf(wide - 4.0f / 3.0f) > 1e-4f) {
