@@ -370,8 +370,9 @@ instance or original checkout was stopped or edited.
 
 - Moved `nv2a_pb_replay.c`, its empty menu/font capture placeholders,
   `nv2a_pb_test.c` and the title-profiled `nv2a_pgraph_d3d11.*` to
-  `tools/reference/legacy_nv2a` in MM3. They retain their original bytes for
-  provenance and are explicitly not a supported/buildable runtime plugin.
+  `tools/reference/legacy_nv2a` in MM3. That folder was later deleted: it was not
+  compiled, and git history keeps the original bytes. It was never a supported
+  or buildable runtime plugin.
 - No MM3 caller initializes that translator or calls the replay/test activation
   functions. Its PGRAPH entry always returned unhandled until initialized.
   Removed its dormant dispatch branch and build dependency. The actual

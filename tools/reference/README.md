@@ -3,7 +3,7 @@
 These files moved out of XboxRecomp during the ownership audit. They are not
 compiled or used by MM3:
 
-- `legacy_nv2a/`: captured-menu frontend prototype and its empty fixtures.
+- `legacy_nv2a/`: removed. It was a captured-menu frontend prototype with empty fixtures.
 - `legacy_kernel_imports.h`: old reference title's import order, formerly used
   when no XBE had been loaded. Runtime imports now come from each XBE.
 
