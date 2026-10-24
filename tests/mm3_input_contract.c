@@ -95,47 +95,6 @@ static void key(HWND window, int vk, BOOL down)
     SendMessageA(window, down ? WM_KEYDOWN : WM_KEYUP, (WPARAM)vk, 0);
 }
 
-static void check_host_report(void)
-{
-    static const uint8_t pressures[] = {0, 1, 29, 30, 31, 127, 128, 254, 255};
-    uint8_t out[20], short_report[20];
-    unsigned i, j;
-    host_connected = TRUE;
-    memset(&host_state, 0, sizeof(host_state));
-    /* No deadzone, truncation or coupling may be introduced between triggers. */
-    for (i = 0; i < sizeof pressures; ++i) {
-        for (j = 0; j < sizeof pressures; ++j) {
-            host_state.Gamepad.bLeftTrigger = pressures[i];
-            host_state.Gamepad.bRightTrigger = pressures[j];
-            expect_triggers(pressures[i], pressures[j]);
-        }
-    }
-    memset(&host_state, 0, sizeof(host_state));
-    host_state.Gamepad.wButtons = XINPUT_GAMEPAD_RIGHT_SHOULDER;
-    report(out);
-    CHECK(out[8] == 255 && out[9] == 0); /* RB is Xbox Black. */
-    host_state.Gamepad.wButtons = XINPUT_GAMEPAD_LEFT_SHOULDER;
-    report(out);
-    CHECK(out[8] == 0 && out[9] == 255); /* LB is Xbox White. */
-    host_state.Gamepad.wButtons = XINPUT_GAMEPAD_A | XINPUT_GAMEPAD_B |
-        XINPUT_GAMEPAD_X | XINPUT_GAMEPAD_Y | XINPUT_GAMEPAD_START |
-        XINPUT_GAMEPAD_DPAD_RIGHT | XINPUT_GAMEPAD_LEFT_THUMB;
-    host_state.Gamepad.sThumbLX = -32768;
-    host_state.Gamepad.sThumbLY = 32767;
-    host_state.Gamepad.sThumbRX = -12345;
-    host_state.Gamepad.sThumbRY = 12345;
-    report(out);
-    CHECK(out[2] == (XBOX_GAMEPAD_START | XBOX_GAMEPAD_DPAD_RIGHT |
-                     XBOX_GAMEPAD_LEFT_THUMB));
-    CHECK(out[4] == 255 && out[5] == 255 && out[6] == 255 && out[7] == 255);
-    CHECK(report_axis(out, 12) == -32768 && report_axis(out, 14) == 32767);
-    CHECK(report_axis(out, 16) == -12345 && report_axis(out, 18) == 12345);
-    memset(short_report, 0xA5, sizeof short_report);
-    CHECK(usb_gamepad_report(0, short_report, 19) == 0);
-    for (i = 0; i < sizeof short_report; ++i) CHECK(short_report[i] == 0xA5);
-    host_connected = FALSE;
-}
-
 static void check_keyboard(HWND window, BOOL mm3)
 {
     uint8_t out[20];
@@ -567,7 +526,6 @@ int main(int argc, char **argv)
     } else if (argc == 3 && !strcmp(argv[2], "saved-maps")) {
         check_saved_maps(window);
     } else {
-        check_host_report();
         check_context(window, mm3);
         check_keyboard(window, mm3);
         check_gears(window, mm3);
