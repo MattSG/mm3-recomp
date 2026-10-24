@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "recomp_types.h"
+#include "guest_state.h"
 
 /* 201BCA publishes the native race's complete ordered checkpoint list once
  * per player HUD update, before hiding passed/inactive checkpoint icons.
@@ -473,11 +474,8 @@ static void route_segment(uint32_t renderer, uint32_t clip,
                            float ax, float ay, float bx, float by, float alpha)
 {
     float dx = bx - ax, dy = by - ay, length = hypotf(dx, dy), px, py;
-    uint32_t saved_eax, saved_ecx, saved_edx, saved_esp, saved_ebx, saved_esi, saved_edi;
-    uint32_t saved_ebp, saved_seh_ebp, quad;
-    double saved_fp[8];
-    int saved_top, saved_cmp, saved_df;
-    uint16_t saved_cc, saved_control;
+    uint32_t quad;
+    xbox_guest_state saved;
     unsigned i;
     const float thickness = 1.25f;
     float xy[4][2];
@@ -487,12 +485,7 @@ static void route_segment(uint32_t renderer, uint32_t clip,
     xy[1][0] = bx + px; xy[1][1] = by + py;
     xy[2][0] = bx - px; xy[2][1] = by - py;
     xy[3][0] = ax - px; xy[3][1] = ay - py;
-    saved_eax = g_eax; saved_ecx = g_ecx; saved_edx = g_edx; saved_esp = g_esp;
-    saved_ebx = g_ebx; saved_esi = g_esi; saved_edi = g_edi;
-    saved_ebp = g_ebp; saved_seh_ebp = g_seh_ebp;
-    saved_top = g_fp_top; saved_cmp = g_fp_cmp; saved_df = g_df;
-    saved_cc = g_fp_cc; saved_control = g_fp_control_word;
-    memcpy(saved_fp, g_fp_stack, sizeof saved_fp);
+    xbox_guest_state_save(&saved);
     /* Same 0xA0 native quad structure as 2DC95; scratch belongs to this
      * synchronous submission and is below the live guest stack frame. */
     g_esp -= 0xA0; quad = g_esp;
@@ -512,12 +505,7 @@ static void route_segment(uint32_t renderer, uint32_t clip,
     g_eax = clip; g_edx = renderer;
     PUSH32(g_esp, 0x0011CB45u);
     RECOMP_ABI_CALL(0x001C1585u, sub_001C1585);
-    g_eax = saved_eax; g_ecx = saved_ecx; g_edx = saved_edx; g_esp = saved_esp;
-    g_ebx = saved_ebx; g_esi = saved_esi; g_edi = saved_edi;
-    g_ebp = saved_ebp; g_seh_ebp = saved_seh_ebp;
-    g_fp_top = saved_top; g_fp_cmp = saved_cmp; g_df = saved_df;
-    g_fp_cc = saved_cc; g_fp_control_word = saved_control;
-    memcpy(g_fp_stack, saved_fp, sizeof saved_fp);
+    xbox_guest_state_restore(&saved, saved.eax);
 }
 
 typedef struct { float x, y; } RoutePoint;

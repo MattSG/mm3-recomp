@@ -416,6 +416,20 @@ int main(int argc,char **argv){
 '''
 
 
+# Test double for the fork's xbox_GuestRead (tree_read): the host-checked read over this fixture's RAM.
+GUEST_READ_DOUBLE = r'''
+extern ptrdiff_t g_xbox_mem_offset;
+int xbox_GuestRead(uint32_t va, void *out, size_t size)
+{
+    SIZE_T copied = 0;
+    uintptr_t host;
+    if (va < 0x10000u || size > UINT32_MAX || va > UINT32_MAX - size) return 0;
+    host = (uintptr_t)va + (uintptr_t)g_xbox_mem_offset;
+    return ReadProcessMemory(GetCurrentProcess(), (const void *)host, out, size, &copied) && copied == size;
+}
+'''
+
+
 def native_source():
     previous = contact.common.ENTRIES
     try:
@@ -435,7 +449,10 @@ def native_source():
       memset(&g_xmm0,0,sizeof g_xmm0);memset(&g_xmm7,0,sizeof g_xmm7);
     }''', code, count=1)
     assert 'MEM32(end)=MEM32(input)' in code
-    return '#define WIN32_LEAN_AND_MEAN\n#include <windows.h>\n' + code + C_TEST
+    return ('#define WIN32_LEAN_AND_MEAN\n#include <windows.h>\n#include "guest_state.c"\n'
+            'RECOMP_TLS RecompMmx g_mm0, g_mm1, g_mm2, g_mm3, g_mm4, g_mm5, g_mm6, g_mm7;\n'
+            'RECOMP_TLS RecompXmm g_xmm0, g_xmm1, g_xmm2, g_xmm3, g_xmm4, g_xmm5, g_xmm6, g_xmm7;\n'
+            + GUEST_READ_DOUBLE + code + C_TEST)
 
 
 def apply_render_seam(directory, body, owner):
@@ -578,9 +595,11 @@ def real_renderer_source(directory, patched):
     support = C_TEST.split('void sub_0016AEDB_original(void){', 1)[0]
     for name in ('point', 'close_enough', 'fall_count', 'reset', 'retire', 'advance'):
         support += '\n' + re.search(r'static [^\n]+ ' + name + r'\([^\n]*\)\{.*?(?=\n(?:static |int main|void ))', C_TEST, re.S).group()
-    return ('#define WIN32_LEAN_AND_MEAN\n#include <windows.h>\n'
+    return ('#define WIN32_LEAN_AND_MEAN\n#include <windows.h>\n#include "guest_state.c"\n'
+            'RECOMP_TLS RecompMmx g_mm0, g_mm1, g_mm2, g_mm3, g_mm4, g_mm5, g_mm6, g_mm7;\n'
+            'RECOMP_TLS RecompXmm g_xmm0, g_xmm1, g_xmm2, g_xmm3, g_xmm4, g_xmm5, g_xmm6, g_xmm7;\n'
             'static unsigned billboard_calls,mesh_calls,billboard_result;\n'
-            + code + support + '\nvoid sub_000E1F49_original(void){CHECK(0);}\n'
+            + GUEST_READ_DOUBLE + code + support + '\nvoid sub_000E1F49_original(void){CHECK(0);}\n'
             'void sub_001D137B_original(void){CHECK(0);}\n' + REAL_RENDER_TEST)
 
 
@@ -636,7 +655,7 @@ def main():
         code, executable = directory / 'fall.c', directory / ('fall' + cc.exe_suffix())
         code.write_text(native_source())
         subprocess.run(cc.compile_command([code], executable,
-                                          includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src'],
+                                          includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src', ROOT / 'tools/xboxrecomp/src/kernel'],
                                           defines=['_CRT_SECURE_NO_WARNINGS'], std='c11', optimize='none',
                                           dynamic_crt=True, obj=directory / 'fall.obj'), check=True, cwd=directory)
         renderer_executables = []
@@ -645,7 +664,7 @@ def main():
             renderer_source, renderer_executable = directory / (name + '.c'), directory / (name + cc.exe_suffix())
             renderer_source.write_text(real_renderer_source(directory, patched))
             subprocess.run(cc.compile_command([renderer_source], renderer_executable,
-                                              includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src'],
+                                              includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src', ROOT / 'tools/xboxrecomp/src/kernel'],
                                               defines=['_CRT_SECURE_NO_WARNINGS'], std='c11', optimize='none',
                                               dynamic_crt=True, obj=directory / (name + '.obj')),
                            check=True, cwd=directory)

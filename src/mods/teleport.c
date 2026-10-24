@@ -17,6 +17,7 @@
 #include <math.h>
 #include "recomp_types.h"
 #include "teleport.h"
+#include "guest_state.h"
 
 #if !defined(_WIN32)
 /* Bounds-checked strcpy_s is MSVC-only; the replies here are NUL-terminated. */
@@ -136,17 +137,13 @@ static int teleport(uint32_t player, uint32_t vehicle, uint32_t car,
     uint32_t wheels = MEM32(car + 0x40);
     if (!mapped(MEM32(player + 0x1AC), 0x1504C) || !mapped(wheels, 4) ||
         !mapped(MEM32(wheels), 0x100)) return 0;
-    uint32_t regs[] = {g_eax, g_ecx, g_edx, g_esp, g_ebx, g_esi, g_edi, g_seh_ebp, g_ebp};
-    double fp[8];
-    int top = g_fp_top, cmp = g_fp_cmp, df = g_df;
-    uint16_t cc = g_fp_cc, control = g_fp_control_word;
-    RecompXmm xmm[] = {g_xmm0, g_xmm1, g_xmm2, g_xmm3, g_xmm4, g_xmm5, g_xmm6, g_xmm7};
+    xbox_guest_state guest;
     uint32_t point = g_esp - 0x100u;
     float heading = isfinite(destination_heading) ? destination_heading
                                                    : atan2f(MEMF(body + 0xBC), MEMF(body + 0xC4));
     int applied;
     (void)vehicle; (void)car;
-    memcpy(fp, g_fp_stack, sizeof(fp));
+    xbox_guest_state_save(&guest);
     /* Native 21ADF3 finds ground, clears motion, aligns to the slope, applies
      * car clearance, and updates the cached transform and reset flags. */
     for (unsigned i = 0; i < 3; ++i) MEMF(point + i * 4) = xyz[i];
@@ -158,12 +155,7 @@ static int teleport(uint32_t player, uint32_t vehicle, uint32_t car,
     PUSH32(g_esp, 0);
     sub_0021ADF3();
     applied = (g_eax & 0xFF) != 0;
-    g_eax = regs[0]; g_ecx = regs[1]; g_edx = regs[2]; g_esp = regs[3];
-    g_ebx = regs[4]; g_esi = regs[5]; g_edi = regs[6]; g_seh_ebp = regs[7]; g_ebp = regs[8];
-    memcpy(g_fp_stack, fp, sizeof(fp));
-    g_fp_top = top; g_fp_cmp = cmp; g_fp_cc = cc; g_fp_control_word = control; g_df = df;
-    g_xmm0 = xmm[0]; g_xmm1 = xmm[1]; g_xmm2 = xmm[2]; g_xmm3 = xmm[3];
-    g_xmm4 = xmm[4]; g_xmm5 = xmm[5]; g_xmm6 = xmm[6]; g_xmm7 = xmm[7];
+    xbox_guest_state_restore(&guest, guest.eax);
     return applied;
 }
 

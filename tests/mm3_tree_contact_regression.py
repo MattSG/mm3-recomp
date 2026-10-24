@@ -155,6 +155,20 @@ def break_fixture(ram, kind=0, index=2, piece=3, cell_index=1):
     return packed_id, instance + mask_offset, DIRTY + cell_index * 16
 
 
+# Test double for the fork's xbox_GuestRead (tree_read): the host-checked read over this fixture's RAM.
+GUEST_READ_DOUBLE = r'''
+extern ptrdiff_t g_xbox_mem_offset;
+int xbox_GuestRead(uint32_t va, void *out, size_t size)
+{
+    SIZE_T copied = 0;
+    uintptr_t host;
+    if (va < 0x10000u || size > UINT32_MAX || va > UINT32_MAX - size) return 0;
+    host = (uintptr_t)va + (uintptr_t)g_xbox_mem_offset;
+    return ReadProcessMemory(GetCurrentProcess(), (const void *)host, out, size, &copied) && copied == size;
+}
+'''
+
+
 def source():
     previous = common.ENTRIES
     try:
@@ -236,7 +250,7 @@ def check_impact_resistance(corrected, directory, image):
     code, executable = directory / 'resistance.c', directory / ('resistance' + cc.exe_suffix())
     code.write_text(guarded)
     subprocess.run(cc.compile_command([code], executable,
-                                      includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src'],
+                                      includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src', ROOT / 'tools/xboxrecomp/src/kernel'],
                                       std='c11', optimize='none', dynamic_crt=True,
                                       obj=directory / 'resistance.obj'), check=True)
     ram = fixture(image, 2, 30)
@@ -262,7 +276,10 @@ def main():
         # Sound eligibility must still read the authored flag in the final gate.
         final_sound_gate = retail[retail.index('loc_001D1A10: ;'):retail.index('loc_001D1A19: ;')]
         assert final_sound_gate in corrected
-        corrected = '#define WIN32_LEAN_AND_MEAN\n#include <windows.h>\n' + corrected
+        corrected = ('#define WIN32_LEAN_AND_MEAN\n#include <windows.h>\n#include "guest_state.c"\n'
+                     'RECOMP_TLS RecompMmx g_mm0, g_mm1, g_mm2, g_mm3, g_mm4, g_mm5, g_mm6, g_mm7;\n'
+                     'RECOMP_TLS RecompXmm g_xmm0, g_xmm1, g_xmm2, g_xmm3, g_xmm4, g_xmm5, g_xmm6, g_xmm7;\n'
+                     + GUEST_READ_DOUBLE + corrected)
         corrected = corrected.replace('int main(', 'static unsigned tree_expire_contacts(uint32_t, uint32_t, uint32_t);\nint main(', 1)
         corrected += '\nvoid sub_0016AEDB_original(void){}\nvoid sub_000E1F49_original(void){}\n'
         # Model only allocation-free vector append; the REAL generated city
@@ -329,7 +346,7 @@ def main():
         code = directory / 'corrected.c'
         code.write_text(corrected)
         subprocess.run(cc.compile_command([code], executable,
-                                          includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src'],
+                                          includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src', ROOT / 'tools/xboxrecomp/src/kernel'],
                                           std='c11', optimize='none', dynamic_crt=True,
                                           obj=directory / 'corrected.obj'), check=True)
         cases, controls = 0, 0

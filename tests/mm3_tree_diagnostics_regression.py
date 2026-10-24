@@ -32,6 +32,7 @@ static void trace_log(const char *format,...){
 #define MM3_TREE_CLOCK clock_now
 #define MM3_TREE_LOG trace_log
 #define MM3_TREE_FLUSH() (++flushes)
+#include "guest_state.c"
 #include "mm3_tree_diagnostics.c"
 ptrdiff_t g_xbox_mem_offset;
 RECOMP_TLS uint32_t g_eax,g_ecx,g_edx,g_esp,g_ebx,g_esi,g_edi,g_ebp,g_seh_ebp,g_fs_base;
@@ -39,6 +40,16 @@ RECOMP_TLS int g_fp_top,g_df,g_fp_cmp;
 RECOMP_TLS uint16_t g_fp_control_word,g_fp_cc;
 RECOMP_TLS double g_fp_stack[8];
 RECOMP_TLS RecompXmm g_xmm0,g_xmm1,g_xmm2,g_xmm3,g_xmm4,g_xmm5,g_xmm6,g_xmm7;
+RECOMP_TLS RecompMmx g_mm0,g_mm1,g_mm2,g_mm3,g_mm4,g_mm5,g_mm6,g_mm7;
+/* Test double for the fork's xbox_GuestRead: the same host-checked read over this fixture's RAM. */
+int xbox_GuestRead(uint32_t va, void *out, size_t size)
+{
+    SIZE_T copied = 0;
+    uintptr_t host;
+    if (va < 0x10000u || size > UINT32_MAX || va > UINT32_MAX - size) return 0;
+    host = (uintptr_t)va + (uintptr_t)g_xbox_mem_offset;
+    return ReadProcessMemory(GetCurrentProcess(), (const void *)host, out, size, &copied) && copied == size;
+}
 void sub_0016CABD(void){assert(0);}
 static unsigned char *ram,*expected;
 static unsigned calls,events;
@@ -182,7 +193,7 @@ def main():
         source, executable = folder / 'contract.c', folder / ('contract' + cc.exe_suffix())
         source.write_text(SOURCE)
         subprocess.run(cc.compile_command([source], executable,
-                                          includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src'],
+                                          includes=[ROOT / 'src', ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src', ROOT / 'tools/xboxrecomp/src/kernel'],
                                           defines=['_CRT_SECURE_NO_WARNINGS'], std='c11', optimize='none',
                                           warnings='high', obj=folder / 'contract.obj'), check=True, cwd=folder)
         for tracing in ('0', '1', '2'):

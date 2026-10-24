@@ -263,7 +263,7 @@ def main():
         executable = folder / f"contract{cc.exe_suffix()}"
         subprocess.run(cc.compile_command(
             [ROOT / "tests/mm3_race_guidance_contract.c"], executable,
-            includes=[folder, ROOT / "tools/xboxrecomp/include"], std="c11", optimize="none",
+            includes=[folder, ROOT / "tools/xboxrecomp/include", ROOT / "tools/xboxrecomp/src", ROOT / "tools/xboxrecomp/src/kernel"], std="c11", optimize="none",
             warnings="normal", werror=True,
             # Generated native fixture: unused _flags/_icall_esp temporaries are emitted by the translator.
             disable_warnings=("4101", "4102"),

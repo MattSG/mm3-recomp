@@ -1,4 +1,5 @@
 #include "../src/mods/teleport.c"
+#include "../tools/xboxrecomp/src/kernel/guest_state.c"
 #include <assert.h>
 
 /* Default build: teleport.c's own logic, with the native ground reset replaced by
@@ -29,6 +30,8 @@ RECOMP_TLS double g_fp_stack[8];
 RECOMP_TLS int g_fp_top, g_fp_cmp, g_df;
 RECOMP_TLS uint16_t g_fp_cc, g_fp_control_word;
 RECOMP_TLS RecompXmm g_xmm0, g_xmm1, g_xmm2, g_xmm3, g_xmm4, g_xmm5, g_xmm6, g_xmm7;
+RECOMP_TLS RecompMmx g_mm0, g_mm1, g_mm2, g_mm3, g_mm4, g_mm5, g_mm6, g_mm7;
+RECOMP_TLS uint32_t g_fs_base;
 static unsigned updates, feature_ticks;
 static const uint32_t player = 0x110000, vehicle = 0x120000, car = 0x130000, body = 0x150000;
 static uint32_t expected_update_player = 0x110000;

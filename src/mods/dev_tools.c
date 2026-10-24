@@ -5,6 +5,7 @@
 #include "recomp_types.h"
 #include "dev_tools.h"
 #include "teleport.h"
+#include "guest_state.h"
 
 extern void sub_0020F7EB(void);
 extern void sub_0021CAE8(void); /* vehicleRepair's native backend; ESI = player */
@@ -120,12 +121,8 @@ void mm3_dev_tools_tick(void)
         if (remove(request)) return;
         if (!valid) { fprintf(stderr, "[FEATURE_PROBE] rejected request\n"); return; }
     }
-    uint32_t regs[] = {g_eax, g_ecx, g_edx, g_esp, g_ebx, g_esi, g_edi, g_ebp, g_seh_ebp};
-    double fp[8];
-    int top = g_fp_top, cmp = g_fp_cmp, df = g_df;
-    uint16_t cc = g_fp_cc, control = g_fp_control_word;
-    RecompXmm xmm[] = {g_xmm0,g_xmm1,g_xmm2,g_xmm3,g_xmm4,g_xmm5,g_xmm6,g_xmm7};
-    memcpy(fp, g_fp_stack, sizeof fp);
+    xbox_guest_state guest;
+    xbox_guest_state_save(&guest);
     running = 1;
     if (probe == MM3_DEV_REPAIR) {
         uint32_t player = mm3_debug_repair_player();
@@ -159,11 +156,6 @@ void mm3_dev_tools_tick(void)
     fprintf(stderr, "[FEATURE_PROBE] end %u loaded=%u facade_floors=%u\n",
             probe, g_eax & 0xFF, MEM32(0x003A8C3Cu)); fflush(stderr);
 restore:
-    g_eax=regs[0]; g_ecx=regs[1]; g_edx=regs[2]; g_esp=regs[3]; g_ebx=regs[4];
-    g_esi=regs[5]; g_edi=regs[6]; g_ebp=regs[7]; g_seh_ebp=regs[8];
-    memcpy(g_fp_stack, fp, sizeof fp);
-    g_fp_top=top; g_fp_cmp=cmp; g_df=df; g_fp_cc=cc; g_fp_control_word=control;
-    g_xmm0=xmm[0]; g_xmm1=xmm[1]; g_xmm2=xmm[2]; g_xmm3=xmm[3];
-    g_xmm4=xmm[4]; g_xmm5=xmm[5]; g_xmm6=xmm[6]; g_xmm7=xmm[7];
+    xbox_guest_state_restore(&guest, guest.eax);
     running = 0;
 }
