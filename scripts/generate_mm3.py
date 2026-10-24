@@ -27,7 +27,7 @@ REPO = Path(__file__).resolve().parents[1]
 # carries the fixes this project used to patch in here (fld tbyte, flag joins,
 # dead branches). Pair any pin change with a game-validated regeneration.
 # MM3_GENERATOR_DIR points at another checkout for isolated comparisons.
-GENERATOR_COMMIT = '837c4593f1aed465d6c54bd77f9c2e79eeaea5c8'
+GENERATOR_COMMIT = '77a615c6dfbe6be5ef5ba4aea03460918756b53e'
 
 
 def generator_dir():
