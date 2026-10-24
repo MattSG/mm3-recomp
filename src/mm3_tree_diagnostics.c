@@ -9,6 +9,7 @@
 #include <string.h>
 #include "mm3_recomp_types.h"
 #include "vec3_rotate.h"
+#include "guest_read.h"
 
 extern void sub_0016AEDB_original(void);
 extern void sub_000E1F49_original(void);
@@ -76,10 +77,6 @@ static uint32_t tree_word(uint32_t address)
     return value;
 }
 
-static uint32_t tree_word_at(uint64_t address)
-{
-    return address <= UINT32_MAX ? tree_word((uint32_t)address) : 0;
-}
 
 static int tree_name(uint32_t address, char out[TREE_NAME_SIZE])
 {
@@ -170,7 +167,7 @@ static uint64_t tree_fall_clock(void)
     uint32_t city = MEM32(0x4291F0), cells;
     unsigned char paused = 0;
     if (now == s_tree_fall_wall && city == s_tree_fall_city) return s_tree_fall_time;
-    cells = tree_word_at((uint64_t)city + 0x15304u);
+    cells = xbox_guest_word_at((uint64_t)city + 0x15304u);
     dt = now >= s_tree_fall_wall ? now - s_tree_fall_wall : 0;
     if (city != s_tree_fall_city || cells != s_tree_fall_cells) {
         memset(s_tree_falls, 0, sizeof s_tree_falls);
@@ -178,7 +175,8 @@ static uint64_t tree_fall_clock(void)
         s_tree_fall_time = 0; s_tree_fall_deadline = 0; dt = 0;
     }
     tree_read(0x429DB2u, &paused, sizeof paused);
-    if (s_tree_fall_wall && !paused) s_tree_fall_time += dt > 100u ? 100u : dt;
+    if (s_tree_fall_wall && !paused)
+        s_tree_fall_time = recomp_clock_capped_advance(s_tree_fall_time, dt, 100u);
     s_tree_fall_wall = now;
     if (s_tree_fall_deadline && s_tree_fall_time >= s_tree_fall_deadline) {
         memset(s_tree_falls, 0, sizeof s_tree_falls);
@@ -197,9 +195,9 @@ static int tree_fall_live(TreeFall *fall, uint64_t now)
      * availability bit must still be retired, and all owners must still match. */
     if (fall->city != s_tree_fall_city || fall->city != tree_word(0x4291F0)
         || fall->cells != s_tree_fall_cells
-        || fall->cells != tree_word_at((uint64_t)fall->city + 0x15304u)
+        || fall->cells != xbox_guest_word_at((uint64_t)fall->city + 0x15304u)
         || now < fall->started || now - fall->started >= 14000u
-        || tree_word_at((uint64_t)fall->cells + (fall->id >> 23) * 4u) != fall->cell
+        || xbox_guest_word_at((uint64_t)fall->cells + (fall->id >> 23) * 4u) != fall->cell
         || !tree_read(fall->cell + (type ? 0x10u : 0x18u), range, sizeof range)
         || (uint64_t)range[0] + ((fall->id >> 5) & 0xFFFFu) * (type ? 0xF8u : 0xCCu) != fall->primitive
         || (uint64_t)fall->primitive + (type ? 0xF8u : 0xCCu) > range[1]
@@ -207,7 +205,7 @@ static int tree_fall_live(TreeFall *fall, uint64_t now)
         || tree_word(fall->primitive + 4u) != fall->instance_key
         || !tree_read(fall->primitive + (type ? 8u : 4u), &descriptor_index, sizeof descriptor_index)
         || descriptor_index != fall->descriptor_index
-        || tree_word_at((uint64_t)fall->model + 0xA0u) != fall->metadata
+        || xbox_guest_word_at((uint64_t)fall->model + 0xA0u) != fall->metadata
         || !tree_read(fall->primitive + (type ? 0xF4u : 0xC8u), &identity, sizeof identity)
         || (identity & ~31u) != (fall->id & ~31u)
         || !tree_read(fall->primitive + (type ? 0xCu : 8u), &mask, sizeof mask)
@@ -291,7 +289,7 @@ static int tree_fall_model(const TreeFall *fall, uint32_t object)
      * deterministic variant. Follow its exact 16492A ID hash and bounded
      * index list, rather than accepting any model sharing tree metadata. */
     owner = tree_word(fall->context);
-    variants = tree_word_at((uint64_t)owner + 0x1250u);
+    variants = xbox_guest_word_at((uint64_t)owner + 0x1250u);
     if (!variants) return 0;
     row = (uint64_t)variants + (uint64_t)variant * 0x2Cu;
     if (row > UINT32_MAX - 0x28u || !tree_read((uint32_t)row + 0x20u, range, sizeof range)
@@ -300,7 +298,7 @@ static int tree_fall_model(const TreeFall *fall, uint32_t object)
     if (!count || count > 4096) return 0;
     choice = ((fall->id * 0xD68u + 0x1A85u) % 0x26F5u) % count;
     if (!tree_read(range[0] + choice * 2u, &model_index, sizeof model_index)) return 0;
-    models = tree_word_at((uint64_t)owner + 0x11D0u);
+    models = xbox_guest_word_at((uint64_t)owner + 0x11D0u);
     expected = (uint64_t)models + (uint64_t)model_index * 0xF4u;
     return models >= 0x10000u && expected <= UINT32_MAX - 0xF4u && expected == object;
 }
@@ -364,13 +362,13 @@ int mm3_tree_fall_drawing(void)
 
 static void tree_draw_original(void)
 {
-    uint32_t transform = tree_word_at((uint64_t)g_esp + 24u);
+    uint32_t transform = xbox_guest_word_at((uint64_t)g_esp + 24u);
     float saved[12];
     uint32_t caller = tree_word(g_esp);
     int previous_drawing = s_tree_fall_drawing;
     int animated = (caller == 0x0015C05Du || caller == 0x0015E4D9u)
-        && tree_fall_transform(tree_word_at((uint64_t)g_esp + 4u),
-            tree_word_at((uint64_t)g_esp + 36u), transform, saved);
+        && tree_fall_transform(xbox_guest_word_at((uint64_t)g_esp + 4u),
+            xbox_guest_word_at((uint64_t)g_esp + 36u), transform, saved);
     /* The native billboard shortcut rebuilds an upright tree using only the
      * translation. Use the mesh for this draw so it retains the tilted basis.
      * Scope the flag to this call, including nested unrelated prop draws. */
@@ -416,8 +414,8 @@ int mm3_tree_use_solid_contact(uint32_t record, float speed)
         s_tree_break_body = 0;
         memset(s_tree_break_velocity, 0, sizeof s_tree_break_velocity);
         {
-            uint32_t sim = tree_word_at((uint64_t)s_tree_contact_car + 0x3Cu);
-            uint32_t body = tree_word_at((uint64_t)sim + 4u);
+            uint32_t sim = xbox_guest_word_at((uint64_t)s_tree_contact_car + 0x3Cu);
+            uint32_t body = xbox_guest_word_at((uint64_t)sim + 4u);
             if (body <= UINT32_MAX - 0x2Cu
                 && tree_read(body + 0x20u, s_tree_break_velocity, sizeof s_tree_break_velocity))
                 s_tree_break_body = body;
@@ -507,21 +505,21 @@ static int tree_remove_native(void)
      * reload can reuse an instance ID: its current piece must still own the
      * contact's tree metadata before we retire it. Never mutate shared models. */
     memcpy(&context, primitive, sizeof context);
-    descriptors = tree_word_at((uint64_t)context + 4u);
+    descriptors = xbox_guest_word_at((uint64_t)context + 4u);
     if (type) memcpy(&owner, primitive + 4, sizeof owner);
     else {
         owner = tree_word(context);
-        descriptors = tree_word_at((uint64_t)descriptors + 4u);
+        descriptors = xbox_guest_word_at((uint64_t)descriptors + 4u);
     }
     memcpy(&descriptor_index, primitive + (type ? 8u : 4u), sizeof descriptor_index);
     address = (uint64_t)descriptors + (uint64_t)descriptor_index * 0x6Cu;
     if (address > UINT32_MAX - 0x30u || piece >= tree_word((uint32_t)address + 0x2Cu)) return 0;
-    geometry = tree_word_at((uint64_t)tree_word((uint32_t)address) + 0x14u);
+    geometry = xbox_guest_word_at((uint64_t)tree_word((uint32_t)address) + 0x14u);
     address = (uint64_t)geometry + ((uint64_t)tree_word((uint32_t)address + 0x28u) + piece) * 2u;
     if (address > UINT32_MAX || !tree_read((uint32_t)address, &model_index, sizeof model_index)) return 0;
-    models = tree_word_at((uint64_t)owner + 0x11D0u);
+    models = xbox_guest_word_at((uint64_t)owner + 0x11D0u);
     address = (uint64_t)models + (uint64_t)model_index * 0xF4u + 0xA0u;
-    if (tree_word_at(address) != s_tree_break_metadata) return 0;
+    if (xbox_guest_word_at(address) != s_tree_break_metadata) return 0;
     /* Native 16CABD appends the packed ID to a 16-byte vector for this cell,
      * then calls 15FFE0 to clear only this piece's availability bit. */
     address = (uint64_t)tree_word(city + 0x15308) + (uint64_t)cell_index * 16u;
@@ -548,8 +546,8 @@ static int tree_remove_native(void)
 static void tree_apply_impact_resistance(void)
 {
     float velocity[3], speed, dx, dz, forward, loss;
-    uint32_t sim = tree_word_at((uint64_t)s_tree_contact_car + 0x3Cu);
-    uint32_t body = tree_word_at((uint64_t)sim + 4u);
+    uint32_t sim = xbox_guest_word_at((uint64_t)s_tree_contact_car + 0x3Cu);
+    uint32_t body = xbox_guest_word_at((uint64_t)sim + 4u);
     /* Apply once, only after this instance was successfully retired. Retain
      * the native solver's lateral/vertical response and any larger slowdown;
      * breaking the tree costs at most 8% of forward speed, capped at 1.5m/s. */
