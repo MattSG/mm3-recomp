@@ -9,7 +9,7 @@ Usage:
 
 Retains settings, executable identity, frame CSV and results under
 conformance_tmp/bench/<tag>. Unreached scenes and game exits fail the run.
-Finishes by running tools/bench/summarize.py on the evidence directory.
+Finishes by running tools/xboxrecomp/tools/bench/summarize.py on the evidence directory.
 
 The harness drives menus through the game's MM3_DEBUG_TELEPORT endpoint (named
 pipe on Windows, Unix socket elsewhere). CPU time comes from GetProcessTimes on
@@ -375,7 +375,7 @@ def main():
     venv_python = os.path.join(repo, "tools", "venv", "Scripts" if os.name == "nt" else "bin",
                                "python.exe" if os.name == "nt" else "python")
     python = venv_python if os.path.exists(venv_python) else sys.executable
-    summary = subprocess.run([python, os.path.join(os.path.dirname(os.path.abspath(__file__)), "summarize.py"),
+    summary = subprocess.run([python, os.path.join(repo, "tools", "xboxrecomp", "tools", "bench", "summarize.py"),
                               run_dir])
     if summary.returncode:
         die("Benchmark summary failed; see retained evidence.")
