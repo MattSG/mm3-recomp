@@ -1128,24 +1128,8 @@ void load_fonts()
 }
 #endif
 
-/* The backend's system interface, with RmlUi's log on stderr like the rest
- * of the runtime's diagnostics instead of OutputDebugString. */
-struct System : Rml::SystemInterface {
-    Rml::SystemInterface *base;
-    unsigned errors = 0;
-    double GetElapsedTime() override { return base->GetElapsedTime(); }
-    void SetMouseCursor(const Rml::String &name) override { base->SetMouseCursor(name); }
-    void SetClipboardText(const Rml::String &text) override { base->SetClipboardText(text); }
-    void GetClipboardText(Rml::String &text) override { base->GetClipboardText(text); }
-    bool LogMessage(Rml::Log::Type type, const Rml::String &message) override
-    {
-        if (type == Rml::Log::LT_ERROR || type == Rml::Log::LT_ASSERT)
-            ++errors;
-        fprintf(stderr, "[launcher] %s\n", message.c_str());
-        fflush(stderr);
-        return true;
-    }
-} g_system;
+/* The backend's system interface, with RmlUi's log on stderr (tagged launcher). */
+RmlUiHostLogSystem g_system;
 
 bool bind_model(Rml::Context *ctx)
 {
@@ -1221,6 +1205,7 @@ bool bind_model(Rml::Context *ctx)
 static void launcher_bind_system(void *)
 {
     g_system.base = Backend::GetSystemInterface();
+    g_system.tag = "launcher";
 }
 
 static void launcher_prepare(void *)
