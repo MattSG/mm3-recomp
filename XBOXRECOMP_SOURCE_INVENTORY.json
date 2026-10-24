@@ -787,7 +787,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "9dc9f370bc0f23b605f1a3783e3cd91326abb24e",
         "scope": "Full APU register header ownership read and scoped consumer inspection",
-        "evidence": "tools/reference/ownership_apu_registers.md; source bytes unchanged",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_apu_registers.md; source bytes unchanged",
         "limit": "Hardware numeric accuracy, existing FIFO/ADPCM FIXMEs, signed masks and consumer semantics not certified",
         "prior_review": null
       }
@@ -814,7 +814,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "d7582c4b740b7cbfc879e2d4d72221db84335419",
         "scope": "Full APU state/filter/ADPCM header read; generic HRTF target loop correction and stereo regression; title/pacing observations archived in MM3",
-        "evidence": "Left sum 0/1 skips right target before fix; sums 0/1/2 now pass Windows/Linux alongside existing exact filter state/PCM comparison; both game builds pass; tools/reference/ownership_apu_state.md",
+        "evidence": "Left sum 0/1 skips right target before fix; sums 0/1/2 now pass Windows/Linux alongside existing exact filter state/PCM comparison; both game builds pass; tools/xboxrecomp/docs/reference/ownership_apu_state.md",
         "limit": "No audible-game acceptance or full APU/codec/hardware conformance. ADPCM input/channel preconditions, filter numerical edge behavior and shared-state lifecycle remain wider verification topics."
       }
     },
@@ -923,7 +923,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
         "scope": "Full source ownership read of seven DSP interface/register/portability headers; hardware/state definitions and generic callbacks, no title program payloads",
-        "evidence": "tools/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
         "limit": "Source ownership only. No new build, DSP execution, hardware register fidelity, audio acceptance, ABI/layout or capture-version compatibility proof. Forced asserts and disabled trace macros remain explicit host policy."
       }
     },
@@ -949,7 +949,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
         "scope": "Full source ownership read of seven DSP interface/register/portability headers; hardware/state definitions and generic callbacks, no title program payloads",
-        "evidence": "tools/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
         "limit": "Source ownership only. No new build, DSP execution, hardware register fidelity, audio acceptance, ABI/layout or capture-version compatibility proof. Forced asserts and disabled trace macros remain explicit host policy."
       }
     },
@@ -962,7 +962,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "e7252320435a2da4d1c7cb51b94c4a7966382738",
         "scope": "Full DMA source ownership read: descriptor parsing, range checks, interleave/conversion, callback transfers and control state; captured percentage moved to MM3",
-        "evidence": "tools/reference/ownership_dsp_dma.md and legacy_dsp_dma_profile_notes.md; only staging comment changed; existing dsp_cpu CTest passes Windows/Linux with DMA checks",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_dsp_dma.md and legacy_dsp_dma_profile_notes.md; only staging comment changed; existing dsp_cpu CTest passes Windows/Linux with DMA checks",
         "limit": "No independent timing/audio or complete DMA conformance. Bit 9/step fields and 24-bit packing variants remain unverified; endian/alignment assumptions and callback fault/progress behavior need wider evidence."
       }
     },
@@ -975,7 +975,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
         "scope": "Full source ownership read of seven DSP interface/register/portability headers; hardware/state definitions and generic callbacks, no title program payloads",
-        "evidence": "tools/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
         "limit": "Source ownership only. No new build, DSP execution, hardware register fidelity, audio acceptance, ABI/layout or capture-version compatibility proof. Forced asserts and disabled trace macros remain explicit host policy."
       }
     },
@@ -988,7 +988,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
         "scope": "Full source ownership read of seven DSP interface/register/portability headers; hardware/state definitions and generic callbacks, no title program payloads",
-        "evidence": "tools/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
         "limit": "Source ownership only. No new build, DSP execution, hardware register fidelity, audio acceptance, ABI/layout or capture-version compatibility proof. Forced asserts and disabled trace macros remain explicit host policy."
       }
     },
@@ -1001,7 +1001,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
         "scope": "Full source ownership read of seven DSP interface/register/portability headers; hardware/state definitions and generic callbacks, no title program payloads",
-        "evidence": "tools/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
         "limit": "Source ownership only. No new build, DSP execution, hardware register fidelity, audio acceptance, ABI/layout or capture-version compatibility proof. Forced asserts and disabled trace macros remain explicit host policy."
       }
     },
@@ -1020,7 +1020,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
         "scope": "Full source ownership read of seven DSP interface/register/portability headers; hardware/state definitions and generic callbacks, no title program payloads",
-        "evidence": "tools/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
         "limit": "Source ownership only. No new build, DSP execution, hardware register fidelity, audio acceptance, ABI/layout or capture-version compatibility proof. Forced asserts and disabled trace macros remain explicit host policy."
       }
     },
@@ -1033,7 +1033,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
         "scope": "Full source ownership read of seven DSP interface/register/portability headers; hardware/state definitions and generic callbacks, no title program payloads",
-        "evidence": "tools/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_dsp_headers.md; all seven working-byte hashes match the committed inventory; source and licensing unchanged",
         "limit": "Source ownership only. No new build, DSP execution, hardware register fidelity, audio acceptance, ABI/layout or capture-version compatibility proof. Forced asserts and disabled trace macros remain explicit host policy."
       }
     },
@@ -1182,7 +1182,7 @@
         "decision": "needs_generic_fix",
         "reviewed_at_fork": "8ac688973147872e38374c7b4feda62137c28222",
         "scope": "Scoped combiner shader compilation/cache/draw integration ownership read; transactional full-cache replacement and WARP failure regression",
-        "evidence": "tools/reference/ownership_d3d8_combiner_cache.md; old ownership assertion fails; final 128-slot failure/retry and existing 448 texture plus four RHW draws pass; D3D11 game rebuild passes",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_d3d8_combiner_cache.md; old ownership assertion fails; final 128-slot failure/retry and existing 448 texture plus four RHW draws pass; D3D11 game rebuild passes",
         "limit": "Full translator not certified; state identity, generation/order/upload/fallback gaps remain; Windows D3D11 only",
         "prior_review": null
       }
@@ -1235,7 +1235,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "8ffa9feef6ba84daaf12dde5b9e6ac6ba3a26522",
         "scope": "Full ownership source read of notify/fence host waits, D3D8 gamma implementation and NV2A renderer interface; caller-driven guest state/policy with no title dataset",
-        "evidence": "tools/reference/ownership_wait_gamma_renderer.md; unchanged source hashes; two wait CTests pass Windows/Linux; gamma WARP fixture reports zero failures with nine captured and one real DXGI presentation",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_wait_gamma_renderer.md; unchanged source hashes; two wait CTests pass Windows/Linux; gamma WARP fixture reports zero failures with nine captured and one real DXGI presentation",
         "limit": "Renderer header declaration review only; no full backend callback/ABI or GPU fidelity proof. Gamma is D3D11 single-device/serialized lifecycle, not cross-backend certification. Guest-memory synchronization, legacy host fallback and live gameplay remain wider topics."
       }
     },
@@ -1385,7 +1385,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "dd80d047e8bed2ae6246c860d32ae8c671dd1520",
         "scope": "NV2A hook initialization, register-range guard and removal of unused VRAM placeholder; host review limited to two graphics-init branches",
-        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; Windows/Linux adapter tests 2/2; actual Windows I/O-mapping regression zero failures; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_nv2a_mmio_adapter.md; Windows/Linux adapter tests 2/2; actual Windows I/O-mapping regression zero failures; both game builds pass",
         "limit": "Quiesced process singleton without teardown; no full host-file, GPU semantics, live gameplay or hardware certification",
         "prior_review": {
           "decision": "retain_generic_boundary",
@@ -1470,7 +1470,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "95f5f9c17dec7c60263e154901ea145cac9dce82",
         "scope": "Full source ownership read of four host/input/profile interface headers and four USB/network/NV2A/kernel build files; no title policy/data found",
-        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/reference/legacy_kernel_build_claims.md",
+        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/xboxrecomp/docs/reference/legacy_kernel_build_claims.md",
         "limit": "Declaration/build ownership only. No new concurrency/USB protocol/Tracy/platform or complete runtime certification. Volatile shared window declarations do not establish thread safety."
       }
     },
@@ -1626,7 +1626,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
         "scope": "Bounded contiguous allocation extension and MmAllocateContiguousMemoryEx guest bridge only; removed title-derived pinned heuristic and captured allocator commentary",
-        "evidence": "tools/reference/ownership_contiguous_range_frontier.md and legacy_pinned_contiguous_policy.md; original bridge reproduces duplicate issuance; final exact/invalid/reuse/heap/bridge checks pass Windows/Linux; suites 64 Windows/63 Linux; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_contiguous_range_frontier.md and legacy_pinned_contiguous_policy.md; original bridge reproduces duplicate issuance; final exact/invalid/reuse/heap/bridge checks pass Windows/Linux; suites 64 Windows/63 Linux; both game builds pass",
         "limit": "Scoped allocation change, not full source certification. Protection flags, native typed helpers, page-zero policy, installed-RAM/extended-reservation interaction and other bridge/layout behavior remain open.",
         "prior_review": {
           "decision": "retain_generic_boundary",
@@ -1716,7 +1716,7 @@
         "decision": "needs_generic_fix",
         "reviewed_at_fork": "9dc9f370bc0f23b605f1a3783e3cd91326abb24e",
         "scope": "Full source ownership read; remove unused BCrypt type/link pragma and stale implementation/performance claims",
-        "evidence": "tools/reference/ownership_kernel_crypto.md; standalone crypto CTest passes Windows and Linux",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_kernel_crypto.md; standalone crypto CTest passes Windows and Linux",
         "limit": "Private-key/service stubs, zero-modulus handling and length boundaries remain incomplete; no full crypto or hardware certification",
         "prior_review": null
       }
@@ -1736,7 +1736,7 @@
           "decision": "needs_generic_fix",
           "reviewed_at_fork": "852fedd7ebc43c89af9effe474bd1853de868e01",
           "scope": "Scoped native volume query/default geometry ownership review; validate both backend output lengths; move captured startup narrative",
-          "evidence": "tools/reference/ownership_file_volume_frontier.md; old short-buffer checks fail for all 0-23 lengths; final Windows/Linux direct test passes; Windows bridge 46/46; both game builds pass",
+          "evidence": "tools/xboxrecomp/docs/reference/ownership_file_volume_frontier.md; old short-buffer checks fail for all 0-23 lengths; final Windows/Linux direct test passes; Windows bridge 46/46; both game builds pass",
           "limit": "Whole kernel_file.c not reviewed; fixed geometry, host capacity/fallback and unsupported-class semantics remain partial",
           "prior_review": null
         }
@@ -1784,7 +1784,7 @@
         "decision": "needs_generic_fix",
         "reviewed_at_fork": "2da4407f02eb378f4f5f8b0d0045a31e371b23eb",
         "scope": "Full kernel_io.c ownership read; validate full IRP clearing span and add direct shared-initializer boundary regression",
-        "evidence": "tools/reference/ownership_kernel_io.md; old code fails two assertions; Windows bridge suite 45/45; both game builds pass; fresh Linux kernel_irp_packet_boundary now passes",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_kernel_io.md; old code fails two assertions; Windows bridge suite 45/45; both game builds pass; fresh Linux kernel_irp_packet_boundary now passes",
         "limit": "native I/O stubs, symbol/object table concurrency/truncation/lifecycle and wider guest buffer validation remain open",
         "prior_review": null
       }
@@ -1798,7 +1798,7 @@
         "decision": "needs_generic_fix",
         "reviewed_at_fork": "d9adc17697706687557e7426a9ae622ad7002fd7",
         "scope": "Full native memory wrapper source ownership review; configured total-RAM statistics correction; historical D3D11/CPU-pointer assumptions archived in MM3",
-        "evidence": "128MB stats regression fails before fix; configured 64/128MB, null input and bounded availability pass Windows/Linux; both game builds pass; tools/reference/ownership_kernel_memory_frontier.md",
+        "evidence": "128MB stats regression fails before fix; configured 64/128MB, null input and bounded availability pass Windows/Linux; both game builds pass; tools/xboxrecomp/docs/reference/ownership_kernel_memory_frontier.md",
         "limit": "AvailablePages is host approximation; native contiguous alignment/address/protection and inferred allocation ownership remain partial; native/guest ABI wrappers differ. No full memory semantics certification."
       }
     },
@@ -1878,7 +1878,7 @@
         "decision": "needs_generic_fix",
         "reviewed_at_fork": "44acaede094d0390f5e6c445926eedb2519d5a13",
         "scope": "Full native kernel synchronization source ownership read; distinguish native services from guest bridge semantics",
-        "evidence": "tools/reference/ownership_kernel_sync.md; source unchanged",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_kernel_sync.md; source unchanged",
         "limit": "Finite timeout conversion, timer initialization/lifetime, DPC cancellation/exclusion, state reporting and namespace semantics remain partial; no fresh runtime test or full correctness certification"
       }
     },
@@ -1986,7 +1986,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "693fb082cd1f97b43cba1534c0948ccbb81c3acd",
         "scope": "Full combiner C/header and vertex interpreter header ownership read; remove title/migration/performance narrative and document raw program output/16 inputs",
-        "evidence": "tools/reference/ownership_nv2a_combiner_interfaces.md and legacy_nv2a_interface_notes.md; non-comment token equality in all three files; existing three-case combiner program passes default and forced generic Windows/Linux",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_nv2a_combiner_interfaces.md and legacy_nv2a_interface_notes.md; non-comment token equality in all three files; existing three-case combiner program passes default and forced generic Windows/Linux",
         "limit": "No full fast-path/numerical/hardware equivalence or gameplay claim. Vertex interpreter body was not fully reviewed here; header output copy verified at return path. Environment remains startup/thread-cached policy."
       }
     },
@@ -1999,7 +1999,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "693fb082cd1f97b43cba1534c0948ccbb81c3acd",
         "scope": "Full combiner C/header and vertex interpreter header ownership read; remove title/migration/performance narrative and document raw program output/16 inputs",
-        "evidence": "tools/reference/ownership_nv2a_combiner_interfaces.md and legacy_nv2a_interface_notes.md; non-comment token equality in all three files; existing three-case combiner program passes default and forced generic Windows/Linux",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_nv2a_combiner_interfaces.md and legacy_nv2a_interface_notes.md; non-comment token equality in all three files; existing three-case combiner program passes default and forced generic Windows/Linux",
         "limit": "No full fast-path/numerical/hardware equivalence or gameplay claim. Vertex interpreter body was not fully reviewed here; header output copy verified at return path. Environment remains startup/thread-cached policy."
       }
     },
@@ -2012,7 +2012,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "8ffa9feef6ba84daaf12dde5b9e6ac6ba3a26522",
         "scope": "Full ownership source read of notify/fence host waits, D3D8 gamma implementation and NV2A renderer interface; caller-driven guest state/policy with no title dataset",
-        "evidence": "tools/reference/ownership_wait_gamma_renderer.md; unchanged source hashes; two wait CTests pass Windows/Linux; gamma WARP fixture reports zero failures with nine captured and one real DXGI presentation",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_wait_gamma_renderer.md; unchanged source hashes; two wait CTests pass Windows/Linux; gamma WARP fixture reports zero failures with nine captured and one real DXGI presentation",
         "limit": "Renderer header declaration review only; no full backend callback/ABI or GPU fidelity proof. Gamma is D3D11 single-device/serialized lifecycle, not cross-backend certification. Guest-memory synchronization, legacy host fallback and live gameplay remain wider topics."
       }
     },
@@ -2078,7 +2078,7 @@
         "decision": "needs_generic_fix",
         "reviewed_at_fork": "44acaede094d0390f5e6c445926eedb2519d5a13",
         "scope": "Full interpreter source ownership read; publish masked context constant writes and remove fixed matrix debug selection/captured narrative",
-        "evidence": "tools/reference/ownership_vsh_interpreter.md; old constant publication regression fails; Windows/Linux epilogue/context test passes; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_vsh_interpreter.md; old constant publication regression fails; Windows/Linux epilogue/context test passes; both game builds pass",
         "limit": "Reserved/floating-point/address/state serialization and wrap semantics remain unverified; no full ISA/hardware/gameplay certification",
         "prior_review": null
       }
@@ -2092,7 +2092,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "693fb082cd1f97b43cba1534c0948ccbb81c3acd",
         "scope": "Full combiner C/header and vertex interpreter header ownership read; remove title/migration/performance narrative and document raw program output/16 inputs",
-        "evidence": "tools/reference/ownership_nv2a_combiner_interfaces.md and legacy_nv2a_interface_notes.md; non-comment token equality in all three files; existing three-case combiner program passes default and forced generic Windows/Linux",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_nv2a_combiner_interfaces.md and legacy_nv2a_interface_notes.md; non-comment token equality in all three files; existing three-case combiner program passes default and forced generic Windows/Linux",
         "limit": "No full fast-path/numerical/hardware equivalence or gameplay claim. Vertex interpreter body was not fully reviewed here; header output copy verified at return path. Environment remains startup/thread-cached policy."
       }
     },
@@ -2119,19 +2119,19 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "ed59e671d8ac9ad8e2619020425fc5ae208263f9",
         "scope": "Full trace source ownership review plus checked reads, synchronized state initialization/budget/profile reports and process-lifetime owned profile names",
-        "evidence": "Prior source loses concurrent calls and retains mutable borrowed name; four trace CTests pass Windows/Linux, exact 200000 worker counts and 100000 budget admissions, periodic/exit reports; both game builds pass; tools/reference/ownership_trace_frontier.md",
+        "evidence": "Prior source loses concurrent calls and retains mutable borrowed name; four trace CTests pass Windows/Linux, exact 200000 worker counts and 100000 budget admissions, periodic/exit reports; both game builds pass; tools/xboxrecomp/docs/reference/ownership_trace_frontier.md",
         "limit": "Diagnostic global lock may contend; names live until process exit. Environment policy is startup-only; signal/reentrant tracing is unsupported. No TSan/macOS/live-game or complete runtime proof.",
         "prior_review": {
           "decision": "needs_generic_fix",
           "reviewed_at_fork": "1b47454faba9a4ab232850e7c817cd1a19250507",
           "scope": "Generic checked tracing reads, 32-bit range validation, exact read requirement and LastError preservation; remove low-64MB pointer dump filter",
-          "evidence": "Actual-source guard-page fixture crashes before fix on Windows; plain/args CTests pass 2/2 Windows and 2/2 Linux; both game builds pass; tools/reference/ownership_trace_frontier.md",
+          "evidence": "Actual-source guard-page fixture crashes before fix on Windows; plain/args CTests pass 2/2 Windows and 2/2 Linux; both game builds pass; tools/xboxrecomp/docs/reference/ownership_trace_frontier.md",
           "limit": "Profile/budget lazy initialization, shared counters/table and borrowed name lifetime remain unresolved; no macOS/live-game trace proof.",
           "prior_review": {
             "decision": "needs_generic_fix",
             "reviewed_at_fork": "a3ac8cc0093e4a038a277e5b6afb7c41ba8be2d8",
             "scope": "Full source ownership read of function/profile/debug-service diagnostics; migration history moved to MM3",
-            "evidence": "tools/reference/ownership_trace_frontier.md and legacy_trace_migration_notes.md; only selected comment changed; platform checked read primitive inspected",
+            "evidence": "tools/xboxrecomp/docs/reference/ownership_trace_frontier.md and legacy_trace_migration_notes.md; only selected comment changed; platform checked read primitive inspected",
             "limit": "Unchecked guest reads and fixed low-memory dump bounds remain; profile/budget initialization and shared tables are unsynchronized; borrowed name lifetime not enforced. No crashing experiment or runtime certification."
           }
         }
@@ -2146,7 +2146,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
         "scope": "Bounded contiguous allocation extension and MmAllocateContiguousMemoryEx guest bridge only; removed title-derived pinned heuristic and captured allocator commentary",
-        "evidence": "tools/reference/ownership_contiguous_range_frontier.md and legacy_pinned_contiguous_policy.md; original bridge reproduces duplicate issuance; final exact/invalid/reuse/heap/bridge checks pass Windows/Linux; suites 64 Windows/63 Linux; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_contiguous_range_frontier.md and legacy_pinned_contiguous_policy.md; original bridge reproduces duplicate issuance; final exact/invalid/reuse/heap/bridge checks pass Windows/Linux; suites 64 Windows/63 Linux; both game builds pass",
         "limit": "Scoped allocation change, not full source certification. Protection flags, native typed helpers, page-zero policy, installed-RAM/extended-reservation interaction and other bridge/layout behavior remain open.",
         "prior_review": {
           "decision": "retain_generic_boundary",
@@ -2264,7 +2264,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
         "scope": "Bounded contiguous allocation extension and MmAllocateContiguousMemoryEx guest bridge only; removed title-derived pinned heuristic and captured allocator commentary",
-        "evidence": "tools/reference/ownership_contiguous_range_frontier.md and legacy_pinned_contiguous_policy.md; original bridge reproduces duplicate issuance; final exact/invalid/reuse/heap/bridge checks pass Windows/Linux; suites 64 Windows/63 Linux; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_contiguous_range_frontier.md and legacy_pinned_contiguous_policy.md; original bridge reproduces duplicate issuance; final exact/invalid/reuse/heap/bridge checks pass Windows/Linux; suites 64 Windows/63 Linux; both game builds pass",
         "limit": "Scoped allocation change, not full source certification. Protection flags, native typed helpers, page-zero policy, installed-RAM/extended-reservation interaction and other bridge/layout behavior remain open.",
         "prior_review": {
           "decision": "retain_generic_boundary",
@@ -2361,7 +2361,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "95f5f9c17dec7c60263e154901ea145cac9dce82",
         "scope": "Full source ownership read of four host/input/profile interface headers and four USB/network/NV2A/kernel build files; no title policy/data found",
-        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/reference/legacy_kernel_build_claims.md",
+        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/xboxrecomp/docs/reference/legacy_kernel_build_claims.md",
         "limit": "Declaration/build ownership only. No new concurrency/USB protocol/Tracy/platform or complete runtime certification. Volatile shared window declarations do not establish thread safety."
       }
     },
@@ -2426,7 +2426,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "95f5f9c17dec7c60263e154901ea145cac9dce82",
         "scope": "Full source ownership read of four host/input/profile interface headers and four USB/network/NV2A/kernel build files; no title policy/data found",
-        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/reference/legacy_kernel_build_claims.md",
+        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/xboxrecomp/docs/reference/legacy_kernel_build_claims.md",
         "limit": "Declaration/build ownership only. No new concurrency/USB protocol/Tracy/platform or complete runtime certification. Volatile shared window declarations do not establish thread safety."
       }
     },
@@ -2439,7 +2439,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "dd80d047e8bed2ae6246c860d32ae8c671dd1520",
         "scope": "NV2A hook initialization, register-range guard and removal of unused VRAM placeholder; host review limited to two graphics-init branches",
-        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; Windows/Linux adapter tests 2/2; actual Windows I/O-mapping regression zero failures; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_nv2a_mmio_adapter.md; Windows/Linux adapter tests 2/2; actual Windows I/O-mapping regression zero failures; both game builds pass",
         "limit": "Quiesced process singleton without teardown; no full host-file, GPU semantics, live gameplay or hardware certification",
         "prior_review": {
           "decision": "retain_generic_boundary",
@@ -2472,13 +2472,13 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "dd80d047e8bed2ae6246c860d32ae8c671dd1520",
         "scope": "NV2A hook initialization, register-range guard and removal of unused VRAM placeholder; host review limited to two graphics-init branches",
-        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; Windows/Linux adapter tests 2/2; actual Windows I/O-mapping regression zero failures; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_nv2a_mmio_adapter.md; Windows/Linux adapter tests 2/2; actual Windows I/O-mapping regression zero failures; both game builds pass",
         "limit": "Quiesced process singleton without teardown; no full host-file, GPU semantics, live gameplay or hardware certification",
         "prior_review": {
           "decision": "needs_generic_fix",
           "reviewed_at_fork": "dd07ff368211dacd440bfb33b68eac8816468e00",
           "scope": "Full NV2A hook C/header ownership read; replace duplicate decoder with generic callbacks, preserve reverse CMP and PVIDEO locking; atomic statistics and checked failure logging",
-          "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
+          "evidence": "tools/xboxrecomp/docs/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
           "limit": "Legacy native VRAM page allocator and GPU allocation lifecycle remain partial/unowned; no actual GPU register-model, live fault or hardware equivalence proof. Header now documents these limits without zero-page fallback advice."
         }
       }
@@ -2492,13 +2492,13 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "dd80d047e8bed2ae6246c860d32ae8c671dd1520",
         "scope": "NV2A hook initialization, register-range guard and removal of unused VRAM placeholder; host review limited to two graphics-init branches",
-        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; Windows/Linux adapter tests 2/2; actual Windows I/O-mapping regression zero failures; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_nv2a_mmio_adapter.md; Windows/Linux adapter tests 2/2; actual Windows I/O-mapping regression zero failures; both game builds pass",
         "limit": "Quiesced process singleton without teardown; no full host-file, GPU semantics, live gameplay or hardware certification",
         "prior_review": {
           "decision": "retain_generic_boundary",
           "reviewed_at_fork": "dd07ff368211dacd440bfb33b68eac8816468e00",
           "scope": "Full NV2A hook C/header ownership read; replace duplicate decoder with generic callbacks, preserve reverse CMP and PVIDEO locking; atomic statistics and checked failure logging",
-          "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
+          "evidence": "tools/xboxrecomp/docs/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
           "limit": "Legacy native VRAM page allocator and GPU allocation lifecycle remain partial/unowned; no actual GPU register-model, live fault or hardware equivalence proof. Header now documents these limits without zero-page fallback advice.",
           "prior_review": {
             "decision": "retain_generic_boundary",
@@ -2564,7 +2564,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "dd07ff368211dacd440bfb33b68eac8816468e00",
         "scope": "Full NV2A hook C/header ownership read; replace duplicate decoder with generic callbacks, preserve reverse CMP and PVIDEO locking; atomic statistics and checked failure logging",
-        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
         "limit": "Legacy native VRAM page allocator and GPU allocation lifecycle remain partial/unowned; no actual GPU register-model, live fault or hardware equivalence proof. Header now documents these limits without zero-page fallback advice.",
         "prior_review": {
           "decision": "retain_generic_boundary",
@@ -2598,7 +2598,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "95f5f9c17dec7c60263e154901ea145cac9dce82",
         "scope": "Full source ownership read of four host/input/profile interface headers and four USB/network/NV2A/kernel build files; no title policy/data found",
-        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/reference/legacy_kernel_build_claims.md",
+        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/xboxrecomp/docs/reference/legacy_kernel_build_claims.md",
         "limit": "Declaration/build ownership only. No new concurrency/USB protocol/Tracy/platform or complete runtime certification. Volatile shared window declarations do not establish thread safety."
       }
     },
@@ -2629,7 +2629,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "95f5f9c17dec7c60263e154901ea145cac9dce82",
         "scope": "Full source ownership read of four host/input/profile interface headers and four USB/network/NV2A/kernel build files; no title policy/data found",
-        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/reference/legacy_kernel_build_claims.md",
+        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/xboxrecomp/docs/reference/legacy_kernel_build_claims.md",
         "limit": "Declaration/build ownership only. No new concurrency/USB protocol/Tracy/platform or complete runtime certification. Volatile shared window declarations do not establish thread safety."
       }
     },
@@ -2681,7 +2681,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "95f5f9c17dec7c60263e154901ea145cac9dce82",
         "scope": "Full source ownership read of four host/input/profile interface headers and four USB/network/NV2A/kernel build files; no title policy/data found",
-        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/reference/legacy_kernel_build_claims.md",
+        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/xboxrecomp/docs/reference/legacy_kernel_build_claims.md",
         "limit": "Declaration/build ownership only. No new concurrency/USB protocol/Tracy/platform or complete runtime certification. Volatile shared window declarations do not establish thread safety."
       }
     },
@@ -2714,7 +2714,7 @@
         "decision": "needs_generic_fix",
         "reviewed_at_fork": "fe644314d7283f72a021381ec7e5cbebdad71b84",
         "scope": "Full presenter ownership read; configured installed-RAM bound and actual-presenter boundary regression",
-        "evidence": "tools/reference/ownership_fb_present.md; old admission fails; final Windows/Linux focused test passes; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_fb_present.md; old admission fails; final Windows/Linux focused test passes; both game builds pass",
         "limit": "PVIDEO ordering/mapping races, capture validation and state lifetime/publication remain unverified; no live movie or hardware certification",
         "prior_review": null
       }
@@ -2741,7 +2741,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "95f5f9c17dec7c60263e154901ea145cac9dce82",
         "scope": "Full source ownership read of four host/input/profile interface headers and four USB/network/NV2A/kernel build files; no title policy/data found",
-        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/reference/legacy_kernel_build_claims.md",
+        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/xboxrecomp/docs/reference/legacy_kernel_build_claims.md",
         "limit": "Declaration/build ownership only. No new concurrency/USB protocol/Tracy/platform or complete runtime certification. Volatile shared window declarations do not establish thread safety."
       }
     },
@@ -2754,7 +2754,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "4dc8b6fe6682216ee08d1094ca5ade55130f978f",
         "scope": "Full source ownership read of Win32/SDL window creation, event dispatch, input, cursor, fullscreen and host callback handling; captured driver observations moved to MM3",
-        "evidence": "Only selected SDL comment changed; code and driver hint priority unchanged; tools/reference/legacy_sdl_window_driver_notes.md",
+        "evidence": "Only selected SDL comment changed; code and driver hint priority unchanged; tools/xboxrecomp/docs/reference/legacy_sdl_window_driver_notes.md",
         "limit": "No fresh GUI/runtime test. Shared volatile fields, callback lifetime, multi-window SDL event routing, modifier pairing and window teardown need separate correctness verification. Ownership review does not prove concurrency or UI fidelity."
       }
     },
@@ -2767,7 +2767,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "95f5f9c17dec7c60263e154901ea145cac9dce82",
         "scope": "Full source ownership read of four host/input/profile interface headers and four USB/network/NV2A/kernel build files; no title policy/data found",
-        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/reference/legacy_kernel_build_claims.md",
+        "evidence": "Interfaces expose generic handlers/window/controller/profile operations; target sources/dependencies/options inspected; kernel CMake non-comment command equality; tools/xboxrecomp/docs/reference/legacy_kernel_build_claims.md",
         "limit": "Declaration/build ownership only. No new concurrency/USB protocol/Tracy/platform or complete runtime certification. Volatile shared window declarations do not establish thread safety."
       }
     },
@@ -2780,7 +2780,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "4dc8b6fe6682216ee08d1094ca5ade55130f978f",
         "scope": "Full source ownership read of Win32/SDL window creation, event dispatch, input, cursor, fullscreen and host callback handling; captured driver observations moved to MM3",
-        "evidence": "Only selected SDL comment changed; code and driver hint priority unchanged; tools/reference/legacy_sdl_window_driver_notes.md",
+        "evidence": "Only selected SDL comment changed; code and driver hint priority unchanged; tools/xboxrecomp/docs/reference/legacy_sdl_window_driver_notes.md",
         "limit": "No fresh GUI/runtime test. Shared volatile fields, callback lifetime, multi-window SDL event routing, modifier pairing and window teardown need separate correctness verification. Ownership review does not prove concurrency or UI fidelity."
       }
     },
@@ -2823,7 +2823,7 @@
                   "decision": "retain_generic_boundary",
                   "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
                   "scope": "Shader-family identity and manifest import/worker integration boundary only; rest of renderer remains unreviewed",
-                  "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+                  "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/xboxrecomp/docs/reference/legacy_ps_prewarm_integration.md.",
                   "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
                 }
               }
@@ -2841,7 +2841,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "8ffa9feef6ba84daaf12dde5b9e6ac6ba3a26522",
         "scope": "Full ownership source read of notify/fence host waits, D3D8 gamma implementation and NV2A renderer interface; caller-driven guest state/policy with no title dataset",
-        "evidence": "tools/reference/ownership_wait_gamma_renderer.md; unchanged source hashes; two wait CTests pass Windows/Linux; gamma WARP fixture reports zero failures with nine captured and one real DXGI presentation",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_wait_gamma_renderer.md; unchanged source hashes; two wait CTests pass Windows/Linux; gamma WARP fixture reports zero failures with nine captured and one real DXGI presentation",
         "limit": "Renderer header declaration review only; no full backend callback/ABI or GPU fidelity proof. Gamma is D3D11 single-device/serialized lifecycle, not cross-backend certification. Guest-memory synchronization, legacy host fallback and live gameplay remain wider topics."
       }
     },
@@ -2867,7 +2867,7 @@
         "decision": "retain_generic",
         "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
         "scope": "Full bounded observed-state metadata format, validation and atomic publication",
-        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/xboxrecomp/docs/reference/legacy_ps_prewarm_integration.md.",
         "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
       }
     },
@@ -2954,7 +2954,7 @@
         "decision": "retain_generic",
         "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
         "scope": "Full portable hashing/key and Windows validated bytecode file-cache implementation",
-        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/xboxrecomp/docs/reference/legacy_ps_prewarm_integration.md.",
         "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
       }
     },
@@ -3437,7 +3437,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "8ac688973147872e38374c7b4feda62137c28222",
         "scope": "Scoped combiner shader compilation/cache/draw integration ownership read; transactional full-cache replacement and WARP failure regression",
-        "evidence": "tools/reference/ownership_d3d8_combiner_cache.md; old ownership assertion fails; final 128-slot failure/retry and existing 448 texture plus four RHW draws pass; D3D11 game rebuild passes",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_d3d8_combiner_cache.md; old ownership assertion fails; final 128-slot failure/retry and existing 448 texture plus four RHW draws pass; D3D11 game rebuild passes",
         "limit": "Full translator not certified; state identity, generation/order/upload/fallback gaps remain; Windows D3D11 only",
         "prior_review": {
           "decision": "retain_generic_boundary",
@@ -3586,7 +3586,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "d7582c4b740b7cbfc879e2d4d72221db84335419",
         "scope": "Full APU state/filter/ADPCM header read; generic HRTF target loop correction and stereo regression; title/pacing observations archived in MM3",
-        "evidence": "Left sum 0/1 skips right target before fix; sums 0/1/2 now pass Windows/Linux alongside existing exact filter state/PCM comparison; both game builds pass; tools/reference/ownership_apu_state.md",
+        "evidence": "Left sum 0/1 skips right target before fix; sums 0/1/2 now pass Windows/Linux alongside existing exact filter state/PCM comparison; both game builds pass; tools/xboxrecomp/docs/reference/ownership_apu_state.md",
         "limit": "No audible-game acceptance or full APU/codec/hardware conformance. ADPCM input/channel preconditions, filter numerical edge behavior and shared-state lifecycle remain wider verification topics."
       }
     },
@@ -3635,7 +3635,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "fe644314d7283f72a021381ec7e5cbebdad71b84",
         "scope": "Full presenter ownership read; configured installed-RAM bound and actual-presenter boundary regression",
-        "evidence": "tools/reference/ownership_fb_present.md; old admission fails; final Windows/Linux focused test passes; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_fb_present.md; old admission fails; final Windows/Linux focused test passes; both game builds pass",
         "limit": "PVIDEO ordering/mapping races, capture validation and state lifetime/publication remain unverified; no live movie or hardware certification",
         "prior_review": null
       }
@@ -3649,7 +3649,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "fe644314d7283f72a021381ec7e5cbebdad71b84",
         "scope": "Full presenter ownership read; configured installed-RAM bound and actual-presenter boundary regression",
-        "evidence": "tools/reference/ownership_fb_present.md; old admission fails; final Windows/Linux focused test passes; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_fb_present.md; old admission fails; final Windows/Linux focused test passes; both game builds pass",
         "limit": "PVIDEO ordering/mapping races, capture validation and state lifetime/publication remain unverified; no live movie or hardware certification",
         "prior_review": null
       }
@@ -3733,13 +3733,13 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "852fedd7ebc43c89af9effe474bd1853de868e01",
         "scope": "Scoped native volume query/default geometry ownership review; validate both backend output lengths; move captured startup narrative",
-        "evidence": "tools/reference/ownership_file_volume_frontier.md; old short-buffer checks fail for all 0-23 lengths; final Windows/Linux direct test passes; Windows bridge 46/46; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_file_volume_frontier.md; old short-buffer checks fail for all 0-23 lengths; final Windows/Linux direct test passes; Windows bridge 46/46; both game builds pass",
         "limit": "Whole kernel_file.c not reviewed; fixed geometry, host capacity/fallback and unsupported-class semantics remain partial",
         "prior_review": {
           "decision": "retain_generic_boundary",
           "reviewed_at_fork": "2da4407f02eb378f4f5f8b0d0045a31e371b23eb",
           "scope": "Full kernel_io.c ownership read; validate full IRP clearing span and add direct shared-initializer boundary regression",
-          "evidence": "tools/reference/ownership_kernel_io.md; old code fails two assertions; Windows bridge suite 45/45; both game builds pass",
+          "evidence": "tools/xboxrecomp/docs/reference/ownership_kernel_io.md; old code fails two assertions; Windows bridge suite 45/45; both game builds pass",
           "limit": "Linux check pending; native I/O stubs, symbol/object table concurrency/truncation/lifecycle and wider guest buffer validation remain open",
           "prior_review": {
             "decision": "retain_generic_boundary",
@@ -3822,13 +3822,13 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "852fedd7ebc43c89af9effe474bd1853de868e01",
         "scope": "Scoped native volume query/default geometry ownership review; validate both backend output lengths; move captured startup narrative",
-        "evidence": "tools/reference/ownership_file_volume_frontier.md; old short-buffer checks fail for all 0-23 lengths; final Windows/Linux direct test passes; Windows bridge 46/46; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_file_volume_frontier.md; old short-buffer checks fail for all 0-23 lengths; final Windows/Linux direct test passes; Windows bridge 46/46; both game builds pass",
         "limit": "Whole kernel_file.c not reviewed; fixed geometry, host capacity/fallback and unsupported-class semantics remain partial",
         "prior_review": {
           "decision": "retain_generic_boundary",
           "reviewed_at_fork": "2da4407f02eb378f4f5f8b0d0045a31e371b23eb",
           "scope": "Full kernel_io.c ownership read; validate full IRP clearing span and add direct shared-initializer boundary regression",
-          "evidence": "tools/reference/ownership_kernel_io.md; old code fails two assertions; Windows bridge suite 45/45; both game builds pass",
+          "evidence": "tools/xboxrecomp/docs/reference/ownership_kernel_io.md; old code fails two assertions; Windows bridge suite 45/45; both game builds pass",
           "limit": "Linux check pending; native I/O stubs, symbol/object table concurrency/truncation/lifecycle and wider guest buffer validation remain open",
           "prior_review": {
             "decision": "retain_generic_boundary",
@@ -3988,7 +3988,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "bd3708177f7a4786766a675310a8f672ecdcd8f3",
         "scope": "Bounded contiguous allocation extension and MmAllocateContiguousMemoryEx guest bridge only; removed title-derived pinned heuristic and captured allocator commentary",
-        "evidence": "tools/reference/ownership_contiguous_range_frontier.md and legacy_pinned_contiguous_policy.md; original bridge reproduces duplicate issuance; final exact/invalid/reuse/heap/bridge checks pass Windows/Linux; suites 64 Windows/63 Linux; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_contiguous_range_frontier.md and legacy_pinned_contiguous_policy.md; original bridge reproduces duplicate issuance; final exact/invalid/reuse/heap/bridge checks pass Windows/Linux; suites 64 Windows/63 Linux; both game builds pass",
         "limit": "Scoped allocation change, not full source certification. Protection flags, native typed helpers, page-zero policy, installed-RAM/extended-reservation interaction and other bridge/layout behavior remain open.",
         "prior_review": {
           "decision": "retain_generic_boundary",
@@ -4267,7 +4267,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "d9adc17697706687557e7426a9ae622ad7002fd7",
         "scope": "Full native memory wrapper source ownership review; configured total-RAM statistics correction; historical D3D11/CPU-pointer assumptions archived in MM3",
-        "evidence": "128MB stats regression fails before fix; configured 64/128MB, null input and bounded availability pass Windows/Linux; both game builds pass; tools/reference/ownership_kernel_memory_frontier.md",
+        "evidence": "128MB stats regression fails before fix; configured 64/128MB, null input and bounded availability pass Windows/Linux; both game builds pass; tools/xboxrecomp/docs/reference/ownership_kernel_memory_frontier.md",
         "limit": "AvailablePages is host approximation; native contiguous alignment/address/protection and inferred allocation ownership remain partial; native/guest ABI wrappers differ. No full memory semantics certification."
       }
     },
@@ -4880,7 +4880,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "dd07ff368211dacd440bfb33b68eac8816468e00",
         "scope": "Full NV2A hook C/header ownership read; replace duplicate decoder with generic callbacks, preserve reverse CMP and PVIDEO locking; atomic statistics and checked failure logging",
-        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
         "limit": "Legacy native VRAM page allocator and GPU allocation lifecycle remain partial/unowned; no actual GPU register-model, live fault or hardware equivalence proof. Header now documents these limits without zero-page fallback advice.",
         "prior_review": {
           "decision": "retain_generic_boundary",
@@ -4907,13 +4907,13 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "dd80d047e8bed2ae6246c860d32ae8c671dd1520",
         "scope": "NV2A hook initialization, register-range guard and removal of unused VRAM placeholder; host review limited to two graphics-init branches",
-        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; Windows/Linux adapter tests 2/2; actual Windows I/O-mapping regression zero failures; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_nv2a_mmio_adapter.md; Windows/Linux adapter tests 2/2; actual Windows I/O-mapping regression zero failures; both game builds pass",
         "limit": "Quiesced process singleton without teardown; no full host-file, GPU semantics, live gameplay or hardware certification",
         "prior_review": {
           "decision": "retain_generic_boundary",
           "reviewed_at_fork": "dd07ff368211dacd440bfb33b68eac8816468e00",
           "scope": "Full NV2A hook C/header ownership read; replace duplicate decoder with generic callbacks, preserve reverse CMP and PVIDEO locking; atomic statistics and checked failure logging",
-          "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
+          "evidence": "tools/xboxrecomp/docs/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
           "limit": "Legacy native VRAM page allocator and GPU allocation lifecycle remain partial/unowned; no actual GPU register-model, live fault or hardware equivalence proof. Header now documents these limits without zero-page fallback advice."
         }
       }
@@ -4927,7 +4927,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "dd07ff368211dacd440bfb33b68eac8816468e00",
         "scope": "Full NV2A hook C/header ownership read; replace duplicate decoder with generic callbacks, preserve reverse CMP and PVIDEO locking; atomic statistics and checked failure logging",
-        "evidence": "tools/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_nv2a_mmio_adapter.md; old hook fails five actual-source adapter assertions; final two CTests pass Windows/Linux, 40 shared CMP edges plus invalid/page checks; both game builds pass",
         "limit": "Legacy native VRAM page allocator and GPU allocation lifecycle remain partial/unowned; no actual GPU register-model, live fault or hardware equivalence proof. Header now documents these limits without zero-page fallback advice.",
         "prior_review": {
           "decision": "retain_generic_boundary",
@@ -5117,7 +5117,7 @@
         "decision": "retain_generic",
         "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
         "scope": "Standalone synthetic cache/warmup regression fixtures and build instructions",
-        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/xboxrecomp/docs/reference/legacy_ps_prewarm_integration.md.",
         "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
       }
     },
@@ -5130,7 +5130,7 @@
         "decision": "retain_generic",
         "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
         "scope": "Standalone synthetic cache/warmup regression fixtures and build instructions",
-        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/xboxrecomp/docs/reference/legacy_ps_prewarm_integration.md.",
         "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
       }
     },
@@ -5143,7 +5143,7 @@
         "decision": "retain_generic",
         "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
         "scope": "Standalone synthetic cache/warmup regression fixtures and build instructions",
-        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/xboxrecomp/docs/reference/legacy_ps_prewarm_integration.md.",
         "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
       }
     },
@@ -5156,7 +5156,7 @@
         "decision": "retain_generic",
         "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
         "scope": "Standalone synthetic cache/warmup regression fixtures and build instructions",
-        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/xboxrecomp/docs/reference/legacy_ps_prewarm_integration.md.",
         "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
       }
     },
@@ -5241,7 +5241,7 @@
         "decision": "retain_generic",
         "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
         "scope": "Standalone synthetic cache/warmup regression fixtures and build instructions",
-        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/xboxrecomp/docs/reference/legacy_ps_prewarm_integration.md.",
         "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
       }
     },
@@ -5254,7 +5254,7 @@
         "decision": "retain_generic",
         "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
         "scope": "Standalone synthetic cache/warmup regression fixtures and build instructions",
-        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/xboxrecomp/docs/reference/legacy_ps_prewarm_integration.md.",
         "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
       }
     },
@@ -5267,7 +5267,7 @@
         "decision": "retain_generic",
         "reviewed_at_fork": "926aad0a6a007e27cd4fea4127c373f377eb50e8",
         "scope": "Standalone synthetic cache/warmup regression fixtures and build instructions",
-        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/reference/legacy_ps_prewarm_integration.md.",
+        "evidence": "No title shader list/assets or measured title state; family derives from shared source/layout/variants/schema. Windows cache 2/2 and warmup 11/11 pass; Linux portable hash/key 1/1 passes. MM3-specific historical build paragraph archived in root tools/xboxrecomp/docs/reference/legacy_ps_prewarm_integration.md.",
         "limit": "Synthetic cache integrity, scheduling and GPU comparison evidence; not full renderer/gameplay fidelity, Linux file cache or Linux warmup execution, all devices or compiler/driver compatibility."
       }
     },
@@ -5504,7 +5504,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "44acaede094d0390f5e6c445926eedb2519d5a13",
         "scope": "Full interpreter source ownership read; publish masked context constant writes and remove fixed matrix debug selection/captured narrative",
-        "evidence": "tools/reference/ownership_vsh_interpreter.md; old constant publication regression fails; Windows/Linux epilogue/context test passes; both game builds pass",
+        "evidence": "tools/xboxrecomp/docs/reference/ownership_vsh_interpreter.md; old constant publication regression fails; Windows/Linux epilogue/context test passes; both game builds pass",
         "limit": "Reserved/floating-point/address/state serialization and wrap semantics remain unverified; no full ISA/hardware/gameplay certification",
         "prior_review": null
       }
@@ -5542,13 +5542,13 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "ed59e671d8ac9ad8e2619020425fc5ae208263f9",
         "scope": "Full trace source ownership review plus checked reads, synchronized state initialization/budget/profile reports and process-lifetime owned profile names",
-        "evidence": "Prior source loses concurrent calls and retains mutable borrowed name; four trace CTests pass Windows/Linux, exact 200000 worker counts and 100000 budget admissions, periodic/exit reports; both game builds pass; tools/reference/ownership_trace_frontier.md",
+        "evidence": "Prior source loses concurrent calls and retains mutable borrowed name; four trace CTests pass Windows/Linux, exact 200000 worker counts and 100000 budget admissions, periodic/exit reports; both game builds pass; tools/xboxrecomp/docs/reference/ownership_trace_frontier.md",
         "limit": "Diagnostic global lock may contend; names live until process exit. Environment policy is startup-only; signal/reentrant tracing is unsupported. No TSan/macOS/live-game or complete runtime proof.",
         "prior_review": {
           "decision": "retain_generic_boundary",
           "reviewed_at_fork": "1b47454faba9a4ab232850e7c817cd1a19250507",
           "scope": "Generic checked tracing reads, 32-bit range validation, exact read requirement and LastError preservation; remove low-64MB pointer dump filter",
-          "evidence": "Actual-source guard-page fixture crashes before fix on Windows; plain/args CTests pass 2/2 Windows and 2/2 Linux; both game builds pass; tools/reference/ownership_trace_frontier.md",
+          "evidence": "Actual-source guard-page fixture crashes before fix on Windows; plain/args CTests pass 2/2 Windows and 2/2 Linux; both game builds pass; tools/xboxrecomp/docs/reference/ownership_trace_frontier.md",
           "limit": "Profile/budget lazy initialization, shared counters/table and borrowed name lifetime remain unresolved; no macOS/live-game trace proof."
         }
       }
@@ -5562,13 +5562,13 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "ed59e671d8ac9ad8e2619020425fc5ae208263f9",
         "scope": "Full trace source ownership review plus checked reads, synchronized state initialization/budget/profile reports and process-lifetime owned profile names",
-        "evidence": "Prior source loses concurrent calls and retains mutable borrowed name; four trace CTests pass Windows/Linux, exact 200000 worker counts and 100000 budget admissions, periodic/exit reports; both game builds pass; tools/reference/ownership_trace_frontier.md",
+        "evidence": "Prior source loses concurrent calls and retains mutable borrowed name; four trace CTests pass Windows/Linux, exact 200000 worker counts and 100000 budget admissions, periodic/exit reports; both game builds pass; tools/xboxrecomp/docs/reference/ownership_trace_frontier.md",
         "limit": "Diagnostic global lock may contend; names live until process exit. Environment policy is startup-only; signal/reentrant tracing is unsupported. No TSan/macOS/live-game or complete runtime proof.",
         "prior_review": {
           "decision": "retain_generic_boundary",
           "reviewed_at_fork": "1b47454faba9a4ab232850e7c817cd1a19250507",
           "scope": "Generic checked tracing reads, 32-bit range validation, exact read requirement and LastError preservation; remove low-64MB pointer dump filter",
-          "evidence": "Actual-source guard-page fixture crashes before fix on Windows; plain/args CTests pass 2/2 Windows and 2/2 Linux; both game builds pass; tools/reference/ownership_trace_frontier.md",
+          "evidence": "Actual-source guard-page fixture crashes before fix on Windows; plain/args CTests pass 2/2 Windows and 2/2 Linux; both game builds pass; tools/xboxrecomp/docs/reference/ownership_trace_frontier.md",
           "limit": "Profile/budget lazy initialization, shared counters/table and borrowed name lifetime remain unresolved; no macOS/live-game trace proof."
         }
       }
@@ -6325,7 +6325,7 @@
           "decision": "retain_generic_boundary",
           "reviewed_at_fork": "0f8f90fd701dd044fe7d5c82bb99f4d7c62eb164",
           "scope": "Full source read of vtable scanner and output serialization; replace reference section name lists and address floor with executable flags or known function bounds",
-          "evidence": "Synthetic metadata regression failed before fix; renamed executable section, low addresses, raw offset zero, final pointer, non-executable rejection and known-function fallback pass; adjacent classifier checks pass; tools/reference/legacy_vtable_section_policy.md",
+          "evidence": "Synthetic metadata regression failed before fix; renamed executable section, low addresses, raw offset zero, final pointer, non-executable rejection and known-function fallback pass; adjacent classifier checks pass; tools/xboxrecomp/docs/reference/legacy_vtable_section_policy.md",
           "limit": "Heuristic vtable/constructor classification only; fallback cannot discover unknown thunk ranges without executable metadata. Constructor class IDs are assigned after constructor discovery, and summary omits vtable_thunk count. Output writer was source-reviewed, not newly runtime-tested."
         }
       }
@@ -6352,7 +6352,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "cf4d0ffb3b896c187bb1afc8c01d54641c28aee6",
         "scope": "Full source read of SSE chain recognizer; remove observed 120-byte ceiling and title-purpose commentary",
-        "evidence": "Long-chain regression fails before fix and passes after; 2/16/64-operation chains and invalid opcode rejection pass; six adjacent policy/version tests pass; tools/reference/legacy_stub_classification_notes.md",
+        "evidence": "Long-chain regression fails before fix and passes after; 2/16/64-operation chains and invalid opcode rejection pass; six adjacent policy/version tests pass; tools/xboxrecomp/docs/reference/legacy_stub_classification_notes.md",
         "limit": "Byte-pattern heuristic only. data_init categories and confidence scores do not prove purpose, boundaries or SDK provenance; no actual title classification run."
       }
     },
@@ -6417,7 +6417,7 @@
         "decision": "retain_generic_boundary",
         "reviewed_at_fork": "cf4d0ffb3b896c187bb1afc8c01d54641c28aee6",
         "scope": "Full source read of SSE chain recognizer; remove observed 120-byte ceiling and title-purpose commentary",
-        "evidence": "Long-chain regression fails before fix and passes after; 2/16/64-operation chains and invalid opcode rejection pass; six adjacent policy/version tests pass; tools/reference/legacy_stub_classification_notes.md",
+        "evidence": "Long-chain regression fails before fix and passes after; 2/16/64-operation chains and invalid opcode rejection pass; six adjacent policy/version tests pass; tools/xboxrecomp/docs/reference/legacy_stub_classification_notes.md",
         "limit": "Byte-pattern heuristic only. data_init categories and confidence scores do not prove purpose, boundaries or SDK provenance; no actual title classification run."
       }
     },
@@ -6436,7 +6436,7 @@
           "decision": "retain_generic_boundary",
           "reviewed_at_fork": "0f8f90fd701dd044fe7d5c82bb99f4d7c62eb164",
           "scope": "Full source read of vtable scanner and output serialization; replace reference section name lists and address floor with executable flags or known function bounds",
-          "evidence": "Synthetic metadata regression failed before fix; renamed executable section, low addresses, raw offset zero, final pointer, non-executable rejection and known-function fallback pass; adjacent classifier checks pass; tools/reference/legacy_vtable_section_policy.md",
+          "evidence": "Synthetic metadata regression failed before fix; renamed executable section, low addresses, raw offset zero, final pointer, non-executable rejection and known-function fallback pass; adjacent classifier checks pass; tools/xboxrecomp/docs/reference/legacy_vtable_section_policy.md",
           "limit": "Heuristic vtable/constructor classification only; fallback cannot discover unknown thunk ranges without executable metadata. Constructor class IDs are assigned after constructor discovery, and summary omits vtable_thunk count. Output writer was source-reviewed, not newly runtime-tested."
         }
       }
@@ -6456,7 +6456,7 @@
           "decision": "retain_generic_boundary",
           "reviewed_at_fork": "0f8f90fd701dd044fe7d5c82bb99f4d7c62eb164",
           "scope": "Full source read of vtable scanner and output serialization; replace reference section name lists and address floor with executable flags or known function bounds",
-          "evidence": "Synthetic metadata regression failed before fix; renamed executable section, low addresses, raw offset zero, final pointer, non-executable rejection and known-function fallback pass; adjacent classifier checks pass; tools/reference/legacy_vtable_section_policy.md",
+          "evidence": "Synthetic metadata regression failed before fix; renamed executable section, low addresses, raw offset zero, final pointer, non-executable rejection and known-function fallback pass; adjacent classifier checks pass; tools/xboxrecomp/docs/reference/legacy_vtable_section_policy.md",
           "limit": "Heuristic vtable/constructor classification only; fallback cannot discover unknown thunk ranges without executable metadata. Constructor class IDs are assigned after constructor discovery, and summary omits vtable_thunk count. Output writer was source-reviewed, not newly runtime-tested."
         }
       }

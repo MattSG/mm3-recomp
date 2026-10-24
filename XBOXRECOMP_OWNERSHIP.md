@@ -387,7 +387,7 @@ instance or original checkout was stopped or edited.
 - Removed the legacy 0x0036B7C0 thunk-table default and reference-title import
   order. MM3 already supplies its own address/count in `src/main.c`; the generic
   loader also parses each XBE. The old import list is retained only as reference
-  in MM3 `tools/reference/legacy_kernel_imports.h`.
+  in MM3 `tools/xboxrecomp/docs/reference/legacy_kernel_imports.h`.
 - Unconfigured bridge state is genuinely zero, matching the public API
   contract. Bridge initialization returns before touching guest memory when no
   thunk table is configured. The host import table stays empty without an XBE;
@@ -1124,7 +1124,7 @@ source area, final cumulative runtime checks and repository/publication inventor
   constants remain shared format rules; no captured game package is shipped.
 - Moved the original corpus layout/base measurements, derivation/header-hint
   and corrupt-XBE observations, and two original observed-value test snippets
-  into tools/reference/legacy_svod_observations.md with source commit/context.
+  into tools/xboxrecomp/docs/reference/legacy_svod_observations.md with source commit/context.
   Replaced the active tests' observed directory/TLS numbers with synthetic
   values while preserving the parser/decoy/corruption cases.
 - Production AST is unchanged excluding docstrings. Test AST is unchanged
@@ -1157,7 +1157,7 @@ source area, final cumulative runtime checks and repository/publication inventor
   Regenerate saved signature databases after masker changes; none are bundled.
 - Reviewed caller-supplied reference listing/function-start comparison aids.
   Moved captured donor-build/global examples and earlier overbroad oracle claims
-  into tools/reference/legacy_fusion_comparison_notes.md. The remaining observed
+  into tools/xboxrecomp/docs/reference/legacy_fusion_comparison_notes.md. The remaining observed
   global instruction fixture now uses a synthetic address with the same operand
   semantics. Comparator executable ASTs are unchanged; signature code changes
   are confined to masked_pattern. Evidence:
@@ -1237,7 +1237,7 @@ source area, final cumulative runtime checks and repository/publication inventor
   not establish Linux file-cache/warmup execution, all-device compatibility or
   original-game rendering fidelity.
 - Moved the old game-checkout/environment-script build paragraph into
-  tools/reference/legacy_ps_prewarm_integration.md and verified its original text.
+  tools/xboxrecomp/docs/reference/legacy_ps_prewarm_integration.md and verified its original text.
   The fork now documents commands from its own root with native CMake/CTest and
   the Windows SDK/MSVC environment. No production code changed in this checkpoint.
 - Refreshed the complete 622-file committed-tree/blob/hash inventory with ten
@@ -1884,7 +1884,7 @@ Fork checkpoint for this batch: `364d9d1`.
   and independent spawned registers/stack/TIB. The prior fixture mirrored the
   incorrect seven-argument assumption and never adjusted ESP on guest return.
 - Four normalized original source blocks (entry helpers, Ex/simple bridges and
-  old cleanup metadata) move to `tools/reference/legacy_thread_create_abi.md`,
+  old cleanup metadata) move to `tools/xboxrecomp/docs/reference/legacy_thread_create_abi.md`,
   verified against fork 0f75ac0. The active bridge loses the captured worker
   recovery narrative in favor of the generic register/stack contract.
 - Windows memory 50/50, kernel 62/62 and bridge 8/8 pass. Linux kernel 61/61 and all four actual
@@ -1975,7 +1975,7 @@ Fork checkpoint for this batch: `364d9d1`.
   guard-page accounting, which is not implemented by this bounded change:
   https://github.com/Cxbx-Reloaded/Cxbx-Reloaded/blob/master/src/core/kernel/exports/EmuKrnlMm.cpp#L135
 - Three normalized original unwind/create/delete bridge functions are retained
-  in `tools/reference/legacy_unwind_stack_policy.md`, checked against fork 1574479.
+  in `tools/xboxrecomp/docs/reference/legacy_unwind_stack_policy.md`, checked against fork 1574479.
   New C++ references link the bounds and guest kernel-stack helpers. Memory
   cases verify boundaries, optional/zeroed outputs, lease/stack retirement,
   ordinary heap exclusion, strict allocation kinds/pairs, exact unaligned
@@ -2048,7 +2048,7 @@ Fork checkpoint for this batch: `364d9d1`.
   respective fixes. Seven native tests use real host threads; six guest modes
   cover optional system entry in inline/spawn modes and missing/unresolved
   routines for both ordinals. Seven original normalized code/guide blocks
-  are preserved in tools/reference/legacy_native_thread_abi.md from 760ca88.
+  are preserved in tools/xboxrecomp/docs/reference/legacy_native_thread_abi.md from 760ca88.
 - Windows memory 56/56, kernel 62/62 and bridge 42/42 pass. Linux kernel 61/61,
   seven native and six guest modes, eight existing thread and seventeen unwind
   modes and actual C++ consumer pass. Both renderer builds and ordinal route
@@ -2157,7 +2157,7 @@ Fork checkpoint for this batch: `364d9d1`.
   IDE_CHANNEL_OBJECT structure; primary declaration reference:
   https://github.com/XboxDev/nxdk/blob/master/lib/xboxkrnl/xboxkrnl.h#L1486
   The old placeholder and unresolved-import fallback from fork 1bc1dcb are
-  archived in tools/reference/legacy_native_ide_channel.md; both blocks match
+  archived in tools/xboxrecomp/docs/reference/legacy_native_ide_channel.md; both blocks match
   normalized source. No port use of the scalar is preserved as generic semantics.
 - Native object is now NULL until an embedding supplies host-owned storage.
   Direct resolution and native import initialization retain that supplied
@@ -2181,7 +2181,7 @@ Fork checkpoint for this batch: `364d9d1`.
 - The src overview retained captured 147-import/LOC/library totals, a Windows-only
   architectural snapshot and unchecked/incomplete initialization examples.
   Its normalized original and the top-level CMake library commentary from fork
-  57f6f4c are archived in tools/reference/legacy_runtime_source_overview.md;
+  57f6f4c are archived in tools/xboxrecomp/docs/reference/legacy_runtime_source_overview.md;
   both original blocks match. Shared source guidance now links current build,
   memory/register and module contracts, separates application policy and avoids
   treating a route/library as fidelity proof. All 17 local links resolve.
@@ -2218,7 +2218,7 @@ Fork checkpoint for this batch: `364d9d1`.
 - The old input guide describes Windows only, records obsolete LOC, omits the
   contextual/click interfaces and dismisses accessory support as unnecessary.
   Its complete normalized version from fork 7089a43 is archived in
-  tools/reference/legacy_input_integration_guide.md. Current shared guidance
+  tools/xboxrecomp/docs/reference/legacy_input_integration_guide.md. Current shared guidance
   documents host backends, configurable maps, callback thread/handoff boundaries,
   startup caching and partial capability/accessory support. Three links resolve.
   Header comment changes remove obsolete Windows-only qualifiers; all runtime
@@ -2337,7 +2337,7 @@ Fork checkpoint for this batch: `364d9d1`.
 
 ### Clarify the retained NV2A register/shader boundary
 
-- Archived the old NV2A guide in tools/reference/legacy_nv2a_integration_guide.md;
+- Archived the old NV2A guide in tools/xboxrecomp/docs/reference/legacy_nv2a_integration_guide.md;
   its payload matches fork 1dce749 after newline normalization. The shared guide
   now documents singleton/buffer lifetime, host-owned fault routing, separate
   hook storage, unsupported decode handling and VRAM allocation limitations.
@@ -2591,7 +2591,7 @@ Fork checkpoint for this batch: `364d9d1`.
   not a complete typed namespace or guest reference-counting implementation.
 - Corrected object/pool documentation that overstated correctness and moved
   old claims/local I/O evidence pointers to
-  tools/reference/legacy_kernel_helper_claims.md. Executable token equality
+  tools/xboxrecomp/docs/reference/legacy_kernel_helper_claims.md. Executable token equality
   proves no object/pool/I/O behavior changed. Guest layout constants and
   assertions remain intact; C11 and C++17 probes both compile.
 - Fresh Windows helper builds pass all eight CTests: hash exact/pages/feature
@@ -2628,7 +2628,7 @@ Fork checkpoint for this batch: `364d9d1`.
 - Owned Vulkan night-driving run-gwa36lie passes in 123.484 seconds, with
   about 1.66 metres of movement and inspected capture-004.bmp. This is bounded
   compatibility evidence, not a fix claim for light/sky flicker. Historical
-  texture test results now live in tools/reference/legacy_texture_test_guide.md.
+  texture test results now live in tools/xboxrecomp/docs/reference/legacy_texture_test_guide.md.
   Frontier source/history and migration proof remain in
   tools/reference/ownership_mip_completion_frontier.md. Wider audit stays open.
 
@@ -2636,7 +2636,7 @@ Fork checkpoint for this batch: `364d9d1`.
 ### Separate DSP provenance from captured review history
 
 - Read all four DSP provenance, source-inventory, SA-frontier and stack-extension
-  documents. Preserved their original bytes in tools/reference/legacy_dsp_*.md.
+  documents. Preserved their original bytes in tools/xboxrecomp/docs/reference/legacy_dsp_*.md.
   Removed obsolete local hashes, captured test outcomes and sequential
   unimplemented/implemented narratives from the shared documents.
 - Fork retains the unchanged license/provenance header, pinned upstream origin
@@ -2730,7 +2730,7 @@ Fork checkpoint for this batch: `364d9d1`.
 
 - Fork f55fc29 replaces the old LOC/feature table with a concise interface,
   backend and test guide. Original guide and historical swizzle/menu sampling
-  commentary are preserved in tools/reference/legacy_d3d8_guide.md.
+  commentary are preserved in tools/xboxrecomp/docs/reference/legacy_d3d8_guide.md.
 - Executable swizzle tokens are identical under string-aware comment stripping;
   new local documentation links resolve. Build definitions and FVF position
   helpers were read as generic mechanisms without source changes.
@@ -2767,7 +2767,7 @@ Fork checkpoint for this batch: `364d9d1`.
   tools/reference/ownership_d3d8_palette_frontier.md. Original default
   provenance remains needs_policy_evidence; no behavior changed by analogy.
 - Fork e2c8f25 migrates device/OpenGL introductory RenderWare/first-cut
-  commentary into tools/reference/legacy_d3d8_device_notes.md. Generic
+  commentary into tools/xboxrecomp/docs/reference/legacy_d3d8_device_notes.md. Generic
   interface boundaries remain. Whole-file string-aware executable-token
   equality confirms both edits are comments only. No new runtime proof
   or broad device/GL certification is claimed. Wider review stays open.
@@ -2799,7 +2799,7 @@ Fork checkpoint for this batch: `364d9d1`.
 - HLSL generation snapshots operands and computes both unit results before
   committing, including paired R1 suppression/selection and delayed MAC
   temporary writes. Correct no-input signatures compile. Historical encoding
-  commentary moved to tools/reference/legacy_vsh_encoding_notes.md.
+  commentary moved to tools/xboxrecomp/docs/reference/legacy_vsh_encoding_notes.md.
 - Independent literal wire probe now passes. Twenty opcode emissions compile;
   WARP readback proves an ILU reads 0.25 before a paired MAC writes 0.75.
   The initial GPU-test signature mismatch was diagnosed and corrected in the
@@ -2931,7 +2931,7 @@ Fork checkpoint for this batch: `364d9d1`.
 - Fork cf4d0ff removes the 120-byte maximum derived from previously
   observed chains. The generic recognizer validates all supplied function bytes
   as two or more scalar SSE operations plus RET. Original application-purpose
-  commentary and size rationale moved to tools/reference/legacy_stub_classification_notes.md.
+  commentary and size rationale moved to tools/xboxrecomp/docs/reference/legacy_stub_classification_notes.md.
 - Long-chain regression failed before the fix. Synthetic 2/16/64-operation
   chains and invalid-opcode rejection pass, plus six adjacent policy/version
   tests. The single caller still uses the same recognition interface.
@@ -2962,7 +2962,7 @@ Fork checkpoint for this batch: `364d9d1`.
 - Fork 0f8f90f uses executable flags for code ranges, all supplied
   raw-backed scan sections, and no reference address floor. Without flags it
   uses known function bounds rather than guessing executable status from names.
-  Original locale/SDK section lists moved to tools/reference/legacy_vtable_section_policy.md.
+  Original locale/SDK section lists moved to tools/xboxrecomp/docs/reference/legacy_vtable_section_policy.md.
 - Regression failed on the prior scanner and now passes renamed executable
   sections, addresses below 0x10000, raw offset zero, final complete pointer,
   non-executable rejection and known-function fallback. Adjacent CRT/immediate/
@@ -2990,7 +2990,7 @@ Fork checkpoint for this batch: `364d9d1`.
 
 - Fork 95f5f9c removes the historical 147-import completion claim
   from the kernel build comment; original wording moved to MM3 at
-  tools/reference/legacy_kernel_build_claims.md. Non-comment CMake commands
+  tools/xboxrecomp/docs/reference/legacy_kernel_build_claims.md. Non-comment CMake commands
   compare equal; no build options, dependencies or executable code changed.
 - Read four complete interface headers: fb_window.h, fb_window_sdl.h,
   recomp_profile.h and usb_gamepad.h, plus USB/network/NV2A/kernel CMake files.
@@ -3005,7 +3005,7 @@ Fork checkpoint for this batch: `364d9d1`.
 ### Review generic native window implementations
 
 - Fork 4dc8b6f moves captured Linux driver error/run observations to
-  tools/reference/legacy_sdl_window_driver_notes.md. Existing default-priority
+  tools/xboxrecomp/docs/reference/legacy_sdl_window_driver_notes.md. Existing default-priority
   Wayland/X11 hint and caller overrides are unchanged. Only the selected
   comment changed; no fresh runtime/build test was needed or claimed.
 - Full Win32 and SDL implementation sources read. Window creation, event/input
@@ -3019,9 +3019,9 @@ Fork checkpoint for this batch: `364d9d1`.
 ### Trace runtime ownership and unresolved generic read safety
 
 - Fork a3ac8cc moves migration history to
-  tools/reference/legacy_trace_migration_notes.md; executable code unchanged.
+  tools/xboxrecomp/docs/reference/legacy_trace_migration_notes.md; executable code unchanged.
   Full tracing source reviewed: generic diagnostics, no title address table.
-- tools/reference/ownership_trace_frontier.md records unchecked guest stack,
+- tools/xboxrecomp/docs/reference/ownership_trace_frontier.md records unchecked guest stack,
   pointer and debug-string reads, fixed low-memory dump selection, shared
   unsynchronized profile/budget state and borrowed-name lifetime concerns.
   Existing platform exact-size checked reads were inspected as the reuse path.
@@ -3062,9 +3062,9 @@ Fork checkpoint for this batch: `364d9d1`.
   caller RAM configuration. The old 128 MB regression failed; 64/128 MB/null
   checks pass Windows/Linux, and both game builds pass.
 - Full native wrapper source read; unsupported CPU-pointer/D3D11 assumptions
-  moved to tools/reference/legacy_native_memory_assumptions.md. Actual partial
+  moved to tools/xboxrecomp/docs/reference/legacy_native_memory_assumptions.md. Actual partial
   constraints are documented instead of implied correctness.
-- tools/reference/ownership_kernel_memory_frontier.md records unresolved host
+- tools/xboxrecomp/docs/reference/ownership_kernel_memory_frontier.md records unresolved host
   availability approximation, contiguous bounds/alignment/protection, inferred
   free ownership and stub semantics. Source remains needs_generic_fix; broader
   ownership and runtime completion are not claimed.
@@ -3091,7 +3091,7 @@ Fork checkpoint for this batch: `364d9d1`.
 ### Review DSP interface and hardware vocabulary headers
 
 - Full source read of seven DSP state/register/portability headers, documented
-  in tools/reference/ownership_dsp_headers.md. They contain generic mechanisms
+  in tools/xboxrecomp/docs/reference/ownership_dsp_headers.md. They contain generic mechanisms
   and hardware vocabulary, with no title program payload or address table.
 - All seven byte hashes match the committed fork inventory. No source or
   rights notice changed; no fork commit/build/runtime rerun was needed.
@@ -3103,9 +3103,9 @@ Fork checkpoint for this batch: `364d9d1`.
 ### Review generic DSP DMA and move captured profiling result
 
 - Fork e725232 moves the 1.5-percent staging-buffer observation into
-  tools/reference/legacy_dsp_dma_profile_notes.md. Runtime behavior unchanged.
+  tools/xboxrecomp/docs/reference/legacy_dsp_dma_profile_notes.md. Runtime behavior unchanged.
 - Full DMA source reviewed: generic descriptor/range/format/callback mechanisms,
-  no title data or callback policy. tools/reference/ownership_dsp_dma.md records
+  no title data or callback policy. tools/xboxrecomp/docs/reference/ownership_dsp_dma.md records
   scope and unverified flags, packing, timing and callback-progress limits.
 - Existing dsp_cpu CTest, including DMA cases, passes Windows/Linux. This is not
   full DSP/audio/hardware acceptance. The overall ownership audit remains open.
@@ -3120,8 +3120,8 @@ Fork checkpoint for this batch: `364d9d1`.
   and Linux; the target is now cross-platform. Both game builds pass.
 - Full APU state header read: generic filters, codec/state and callback API.
   Captured title statistics/queue observations moved to
-  tools/reference/legacy_apu_state_observations.md. Full scope/limits are in
-  tools/reference/ownership_apu_state.md; no audible/full-APU acceptance claim.
+  tools/xboxrecomp/docs/reference/legacy_apu_state_observations.md. Full scope/limits are in
+  tools/xboxrecomp/docs/reference/ownership_apu_state.md; no audible/full-APU acceptance claim.
   The broader ownership audit remains open.
 
 
@@ -3183,7 +3183,7 @@ Fork checkpoint for this batch: `364d9d1`.
   without title tables, presets or captured payloads. Source hashes unchanged.
 - Rebuilt wait tests pass 2/2 Windows and 2/2 Linux. The rebuilt gamma WARP
   fixture reports zero failures with nine captured and one real DXGI present.
-- tools/reference/ownership_wait_gamma_renderer.md records the source findings
+- tools/xboxrecomp/docs/reference/ownership_wait_gamma_renderer.md records the source findings
   and lifecycle/order/backend limits. No fork code change or whole-runtime/
   gameplay certification is claimed; broader ownership work remains open.
 
@@ -3197,7 +3197,7 @@ Fork checkpoint for this batch: `364d9d1`.
   Linux, including 40 CMP direction/width cases and unreadable-code rejection.
   Both game builds pass. Old fallback claims/history moved to MM3.
 - Full hook C/header source read. Native VRAM-page and initialization lifecycle
-  gaps remain in tools/reference/ownership_nv2a_mmio_adapter.md; source is still
+  gaps remain in tools/xboxrecomp/docs/reference/ownership_nv2a_mmio_adapter.md; source is still
   needs_generic_fix outside the consolidated decode path. Broader goal open.
 
 
@@ -3220,7 +3220,7 @@ Fork checkpoint for this batch: `364d9d1`.
 - Full source read found generic runtime algorithms and caller-supplied data.
   Existing RSA/PKCS1/two-key DES regression passes Windows and Linux.
 - Private-key/service stubs and arithmetic boundary review remain open; source
-  stays needs_generic_fix. See tools/reference/ownership_kernel_crypto.md.
+  stays needs_generic_fix. See tools/xboxrecomp/docs/reference/ownership_kernel_crypto.md.
 
 
 ### Review MCPX APU register vocabulary
@@ -3257,7 +3257,7 @@ Fork checkpoint for this batch: `364d9d1`.
   45/45 and both game builds pass. Linux dependency build/check is pending.
 - Full kernel_io.c ownership read retains generic services, with native stubs,
   symbol/object table and pointer-validation gaps recorded in
-  tools/reference/ownership_kernel_io.md. Wider goal remains open.
+  tools/xboxrecomp/docs/reference/ownership_kernel_io.md. Wider goal remains open.
 
 
 ### Honor configured RAM in generic PVIDEO presentation
@@ -3267,7 +3267,7 @@ Fork checkpoint for this batch: `364d9d1`.
 - Actual-presenter fixture fails above-64-MB admission before the fix; final
   exact-end/out-of-range/retained-pixel tests pass Windows/Linux. Both game
   builds pass. Full presenter ownership read and remaining accuracy/lifetime
-  gaps are recorded in tools/reference/ownership_fb_present.md.
+  gaps are recorded in tools/xboxrecomp/docs/reference/ownership_fb_present.md.
 
 
 ### Preserve combiner cache ownership on failed replacement
@@ -3288,7 +3288,7 @@ Fork checkpoint for this batch: `364d9d1`.
   covers all constants; captured epilogue observations moved to MM3 references.
 - Old publication test fails; final Windows/Linux interpreter test and both
   game builds pass. Full source ownership review and remaining semantic gaps
-  are recorded in tools/reference/ownership_vsh_interpreter.md.
+  are recorded in tools/xboxrecomp/docs/reference/ownership_vsh_interpreter.md.
 
 
 ### Review native synchronization service ownership
@@ -3297,7 +3297,7 @@ Fork checkpoint for this batch: `364d9d1`.
   callbacks, without embedded title data or scheduling policy. Source unchanged.
 - Native timeout/timer/DPC/state gaps remain needs_generic_fix; guest bridge
   tests do not certify these separate paths. Findings and proof limits are in
-  tools/reference/ownership_kernel_sync.md. Broader audit remains active.
+  tools/xboxrecomp/docs/reference/ownership_kernel_sync.md. Broader audit remains active.
 
 
 ### Bound native volume query outputs and move startup evidence
