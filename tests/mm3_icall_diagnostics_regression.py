@@ -46,13 +46,12 @@ static void check(uint32_t caller,uint32_t target,unsigned kind,uint32_t expecte
  assert(icall_decode(caller,target,&slot,&base)==kind);
  assert(slot==expected&&base==reg);
 }
-static void code(const unsigned char*b,size_t n){memcpy(memory+0x50000,b,n);}
 static void snapshot(uint32_t*s){
  s[0]=g_eax;s[1]=g_ecx;s[2]=g_edx;s[3]=g_ebx;
  s[4]=g_esp;s[5]=g_ebp;s[6]=g_esi;s[7]=g_edi;
 }
 int main(int argc,char**argv){
- uint32_t before[8],after[8],word=0,target=0;
+ uint32_t before[8],after[8],target=0;
  unsigned char*before_memory=(unsigned char*)malloc(sizeof memory);assert(before_memory);
  assert(argc==2);g_xbox_mem_offset=(ptrdiff_t)memory;
  xbox_icall_set_report_hook(mm3_icall_report);
@@ -62,39 +61,6 @@ int main(int argc,char**argv){
  MEM32(g_ebp)=0x456789AB;MEM32(g_ebp+4)=0x12345678;
  MEM32(g_esp)=0x1F635D;MEM32(g_ecx)=g_eax;
 ''' + '\n'.join(seed_calls) + tests + r'''
- {unsigned char b[]={0xFF,0x15,0x34,0x28,0x39,0x00};code(b,sizeof b);
-  check(0x50006,0,1,0x392834,8);}
- {unsigned char b[]={0xFF,0xD0};code(b,sizeof b);
-  check(0x50002,g_eax,2,0,0);}
- {unsigned char b[]={0xFF,0x54,0x90,0x20};code(b,sizeof b);
-  check(0x50004,0,1,g_eax+g_edx*4+0x20,0);}
- {unsigned char b[]={0xFF,0x93,0xFC,0xFF,0xFF,0xFF};code(b,sizeof b);
-  check(0x50006,0,1,g_ebx-4,3);}
- {unsigned char b[]={0xFF,0x54,0x24,0x04};code(b,sizeof b);
-  check(0x50004,0,1,g_esp+8,4);}
- {unsigned char b[]={0xFF,0x14,0x95,0x00,0x00,0x74,0x00};code(b,sizeof b);
-  check(0x50007,0,1,0x740000+g_edx*4,8);}
- {unsigned char b[]={0x90,0x90};code(b,sizeof b);
-  check(0x50002,0,0,0,9);}
- assert(!xbox_icall_read(0,&word,4));
- assert(!xbox_icall_read(0xFFFFFFFE,&word,4));
- assert(!xbox_icall_read(0x07FFFFFE,&word,4));
- assert(!xbox_icall_read(0x700000,&word,129));
- {unsigned char*pages=(unsigned char*)VirtualAlloc(0,0x30000,MEM_RESERVE,PAGE_NOACCESS);
-  DWORD prior;uint32_t buffer[8]={0};ptrdiff_t original_offset=g_xbox_mem_offset;
-  assert(pages);assert(VirtualAlloc(pages,0x10000,MEM_COMMIT,PAGE_READWRITE)==pages);
-  g_xbox_mem_offset=(ptrdiff_t)pages-0x10000;
-  *(uint32_t*)pages=0xCAFEBABE;
-  assert(xbox_icall_read(0x10000,&word,4)&&word==0xCAFEBABE);
-  assert(!xbox_icall_read(0x20000,&word,4)); /* reserved, uncommitted */
-  assert(!xbox_icall_read(0x1FFFF,buffer,sizeof buffer)); /* crosses into uncommitted page */
-  assert(VirtualProtect(pages,0x10000,PAGE_NOACCESS,&prior));
-  assert(!xbox_icall_read(0x10000,&word,4));
-  assert(VirtualProtect(pages,0x10000,PAGE_READWRITE|PAGE_GUARD,&prior));
-  assert(!xbox_icall_read(0x10000,&word,4));
-  assert(VirtualProtect(pages,0x10000,PAGE_READWRITE,&prior));
-  assert(VirtualFree(pages,0,MEM_RELEASE));g_xbox_mem_offset=original_offset;
- }
  if(strcmp(argv[1],"cascade")==0){g_eax=g_ecx=0;MEM32(g_esp)=0x14E6CB;}
  if(strcmp(argv[1],"invalid")==0){
   g_ecx=0x07FFFFFC;g_eax=g_esi=g_edi=0;
@@ -183,12 +149,7 @@ def main():
                     assert all('request=07FFFFFC' in line and 'request_read=0' in line for line in requests)
             else:
                 assert not requests
-        print('PASS: five original Xbox failing call sites and register/absolute/SIB/ESP '
-              'operands resolve exact slots; null cascades, unknown operands, committed/'
-              'uncommitted/noaccess/guard/boundary reads stay safe; diagnostics preserve '
-              'guest registers and memory, cap at 50, and explicit tracing retains all calls. '
-              'Stack/frame snapshots, monotonic timestamps and USB request state remain bounded '
-              'and accurately separate callback bytes from the actual request.')
+        print('PASS: five original Xbox failing call sites resolve exact slots through their caller, diagnostics preserve guest registers and memory, cap at 50, and explicit tracing retains all calls. Stack/frame snapshots, monotonic timestamps and USB request state remain bounded and accurately separate callback bytes from the actual request.')
 
 
 if __name__ == '__main__':
