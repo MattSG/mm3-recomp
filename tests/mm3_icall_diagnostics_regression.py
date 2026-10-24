@@ -1,7 +1,9 @@
 """Exercise bounded indirect-call diagnostics using original Xbox call bytes.
 
-Run inside `python scripts/devenv.py --shell` with tools/venv/Scripts/python.exe. Compiles the
-production logger unchanged and never accesses a running game or save files.
+Run inside `python scripts/devenv.py --shell` with tools/venv/Scripts/python.exe. The fork's
+generic loggers and decoder (src/kernel/icall_diagnostics.c) are compiled directly, with
+this title's caller-specific report hook taken from src/recomp_manual.c. It never
+accesses a running game or save files.
 """
 import re
 import shutil
@@ -20,15 +22,11 @@ CALLS = ((0x1F635D, 0x64), (0x14E6CB, 0x70), (0x14E732, 0x70),
 
 def fixture(image):
     source = (ROOT / 'src/recomp_manual.c').read_text()
-    # Keep the logger's real accounting helpers; extracting only its body hid
-    # new dependencies and left this regression unable to compile.
-    bodies = [source[source.index('static volatile LONG icall_suppressed[2];'):
-                     source.index('void recomp_icall_fail_log(uint32_t xbox_va)')]]
-    for name in ('mm3_icall_read', 'mm3_icall_decode', 'recomp_icall_not_code_log'):
-        body = re.search(r'(?:static (?:int|unsigned)|void) ' + name
-                         + r'\([^)]*\)\n\{.*?\n\}', source, re.S)
-        assert body, name
-        bodies.append(body.group())
+    # The loggers and decoder are the fork's, compiled from their own file. Only this
+    # title's caller-specific report hook is taken from the title source.
+    hook = re.search(r'static void mm3_icall_report\(const XboxIcallReport \*report\)\n\{.*?\n\}\n',
+                     source, re.S)
+    assert hook, 'mm3_icall_report'
     seed_calls = []
     for caller in [caller for caller, _ in CALLS] + [0x35D048]:
         start = caller - 7
@@ -39,10 +37,13 @@ def fixture(image):
     tests = '\n'.join(f'check(0x{caller:X},0,1,0x720000+0x{offset:X},0);'
                       for caller, offset in CALLS)
     return (cpu.COMMON_NATIVE + '\nuint32_t g_xbox_code_lo=0x12000,g_xbox_code_hi=0x362000;\n'
-            + 'static int g_mm3_frontend_icall_trace;\n' + '\n'.join(bodies) + r'''
+            + 'static int g_mm3_frontend_icall_trace;\n'
+            + 'ptrdiff_t xbox_GetMemoryOffset(void) { return g_xbox_mem_offset; }\n'
+            + '#include "icall_diagnostics.c"\n'
+            + hook.group() + r'''
 static void check(uint32_t caller,uint32_t target,unsigned kind,uint32_t expected,unsigned reg){
  uint32_t slot=0xAAAAAAAA;unsigned base=99;
- assert(mm3_icall_decode(caller,target,&slot,&base)==kind);
+ assert(icall_decode(caller,target,&slot,&base)==kind);
  assert(slot==expected&&base==reg);
 }
 static void code(const unsigned char*b,size_t n){memcpy(memory+0x50000,b,n);}
@@ -54,6 +55,7 @@ int main(int argc,char**argv){
  uint32_t before[8],after[8],word=0,target=0;
  unsigned char*before_memory=(unsigned char*)malloc(sizeof memory);assert(before_memory);
  assert(argc==2);g_xbox_mem_offset=(ptrdiff_t)memory;
+ xbox_icall_set_report_hook(mm3_icall_report);
  g_esp=0x700000;g_eax=0x720000;g_ecx=0x730000;g_edx=2;
  g_ebx=0x740000;g_ebp=0x710000;g_seh_ebp=0x710020;
  g_esi=0x23456789;g_edi=0x3456789A;
@@ -74,22 +76,22 @@ int main(int argc,char**argv){
   check(0x50007,0,1,0x740000+g_edx*4,8);}
  {unsigned char b[]={0x90,0x90};code(b,sizeof b);
   check(0x50002,0,0,0,9);}
- assert(!mm3_icall_read(0,&word,4));
- assert(!mm3_icall_read(0xFFFFFFFE,&word,4));
- assert(!mm3_icall_read(0x07FFFFFE,&word,4));
- assert(!mm3_icall_read(0x700000,&word,129));
+ assert(!xbox_icall_read(0,&word,4));
+ assert(!xbox_icall_read(0xFFFFFFFE,&word,4));
+ assert(!xbox_icall_read(0x07FFFFFE,&word,4));
+ assert(!xbox_icall_read(0x700000,&word,129));
  {unsigned char*pages=(unsigned char*)VirtualAlloc(0,0x30000,MEM_RESERVE,PAGE_NOACCESS);
   DWORD prior;uint32_t buffer[8]={0};ptrdiff_t original_offset=g_xbox_mem_offset;
   assert(pages);assert(VirtualAlloc(pages,0x10000,MEM_COMMIT,PAGE_READWRITE)==pages);
   g_xbox_mem_offset=(ptrdiff_t)pages-0x10000;
   *(uint32_t*)pages=0xCAFEBABE;
-  assert(mm3_icall_read(0x10000,&word,4)&&word==0xCAFEBABE);
-  assert(!mm3_icall_read(0x20000,&word,4)); /* reserved, uncommitted */
-  assert(!mm3_icall_read(0x1FFFF,buffer,sizeof buffer)); /* crosses into uncommitted page */
+  assert(xbox_icall_read(0x10000,&word,4)&&word==0xCAFEBABE);
+  assert(!xbox_icall_read(0x20000,&word,4)); /* reserved, uncommitted */
+  assert(!xbox_icall_read(0x1FFFF,buffer,sizeof buffer)); /* crosses into uncommitted page */
   assert(VirtualProtect(pages,0x10000,PAGE_NOACCESS,&prior));
-  assert(!mm3_icall_read(0x10000,&word,4));
+  assert(!xbox_icall_read(0x10000,&word,4));
   assert(VirtualProtect(pages,0x10000,PAGE_READWRITE|PAGE_GUARD,&prior));
-  assert(!mm3_icall_read(0x10000,&word,4));
+  assert(!xbox_icall_read(0x10000,&word,4));
   assert(VirtualProtect(pages,0x10000,PAGE_READWRITE,&prior));
   assert(VirtualFree(pages,0,MEM_RELEASE));g_xbox_mem_offset=original_offset;
  }
@@ -99,6 +101,7 @@ int main(int argc,char**argv){
   MEM32(g_esp)=0xFB05E;g_mm3_frontend_icall_trace=1;
  }
  if(strcmp(argv[1],"trace")==0)g_mm3_frontend_icall_trace=1;
+ xbox_icall_set_trace_all(g_mm3_frontend_icall_trace);
  if(strcmp(argv[1],"usb")==0||strcmp(argv[1],"bad_request")==0){
   g_eax=strcmp(argv[1],"usb")==0?0x740000:0x07FFFFFC;
   MEM32(g_esp)=0x35D048;MEM32(g_esp+4)=g_eax;MEM32(g_esp+8)=0x750000;
@@ -127,7 +130,17 @@ def main():
         directory = Path(temporary)
         shutil.copyfile(ROOT / 'src/mm3_recomp_types.h', directory / 'recomp_types.h')
         shutil.copyfile(ROOT / "tools/xboxrecomp/templates/runtime/recomp_types.h", directory / "recomp_base.h")
-        executable = cpu.compile_fixture(directory, 'diagnostics', fixture(image))
+        shutil.copyfile(ROOT / "tools/xboxrecomp/src/kernel/icall_diagnostics.c", directory / "icall_diagnostics.c")
+        source = directory / 'diagnostics.c'
+        source.write_text(fixture(image))
+        executable = directory / ('diagnostics' + cc.exe_suffix())
+        subprocess.run(cc.compile_command(
+            [source], executable,
+            includes=[directory, ROOT / 'tools/xboxrecomp/include', ROOT / 'tools/xboxrecomp/src',
+                      ROOT / 'tools/xboxrecomp/src/kernel', ROOT / 'tools/xboxrecomp/src/nv2a'],
+            defines=['_CRT_SECURE_NO_WARNINGS'], std='c11', optimize='none', warnings='high',
+            werror=True, disable_warnings=('4102',), obj=directory / 'diagnostics.obj'),
+            check=True, cwd=directory)
         for mode in ('default', 'trace', 'cascade', 'invalid', 'usb', 'bad_request', 'bad_stack'):
             result = subprocess.run([str(executable), mode], capture_output=True, text=True)
             assert result.returncode == 0, (mode, result)
