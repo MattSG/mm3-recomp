@@ -9,6 +9,7 @@ toolkit = pathlib.Path(os.environ.get('MM3_GENERATOR_DIR', repo / 'tools/xboxrec
 sys.path.insert(0, str(toolkit))
 from tools.recomp import config
 from tools.recomp.translator import BatchTranslator
+from tools.recomp.unwind_patch import unwind_after_call
 
 out = pathlib.Path(sys.argv[1])
 entries = json.loads((repo / 'mm3_runtime_entry_repairs.json').read_text())
@@ -28,29 +29,13 @@ for entry in entries:
     body = translator.translate_single(int(entry['start'], 16))
     if not body:
         raise RuntimeError(f'Generation failed: {entry["start"]}')
-    for operand in entry.get('x87_extended_loads', []):
-        # The pinned lifter reads FLD tbyte constants through MEMF. Keep the
-        # complete original operand: the exp range limit otherwise becomes
-        # zero, sending every nonzero tire-physics argument through overflow.
-        address = f'0x{int(operand, 16):X}'
-        old = f'fp_push(MEMF({address})); /* fld */'
-        new = f'fp_push(MEMFP80({address})); /* fld tbyte */'
-        if old not in body and new not in body:
-            raise RuntimeError(f'Missing extended load {operand}: {entry["start"]}')
-        body = body.replace(old, new)
     if entry.get('x87_helper_unwinds_caller'):
         # 9BC04 discards 9BC52's return address and returns from this dispatch
-        # entry directly. A C call otherwise resumes here and pops once again.
-        lines = body.splitlines()
-        found = False
-        for index, line in enumerate(lines):
-            if 'RECOMP_ABI_CALL(0x0009BC52u, sub_0009BC52)' in line:
-                lines[index] = ('    { uint32_t math_sp = esp;\n' + line +
-                                '\n      if (esp == math_sp + 4u) return; }')
-                found = True
-        if not found:
+        # entry directly; the fork's rewrite makes the caller return with it.
+        try:
+            body = unwind_after_call(body, 0x0009BC52)
+        except ValueError:
             raise RuntimeError(f'Missing unwind helper: {entry["start"]}')
-        body = '\n'.join(lines)
     code.append(body)
 code += ['typedef void (*mm3_recovered_func_t)(void);',
          'mm3_recovered_func_t mm3_lookup_recovered_entry(uint32_t va)',
