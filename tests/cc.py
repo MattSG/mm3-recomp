@@ -1,7 +1,7 @@
 """C compiler selection shared by the contract tests.
 
 The implementation lives with the runtime in tools/xboxrecomp/tests/cc.py so
-the fork's own contract tests share it. This module re-exports it.
+the runtime's own contract tests share it. This module re-exports it.
 """
 import importlib.util
 import os
@@ -15,10 +15,11 @@ globals().update({k: v for k, v in vars(_module).items() if not k.startswith("__
 
 
 def compile_command(sources, output, *, includes=(), **kwargs):
-    """The runtime's compile_command, with the port's src/runtime helpers on
-    the include path as in the game build."""
-    runtime = Path(__file__).resolve().parents[1] / "src/runtime"
-    return _module.compile_command(sources, output, includes=[*includes, runtime], **kwargs)
+    """The runtime's compile_command, with the runtime's helper directories on
+    the include path, so a fixture can include a helper's source by name."""
+    src = Path(__file__).resolve().parents[1] / "tools/xboxrecomp/src"
+    return _module.compile_command(sources, output,
+                                   includes=[*includes, src / "kernel", src / "nv2a"], **kwargs)
 
 
 def cmake_program():

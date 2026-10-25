@@ -1,6 +1,6 @@
 """Exercise bounded indirect-call diagnostics using original Xbox call bytes.
 
-Run inside `python scripts/devenv.py --shell` with tools/venv/Scripts/python.exe. The fork's
+Run inside `python scripts/devenv.py --shell` with tools/venv/Scripts/python.exe. The runtime's
 generic loggers and decoder (src/kernel/icall_diagnostics.c) are compiled directly, with
 this title's caller-specific report hook taken from src/recomp_manual.c. It never
 accesses a running game or save files.
@@ -22,7 +22,7 @@ CALLS = ((0x1F635D, 0x64), (0x14E6CB, 0x70), (0x14E732, 0x70),
 
 def fixture(image):
     source = (ROOT / 'src/recomp_manual.c').read_text()
-    # The loggers and decoder are the fork's, compiled from their own file. Only this
+    # The loggers and decoder are the runtime's, compiled from their own file. Only this
     # title's caller-specific report hook is taken from the title source.
     hook = re.search(r'static void mm3_icall_report\(const XboxIcallReport \*report\)\n\{.*?\n\}\n',
                      source, re.S)

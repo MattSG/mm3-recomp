@@ -1,0 +1,1554 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Matt Graham <matt.sg@hotmail.com>
+Date: Sun, 25 Oct 2026 19:25:15 +0000
+Subject: [PATCH 06/12] input, usb: XInput/SDL3 pads over the shared key map
+
+The pad backend is XInput on Windows and SDL3 elsewhere, with RECOMP_PADMAP
+and capture neutralisation. The keyboard is upstream's key table and map,
+with RECOMP_KEYMAP overrides and RECOMP_MENU_KEYS menu navigation. The OHCI
+trap covers every x86-64 host.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/input/CMakeLists.txt  |   8 +-
+ src/input/README.md       |   1 -
+ src/input/keyboard.c      |  89 +++++++
+ src/input/keyboard.h      |   2 +
+ src/input/keyboard_sdl.c  | 193 --------------
+ src/input/keyboard_sdl.h  |  33 ---
+ src/input/keymap_spec.c   |  34 +++
+ src/input/keymap_spec.h   |  25 ++
+ src/input/xinput_device.c | 517 ++++++++++++++++++++++----------------
+ src/input/xinput_xbox.h   |  28 ++-
+ src/usb/ohci.c            | 145 ++++-------
+ src/usb/ohci.h            |  28 +--
+ src/usb/usb_gamepad.c     |  25 +-
+ 13 files changed, 549 insertions(+), 579 deletions(-)
+ delete mode 100644 src/input/keyboard_sdl.c
+ delete mode 100644 src/input/keyboard_sdl.h
+ create mode 100644 src/input/keymap_spec.c
+ create mode 100644 src/input/keymap_spec.h
+
+diff --git a/src/input/CMakeLists.txt b/src/input/CMakeLists.txt
+index ae6228d8..99ecd95c 100644
+--- a/src/input/CMakeLists.txt
++++ b/src/input/CMakeLists.txt
+@@ -3,6 +3,7 @@
+ add_library(xbox_input STATIC
+     xinput_device.c
+     keyboard.c          # the key table and the one key map (every host)
++    keymap_spec.c       # RECOMP_KEYMAP's NAME:VK format
+ )
+ 
+ target_include_directories(xbox_input PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+@@ -24,10 +25,9 @@ if(WIN32)
+     target_link_libraries(xbox_input PUBLIC platform
+         $<IF:$<BOOL:${MINGW}>,xinput1_4,xinput>)
+ else()
+-    find_package(SDL2 REQUIRED)
+-    # The SDL window's key and focus events into that table.
+-    target_sources(xbox_input PRIVATE keyboard_sdl.c)
+-    target_link_libraries(xbox_input PUBLIC platform SDL2::SDL2)
++    # SDL3 gamepads; the SDL window (video/fb_window_sdl.c) records the keys.
++    include(Sdl3)
++    target_link_libraries(xbox_input PUBLIC platform SDL3::SDL3)
+ endif()
+ 
+ if(MSVC)
+diff --git a/src/input/README.md b/src/input/README.md
+index 19a53a30..fecea053 100644
+--- a/src/input/README.md
++++ b/src/input/README.md
+@@ -9,7 +9,6 @@ Maps the Xbox controller API to Windows XInput. The original Xbox used `XInputGe
+ | `xinput_xbox.h` | 189 | Public header — types, button constants, function prototypes |
+ | `xinput_device.c` | 23 | Implementation (maps Xbox calls to Windows XInput) |
+ | `keyboard.c` | | The key table and the one key map, every host |
+-| `keyboard_sdl.c` | | The SDL window's key and focus events into that table (POSIX) |
+ | `input_map.c` | | Named bindings over that table, pad remapping, deadzones, merging (`xbox_input_map`) |
+ 
+ ## Quick Start
+diff --git a/src/input/keyboard.c b/src/input/keyboard.c
+index 99ffa123..1ccbd596 100644
+--- a/src/input/keyboard.c
++++ b/src/input/keyboard.c
+@@ -18,6 +18,7 @@
+  */
+ #include "keyboard.h"
+ #include "input_map.h"
++#include "keymap_spec.h"
+ #include <stdlib.h>
+ #include <string.h>
+ 
+@@ -147,8 +148,27 @@ static int row_control(const xbox_key_row *r)
+     return -1;
+ }
+ 
++/* RECOMP_KEYMAP=NAME:VK,... (VK in hex, keymap_spec.h) binds a control to
++ * that one key instead of the map's; 0 leaves it unbound. Mouse buttons are
++ * virtual keys too (1 left, 2 right, 4 middle, 5/6 side). */
++static const struct { const char *name; uint8_t control; } s_keymap_names[] = {
++    { "A", INPUT_A }, { "B", INPUT_B }, { "X", INPUT_X }, { "Y", INPUT_Y },
++    { "WHITE", INPUT_WHITE }, { "BLACK", INPUT_BLACK },
++    { "LT", INPUT_LEFT_TRIGGER }, { "RT", INPUT_RIGHT_TRIGGER },
++    { "START", INPUT_START }, { "BACK", INPUT_BACK },
++    { "UP", INPUT_DPAD_UP }, { "DOWN", INPUT_DPAD_DOWN },
++    { "LEFT", INPUT_DPAD_LEFT }, { "RIGHT", INPUT_DPAD_RIGHT },
++    { "LS", INPUT_LEFT_THUMB }, { "RS", INPUT_RIGHT_THUMB },
++    { "LX-", INPUT_LSTICK_LEFT }, { "LX+", INPUT_LSTICK_RIGHT },
++    { "LY-", INPUT_LSTICK_DOWN }, { "LY+", INPUT_LSTICK_UP },
++    { "RX-", INPUT_RSTICK_LEFT }, { "RX+", INPUT_RSTICK_RIGHT },
++    { "RY-", INPUT_RSTICK_DOWN }, { "RY+", INPUT_RSTICK_UP },
++};
++
+ void xbox_InputKeyboardBindings(InputBindings *b)
+ {
++    const char *spec = getenv("RECOMP_KEYMAP");
++
+     memset(b, 0, sizeof *b);
+     /* Full deflection on a diagonal, as this map has always given. */
+     b->diagonal = INPUT_DIAGONAL_FULL;
+@@ -159,24 +179,93 @@ void xbox_InputKeyboardBindings(InputBindings *b)
+             if (c >= 0 && r->vk[k] && b->count[c] < INPUT_BINDINGS_PER_CONTROL)
+                 b->key[c][b->count[c]++] = r->vk[k];
+     }
++    for (size_t i = 0; spec && i < sizeof s_keymap_names / sizeof s_keymap_names[0]; i++) {
++        unsigned vk;
++        int c = s_keymap_names[i].control;
++        if (!keymap_spec_find(spec, s_keymap_names[i].name, &vk))
++            continue;
++        b->count[c] = 0;
++        if (vk & 0xFF)
++            b->key[c][b->count[c]++] = (uint8_t)vk;
++    }
++}
++
++/* RECOMP_MENU_KEYS=1: while the title reports a menu (xbox_InputSetMenuProbe;
++ * with no probe, always) the arrows, W/A/S/D and the left-stick keys move
++ * the D-pad, Space is A and Esc or a right click is B. Those keys leave their
++ * own bindings alone meanwhile, so A in a menu is left, not a stick. */
++static int (*s_in_menu)(void);
++static volatile int s_menu;
++
++void xbox_InputSetMenuProbe(int (*in_menu)(void))
++{
++    s_in_menu = in_menu;
++}
++
++int xbox_InputKeyboardMenu(void)
++{
++    return s_menu;
++}
++
++static int menu_keys_enabled(void)
++{
++    static int on = -1;
++    if (on < 0) {
++        const char *v = getenv("RECOMP_MENU_KEYS");
++        on = (v && *v && *v != '0') ? 1 : 0;
++    }
++    return on;
+ }
+ 
+ void xbox_InputKeyboardState(XBOX_INPUT_STATE *out)
+ {
++    static const struct { uint8_t arrow, letter, stick; uint16_t bit; } dirs[4] = {
++        { XBOX_VK_UP, 'W', INPUT_LSTICK_UP, XBOX_GAMEPAD_DPAD_UP },
++        { XBOX_VK_DOWN, 'S', INPUT_LSTICK_DOWN, XBOX_GAMEPAD_DPAD_DOWN },
++        { XBOX_VK_LEFT, 'A', INPUT_LSTICK_LEFT, XBOX_GAMEPAD_DPAD_LEFT },
++        { XBOX_VK_RIGHT, 'D', INPUT_LSTICK_RIGHT, XBOX_GAMEPAD_DPAD_RIGHT } };
+     static DWORD packet;
+     InputBindings b;
+     uint8_t down[INPUT_KEY_COUNT];
++    uint16_t nav = 0;
++    int menu, menu_a = 0, menu_b = 0;
+ 
+     /* One snapshot of the table, so a poll sees one set of keys. */
+     for (int vk = 0; vk < INPUT_KEY_COUNT; vk++)
+         down[vk] = s_key_down[vk];
+     xbox_InputKeyboardBindings(&b);
+ 
++    menu = menu_keys_enabled() && (!s_in_menu || s_in_menu());
++    if (menu) {
++        for (int i = 0; i < 4; i++) {
++            const uint8_t *keys = b.key[dirs[i].stick];
++            int held = down[dirs[i].arrow] || down[dirs[i].letter];
++            for (int k = 0; k < b.count[dirs[i].stick]; k++)
++                held |= down[keys[k]];
++            if (held)
++                nav |= dirs[i].bit;
++        }
++        menu_a = down[XBOX_VK_SPACE];
++        menu_b = down[XBOX_VK_ESCAPE] || down[XBOX_VK_RBUTTON];
++        /* The menu keys drive only the menu. */
++        for (int i = 0; i < 4; i++) {
++            down[dirs[i].arrow] = down[dirs[i].letter] = 0;
++            for (int k = 0; k < b.count[dirs[i].stick]; k++)
++                down[b.key[dirs[i].stick][k]] = 0;
++        }
++        down[XBOX_VK_SPACE] = down[XBOX_VK_LBUTTON] = 0;
++        down[XBOX_VK_ESCAPE] = down[XBOX_VK_RBUTTON] = 0;
++    }
++    s_menu = menu;
++
+     memset(out, 0, sizeof *out);
+     /* Buttons set their bit, analog keys read 255 (a title that reads
+      * these as a pressure never sees a press if they are 1), stick keys
+      * are full deflection and opposite keys cancel. */
+     xbox_InputMap_KeysResolve(&b, down, &out->Gamepad);
++    out->Gamepad.wButtons |= nav;
++    if (menu_a) out->Gamepad.bAnalogButtons[XBOX_BUTTON_A] = 255;
++    if (menu_b) out->Gamepad.bAnalogButtons[XBOX_BUTTON_B] = 255;
+ 
+     /* The title's input layer looks for button edges, so the packet number
+      * has to move whenever the state does or a press is never noticed. */
+diff --git a/src/input/keyboard.h b/src/input/keyboard.h
+index 59eafd11..d5ac3e83 100644
+--- a/src/input/keyboard.h
++++ b/src/input/keyboard.h
+@@ -119,6 +119,8 @@ void xbox_InputKeyboardBindings(struct InputBindings *b);
+ /* 0 when RECOMP_KEYBOARD is off, else 1 with *out filled by
+  * xbox_InputKeyboardState(). */
+ int  xbox_InputKeyboardPoll(XBOX_INPUT_STATE *out);
++/* Whether the last keyboard state applied RECOMP_MENU_KEYS navigation. */
++int  xbox_InputKeyboardMenu(void);
+ 
+ /* The map, row by row (tests, and the table in README.md). */
+ enum { XBOX_KEY_BUTTON, XBOX_KEY_ANALOG, XBOX_KEY_AXIS };
+diff --git a/src/input/keyboard_sdl.c b/src/input/keyboard_sdl.c
+deleted file mode 100644
+index 56cee639..00000000
+--- a/src/input/keyboard_sdl.c
++++ /dev/null
+@@ -1,193 +0,0 @@
+-/*
+- * The SDL window's keys into the key table (keyboard.c), on POSIX hosts.
+- *
+- * The presenter's main loop (src/video/fb_present_sdl.c) hands every event
+- * here and has no key logic of its own, so tests/input_keyboard_sdl drives
+- * these rules with synthetic events without linking the presenter.
+- *
+- * Keycodes, not scancodes: a Windows VK for a letter follows the keyboard
+- * layout (the key labelled Z is 'Z' on AZERTY too), and so does an SDL
+- * keycode, so the one map means the same keys on both.
+- */
+-#include "keyboard_sdl.h"
+-#include "keyboard.h"
+-#include <stdio.h>
+-#include <stdlib.h>
+-
+-/* SDL2's keycodes are ABI-stable; the letter and digit arithmetic below
+- * relies on these. */
+-_Static_assert(SDLK_a == 'a' && SDLK_z == 'z' && SDLK_0 == '0' && SDLK_9 == '9',
+-               "SDL letter and digit keycodes are their ASCII codes");
+-_Static_assert(SDLK_RETURN == '\r' && SDLK_BACKSPACE == '\b',
+-               "SDL Return and Backspace keycodes are their ASCII codes");
+-_Static_assert(SDLK_F12 - SDLK_F1 == 11, "SDL F1..F12 keycodes are one run");
+-
+-int xbox_InputSdlKeyToVk(int key)
+-{
+-    if (key >= SDLK_a && key <= SDLK_z)
+-        return key - 'a' + 'A';
+-    if (key >= SDLK_0 && key <= SDLK_9)
+-        return key;
+-    if (key >= SDLK_F1 && key <= SDLK_F12)
+-        return XBOX_VK_F1 + (key - SDLK_F1);
+-    switch (key) {
+-    case SDLK_RETURN:
+-    case SDLK_KP_ENTER:  return XBOX_VK_RETURN;   /* both, as Win32 reports */
+-    case SDLK_BACKSPACE: return XBOX_VK_BACK;
+-    case SDLK_LSHIFT:
+-    case SDLK_RSHIFT:    return XBOX_VK_SHIFT;
+-    case SDLK_LCTRL:
+-    case SDLK_RCTRL:     return XBOX_VK_CONTROL;
+-    case SDLK_LALT:
+-    case SDLK_RALT:      return XBOX_VK_MENU;
+-    case SDLK_UP:        return XBOX_VK_UP;
+-    case SDLK_DOWN:      return XBOX_VK_DOWN;
+-    case SDLK_LEFT:      return XBOX_VK_LEFT;
+-    case SDLK_RIGHT:     return XBOX_VK_RIGHT;
+-    case SDLK_TAB:       return XBOX_VK_TAB;
+-    case SDLK_ESCAPE:    return XBOX_VK_ESCAPE;
+-    case SDLK_SPACE:     return XBOX_VK_SPACE;
+-    case SDLK_PAUSE:     return XBOX_VK_PAUSE;
+-    case SDLK_CAPSLOCK:  return XBOX_VK_CAPITAL;
+-    case SDLK_PAGEUP:    return XBOX_VK_PRIOR;
+-    case SDLK_PAGEDOWN:  return XBOX_VK_NEXT;
+-    case SDLK_END:       return XBOX_VK_END;
+-    case SDLK_HOME:      return XBOX_VK_HOME;
+-    case SDLK_INSERT:    return XBOX_VK_INSERT;
+-    case SDLK_DELETE:    return XBOX_VK_DELETE;
+-    /* The keypad's digits are not one run of SDL keycodes (0 comes after 9). */
+-    case SDLK_KP_0:      return XBOX_VK_NUMPAD0;
+-    case SDLK_KP_1:      return XBOX_VK_NUMPAD0 + 1;
+-    case SDLK_KP_2:      return XBOX_VK_NUMPAD2;
+-    case SDLK_KP_3:      return XBOX_VK_NUMPAD0 + 3;
+-    case SDLK_KP_4:      return XBOX_VK_NUMPAD4;
+-    case SDLK_KP_5:      return XBOX_VK_NUMPAD0 + 5;
+-    case SDLK_KP_6:      return XBOX_VK_NUMPAD6;
+-    case SDLK_KP_7:      return XBOX_VK_NUMPAD0 + 7;
+-    case SDLK_KP_8:      return XBOX_VK_NUMPAD8;
+-    case SDLK_KP_9:      return XBOX_VK_NUMPAD9;
+-    case SDLK_KP_MULTIPLY: return XBOX_VK_MULTIPLY;
+-    case SDLK_KP_PLUS:   return XBOX_VK_ADD;
+-    case SDLK_KP_MINUS:  return XBOX_VK_SUBTRACT;
+-    case SDLK_KP_PERIOD: return XBOX_VK_DECIMAL;
+-    case SDLK_KP_DIVIDE: return XBOX_VK_DIVIDE;
+-    /* Punctuation: the keycode is the character the layout puts on the
+-     * key, so these are the keys that type it, as the Win32 OEM codes are
+-     * on a US layout. */
+-    case SDLK_SEMICOLON:    return XBOX_VK_OEM_1;
+-    case SDLK_EQUALS:       return XBOX_VK_OEM_PLUS;
+-    case SDLK_COMMA:        return XBOX_VK_OEM_COMMA;
+-    case SDLK_MINUS:        return XBOX_VK_OEM_MINUS;
+-    case SDLK_PERIOD:       return XBOX_VK_OEM_PERIOD;
+-    case SDLK_SLASH:        return XBOX_VK_OEM_2;
+-    case SDLK_BACKQUOTE:    return XBOX_VK_OEM_3;
+-    case SDLK_LEFTBRACKET:  return XBOX_VK_OEM_4;
+-    case SDLK_BACKSLASH:    return XBOX_VK_OEM_5;
+-    case SDLK_RIGHTBRACKET: return XBOX_VK_OEM_6;
+-    case SDLK_QUOTE:        return XBOX_VK_OEM_7;
+-    }
+-    return 0;
+-}
+-
+-int xbox_InputSdlKeyToSideVk(int key)
+-{
+-    switch (key) {
+-    case SDLK_LSHIFT: return XBOX_VK_LSHIFT;
+-    case SDLK_RSHIFT: return XBOX_VK_RSHIFT;
+-    case SDLK_LCTRL:  return XBOX_VK_LCONTROL;
+-    case SDLK_RCTRL:  return XBOX_VK_RCONTROL;
+-    case SDLK_LALT:   return XBOX_VK_LMENU;
+-    case SDLK_RALT:   return XBOX_VK_RMENU;
+-    }
+-    return 0;
+-}
+-
+-int xbox_InputSdlButtonToVk(int button)
+-{
+-    switch (button) {
+-    case SDL_BUTTON_LEFT:   return XBOX_VK_LBUTTON;
+-    case SDL_BUTTON_RIGHT:  return XBOX_VK_RBUTTON;
+-    case SDL_BUTTON_MIDDLE: return XBOX_VK_MBUTTON;
+-    case SDL_BUTTON_X1:     return XBOX_VK_XBUTTON1;
+-    case SDL_BUTTON_X2:     return XBOX_VK_XBUTTON2;
+-    }
+-    return 0;
+-}
+-
+-void xbox_InputSdlInit(void)
+-{
+-    /* SDL2 starts text input on desktop at init. The game takes no text,
+-     * and on macOS text input lets the press-and-hold accent popover take a
+-     * held letter (W held to walk would stop walking). */
+-    SDL_StopTextInput();
+-}
+-
+-/* RECOMP_KEY_TRACE: each key-down as it arrives, the first 40, the same
+- * line the GDI window prints. */
+-static void trace_down(int vk)
+-{
+-    static unsigned n;
+-    if (getenv("RECOMP_KEY_TRACE") && n++ < 40) {
+-        fprintf(stderr, "  [KEY] down vk=0x%02X\n", (unsigned)vk);
+-        fflush(stderr);
+-    }
+-}
+-
+-void xbox_InputSdlEvent(const SDL_Event *ev)
+-{
+-    int vk;
+-
+-    switch (ev->type) {
+-    case SDL_KEYDOWN:
+-        /* Auto-repeat would only re-set a held key; dropping it keeps the
+-         * trace to real edges. */
+-        if (ev->key.repeat)
+-            return;
+-        /* Cmd+key is an app shortcut (Cmd-Tab, Cmd-H, Cmd-Q), not a game
+-         * key. Cmd itself releases whatever is held, which is what the
+-         * shortcut that follows expects; key-ups still apply below. */
+-        if (ev->key.keysym.sym == SDLK_LGUI || ev->key.keysym.sym == SDLK_RGUI) {
+-            xbox_InputKeysClear();
+-            return;
+-        }
+-        if (ev->key.keysym.mod & KMOD_GUI)
+-            return;
+-        vk = xbox_InputSdlKeyToVk(ev->key.keysym.sym);
+-        if (vk) {
+-            xbox_InputKeySet(vk, 1);
+-            trace_down(vk);
+-        }
+-        /* A Shift, Ctrl or Alt is both keys, the side's and either side's,
+-         * as on the Win32 window, so "lshift" and "shift" both bind. */
+-        vk = xbox_InputSdlKeyToSideVk(ev->key.keysym.sym);
+-        if (vk)
+-            xbox_InputKeySet(vk, 1);
+-        return;
+-    case SDL_KEYUP:
+-        vk = xbox_InputSdlKeyToVk(ev->key.keysym.sym);
+-        if (vk)
+-            xbox_InputKeySet(vk, 0);
+-        vk = xbox_InputSdlKeyToSideVk(ev->key.keysym.sym);
+-        if (vk)
+-            xbox_InputKeySet(vk, 0);
+-        return;
+-    case SDL_MOUSEBUTTONDOWN:
+-    case SDL_MOUSEBUTTONUP:
+-        /* Mouse buttons are in the same table, for bindings that name
+-         * them. SDL captures the mouse while a button is down, so the
+-         * release arrives even outside the window. */
+-        vk = xbox_InputSdlButtonToVk(ev->button.button);
+-        if (vk)
+-            xbox_InputKeySet(vk, ev->type == SDL_MOUSEBUTTONDOWN);
+-        return;
+-    case SDL_WINDOWEVENT:
+-        /* SDL sends keys only to the focused window, so there is no focus
+-         * check on the way in; on the way out a held key would stay held
+-         * for ever (Cmd-Tab, Mission Control, Cmd-H, Cmd-M). */
+-        if (ev->window.event == SDL_WINDOWEVENT_FOCUS_LOST
+-            || ev->window.event == SDL_WINDOWEVENT_HIDDEN
+-            || ev->window.event == SDL_WINDOWEVENT_MINIMIZED)
+-            xbox_InputKeysClear();
+-        return;
+-    }
+-}
+diff --git a/src/input/keyboard_sdl.h b/src/input/keyboard_sdl.h
+deleted file mode 100644
+index 999c91f9..00000000
+--- a/src/input/keyboard_sdl.h
++++ /dev/null
+@@ -1,33 +0,0 @@
+-/**
+- * xbox_input keyboard, SDL side (POSIX): the SDL window's key, mouse-button
+- * and focus events into the key table of keyboard.h. See keyboard_sdl.c.
+- */
+-#ifndef XBOX_INPUT_KEYBOARD_SDL_H
+-#define XBOX_INPUT_KEYBOARD_SDL_H
+-
+-#include <SDL.h>
+-
+-#ifdef __cplusplus
+-extern "C" {
+-#endif
+-
+-/* An SDL keycode (SDL_Keycode, unmodified) as a Windows VK, or 0 when the
+- * key is not one the table records. Every key input_map.h has a name for
+- * is recorded; a left or right modifier gives the either-side VK here. */
+-int  xbox_InputSdlKeyToVk(int sdl_keycode);
+-/* For a left or right Shift, Ctrl or Alt, its side-specific VK (VK_LSHIFT
+- * and so on), which is recorded beside the one above; else 0. */
+-int  xbox_InputSdlKeyToSideVk(int sdl_keycode);
+-/* An SDL mouse button (SDL_BUTTON_LEFT ...) as its VK (VK_LBUTTON ...), or 0. */
+-int  xbox_InputSdlButtonToVk(int sdl_button);
+-/* Once the window exists: stop SDL's text input. */
+-void xbox_InputSdlInit(void);
+-/* Every event of the main loop: keys, mouse buttons, and the window events
+- * that release them. Others are ignored. */
+-void xbox_InputSdlEvent(const SDL_Event *ev);
+-
+-#ifdef __cplusplus
+-}
+-#endif
+-
+-#endif /* XBOX_INPUT_KEYBOARD_SDL_H */
+diff --git a/src/input/keymap_spec.c b/src/input/keymap_spec.c
+new file mode 100644
+index 00000000..67b9dfa0
+--- /dev/null
++++ b/src/input/keymap_spec.c
+@@ -0,0 +1,34 @@
++#include "keymap_spec.h"
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++int keymap_spec_find(const char *spec, const char *name, unsigned *value)
++{
++    size_t length = strlen(name);
++    const char *entry = spec;
++    while (entry && *entry) {
++        const char *end = strchr(entry, ',');
++        size_t size = end ? (size_t)(end - entry) : strlen(entry);
++        if (size > length + 1 && entry[length] == ':' && !strncmp(entry, name, length)) {
++            if (value) *value = (unsigned)strtoul(entry + length + 1, NULL, 16);
++            return 1;
++        }
++        entry = end ? end + 1 : NULL;
++    }
++    return 0;
++}
++
++int keymap_spec_append(char *spec, size_t capacity, const char *name, unsigned value)
++{
++    size_t used = strlen(spec);
++    int written;
++    if (used >= capacity) return 0;
++    written = snprintf(spec + used, capacity - used, "%s%s:%X",
++                           used ? "," : "", name, value);
++    if (written < 0 || (size_t)written >= capacity - used) {
++        spec[used] = 0;
++        return 0;
++    }
++    return 1;
++}
+diff --git a/src/input/keymap_spec.h b/src/input/keymap_spec.h
+new file mode 100644
+index 00000000..3f6a489c
+--- /dev/null
++++ b/src/input/keymap_spec.h
+@@ -0,0 +1,25 @@
++/* The RECOMP_KEYMAP setting format: a comma-separated list of NAME:HEX entries,
++ * each name a key and each value the key's virtual-key code in hex. Names
++ * match whole entries only, so LX- never matches inside RLX-. */
++#ifndef INPUT_KEYMAP_SPEC_H
++#define INPUT_KEYMAP_SPEC_H
++
++#include <stddef.h>
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++/* Reads NAME's value from spec into value and returns 1; returns 0 when the
++ * spec has no entry for NAME. */
++int keymap_spec_find(const char *spec, const char *name, unsigned *value);
++
++/* Appends NAME:HEX to spec, comma-separated after any existing entry. Returns
++ * 1 when the entry fit in capacity bytes, 0 when it did not (spec unchanged). */
++int keymap_spec_append(char *spec, size_t capacity, const char *name, unsigned value);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif
+diff --git a/src/input/xinput_device.c b/src/input/xinput_device.c
+index 5975014c..7db90710 100644
+--- a/src/input/xinput_device.c
++++ b/src/input/xinput_device.c
+@@ -6,16 +6,197 @@
+  * (analog buttons as bytes, separate trigger channels) and the host
+  * (digital face buttons, trigger axes).
+  *
++ * The keyboard (keyboard.c), mouse (mkb_input.c), RECOMP_PADMAP and packet
++ * logic are shared; only reading
++ * the host pad differs:
+  *   _WIN32 -> Windows XInput
+- *   POSIX  -> SDL2 GameController
++ *   other  -> SDL3 gamepads, read into the same XINPUT_STATE
+  */
+ 
+ #include "xinput_xbox.h"
+ #include "keyboard.h"
+ #include "mkb_input.h"
++#if !defined(_WIN32)
++/* The mouse layer reads Win32 raw input (mkb_input.c); elsewhere it is off. */
++#define mkb_enabled() 0
++#define mkb_merge(port, state) 0
++#endif
+ #include <stdlib.h>
++#include <stdio.h>
+ #include <string.h>
+ 
++static XBOX_KEYBOARD_HOOK s_keyboard_hook;
++
++void xbox_InputSetKeyboardHook(XBOX_KEYBOARD_HOOK hook)
++{
++    s_keyboard_hook = hook;
++}
++
++#if defined(_WIN32)
++#include <xinput.h>
++#pragma comment(lib, "xinput.lib")
++#define host_pad_state XInputGetState
++#else
++#include <SDL3/SDL.h>
++
++/* SDL3 gamepads as XInput ports: port n is the n-th gamepad SDL lists. The
++ * framebuffer window's thread pumps SDL events, which keeps the state
++ * current; SDL locks its joystick state, so reading it here is safe. */
++static SDL_Gamepad *g_sdl_pads[XBOX_MAX_CONTROLLERS];
++static XINPUT_GAMEPAD g_sdl_last[XBOX_MAX_CONTROLLERS];
++static DWORD g_sdl_packet[XBOX_MAX_CONTROLLERS];
++
++static SDL_Gamepad *sdl_pad(DWORD port)
++{
++    static Uint64 next_scan[XBOX_MAX_CONTROLLERS];
++    SDL_Gamepad *pad = g_sdl_pads[port];
++    if (pad && SDL_GamepadConnected(pad))
++        return pad;
++    if (pad) {
++        SDL_CloseGamepad(pad);
++        g_sdl_pads[port] = NULL;
++    }
++    if (SDL_GetTicks() < next_scan[port])
++        return NULL;
++    next_scan[port] = SDL_GetTicks() + 1000; /* hot-plug check, not every poll */
++    {
++        int count = 0;
++        SDL_JoystickID *ids = SDL_GetGamepads(&count);
++        if (ids && (int)port < count)
++            g_sdl_pads[port] = SDL_OpenGamepad(ids[port]);
++        SDL_free(ids);
++    }
++    return g_sdl_pads[port];
++}
++
++static DWORD host_pad_state(DWORD port, XINPUT_STATE *state)
++{
++    static const struct { SDL_GamepadButton b; WORD bit; } k_buttons[] = {
++        { SDL_GAMEPAD_BUTTON_DPAD_UP, XINPUT_GAMEPAD_DPAD_UP },
++        { SDL_GAMEPAD_BUTTON_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_DOWN },
++        { SDL_GAMEPAD_BUTTON_DPAD_LEFT, XINPUT_GAMEPAD_DPAD_LEFT },
++        { SDL_GAMEPAD_BUTTON_DPAD_RIGHT, XINPUT_GAMEPAD_DPAD_RIGHT },
++        { SDL_GAMEPAD_BUTTON_START, XINPUT_GAMEPAD_START },
++        { SDL_GAMEPAD_BUTTON_BACK, XINPUT_GAMEPAD_BACK },
++        { SDL_GAMEPAD_BUTTON_LEFT_STICK, XINPUT_GAMEPAD_LEFT_THUMB },
++        { SDL_GAMEPAD_BUTTON_RIGHT_STICK, XINPUT_GAMEPAD_RIGHT_THUMB },
++        { SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, XINPUT_GAMEPAD_LEFT_SHOULDER },
++        { SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, XINPUT_GAMEPAD_RIGHT_SHOULDER },
++        { SDL_GAMEPAD_BUTTON_SOUTH, XINPUT_GAMEPAD_A },
++        { SDL_GAMEPAD_BUTTON_EAST, XINPUT_GAMEPAD_B },
++        { SDL_GAMEPAD_BUTTON_WEST, XINPUT_GAMEPAD_X },
++        { SDL_GAMEPAD_BUTTON_NORTH, XINPUT_GAMEPAD_Y } };
++    SDL_Gamepad *pad = sdl_pad(port);
++    XINPUT_GAMEPAD *g = &state->Gamepad;
++    size_t i;
++
++    if (!pad)
++        return ERROR_DEVICE_NOT_CONNECTED;
++    memset(state, 0, sizeof *state);
++    for (i = 0; i < sizeof k_buttons / sizeof k_buttons[0]; i++)
++        if (SDL_GetGamepadButton(pad, k_buttons[i].b))
++            g->wButtons |= k_buttons[i].bit;
++    /* Triggers are 0..32767; XInput's are 0..255. */
++    g->bLeftTrigger = (BYTE)(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) >> 7);
++    g->bRightTrigger = (BYTE)(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) >> 7);
++    /* SDL's Y axes point down, XInput's up; -1 - v keeps -32768 in range. */
++    g->sThumbLX = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTX);
++    g->sThumbLY = (SHORT)(-1 - SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTY));
++    g->sThumbRX = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTX);
++    g->sThumbRY = (SHORT)(-1 - SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTY));
++    /* XInput's packet number moves only when the state does. */
++    if (memcmp(g, &g_sdl_last[port], sizeof *g)) {
++        g_sdl_last[port] = *g;
++        ++g_sdl_packet[port];
++    }
++    state->dwPacketNumber = g_sdl_packet[port];
++    return ERROR_SUCCESS;
++}
++#endif
++
++static BOOL  g_controller_connected[XBOX_MAX_CONTROLLERS] = { FALSE };
++static DWORD g_last_packet[XBOX_MAX_CONTROLLERS] = { 0 };
++static DWORD g_packet_bias[XBOX_MAX_CONTROLLERS];
++static BOOL g_capture_active[XBOX_MAX_CONTROLLERS];
++
++static DWORD finish_state(DWORD port, XBOX_INPUT_STATE *state)
++{
++    state->dwPacketNumber += g_packet_bias[port];
++    if (g_capture_active[port] && state->dwPacketNumber == g_last_packet[port]) {
++        ++g_packet_bias[port];
++        ++state->dwPacketNumber;
++    }
++    g_capture_active[port] = FALSE;
++    g_last_packet[port] = state->dwPacketNumber;
++    return ERROR_SUCCESS;
++}
++
++/* ---- keyboard and mouse on port 0 ----------------------------------------
++ *
++ * The keys come from keyboard.c (RECOMP_KEYBOARD=1, the map, RECOMP_KEYMAP
++ * and RECOMP_MENU_KEYS); the windows record them. Here, beside the pad: a
++ * menu click and the title's contextual keys (xbox_InputSetKeyboardHook).
++ *
++ * Declared rather than included so src/input does not depend on the video
++ * module's include path. */
++extern int xbox_FramebufferHostInputCaptured(void);
++extern int xbox_FramebufferMouse(float *x, float *y);
++extern void xbox_FramebufferSetMousePressHandler(int (*handler)(float, float));
++
++/* Optional title click dispatch, with mouse-to-A fallback. */
++static int (*s_menu_click)(float x, float y);
++
++static BOOL keyboard_enabled(void)
++{
++    static int on = -1;
++    if (on < 0) {
++        const char *v = getenv("RECOMP_KEYBOARD");
++        on = (v && *v && *v != '0') ? 1 : 0;
++    }
++    return on ? TRUE : FALSE;
++}
++
++static int menu_press(float x, float y)
++{
++    return keyboard_enabled() && xbox_InputKeyboardMenu() &&
++        !xbox_FramebufferHostInputCaptured() && s_menu_click && s_menu_click(x, y);
++}
++
++void xbox_InputSetMenuClickHandler(int (*click)(float, float))
++{
++    s_menu_click = click;
++    xbox_FramebufferSetMousePressHandler(click ? menu_press : NULL);
++}
++
++/* A left click the title did not take is a short press of A. */
++static BOOL menu_click(void)
++{
++    static int was_down;
++    static ULONGLONG a_until;
++    ULONGLONG now = GetTickCount64();
++    float x, y;
++    int down = xbox_FramebufferKeyDown(XBOX_VK_LBUTTON);
++    xbox_FramebufferMouse(&x, &y);
++    if (down && !was_down && !(s_menu_click && s_menu_click(x, y)))
++        a_until = now + 80;
++    was_down = down;
++    return now < a_until;
++}
++
++/* The keyboard's pad, or 0 with RECOMP_KEYBOARD off. */
++static int keyboard_pad(XBOX_INPUT_STATE *s)
++{
++    int menu;
++    if (!xbox_InputKeyboardPoll(s))
++        return 0;
++    menu = xbox_InputKeyboardMenu();
++    if (menu && menu_click())
++        s->Gamepad.bAnalogButtons[XBOX_BUTTON_A] = 255;
++    if (s_keyboard_hook)
++        s_keyboard_hook(s, menu ? TRUE : FALSE);
++    return 1;
++}
++
+ /* Merge the keyboard on top of a pad on port 0 rather than only standing in
+  * for a missing one.
+  *
+@@ -33,7 +214,7 @@ static void keyboard_merge(XBOX_INPUT_STATE *pState)
+     XBOX_INPUT_STATE kb;
+     int i;
+ 
+-    if (!xbox_InputKeyboardPoll(&kb))
++    if (!keyboard_pad(&kb))
+         return;
+     pState->Gamepad.wButtons |= kb.Gamepad.wButtons;
+     for (i = 0; i < 8; i++)
+@@ -48,25 +229,85 @@ static void keyboard_merge(XBOX_INPUT_STATE *pState)
+     pState->dwPacketNumber = kb.dwPacketNumber;
+ }
+ 
+-/* ======================================================================== */
+-#if defined(_WIN32)
+-/* ====================  XInput backend  ================================== */
+-/* ======================================================================== */
+-
+-#include <xinput.h>
+-#pragma comment(lib, "xinput.lib")
++/* RECOMP_PADMAP: which controller button drives each Xbox input, as
++ * NAME:SOURCE,... (BLACK:RB,WHITE:LB). Xbox inputs and sources share these
++ * names, except that the pad's shoulders are LB/RB and the Xbox's are
++ * BLACK/WHITE; unnamed inputs keep their own button. A trigger used as a
++ * button counts past a third of its travel. */
++enum { PAD_SOURCES = 16 };
++static const char *const k_pad_sources[PAD_SOURCES] = {
++    "A", "B", "X", "Y", "LB", "RB", "START", "BACK", "LS", "RS",
++    "UP", "DOWN", "LEFT", "RIGHT", "LT", "RT"};
++static const char *const k_pad_inputs[PAD_SOURCES] = {
++    "A", "B", "X", "Y", "BLACK", "WHITE", "START", "BACK", "LS", "RS",
++    "UP", "DOWN", "LEFT", "RIGHT", "LT", "RT"};
++static const WORD k_source_bits[14] = {
++    XINPUT_GAMEPAD_A, XINPUT_GAMEPAD_B, XINPUT_GAMEPAD_X, XINPUT_GAMEPAD_Y,
++    XINPUT_GAMEPAD_LEFT_SHOULDER, XINPUT_GAMEPAD_RIGHT_SHOULDER, XINPUT_GAMEPAD_START,
++    XINPUT_GAMEPAD_BACK, XINPUT_GAMEPAD_LEFT_THUMB, XINPUT_GAMEPAD_RIGHT_THUMB,
++    XINPUT_GAMEPAD_DPAD_UP, XINPUT_GAMEPAD_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_LEFT,
++    XINPUT_GAMEPAD_DPAD_RIGHT};
++
++static const int *pad_map(void)
++{
++    static int map[PAD_SOURCES] = {-1};
++    if (map[0] < 0) {
++        const char *env = getenv("RECOMP_PADMAP");
++        for (int i = 0; i < PAD_SOURCES; i++)
++            map[i] = i;
++        /* Match the Xbox Black/White positions and the SDL backend. */
++        map[4] = 5; /* Black <- right shoulder */
++        map[5] = 4; /* White <- left shoulder */
++        while (env && *env) {
++            char name[16], src[16];
++            if (sscanf(env, "%15[^:]:%15[^,]", name, src) == 2)
++                for (int i = 0; i < PAD_SOURCES; i++)
++                    if (!_stricmp(name, k_pad_inputs[i]))
++                        for (int j = 0; j < PAD_SOURCES; j++)
++                            if (!_stricmp(src, k_pad_sources[j]))
++                                map[i] = j;
++            env = strchr(env, ',');
++            env = env ? env + 1 : NULL;
++        }
++    }
++    return map;
++}
+ 
+-static BOOL  g_controller_connected[XBOX_MAX_CONTROLLERS] = { FALSE };
+-static DWORD g_last_packet[XBOX_MAX_CONTROLLERS] = { 0 };
++static BYTE pad_source(const XINPUT_GAMEPAD *g, int source)
++{
++    if (source == 14) return g->bLeftTrigger;
++    if (source == 15) return g->bRightTrigger;
++    return (g->wButtons & k_source_bits[source]) ? 255 : 0;
++}
+ 
+-/* The keyboard on port 0 (RECOMP_KEYBOARD=1) comes from keyboard.c, shared
+- * with the SDL backend; the GDI window in fb_present.c records the keys. */
++/* The Xbox buttons from an XInput pad, through RECOMP_PADMAP. */
++static void pad_buttons(const XINPUT_GAMEPAD *g, XBOX_GAMEPAD *out)
++{
++    static const int analog[8] = {XBOX_BUTTON_A, XBOX_BUTTON_B, XBOX_BUTTON_X, XBOX_BUTTON_Y,
++                                  XBOX_BUTTON_BLACK, XBOX_BUTTON_WHITE, -1, -1};
++    static const WORD digital[8] = {XBOX_GAMEPAD_START, XBOX_GAMEPAD_BACK, XBOX_GAMEPAD_LEFT_THUMB,
++                                    XBOX_GAMEPAD_RIGHT_THUMB, XBOX_GAMEPAD_DPAD_UP, XBOX_GAMEPAD_DPAD_DOWN,
++                                    XBOX_GAMEPAD_DPAD_LEFT, XBOX_GAMEPAD_DPAD_RIGHT};
++    const int *map = pad_map();
++    out->wButtons = 0;
++    for (int i = 0; i < 6; i++)
++        out->bAnalogButtons[analog[i]] = pad_source(g, map[i]);
++    for (int i = 0; i < 8; i++)
++        if (pad_source(g, map[6 + i]) > 85)
++            out->wButtons |= digital[i];
++    out->bAnalogButtons[XBOX_BUTTON_LTRIGGER] = pad_source(g, map[14]);
++    out->bAnalogButtons[XBOX_BUTTON_RTRIGGER] = pad_source(g, map[15]);
++}
+ 
+ void xbox_InputInit(void)
+ {
++#if !defined(_WIN32)
++    if (!SDL_InitSubSystem(SDL_INIT_GAMEPAD))
++        fprintf(stderr, "[INPUT] SDL gamepad init failed: %s\n", SDL_GetError());
++#endif
+     for (DWORD i = 0; i < XBOX_MAX_CONTROLLERS; i++) {
+         XINPUT_STATE state;
+-        DWORD result = XInputGetState(i, &state);
++        DWORD result = host_pad_state(i, &state);
+         g_controller_connected[i] = (result == ERROR_SUCCESS);
+     }
+ }
+@@ -79,7 +320,20 @@ DWORD xbox_InputGetState(DWORD dwPort, XBOX_INPUT_STATE *pState)
+     if (dwPort >= XBOX_MAX_CONTROLLERS || !pState)
+         return ERROR_DEVICE_NOT_CONNECTED;
+ 
+-    result = XInputGetState(dwPort, &xi_state);
++    if (xbox_FramebufferHostInputCaptured()) {
++        DWORD connected = host_pad_state(dwPort, &xi_state);
++        if (connected != ERROR_SUCCESS && !(dwPort == 0 && keyboard_enabled()))
++            return connected;
++        memset(pState, 0, sizeof *pState);
++        /* Neutralization must be a new packet, even when the physical pad
++         * has not changed. Keep subsequent physical packets in sequence. */
++        ++g_packet_bias[dwPort];
++        g_capture_active[dwPort] = TRUE;
++        pState->dwPacketNumber = ++g_last_packet[dwPort];
++        return ERROR_SUCCESS;
++    }
++
++    result = host_pad_state(dwPort, &xi_state);
+     if (result != ERROR_SUCCESS) {
+         g_controller_connected[dwPort] = FALSE;
+         if (dwPort == 0) {
+@@ -87,222 +341,57 @@ DWORD xbox_InputGetState(DWORD dwPort, XBOX_INPUT_STATE *pState)
+              * playable with no controller plugged in. */
+             int kb;
+             memset(pState, 0, sizeof *pState);
+-            kb = xbox_InputKeyboardPoll(pState);
++            kb = keyboard_pad(pState);
+             if (mkb_merge(dwPort, pState))
+                 g_controller_connected[dwPort] = TRUE;
+             if (kb || mkb_enabled())
+-                return ERROR_SUCCESS;
++                return finish_state(dwPort, pState);
+         }
+         return result;
+     }
+ 
+     g_controller_connected[dwPort] = TRUE;
+-    g_last_packet[dwPort] = xi_state.dwPacketNumber;
+ 
+     memset(pState, 0, sizeof(XBOX_INPUT_STATE));
+     pState->dwPacketNumber = xi_state.dwPacketNumber;
+-    pState->Gamepad.wButtons = xi_state.Gamepad.wButtons & 0x00FF;
+-
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_A] =
+-        (xi_state.Gamepad.wButtons & XINPUT_GAMEPAD_A) ? 255 : 0;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_B] =
+-        (xi_state.Gamepad.wButtons & XINPUT_GAMEPAD_B) ? 255 : 0;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_X] =
+-        (xi_state.Gamepad.wButtons & XINPUT_GAMEPAD_X) ? 255 : 0;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_Y] =
+-        (xi_state.Gamepad.wButtons & XINPUT_GAMEPAD_Y) ? 255 : 0;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_BLACK] =
+-        (xi_state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) ? 255 : 0;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_WHITE] =
+-        (xi_state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) ? 255 : 0;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_LTRIGGER] = xi_state.Gamepad.bLeftTrigger;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_RTRIGGER] = xi_state.Gamepad.bRightTrigger;
++    pad_buttons(&xi_state.Gamepad, &pState->Gamepad);
+ 
+     pState->Gamepad.sThumbLX = xi_state.Gamepad.sThumbLX;
+     pState->Gamepad.sThumbLY = xi_state.Gamepad.sThumbLY;
+     pState->Gamepad.sThumbRX = xi_state.Gamepad.sThumbRX;
+     pState->Gamepad.sThumbRY = xi_state.Gamepad.sThumbRY;
+ 
+-    if (dwPort == 0)
++    if (dwPort == 0) {
+         keyboard_merge(pState);
+-
+-    /* Mouse+keyboard merges on top of a real pad too: the mouse owns the
+-     * aim stick while it is moving, WASD owns movement while held. */
+-    if (dwPort == 0)
++        /* Mouse+keyboard merges on top of a real pad too: the mouse owns the
++         * aim stick while it is moving, WASD owns movement while held. */
+         mkb_merge(dwPort, pState);
++    }
+ 
+-    return ERROR_SUCCESS;
++    return finish_state(dwPort, pState);
+ }
+ 
+ DWORD xbox_InputSetState(DWORD dwPort, const XBOX_VIBRATION *pVibration)
+ {
+-    XINPUT_VIBRATION xi_vib;
+-
+     if (dwPort >= XBOX_MAX_CONTROLLERS || !pVibration)
+         return ERROR_DEVICE_NOT_CONNECTED;
+-
+-    xi_vib.wLeftMotorSpeed = pVibration->wLeftMotorSpeed;
+-    xi_vib.wRightMotorSpeed = pVibration->wRightMotorSpeed;
+-    return XInputSetState(dwPort, &xi_vib);
+-}
+-
+-BOOL xbox_InputIsConnected(DWORD dwPort)
+-{
+-    if (dwPort >= XBOX_MAX_CONTROLLERS) return FALSE;
+-    return g_controller_connected[dwPort];
+-}
+-
+-DWORD xbox_InputGetCapabilities(DWORD dwPort, DWORD dwFlags, XBOX_INPUT_CAPABILITIES *pCaps)
+-{
+-    XINPUT_CAPABILITIES xi_caps;
+-    DWORD result;
+-
+-    if (dwPort >= XBOX_MAX_CONTROLLERS || !pCaps)
+-        return ERROR_DEVICE_NOT_CONNECTED;
+-
+-    result = XInputGetCapabilities(dwPort, dwFlags, &xi_caps);
+-    if (result != ERROR_SUCCESS) return result;
+-
+-    memset(pCaps, 0, sizeof(XBOX_INPUT_CAPABILITIES));
+-    pCaps->Type = xi_caps.Type;
+-    pCaps->SubType = xi_caps.SubType;
+-    pCaps->Flags = xi_caps.Flags;
+-    return ERROR_SUCCESS;
+-}
+-
+-/* ======================================================================== */
+-#else /* !_WIN32 */
+-/* ====================  SDL2 GameController backend  ===================== */
+-/* ======================================================================== */
+-
+-#include <SDL.h>
+-
+-static SDL_GameController *g_pads[XBOX_MAX_CONTROLLERS];
+-static BOOL  g_controller_connected[XBOX_MAX_CONTROLLERS];
+-static DWORD g_packet[XBOX_MAX_CONTROLLERS];
+-
+-/* Set while the framebuffer window's main thread pumps SDL events
+- * (src/video/fb_present_sdl.c). The pump already updates the controllers,
+- * and SDL_GameControllerUpdate pumps events itself, which on macOS must only
+- * happen on the main thread; so then this side only reads them. */
+-static volatile int g_main_pump;
+-
+-void xbox_InputSetMainPump(int on)
+-{
+-    g_main_pump = on;
+-}
+-
+-/* Whether any controller is open: SDL must stay up for it at shutdown. */
+-int xbox_InputAnyOpen(void)
+-{
+-    for (int i = 0; i < XBOX_MAX_CONTROLLERS; i++)
+-        if (g_pads[i])
+-            return 1;
+-    return 0;
+-}
+-
+-/* Open up to XBOX_MAX_CONTROLLERS attached game controllers. */
+-static void open_controllers(void)
+-{
+-    int slot = 0;
+-    for (int i = 0; i < SDL_NumJoysticks() && slot < XBOX_MAX_CONTROLLERS; i++) {
+-        if (!SDL_IsGameController(i))
+-            continue;
+-        if (!g_pads[slot]) {
+-            g_pads[slot] = SDL_GameControllerOpen(i);
+-            g_controller_connected[slot] = (g_pads[slot] != NULL);
+-        }
+-        slot++;
++#if defined(_WIN32)
++    {
++        XINPUT_VIBRATION xi_vib;
++        xi_vib.wLeftMotorSpeed = pVibration->wLeftMotorSpeed;
++        xi_vib.wRightMotorSpeed = pVibration->wRightMotorSpeed;
++        return XInputSetState(dwPort, &xi_vib);
+     }
+-}
+-
+-void xbox_InputInit(void)
+-{
+-    /* Keep the default SIGINT/SIGTERM: SDL would turn them into an SDL_QUIT
+-     * that nothing reads without a window, and Ctrl-C would stop working. */
+-    SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
+-    if (!SDL_WasInit(SDL_INIT_GAMECONTROLLER))
+-        SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER);
+-    open_controllers();
+-}
+-
+-DWORD xbox_InputGetState(DWORD dwPort, XBOX_INPUT_STATE *pState)
+-{
+-    if (dwPort >= XBOX_MAX_CONTROLLERS || !pState)
+-        return ERROR_DEVICE_NOT_CONNECTED;
+-
+-    SDL_GameController *c = g_pads[dwPort];
+-    if (!c || !SDL_GameControllerGetAttached(c)) {
+-        g_controller_connected[dwPort] = FALSE;
+-        if (dwPort == 0 && xbox_InputKeyboardPoll(pState))
+-            return ERROR_SUCCESS;
+-        return ERROR_DEVICE_NOT_CONNECTED;
++#else
++    {
++        SDL_Gamepad *pad = sdl_pad(dwPort);
++        if (!pad)
++            return ERROR_DEVICE_NOT_CONNECTED;
++        /* SDL rumble runs for a duration; titles resend it continuously. */
++        SDL_RumbleGamepad(pad, pVibration->wLeftMotorSpeed, pVibration->wRightMotorSpeed, 1000);
++        return ERROR_SUCCESS;
+     }
+-
+-    if (!g_main_pump)
+-        SDL_GameControllerUpdate();
+-    g_controller_connected[dwPort] = TRUE;
+-
+-    memset(pState, 0, sizeof(XBOX_INPUT_STATE));
+-    pState->dwPacketNumber = ++g_packet[dwPort];
+-
+-    WORD btn = 0;
+-    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_DPAD_UP))    btn |= XBOX_GAMEPAD_DPAD_UP;
+-    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_DPAD_DOWN))  btn |= XBOX_GAMEPAD_DPAD_DOWN;
+-    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_DPAD_LEFT))  btn |= XBOX_GAMEPAD_DPAD_LEFT;
+-    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_DPAD_RIGHT)) btn |= XBOX_GAMEPAD_DPAD_RIGHT;
+-    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_START))      btn |= XBOX_GAMEPAD_START;
+-    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_BACK))       btn |= XBOX_GAMEPAD_BACK;
+-    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_LEFTSTICK))  btn |= XBOX_GAMEPAD_LEFT_THUMB;
+-    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_RIGHTSTICK)) btn |= XBOX_GAMEPAD_RIGHT_THUMB;
+-    pState->Gamepad.wButtons = btn;
+-
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_A] =
+-        SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_A) ? 255 : 0;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_B] =
+-        SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_B) ? 255 : 0;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_X] =
+-        SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_X) ? 255 : 0;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_Y] =
+-        SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_Y) ? 255 : 0;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_BLACK] =
+-        SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_LEFTSHOULDER) ? 255 : 0;
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_WHITE] =
+-        SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER) ? 255 : 0;
+-
+-    /* SDL trigger axes are 0..32767 -> Xbox analog button 0..255 */
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_LTRIGGER] =
+-        (BYTE)(SDL_GameControllerGetAxis(c, SDL_CONTROLLER_AXIS_TRIGGERLEFT) >> 7);
+-    pState->Gamepad.bAnalogButtons[XBOX_BUTTON_RTRIGGER] =
+-        (BYTE)(SDL_GameControllerGetAxis(c, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) >> 7);
+-
+-    /* SDL Y axis points down; the Xbox Y axis points up -- invert.
+-     * Use (-1 - v) so v = -32768 does not overflow SHORT. */
+-    pState->Gamepad.sThumbLX = SDL_GameControllerGetAxis(c, SDL_CONTROLLER_AXIS_LEFTX);
+-    pState->Gamepad.sThumbLY =
+-        (SHORT)(-1 - SDL_GameControllerGetAxis(c, SDL_CONTROLLER_AXIS_LEFTY));
+-    pState->Gamepad.sThumbRX = SDL_GameControllerGetAxis(c, SDL_CONTROLLER_AXIS_RIGHTX);
+-    pState->Gamepad.sThumbRY =
+-        (SHORT)(-1 - SDL_GameControllerGetAxis(c, SDL_CONTROLLER_AXIS_RIGHTY));
+-
+-    if (dwPort == 0)
+-        keyboard_merge(pState);
+-    return ERROR_SUCCESS;
+-}
+-
+-DWORD xbox_InputSetState(DWORD dwPort, const XBOX_VIBRATION *pVibration)
+-{
+-    if (dwPort >= XBOX_MAX_CONTROLLERS || !pVibration)
+-        return ERROR_DEVICE_NOT_CONNECTED;
+-
+-    SDL_GameController *c = g_pads[dwPort];
+-    if (!c) return ERROR_DEVICE_NOT_CONNECTED;
+-
+-    /* SDL rumble needs a duration; refresh for ~1s on each call (the game
+-     * polls vibration continuously). */
+-    SDL_GameControllerRumble(c, pVibration->wLeftMotorSpeed,
+-                             pVibration->wRightMotorSpeed, 1000);
+-    return ERROR_SUCCESS;
++#endif
+ }
+ 
+ BOOL xbox_InputIsConnected(DWORD dwPort)
+@@ -313,17 +402,25 @@ BOOL xbox_InputIsConnected(DWORD dwPort)
+ 
+ DWORD xbox_InputGetCapabilities(DWORD dwPort, DWORD dwFlags, XBOX_INPUT_CAPABILITIES *pCaps)
+ {
+-    (void)dwFlags;
+     if (dwPort >= XBOX_MAX_CONTROLLERS || !pCaps)
+         return ERROR_DEVICE_NOT_CONNECTED;
+-    if (!g_pads[dwPort])
++#if defined(_WIN32)
++    {
++        XINPUT_CAPABILITIES xi_caps;
++        DWORD result = XInputGetCapabilities(dwPort, dwFlags, &xi_caps);
++        if (result != ERROR_SUCCESS) return result;
++        memset(pCaps, 0, sizeof(XBOX_INPUT_CAPABILITIES));
++        pCaps->Type = xi_caps.Type;
++        pCaps->SubType = xi_caps.SubType;
++        pCaps->Flags = xi_caps.Flags;
++    }
++#else
++    (void)dwFlags;
++    if (!sdl_pad(dwPort))
+         return ERROR_DEVICE_NOT_CONNECTED;
+-
+     memset(pCaps, 0, sizeof(XBOX_INPUT_CAPABILITIES));
+-    pCaps->Type    = 1;   /* XINPUT_DEVTYPE_GAMEPAD */
++    pCaps->Type = 1;      /* XINPUT_DEVTYPE_GAMEPAD */
+     pCaps->SubType = 1;   /* XINPUT_DEVSUBTYPE_GAMEPAD */
+-    pCaps->Flags   = 0;
++#endif
+     return ERROR_SUCCESS;
+ }
+-
+-#endif /* _WIN32 */
+diff --git a/src/input/xinput_xbox.h b/src/input/xinput_xbox.h
+index 47792751..445bdfdb 100644
+--- a/src/input/xinput_xbox.h
++++ b/src/input/xinput_xbox.h
+@@ -2,17 +2,13 @@
+  * Xbox Input Compatibility Layer - Type Definitions
+  *
+  * Defines the Xbox XPP (Xbox Peripheral Port) input types and
+- * translates them to Windows XInput. The Xbox controller API
++ * translates them to the host input backend. The Xbox controller API
+  * differs from XInput in structure layout and polling model.
+  *
+- * The game uses 9 XPP entry points with 12 total calls:
+- * - Controller state polling
+- * - Vibration/force feedback
+- * - Device enumeration
+  */
+ 
+-#ifndef BURNOUT3_XINPUT_XBOX_H
+-#define BURNOUT3_XINPUT_XBOX_H
++#ifndef XBOXRECOMP_XINPUT_XBOX_H
++#define XBOXRECOMP_XINPUT_XBOX_H
+ 
+ #include <stdint.h>
+ #include "platform/xbox_winnt.h"
+@@ -84,16 +80,30 @@ typedef struct XBOX_INPUT_CAPABILITIES {
+ 
+ /**
+  * Initialize the input system.
+- * Maps Xbox controller ports to XInput slots.
++ * Maps Xbox controller ports to host controller slots.
+  */
+ void xbox_InputInit(void);
+ 
++/* A port's contextual keys (RECOMP_KEYBOARD=1): the hook may
++ * change the keyboard pad after the default keys are read. `menu` is TRUE
++ * while RECOMP_MENU_KEYS navigation applies; xbox_FramebufferKeyDown reads
++ * a key. Configure before input polling starts. It runs on the input thread,
++ * so it must be fast and safe to call from that thread. */
++typedef void (*XBOX_KEYBOARD_HOOK)(XBOX_INPUT_STATE *state, BOOL menu);
++void xbox_InputSetKeyboardHook(XBOX_KEYBOARD_HOOK hook);
++
+ /**
+  * Get the state of a controller.
+  * Port: 0-3 (Xbox controller ports)
+  */
+ DWORD xbox_InputGetState(DWORD dwPort, XBOX_INPUT_STATE *pState);
+ 
++/* RECOMP_MENU_KEYS applies only while in_menu() returns nonzero. */
++void xbox_InputSetMenuProbe(int (*in_menu)(void));
++/* Register before polling. A nonzero result consumes a menu click so the
++ * title can dispatch it on its guest thread instead of receiving pad A. */
++void xbox_InputSetMenuClickHandler(int (*click)(float x, float y));
++
+ /**
+  * Set controller vibration.
+  */
+@@ -113,4 +123,4 @@ DWORD xbox_InputGetCapabilities(DWORD dwPort, DWORD dwFlags, XBOX_INPUT_CAPABILI
+ }
+ #endif
+ 
+-#endif /* BURNOUT3_XINPUT_XBOX_H */
++#endif /* XBOXRECOMP_XINPUT_XBOX_H */
+diff --git a/src/usb/ohci.c b/src/usb/ohci.c
+index efa5046d..9da018e1 100644
+--- a/src/usb/ohci.c
++++ b/src/usb/ohci.c
+@@ -21,10 +21,11 @@
+ 
+ /* Where the registers can be trapped. They are answered by faulting on the
+  * aperture and decoding the instruction that touched it: the x86-64 decoder
+- * under a Win32 VEH, or the A64 decoder under a POSIX SIGBUS/SIGSEGV
+- * handler. A host with neither leaves the model off (see xbox_OhciInit). */
+-#if defined(_WIN32)
+-#  define OHCI_TRAP_WIN32 1
++ * on a CONTEXT (a Win32 VEH, or win32_compat's SIGSEGV dispatch on x86-64
++ * POSIX), or the A64 decoder under a POSIX SIGBUS/SIGSEGV handler. A host
++ * with neither leaves the model off (see xbox_OhciInit). */
++#if defined(_WIN32) || defined(__x86_64__)
++#  define OHCI_TRAP_X64 1
+ #elif defined(__aarch64__)
+ #  define OHCI_TRAP_POSIX_A64 1
+ #endif
+@@ -319,18 +320,8 @@ static void ohci_write(void *dev, uint32_t off, uint64_t val, int size)
+         unsigned port = (aligned - HcRhPortStatus1) / 4;
+         uint32_t *ps = &hc->reg[(HcRhPortStatus1 + port * 4) / 4];
+ 
+-        /* Write-1-to-clear first, because the change bits a write carries
+-         * refer to the state BEFORE it.
+-         *
+-         * This ordering is the whole bug it once had. A driver starting a
+-         * fresh reset writes SetPortReset and ClearPortResetStatusChange in
+-         * the same word -- "acknowledge the last reset, begin another" --
+-         * which is both legal and what the Xbox USB stack does: DDS9 writes
+-         * 0x01100010. Clearing afterwards wiped the PRSC this very write had
+-         * just raised, so the reset never reported complete, the driver
+-         * reset the port again, and enumeration looped forever one step from
+-         * finishing. The port looked healthy the whole time: connected,
+-         * enabled, powered. */
++        /* Acknowledge prior change bits before an immediate reset can raise
++         * new ones in the same write. */
+         *ps &= ~(v & 0xFFFF0000u);
+ 
+         if (v & PORT_W_CCS_CLEAR_ENABLE) *ps &= ~PORT_PES;
+@@ -415,15 +406,8 @@ static UsbSetup g_setup_[USB_GAMEPAD_MAX];
+ #define g_setup_pending g_setup_pending_[pad]
+ #define g_setup         g_setup_[pad]
+ 
+-/* The control transfer's data stage, across however many descriptors it takes.
+- *
+- * bMaxPacketSize0 is 8, so a driver asking for a 32-byte configuration
+- * descriptor queues four 8-byte IN descriptors and expects successive chunks.
+- * Answering each one from the top of the buffer hands it the first 8 bytes
+- * four times: the descriptor it assembles is nonsense, it gives up and starts
+- * again, which is exactly the loop DDS9 sat in -- GET_DESCRIPTOR, SET_ADDRESS,
+- * GET_DESCRIPTOR, forever. The answer is computed once per setup packet and
+- * then consumed. */
++/* Compute the control response once per setup, then consume it across the
++ * driver's packet-sized IN descriptors. */
+ static uint8_t g_ctrl_buf_[USB_GAMEPAD_MAX][64];
+ static int     g_ctrl_len_[USB_GAMEPAD_MAX] = {-1, -1, -1, -1};
+ static int     g_ctrl_sent_[USB_GAMEPAD_MAX];
+@@ -469,14 +453,7 @@ static int guest_ok(uint32_t va, uint32_t bytes)
+ 
+     if (va == 0 || mapped == 0)
+         return 0;
+-    /* Descriptors live where a driver puts DMA memory, and on Xbox that is
+-     * MmAllocateContiguousMemory -- the contiguous window, not low RAM. The
+-     * bound below reads as "is this in RAM", which is not the question: the
+-     * window is mapped too, at the same offset, and is exactly where the Xbox
+-     * USB stack builds its endpoint and transfer descriptors. Rejecting it
+-     * made every rd32 return 0 and every wr32 a no-op, so the walker looked at
+-     * an empty list and the driver waited forever for a done queue that could
+-     * not be written. DDS9's first control transfer sits at 0x80408940. */
++    /* Contiguous DMA memory is a separate mapped window above low RAM. */
+     if (va >= OHCI_CONTIG_BASE
+             && (uint64_t)va + bytes <= (uint64_t)OHCI_CONTIG_BASE
+                                      + OHCI_CONTIG_SIZE)
+@@ -484,57 +461,46 @@ static int guest_ok(uint32_t va, uint32_t bytes)
+     return (uint64_t)va + bytes <= (uint64_t)mapped;
+ }
+ 
+-/* A host controller is a bus master: every pointer the driver hands it --
+- * HcHCCA, HcControlHeadED, ED and TD links, buffer pointers -- is a PHYSICAL
+- * address. On hardware physical P and the contiguous window's 0x80000000 + P
+- * are the same bytes. Here the window is separate storage, so a physical
+- * address a driver took from MmGetPhysicalAddress names nothing it wrote.
+- *
+- * Burnout 3's XPP does exactly that: it builds its descriptors in
+- * MmAllocateContiguousMemory at 0x825B50C0, converts, and writes 0x025B50C0.
+- * Read as RAM, every ED came back all zeroes, the controller saw an empty
+- * list, and enumeration waited forever for a transfer that never moved.
+- * (DDS9's driver writes window addresses directly, which guest_ok already
+- * accepts, so it never needed this.)
+- *
+- * Resolved the way the pushbuffer executor resolves surface offsets
+- * (dma_resolve in nv2a_pb_exec.c): below the contiguous allocator's
+- * high-water mark an address is memory some MmAllocateContiguousMemory call
+- * returned, and its bytes live in the window.
+- *
+- * Except inside the loaded image. A driver also points transfers at its own
+- * statics -- Burnout 3's first GET_DESCRIPTOR reads into 0x0041A904, in .data
+- * -- and MmGetPhysicalAddress passes those through unchanged. A real kernel
+- * never hands out contiguous memory that overlaps the image, so an address
+- * inside it is the image. Sending that one to the window delivered the
+- * descriptor where the driver never looked, and it reset the port and asked
+- * again, forever. */
+-static uint32_t bus_resolve(uint32_t addr)
++/* Resolve bus-master descriptor and payload addresses through the runtime's
++ * physical memory map, retaining legacy loaded-image VA precedence. */
++uint32_t xbox_OhciResolvePhysical(uint32_t addr, uint32_t bytes)
+ {
++    uint32_t guest_va;
++    int kind;
++    /* Runtime physical IDs for ordinary RAM resolve to the same bytes the
++     * CPU maps at its guest VA. The namespace sits beyond the complete mapped
++     * VA range, so this is unambiguous even for enlarged development maps. */
++    kind = xbox_PhysicalAddressResolve(addr, bytes, &guest_va);
++    if (kind == 1)
++        return guest_va;
++    /* Legacy titles still pass a guest VA as a DMA pointer. Keep the loaded
++     * image ahead of the old low physical/contiguous heuristic: image statics
++     * must remain in ordinary RAM even when their numeric VA matches a
++     * contiguous allocation. */
+     if (addr >= g_xbox_image_lo && addr < g_xbox_image_hi)
+         return addr;
+-    if (addr && addr < xbox_ContiguousAllocatedBytes())
+-        return OHCI_CONTIG_BASE + addr;
++    if (kind == 2)
++        return guest_va;
+     return addr;
+ }
+ 
+ static uint32_t rd32(uint32_t va)
+ {
+-    va = bus_resolve(va);
++    va = xbox_OhciResolvePhysical(va, 4);
+     if (!guest_ok(va, 4))
+         return 0;
+     return *(uint32_t *)((uint8_t *)xbox_GetMemoryOffset() + va);
+ }
+ static void wr32(uint32_t va, uint32_t v)
+ {
+-    va = bus_resolve(va);
++    va = xbox_OhciResolvePhysical(va, 4);
+     if (!guest_ok(va, 4))
+         return;
+     *(uint32_t *)((uint8_t *)xbox_GetMemoryOffset() + va) = v;
+ }
+ static uint8_t *guest_ptr(uint32_t va, uint32_t bytes)
+ {
+-    va = bus_resolve(va);
++    va = xbox_OhciResolvePhysical(va, bytes);
+     return guest_ok(va, bytes)
+          ? (uint8_t *)xbox_GetMemoryOffset() + va : NULL;
+ }
+@@ -686,16 +652,8 @@ static uint32_t ohci_do_td(OhciController *hc, uint32_t ed0, uint32_t td)
+      * what did. A driver computes the transferred length from it. */
+     wr32(td + 4, (moved >= len) ? 0u : cbp + (uint32_t)moved);
+ 
+-    /* A short IN packet on a TD without bufferRounding is DATA UNDERRUN
+-     * (OHCI 1.0a): the controller retires this TD with that code
+-     * and halts the endpoint -- the walker does so for any non-zero code --
+-     * leaving the rest of the transfer for the driver to retire. A short
+-     * packet still ends the stage; what the driver needs to see is that it
+-     * did. Reporting NOERROR, and completing the trailing TDs with zero
+-     * bytes, sent XAPI's done-queue handler down its success path, which
+-     * walks from the ED head into the dummy tail TD and follows its garbage
+-     * link: X-Men Legends asks for 80 bytes of configuration descriptor,
+-     * gets 32, and faulted there. */
++    /* OHCI short IN without buffer rounding retires as DATA UNDERRUN;
++     * the endpoint walker halts it instead of consuming trailing TDs. */
+     if (dp == TD_DP_IN && moved < len && !(info & TD_ROUNDING))
+         return TD_CC_DATAUNDERRUN;
+     return TD_CC_NOERROR;
+@@ -1039,13 +997,6 @@ static void ohci_reset(OhciController *hc, uint32_t base, int index)
+  * A separate thread has its own copy, and it also happens to be what the
+  * hardware does -- an interrupt arrives when the controller decides, not when
+  * the driver next reads a register.
+- *
+- * ponytail: one delivery, of the root hub status change that is already
+- * pending from bring-up. There is nothing behind it yet -- no descriptor list
+- * walking, so an enumeration attempt has nothing to answer it -- and the point
+- * of this delivery is to find out what the driver does when it finally gets
+- * the interrupt it has been waiting for. Repeat delivery and the transfer
+- * lists come after that answer, not before it.
+  */
+ static DWORD WINAPI ohci_thread(LPVOID unused)
+ {
+@@ -1149,10 +1100,8 @@ static DWORD WINAPI ohci_thread(LPVOID unused)
+          * a frame ever starting, enumeration stops one transfer past
+          * SET_ADDRESS with the driver waiting for time to pass.
+          *
+-         * Twenty frames a tick because a frame is 1 ms and this loop sleeps
+-         * 20. The count is what drivers compare; the rate is what they feel,
+-         * and both are closer to right this way than a counter that never
+-         * moves. */
++         * Each tick advances the count by OHCI_TICK_MS, with one emulated
++         * USB frame per millisecond. */
+         {
+             uint32_t hcca = hc->reg[HcHCCA / 4];
+ 
+@@ -1213,17 +1162,8 @@ static DWORD WINAPI ohci_thread(LPVOID unused)
+                 hc->reg[HcCommandStatus / 4] &= ~0x02u;   /* CLF consumed */
+         }
+ 
+-        /* One done queue per pass, covering all three lists.
+-         *
+-         * The lists used to publish one after another, so the control list
+-         * wrote HccaDoneHead straight over what the periodic list had just
+-         * put there. That stayed invisible until a title used both at once:
+-         * Burnout 3 sends its pad a rumble report (SET_REPORT, 21 09) on the
+-         * control pipe every frame once its menus are up, the input report
+-         * completing in the same pass was lost, and the driver -- which
+-         * re-arms the interrupt endpoint from that completion -- stopped
+-         * polling the pad. A real controller accumulates everything that
+-         * retires in a frame and writes the queue back once; so does this. */
++        /* Publish one combined done queue for periodic, bulk and control
++         * completions, so no list overwrites another list's completed TDs. */
+         if (pass_done)
+             ohci_publish_done(hc, pass_done);
+ 
+@@ -1243,7 +1183,8 @@ static DWORD WINAPI ohci_thread(LPVOID unused)
+          * one unmatched raise anywhere leaves the gate shut for the rest of
+          * the run -- which is how this first showed up: no interrupt was ever
+          * delivered and enumeration stopped at two empty control EDs. Real
+-         * hardware is never masked for 80 ms, so past that the line is
++         * hardware does not use this recovery timeout; past the model holdoff
++         * the line is
+          * asserted anyway. The common case still holds the ISR out of the
+          * guest's critical section; the pathological case costs a delay
+          * instead of the device. */
+@@ -1332,9 +1273,7 @@ void xbox_OhciInit(void)
+         return;
+     done = 1;
+ 
+-    /* Opt-in. Without a descriptor list walker behind it a driver that finds
+-     * a port has nothing to enumerate, so this must not change how a title
+-     * behaves until the rest of it exists. */
++    /* Device emulation is opt-in through RECOMP_USB. */
+     if (!getenv("RECOMP_USB"))
+         return;
+ 
+@@ -1356,7 +1295,7 @@ void xbox_OhciInit(void)
+         if ((unsigned)s_npads > s_ndp)
+             s_ndp = (unsigned)s_npads;      /* a port for every pad */
+     }
+-#if !defined(OHCI_TRAP_WIN32) && !defined(OHCI_TRAP_POSIX_A64)
++#if !defined(OHCI_TRAP_X64) && !defined(OHCI_TRAP_POSIX_A64)
+     /* No decoder for this host's instructions, so a trapped access could not
+      * be answered. Leave the aperture as plain memory -- the title then sees
+      * no controller, exactly as with RECOMP_USB unset -- and say so. */
+@@ -1432,7 +1371,7 @@ int xbox_OhciOwnsAddress(uint32_t xbox_va)
+     return hc_for(xbox_va) != NULL;
+ }
+ 
+-#if defined(OHCI_TRAP_POSIX_A64) || defined(OHCI_TRAP_WIN32)
++#if defined(OHCI_TRAP_POSIX_A64) || defined(OHCI_TRAP_X64)
+ /* Both decoders hand over 8-byte accesses whole (ldr/str x or a d register
+  * on A64, a REX.W mov on x86-64); the registers are 32-bit, so an 8-byte
+  * access is two of them. */
+@@ -1473,7 +1412,7 @@ int xbox_OhciHandleMmio(void *ctx, uint32_t xbox_va)
+         fflush(stderr);
+     }
+     return ok;
+-#elif defined(OHCI_TRAP_WIN32)
++#elif defined(OHCI_TRAP_X64)
+     OhciController *hc = hc_for(xbox_va);
+     int ok;
+ 
+diff --git a/src/usb/ohci.h b/src/usb/ohci.h
+index 8aa0b35b..b8b5300f 100644
+--- a/src/usb/ohci.h
++++ b/src/usb/ohci.h
+@@ -1,23 +1,7 @@
+-/*
+- * ohci.h -- the Xbox USB host controllers, enough of them to be found.
+- *
+- * A title reaches its gamepad through XAPI, which is statically linked into
+- * the image and drives the OHCI controller registers directly rather than
+- * going through anything this runtime can shim. Half-Life 2 registers a 4 KB
+- * block at 0xFED00000 and takes an interrupt vector for it, then reads
+- * HcRevision out of an aperture backed by zeroed RAM, concludes there is a
+- * host controller with no root hub ports, and enumerates nothing.
+- *
+- * This is the register half of the answer: a controller that reports a real
+- * revision, a root hub with ports, and the handful of registers that have
+- * behaviour rather than storage. It does not yet walk the endpoint and
+- * transfer descriptor lists, which is what actually moves a report, so a
+- * driver that gets this far will find a port and then have nothing to talk to.
+- * That is deliberate -- the register trace is what says whether the driver
+- * polls HcInterruptStatus or waits on the IRQ, and that answers how much of
+- * the rest is needed before any of it is written.
+- *
+- * Written from the OHCI 1.0a specification and this title's own code.
++/* OHCI host controller model for the two MCPX USB apertures.
++ * Implements operational/root-hub registers, endpoint/transfer descriptor
++ * walking and interrupt delivery, connected to the runtime's USB gamepads.
++ * This is a partial device model; see ohci.c for supported transfer paths.
+  */
+ #ifndef XBOX_OHCI_H
+ #define XBOX_OHCI_H
+@@ -52,4 +36,8 @@ int  xbox_OhciHandleMmio(void *ctx, uint32_t xbox_va);
+ /* Report counts at exit, so a run says whether the driver ever looked. */
+ void xbox_OhciReport(void);
+ 
++/* Resolve one physical descriptor/buffer address to the guest VA used by the
++ * OHCI model. Exposed so memory mapping regressions exercise the same path. */
++uint32_t xbox_OhciResolvePhysical(uint32_t physical, uint32_t bytes);
++
+ #endif /* XBOX_OHCI_H */
+diff --git a/src/usb/usb_gamepad.c b/src/usb/usb_gamepad.c
+index bd00f3fc..612b8c17 100644
+--- a/src/usb/usb_gamepad.c
++++ b/src/usb/usb_gamepad.c
+@@ -333,8 +333,7 @@ static int same_word(const char *a, const char *b, size_t n)
+ static int pad_button_bits(const char *name, size_t n, uint8_t *dig,
+                            uint8_t *ana, uint8_t *stick)
+ {
+-    /* Stick directions, for screens and games that read the stick and
+-     * ignore the d-pad: Burnout 3 steers and picks map locations with it. */
++    /* Stick directions are independent of digital d-pad input. */
+     static const struct { const char *name; uint8_t bit; } sk[] = {
+         {"lleft", 0x01}, {"lright", 0x02}, {"lup", 0x04}, {"ldown", 0x08},
+         {"rleft", 0x10}, {"rright", 0x20}, {"rup", 0x40}, {"rdown", 0x80},
+@@ -592,14 +591,28 @@ int usb_gamepad_report(int pad, uint8_t *out, int max)
+             unsigned long now = (unsigned long)GetTickCount();
+             if (now - last > 1000) {
+                 XBOX_INPUT_STATE probe;
++                const char *keyboard = getenv("RECOMP_KEYBOARD");
++                const char *layout = getenv("RECOMP_KEYBOARD_LAYOUT");
+                 DWORD rc = xbox_InputGetState(0, &probe);
+                 last = now;
+-                fprintf(stderr, "  [INPUT] kbd_env=%d window_has_RETURN=%d "
+-                        "InputGetState=%lu buttons=0x%04X\n",
+-                        getenv("RECOMP_KEYBOARD") ? 1 : 0,
++                fprintf(stderr, "  [INPUT] pad=0 kbd_env=%s layout=%s "
++                        "window_has_RETURN=%d "
++                        "keys(up/3/down/1/left/right)=%d/%d/%d/%d/%d/%d "
++                        "InputGetState=%lu buttons=0x%04X LT=%u RT=%u LX=%d\n",
++                        keyboard ? keyboard : "off",
++                        layout ? layout : "legacy",
+                         xbox_FramebufferKeyDown(0x0D),
++                        xbox_FramebufferKeyDown(0x26),
++                        xbox_FramebufferKeyDown('3'),
++                        xbox_FramebufferKeyDown(0x28),
++                        xbox_FramebufferKeyDown('1'),
++                        xbox_FramebufferKeyDown(0x25),
++                        xbox_FramebufferKeyDown(0x27),
+                         (unsigned long)rc,
+-                        rc == 0 ? probe.Gamepad.wButtons : 0);
++                        rc == 0 ? probe.Gamepad.wButtons : 0,
++                        rc == 0 ? probe.Gamepad.bAnalogButtons[XBOX_BUTTON_LTRIGGER] : 0,
++                        rc == 0 ? probe.Gamepad.bAnalogButtons[XBOX_BUTTON_RTRIGGER] : 0,
++                        rc == 0 ? probe.Gamepad.sThumbLX : 0);
+                 fflush(stderr);
+             }
+         }

@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include "mods/mods.h"
 #include "keymap_spec.h"
-#include "runtime/rmlui_host.h"
+#include "ui/rmlui_host.h"
 
 #if defined(XBOXRECOMP_SDL3)
 /* The SDL3 GPU build (also Linux) has no Win32 or XInput. The launcher's

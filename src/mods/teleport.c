@@ -18,7 +18,7 @@
 #include "recomp_types.h"
 #include "teleport.h"
 #include "guest_state.h"
-#include "runtime/line_server.h"
+#include "platform/line_server.h"
 
 #if !defined(_WIN32)
 /* Bounds-checked strcpy_s is MSVC-only; the replies here are NUL-terminated. */

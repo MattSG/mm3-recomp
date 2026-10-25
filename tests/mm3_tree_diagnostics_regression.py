@@ -43,7 +43,7 @@ RECOMP_TLS uint16_t g_fp_control_word,g_fp_cc;
 RECOMP_TLS double g_fp_stack[8];
 RECOMP_TLS RecompXmm g_xmm0,g_xmm1,g_xmm2,g_xmm3,g_xmm4,g_xmm5,g_xmm6,g_xmm7;
 RECOMP_TLS RecompMmx g_mm0,g_mm1,g_mm2,g_mm3,g_mm4,g_mm5,g_mm6,g_mm7;
-/* Test double for the fork's xbox_GuestRead: the same host-checked read over this fixture's RAM. */
+/* Test double for the runtime's xbox_GuestRead: the same host-checked read over this fixture's RAM. */
 int xbox_GuestRead(uint32_t va, void *out, size_t size)
 {
     SIZE_T copied = 0;

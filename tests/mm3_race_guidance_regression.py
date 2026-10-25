@@ -263,9 +263,9 @@ def main():
         executable = folder / f"contract{cc.exe_suffix()}"
         subprocess.run(cc.compile_command(
             [ROOT / "tests/mm3_race_guidance_contract.c",
-             ROOT / "src/runtime/road_graph.c",
-             ROOT / "src/runtime/kb_spline.c",
-             ROOT / "src/runtime/polyline.c"], executable,
+             ROOT / "tools/xboxrecomp/src/kernel/road_graph.c",
+             ROOT / "tools/xboxrecomp/src/kernel/kb_spline.c",
+             ROOT / "tools/xboxrecomp/src/kernel/polyline.c"], executable,
             includes=[folder, ROOT / "tools/xboxrecomp/include", ROOT / "tools/xboxrecomp/src", ROOT / "tools/xboxrecomp/src/kernel"], std="c11", optimize="none",
             warnings="normal", werror=True,
             # Generated native fixture: unused _flags/_icall_esp temporaries are emitted by the translator.

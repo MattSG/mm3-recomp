@@ -41,17 +41,18 @@ applicable licence. Original project contributions use
 [GPL-3.0-only](LICENSE); third-party components retain their own licences and
 notices. Identify any third-party code you introduce and its source and licence.
 
-The runtime in `tools/xboxrecomp` is a separate repository: our custom
-[MattSG/xboxrecomp fork](https://github.com/MattSG/xboxrecomp) of
-[sp00nznet/xboxrecomp](https://github.com/sp00nznet/xboxrecomp). Our fork changes
-also include AI-written code; review and test them with the same care. It retains
-its own licence and [contribution guide](tools/xboxrecomp/CONTRIBUTING.md).
-Submit runtime changes to our fork and link the corresponding commit or PR in
-your project PR. Report issues specific to our modifications here or in our fork.
+The runtime in `tools/xboxrecomp` is upstream
+[sp00nznet/xboxrecomp](https://github.com/sp00nznet/xboxrecomp), pinned to a
+release. It retains its own licence and
+[contribution guide](tools/xboxrecomp/CONTRIBUTING.md). The generic changes this
+port still needs are the patch series in `patches/xboxrecomp`, applied to the
+submodule's working tree by `scripts/patch_xboxrecomp.py` (setup and CMake run
+it). They include AI-written code; review and test them with the same care.
 
-Runtime changes go to the [MattSG/xboxrecomp](https://github.com/MattSG/xboxrecomp)
-fork and are picked up here by moving the `tools/xboxrecomp` gitlink. Keep it
-pointing at a published commit.
+To change the runtime, commit in `tools/xboxrecomp` on top of the pin and
+regenerate the series (the script's header has the command). Patches stay
+game-agnostic so each can be offered upstream; once one is merged there, move
+the pin and drop it.
 
 Car Workshop defaults are tracked in `tools/car-tools/car-mods/cars.json`; personal model
 selections and tuning belong in the ignored `cars.local.json`. Game assets,

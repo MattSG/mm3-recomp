@@ -1,6 +1,6 @@
 """Exercise the production XDK cache-flush handshake with an acknowledging thread.
 
-The runtime helper (xbox_Nv2aWbcFlush, in the fork) is compiled directly; the
+The runtime helper (xbox_Nv2aWbcFlush, in the runtime) is compiled directly; the
 title's sub_00344AB0 wrapper is extracted from src/recomp_manual.c and runs
 against it.
 """
@@ -72,7 +72,7 @@ int main(void)
         cfile = folder / "flush.c"
         cfile.write_text(fixture, encoding="utf-8")
         exe = folder / "flush.exe"
-        includes = [ROOT / "src/runtime", ROOT / "tools/xboxrecomp/src/kernel", ROOT / "tools/xboxrecomp/src",
+        includes = [ROOT / "tools/xboxrecomp/src/kernel", ROOT / "tools/xboxrecomp/src",
                     ROOT / "tools/xboxrecomp/src/nv2a", ROOT / "tools/xboxrecomp/templates/runtime",
                     ROOT / "tools/xboxrecomp/include"]
         subprocess.run(cc.compile_command([cfile], exe, std="c11", optimize="none",

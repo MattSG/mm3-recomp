@@ -104,7 +104,7 @@ def main():
         sources = [ROOT / "tests/mm3_factory_physics_contract.c"]
         includes = [folder, ROOT / "tools/xboxrecomp/include"]
         if windows_mapping:
-            # Production mapping is the fork's xbox_GuestMapped.
+            # Production mapping is the runtime's xbox_GuestMapped.
             # Only the mapping probe is compiled: the full kernel layout module
             # drags in the whole runtime and duplicates the harness globals.
             kernel = ROOT / "tools/xboxrecomp/src/kernel"

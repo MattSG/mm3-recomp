@@ -40,7 +40,7 @@ static void trace_log(const char *format,...){
 #include "mm3_building_diagnostics.c"
 
 ptrdiff_t g_xbox_mem_offset;
-/* Test double for the fork's xbox_GuestRead: the same host-checked read, over
+/* Test double for the runtime's xbox_GuestRead: the same host-checked read, over
  * this fixture's guest RAM at g_xbox_mem_offset. */
 int xbox_GuestRead(uint32_t va, void *out, size_t size)
 {

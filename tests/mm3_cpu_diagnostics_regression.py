@@ -124,7 +124,7 @@ def diagnostics_fixture():
     # Copying individual function bodies hid dependencies as diagnostics evolved.
     implementation = source[source.index('static int g_mm3_unimpl_trap;'):
                             source.index('extern void sub_000838C3(void);')]
-    # The slice includes the configure hook-up; the fork's logger module is not linked here.
+    # The slice includes the configure hook-up; the runtime's logger module is not linked here.
     stubs = ('typedef struct { int unused; } XboxIcallReport;\n'
              'void xbox_icall_set_trace_all(int enabled) { (void)enabled; }\n'
              'void xbox_icall_set_report_hook(void (*hook)(const XboxIcallReport *)) { (void)hook; }\n'

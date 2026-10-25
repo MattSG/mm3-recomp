@@ -1,0 +1,2981 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Matt Graham <matt.sg@hotmail.com>
+Date: Sun, 25 Oct 2026 23:12:27 +0000
+Subject: [PATCH 11/12] kernel, platform, ui: generic helpers a title builds on
+
+Geometry (polylines, road graphs, splines, rotation), guest reads and calls, case-insensitive strings, env ranges, fixed steps, derived caches, slot publishing, a write watch, a crash report, pushbuffer reserve/recovery, the WBC flush, a line server for host tools and an RmlUi host. None names a title; the port links them from here.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/kernel/CMakeLists.txt                    |  22 ++
+ src/kernel/camera_math.c                     |   7 +
+ src/kernel/camera_math.h                     |   9 +
+ src/kernel/crash_report.c                    |  58 +++
+ src/kernel/crash_report.h                    |  14 +
+ src/kernel/derived_cache.c                   | 392 +++++++++++++++++++
+ src/kernel/derived_cache.h                   |  28 ++
+ src/kernel/env_range.c                       |  38 ++
+ src/kernel/env_range.h                       |  14 +
+ src/kernel/feature_switch.c                  |  14 +
+ src/kernel/feature_switch.h                  |  12 +
+ src/kernel/fixed_step.c                      |  19 +
+ src/kernel/fixed_step.h                      |  18 +
+ src/kernel/guest_call.c                      |  36 ++
+ src/kernel/guest_call.h                      |  14 +
+ src/kernel/guest_read.c                      |  16 +
+ src/kernel/guest_read.h                      |  16 +
+ src/kernel/guest_strings.c                   |  25 ++
+ src/kernel/guest_strings.h                   |  14 +
+ src/kernel/host_write_watch.c                | 135 +++++++
+ src/kernel/host_write_watch.h                |  18 +
+ src/kernel/kb_spline.c                       |  19 +
+ src/kernel/kb_spline.h                       |  13 +
+ src/kernel/nv2a_pb_recovery.c                |  44 +++
+ src/kernel/nv2a_pb_recovery.h                |  15 +
+ src/kernel/nv2a_wbc_flush.c                  |  63 +++
+ src/kernel/nv2a_wbc_flush.h                  |  22 ++
+ src/kernel/piece_cluster.c                   |  97 +++++
+ src/kernel/piece_cluster.h                   |  24 ++
+ src/kernel/polyline.c                        |  38 ++
+ src/kernel/polyline.h                        |  16 +
+ src/kernel/recomp_env.h                      |  18 +
+ src/kernel/recomp_log_budget.h               |  43 ++
+ src/kernel/recomp_lookup_cache.c             |  15 +
+ src/kernel/recomp_lookup_cache.h             |  16 +
+ src/kernel/road_graph.c                      | 180 +++++++++
+ src/kernel/road_graph.h                      |  57 +++
+ src/kernel/slot_publish.c                    |  39 ++
+ src/kernel/slot_publish.h                    |  20 +
+ src/kernel/string_ci.c                       |  14 +
+ src/kernel/string_ci.h                       |   9 +
+ src/kernel/thick_line.c                      |  13 +
+ src/kernel/thick_line.h                      |   9 +
+ src/kernel/vec3_rotate.c                     |  10 +
+ src/kernel/vec3_rotate.h                     |  11 +
+ src/kernel/xbox_std_string.c                 |  27 ++
+ src/kernel/xbox_std_string.h                 |  13 +
+ src/nv2a/CMakeLists.txt                      |   1 +
+ src/nv2a/nv2a_pb_reserve.c                   |  32 ++
+ src/nv2a/nv2a_pb_reserve.h                   |  20 +
+ src/platform/CMakeLists.txt                  |   7 +-
+ src/platform/line_server.c                   | 144 +++++++
+ src/platform/line_server.h                   |  18 +
+ src/ui/rmlui_host.cpp                        | 176 +++++++++
+ src/ui/rmlui_host.h                          |  65 +++
+ tests/kernel_geometry/CMakeLists.txt         |  14 +
+ tests/kernel_geometry/test_kernel_geometry.c | 112 ++++++
+ tests/kernel_host_write_watch/test_main.c    |  53 +++
+ tests/nv2a_wbc_flush/CMakeLists.txt          |  10 +
+ tests/nv2a_wbc_flush/test_nv2a_wbc_flush.c   |  57 +++
+ 60 files changed, 2471 insertions(+), 2 deletions(-)
+ create mode 100644 src/kernel/camera_math.c
+ create mode 100644 src/kernel/camera_math.h
+ create mode 100644 src/kernel/crash_report.c
+ create mode 100644 src/kernel/crash_report.h
+ create mode 100644 src/kernel/derived_cache.c
+ create mode 100644 src/kernel/derived_cache.h
+ create mode 100644 src/kernel/env_range.c
+ create mode 100644 src/kernel/env_range.h
+ create mode 100644 src/kernel/feature_switch.c
+ create mode 100644 src/kernel/feature_switch.h
+ create mode 100644 src/kernel/fixed_step.c
+ create mode 100644 src/kernel/fixed_step.h
+ create mode 100644 src/kernel/guest_call.c
+ create mode 100644 src/kernel/guest_call.h
+ create mode 100644 src/kernel/guest_read.c
+ create mode 100644 src/kernel/guest_read.h
+ create mode 100644 src/kernel/guest_strings.c
+ create mode 100644 src/kernel/guest_strings.h
+ create mode 100644 src/kernel/host_write_watch.c
+ create mode 100644 src/kernel/host_write_watch.h
+ create mode 100644 src/kernel/kb_spline.c
+ create mode 100644 src/kernel/kb_spline.h
+ create mode 100644 src/kernel/nv2a_pb_recovery.c
+ create mode 100644 src/kernel/nv2a_pb_recovery.h
+ create mode 100644 src/kernel/nv2a_wbc_flush.c
+ create mode 100644 src/kernel/nv2a_wbc_flush.h
+ create mode 100644 src/kernel/piece_cluster.c
+ create mode 100644 src/kernel/piece_cluster.h
+ create mode 100644 src/kernel/polyline.c
+ create mode 100644 src/kernel/polyline.h
+ create mode 100644 src/kernel/recomp_env.h
+ create mode 100644 src/kernel/recomp_log_budget.h
+ create mode 100644 src/kernel/recomp_lookup_cache.c
+ create mode 100644 src/kernel/recomp_lookup_cache.h
+ create mode 100644 src/kernel/road_graph.c
+ create mode 100644 src/kernel/road_graph.h
+ create mode 100644 src/kernel/slot_publish.c
+ create mode 100644 src/kernel/slot_publish.h
+ create mode 100644 src/kernel/string_ci.c
+ create mode 100644 src/kernel/string_ci.h
+ create mode 100644 src/kernel/thick_line.c
+ create mode 100644 src/kernel/thick_line.h
+ create mode 100644 src/kernel/vec3_rotate.c
+ create mode 100644 src/kernel/vec3_rotate.h
+ create mode 100644 src/kernel/xbox_std_string.c
+ create mode 100644 src/kernel/xbox_std_string.h
+ create mode 100644 src/nv2a/nv2a_pb_reserve.c
+ create mode 100644 src/nv2a/nv2a_pb_reserve.h
+ create mode 100644 src/platform/line_server.c
+ create mode 100644 src/platform/line_server.h
+ create mode 100644 src/ui/rmlui_host.cpp
+ create mode 100644 src/ui/rmlui_host.h
+ create mode 100644 tests/kernel_geometry/CMakeLists.txt
+ create mode 100644 tests/kernel_geometry/test_kernel_geometry.c
+ create mode 100644 tests/kernel_host_write_watch/test_main.c
+ create mode 100644 tests/nv2a_wbc_flush/CMakeLists.txt
+ create mode 100644 tests/nv2a_wbc_flush/test_nv2a_wbc_flush.c
+
+diff --git a/src/kernel/CMakeLists.txt b/src/kernel/CMakeLists.txt
+index 560ec202..00c29396 100644
+--- a/src/kernel/CMakeLists.txt
++++ b/src/kernel/CMakeLists.txt
+@@ -31,7 +31,29 @@ set(KERNEL_SOURCES
+     nv2a_flip_hold.c
+     nv2a_vsh_interp.c
+     nv2a_combiner.c
++    nv2a_wbc_flush.c
+     icall_diagnostics.c
++    host_write_watch.c
++    crash_report.c
++    derived_cache.c
++    nv2a_pb_recovery.c
++    recomp_lookup_cache.c
++    xbox_std_string.c
++    fixed_step.c
++    guest_call.c
++    feature_switch.c
++    camera_math.c
++    slot_publish.c
++    env_range.c
++    piece_cluster.c
++    string_ci.c
++    guest_strings.c
++    kb_spline.c
++    road_graph.c
++    polyline.c
++    thick_line.c
++    vec3_rotate.c
++    guest_read.c
+ )
+ 
+ add_library(xbox_kernel STATIC ${KERNEL_SOURCES})
+diff --git a/src/kernel/camera_math.c b/src/kernel/camera_math.c
+new file mode 100644
+index 00000000..e7131570
+--- /dev/null
++++ b/src/kernel/camera_math.c
+@@ -0,0 +1,7 @@
++#include "camera_math.h"
++#include <math.h>
++
++float xbox_fovy_from_horizontal_degrees(float degrees, float aspect)
++{
++    return 2.0f * atanf(tanf(degrees * (3.14159265358979323846f / 360.0f)) / aspect);
++}
+diff --git a/src/kernel/camera_math.h b/src/kernel/camera_math.h
+new file mode 100644
+index 00000000..9a382186
+--- /dev/null
++++ b/src/kernel/camera_math.h
+@@ -0,0 +1,9 @@
++/* Projection helpers for a title that widens its horizontal field of view. */
++#ifndef CAMERA_MATH_H
++#define CAMERA_MATH_H
++
++/* The vertical field of view (radians) that keeps the horizontal one (degrees)
++ * at the given aspect ratio: fovy = 2 atan(tan(hfov / 2) / aspect). */
++float xbox_fovy_from_horizontal_degrees(float degrees, float aspect);
++
++#endif
+diff --git a/src/kernel/crash_report.c b/src/kernel/crash_report.c
+new file mode 100644
+index 00000000..580928d7
+--- /dev/null
++++ b/src/kernel/crash_report.c
+@@ -0,0 +1,58 @@
++#include "crash_report.h"
++#include "guest_state.h"
++#include "xbox_memory_layout.h"
++#include <stdint.h>
++#include <stdio.h>
++
++extern RECOMP_TLS uint32_t g_eax, g_ecx, g_ebx, g_esp, g_esi, g_edi, g_ebp, g_seh_ebp, g_fs_base;
++
++/* Reads a guest word, or returns 0 when the address is not guest memory. */
++static uint32_t crash_guest32(uint32_t va)
++{
++    uint32_t value = 0;
++    if (!xbox_GuestRead(va, &value, sizeof value)) return 0;
++    return value;
++}
++
++LONG xbox_CrashReport(EXCEPTION_POINTERS *info)
++{
++    const EXCEPTION_RECORD *record = info ? info->ExceptionRecord : NULL;
++    const CONTEXT *context = info ? info->ContextRecord : NULL;
++    ULONG_PTR fault = record && record->NumberParameters > 1
++        ? record->ExceptionInformation[1] : 0;
++    uintptr_t module_base = (uintptr_t)GetModuleHandleW(NULL);
++    uint32_t mapped = (uint32_t)xbox_GetMappedSize();
++    fprintf(stderr, "[CRASH] code=0x%08lX address=%p guest_esp=0x%08X eax=0x%08X\n",
++            record ? record->ExceptionCode : 0,
++            record ? record->ExceptionAddress : NULL,
++            g_esp, g_eax);
++    fprintf(stderr, "[CRASH] fault=%p rip=%p rsp=%p rax=%llX rdx=%llX\n",
++            (void *)fault,
++            context ? (void *)context->Rip : NULL,
++            context ? (void *)context->Rsp : NULL,
++            context ? context->Rax : 0,
++            context ? context->Rdx : 0);
++    {
++        void *frames[16];
++        USHORT count = CaptureStackBackTrace(0, 16, frames, NULL);
++        USHORT i;
++        for (i = 0; i < count; ++i)
++            fprintf(stderr, "[CRASH_NATIVE] frame=%u rva=0x%llX\n",
++                    (unsigned)i,
++                    (unsigned long long)((uintptr_t)frames[i] - module_base));
++        if (g_ebp >= 0x10000u && g_ebp < mapped - 8u)
++            fprintf(stderr, "[CRASH_CALLER] frame=%08X parent=%08X return=%08X\n",
++                    g_ebp, crash_guest32(g_ebp), crash_guest32(g_ebp + 4u));
++    }
++    fprintf(stderr, "[CRASH] module=%p rip_rva=0x%llX\n",
++            (void *)module_base,
++            context ? (unsigned long long)((uintptr_t)context->Rip - module_base) : 0);
++    fprintf(stderr, "[CRASH] xbox_mem_offset=%lld memory_base=%p\n",
++            (long long)xbox_GetMemoryOffset(), xbox_GetMemoryBase());
++    fprintf(stderr, "[CRASH] guest fs=0x%08X ebp=0x%08X seh_ebp=0x%08X ecx=0x%08X ebx=0x%08X esi=0x%08X edi=0x%08X\n",
++            g_fs_base, g_ebp, g_seh_ebp, g_ecx, g_ebx, g_esi, g_edi);
++    fprintf(stderr, "[CRASH] stack=0x%08X +4=0x%08X +8=0x%08X\n",
++            crash_guest32(g_esp), crash_guest32(g_esp + 4), crash_guest32(g_esp + 8));
++    fflush(stderr);
++    return EXCEPTION_CONTINUE_SEARCH;
++}
+diff --git a/src/kernel/crash_report.h b/src/kernel/crash_report.h
+new file mode 100644
+index 00000000..d14dcf98
+--- /dev/null
++++ b/src/kernel/crash_report.h
+@@ -0,0 +1,14 @@
++/* Unhandled-exception report for a recompiled guest.
++ *
++ * xbox_CrashReport prints the host fault, the native backtrace relative to the
++ * module, the guest's registers and the saved-EBP caller chain. A title's own
++ * fields (its object layouts, its heap) are added by its handler after this
++ * returns. Install it with SetUnhandledExceptionFilter and return the result. */
++#ifndef XBOX_CRASH_REPORT_H
++#define XBOX_CRASH_REPORT_H
++
++#include "platform/xbox_winnt.h"
++
++LONG xbox_CrashReport(EXCEPTION_POINTERS *info);
++
++#endif
+diff --git a/src/kernel/derived_cache.c b/src/kernel/derived_cache.c
+new file mode 100644
+index 00000000..815da48d
+--- /dev/null
++++ b/src/kernel/derived_cache.c
+@@ -0,0 +1,392 @@
++#if !defined(_WIN32) && !defined(_DEFAULT_SOURCE)
++#define _DEFAULT_SOURCE /* PATH_MAX, lstat and O_NOFOLLOW in the POSIX block */
++#endif
++#include <stdio.h>
++#include <string.h>
++#include <wchar.h>
++#include "derived_cache.h"
++#include "platform/xbox_winnt.h"
++#include "kernel.h"
++
++#define DERIVED_CACHE_BLOCK_SIZE (64u * 1024u)
++
++static const char *s_tag = "DERIVED_CACHE";
++static const char *s_label = "file";
++static const char *s_rebuild = "the next start rebuilds it";
++static uint64_t s_creation_ticks;
++
++/* Coarse creation time: equal buckets count as the same metadata. */
++static uint64_t creation_bucket_of(uint64_t ticks)
++{
++    return s_creation_ticks ? ticks / s_creation_ticks : 0;
++}
++
++#if defined(_WIN32)
++static uint64_t creation_bucket(const FILETIME *time)
++{
++    return creation_bucket_of(((uint64_t)time->dwHighDateTime << 32) | time->dwLowDateTime);
++}
++
++static void cache_error(const char *operation)
++{
++    fprintf(stderr, "[%s] %s; cache unchanged (error=%lu)\n",
++            s_tag, operation, GetLastError());
++}
++
++/* Do not follow a reparse point in any component of the cache/source path.
++ * Missing cache files are normal; other path errors must not cause deletion. */
++static int ordinary_path(const wchar_t *path, int *missing)
++{
++    wchar_t component[MAX_PATH];
++    size_t root_length = 3;
++    int leaf = 1;
++    *missing = 0;
++    wcscpy_s(component, MAX_PATH, path);
++    if (component[0] == L'\\' && component[1] == L'\\') {
++        const wchar_t *share = wcschr(component + 2, L'\\');
++        const wchar_t *end = share ? wcschr(share + 1, L'\\') : NULL;
++        root_length = end ? (size_t)(end - component) + 1 : wcslen(component);
++    }
++    for (;;) {
++        DWORD attributes = GetFileAttributesW(component);
++        if (attributes == INVALID_FILE_ATTRIBUTES) {
++            DWORD error = GetLastError();
++            if (leaf && (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND)) {
++                *missing = 1;
++                return 0;
++            }
++            cache_error("cannot inspect archive path");
++            return 0;
++        }
++        if ((attributes & FILE_ATTRIBUTE_REPARSE_POINT) ||
++            (leaf && (attributes & FILE_ATTRIBUTE_DIRECTORY))) {
++            SetLastError(ERROR_INVALID_NAME);
++            cache_error("archive path is not an ordinary file");
++            return 0;
++        }
++        if (wcslen(component) <= root_length) return 1;
++        wchar_t *separator = wcsrchr(component, L'\\');
++        if (!separator) {
++            SetLastError(ERROR_INVALID_NAME);
++            cache_error("archive path has no absolute root");
++            return 0;
++        }
++        if ((size_t)(separator - component) < root_length)
++            component[root_length] = L'\0';
++        else
++            *separator = L'\0';
++        leaf = 0;
++    }
++}
++
++static int read_block(HANDLE file, unsigned char *data, DWORD *length)
++{
++    *length = 0;
++    while (*length < DERIVED_CACHE_BLOCK_SIZE) {
++        DWORD count = 0;
++        if (!ReadFile(file, data + *length, DERIVED_CACHE_BLOCK_SIZE - *length,
++                      &count, NULL)) return 0;
++        if (!count) break;
++        *length += count;
++    }
++    return 1;
++}
++
++/* Check the whole stream even after a mismatch: a later I/O failure leaves
++ * the cache alone instead of treating an incomplete read as proof. */
++static int compare_archives(HANDLE source, HANDLE cache)
++{
++    unsigned char source_data[DERIVED_CACHE_BLOCK_SIZE];
++    unsigned char cache_data[DERIVED_CACHE_BLOCK_SIZE];
++    int different = 0;
++    for (;;) {
++        DWORD source_length, cache_length;
++        if (!read_block(source, source_data, &source_length) ||
++            !read_block(cache, cache_data, &cache_length)) {
++            cache_error("cannot read archives");
++            return -1;
++        }
++        if (source_length != cache_length ||
++            memcmp(source_data, cache_data, source_length < cache_length ?
++                   source_length : cache_length)) different = 1;
++        if (!source_length && !cache_length) return different;
++    }
++}
++
++int xbox_derived_cache_refresh(const XboxDerivedCachePolicy *policy)
++{
++    wchar_t translated_source[MAX_PATH], translated_cache[MAX_PATH];
++    wchar_t source_path[MAX_PATH], cache_path[MAX_PATH];
++    HANDLE source = INVALID_HANDLE_VALUE, cache = INVALID_HANDLE_VALUE;
++    BY_HANDLE_FILE_INFORMATION source_info, cache_info;
++    int missing, different = -1, metadata_different = 0;
++    DWORD length;
++
++    s_tag = policy->tag;
++    s_label = policy->label;
++    s_rebuild = policy->rebuild;
++    s_creation_ticks = policy->creation_ticks;
++    if (!xbox_translate_path(policy->source, translated_source, MAX_PATH) ||
++        !xbox_translate_path(policy->cache, translated_cache, MAX_PATH)) {
++        SetLastError(ERROR_INVALID_NAME);
++        cache_error("cannot resolve archive paths");
++        return -1;
++    }
++    length = GetFullPathNameW(translated_source, MAX_PATH, source_path, NULL);
++    if (!length || length >= MAX_PATH) {
++        cache_error("cannot resolve source archive path");
++        return -1;
++    }
++    length = GetFullPathNameW(translated_cache, MAX_PATH, cache_path, NULL);
++    if (!length || length >= MAX_PATH) {
++        cache_error("cannot resolve cache archive path");
++        return -1;
++    }
++    if (!_wcsicmp(source_path, cache_path)) {
++        SetLastError(ERROR_INVALID_NAME);
++        cache_error("source and cache resolve to the same path");
++        return -1;
++    }
++    if (!ordinary_path(cache_path, &missing)) return -1;
++    if (!ordinary_path(source_path, &missing)) {
++        if (missing) cache_error("source archive is missing");
++        return -1;
++    }
++    source = CreateFileW(source_path, GENERIC_READ, FILE_SHARE_READ, NULL,
++                         OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, NULL);
++    if (source == INVALID_HANDLE_VALUE) {
++        cache_error("cannot open source archive");
++        return -1;
++    }
++    cache = CreateFileW(cache_path, GENERIC_READ, FILE_SHARE_READ, NULL,
++                        OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, NULL);
++    if (cache == INVALID_HANDLE_VALUE) {
++        cache_error("cannot open cached archive");
++        goto close_files;
++    }
++    if (!GetFileInformationByHandle(source, &source_info) ||
++        !GetFileInformationByHandle(cache, &cache_info)) {
++        cache_error("cannot inspect open archives");
++        goto close_files;
++    }
++    if ((source_info.dwFileAttributes | cache_info.dwFileAttributes) &
++        (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DIRECTORY)) {
++        SetLastError(ERROR_INVALID_NAME);
++        cache_error("open archive is not an ordinary file");
++        goto close_files;
++    }
++    if (source_info.dwVolumeSerialNumber == cache_info.dwVolumeSerialNumber &&
++        source_info.nFileIndexHigh == cache_info.nFileIndexHigh &&
++        source_info.nFileIndexLow == cache_info.nFileIndexLow) {
++        SetLastError(ERROR_INVALID_NAME);
++        cache_error("source and cache refer to the same file");
++        goto close_files;
++    }
++    different = compare_archives(source, cache);
++    if (different == 0 && s_creation_ticks &&
++        creation_bucket(&source_info.ftCreationTime) !=
++        creation_bucket(&cache_info.ftCreationTime)) {
++        /* A copied archive can have equal bytes but different cache metadata.
++         * Let the title rebuild it after both handles close. */
++        different = 1;
++        metadata_different = 1;
++    }
++
++close_files:
++    if (cache != INVALID_HANDLE_VALUE && !CloseHandle(cache)) {
++        cache_error("cannot close cached archive");
++        different = -1;
++    }
++    if (!CloseHandle(source)) {
++        cache_error("cannot close source archive");
++        different = -1;
++    }
++    if (different == 1) {
++        /* Full stream verification and successful closes are required before
++         * deleting either stale bytes or a stale timestamp. */
++        if (DeleteFileW(cache_path)) {
++            fprintf(stderr, "[%s] stale %s invalidated (%s); %s\n", s_tag, s_label,
++                    metadata_different ? "creation-time metadata" : "archive contents", s_rebuild);
++            return 1;
++        }
++        cache_error("cannot invalidate stale cached archive");
++        return -1;
++    }
++    return different == -1 ? -1 : 0;
++}
++
++#else /* POSIX: same rules over lstat/open; no symlink in any component. */
++
++#include <errno.h>
++#include <fcntl.h>
++#include <limits.h>
++#include <stdlib.h>
++#include <sys/stat.h>
++#include <unistd.h>
++
++static void cache_error_errno(const char *operation)
++{
++    fprintf(stderr, "[%s] %s; cache unchanged (%s)\n",
++            s_tag, operation, strerror(errno));
++}
++
++/* The kernel reports st_ctime as a file's creation time (kernel_file.c). */
++static uint64_t ctime_bucket(const struct stat *st)
++{
++    return creation_bucket_of(116444736000000000ULL + (uint64_t)st->st_ctime * 10000000ULL);
++}
++
++/* 1 when path is a regular file reached through no symlink; *missing when
++ * only the leaf does not exist. path must be absolute. */
++static int ordinary_path(const char *path, int *missing)
++{
++    char component[PATH_MAX];
++    int leaf = 1;
++    *missing = 0;
++    if (strlen(path) >= sizeof component || path[0] != '/') {
++        fprintf(stderr, "[%s] archive path has no absolute root; cache unchanged\n", s_tag);
++        return 0;
++    }
++    strcpy(component, path);
++    for (;;) {
++        struct stat st;
++        char *separator;
++        if (lstat(component, &st) != 0) {
++            if (leaf && errno == ENOENT) {
++                *missing = 1;
++                return 0;
++            }
++            cache_error_errno("cannot inspect archive path");
++            return 0;
++        }
++        if (S_ISLNK(st.st_mode) || (leaf && !S_ISREG(st.st_mode))) {
++            fprintf(stderr, "[%s] archive path is not an ordinary file; cache unchanged\n", s_tag);
++            return 0;
++        }
++        separator = strrchr(component, '/');
++        if (separator == component) return 1;
++        *separator = '\0';
++        leaf = 0;
++    }
++}
++
++static int read_block(int fd, unsigned char *data, size_t *length)
++{
++    *length = 0;
++    while (*length < DERIVED_CACHE_BLOCK_SIZE) {
++        ssize_t count = read(fd, data + *length, DERIVED_CACHE_BLOCK_SIZE - *length);
++        if (count < 0) {
++            if (errno == EINTR) continue;
++            return 0;
++        }
++        if (!count) break;
++        *length += (size_t)count;
++    }
++    return 1;
++}
++
++static int compare_archives(int source, int cache)
++{
++    static unsigned char source_data[DERIVED_CACHE_BLOCK_SIZE];
++    static unsigned char cache_data[DERIVED_CACHE_BLOCK_SIZE];
++    int different = 0;
++    for (;;) {
++        size_t source_length, cache_length;
++        if (!read_block(source, source_data, &source_length) ||
++            !read_block(cache, cache_data, &cache_length)) {
++            cache_error_errno("cannot read archives");
++            return -1;
++        }
++        if (source_length != cache_length ||
++            memcmp(source_data, cache_data, source_length < cache_length ?
++                   source_length : cache_length)) different = 1;
++        if (!source_length && !cache_length) return different;
++    }
++}
++
++/* Absolute, without resolving symlinks (ordinary_path rejects those). */
++static int absolute_path(const char *path, char *out, size_t size)
++{
++    char cwd[PATH_MAX];
++    if (path[0] == '/')
++        return snprintf(out, size, "%s", path) < (int)size;
++    if (!getcwd(cwd, sizeof cwd)) return 0;
++    return snprintf(out, size, "%s/%s", cwd, path) < (int)size;
++}
++
++int xbox_derived_cache_refresh(const XboxDerivedCachePolicy *policy)
++{
++    char translated_source[MAX_PATH], translated_cache[MAX_PATH];
++    char source_path[PATH_MAX], cache_path[PATH_MAX];
++    struct stat source_info, cache_info;
++    int source = -1, cache = -1, missing, different = -1, metadata_different = 0;
++
++    s_tag = policy->tag;
++    s_label = policy->label;
++    s_rebuild = policy->rebuild;
++    s_creation_ticks = policy->creation_ticks;
++    if (!xbox_translate_path(policy->source, translated_source, MAX_PATH) ||
++        !xbox_translate_path(policy->cache, translated_cache, MAX_PATH) ||
++        !absolute_path(translated_source, source_path, sizeof source_path) ||
++        !absolute_path(translated_cache, cache_path, sizeof cache_path)) {
++        fprintf(stderr, "[%s] cannot resolve archive paths; cache unchanged\n", s_tag);
++        return -1;
++    }
++    if (!strcmp(source_path, cache_path)) {
++        fprintf(stderr, "[%s] source and cache resolve to the same path; cache unchanged\n", s_tag);
++        return -1;
++    }
++    if (!ordinary_path(cache_path, &missing)) return -1;
++    if (!ordinary_path(source_path, &missing)) {
++        if (missing) fprintf(stderr, "[%s] source archive is missing; cache unchanged\n", s_tag);
++        return -1;
++    }
++    source = open(source_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
++    if (source < 0) {
++        cache_error_errno("cannot open source archive");
++        return -1;
++    }
++    cache = open(cache_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
++    if (cache < 0) {
++        cache_error_errno("cannot open cached archive");
++        goto close_files;
++    }
++    if (fstat(source, &source_info) || fstat(cache, &cache_info)) {
++        cache_error_errno("cannot inspect open archives");
++        goto close_files;
++    }
++    if (!S_ISREG(source_info.st_mode) || !S_ISREG(cache_info.st_mode)) {
++        fprintf(stderr, "[%s] open archive is not an ordinary file; cache unchanged\n", s_tag);
++        goto close_files;
++    }
++    if (source_info.st_dev == cache_info.st_dev && source_info.st_ino == cache_info.st_ino) {
++        fprintf(stderr, "[%s] source and cache refer to the same file; cache unchanged\n", s_tag);
++        goto close_files;
++    }
++    different = compare_archives(source, cache);
++    if (different == 0 && s_creation_ticks && ctime_bucket(&source_info) != ctime_bucket(&cache_info)) {
++        different = 1;
++        metadata_different = 1;
++    }
++
++close_files:
++    if (cache >= 0 && close(cache)) {
++        cache_error_errno("cannot close cached archive");
++        different = -1;
++    }
++    if (source >= 0 && close(source)) {
++        cache_error_errno("cannot close source archive");
++        different = -1;
++    }
++    if (different == 1) {
++        if (!unlink(cache_path)) {
++            fprintf(stderr, "[%s] stale %s invalidated (%s); %s\n", s_tag, s_label,
++                    metadata_different ? "creation-time metadata" : "archive contents", s_rebuild);
++            return 1;
++        }
++        cache_error_errno("cannot invalidate stale cached archive");
++        return -1;
++    }
++    return different == -1 ? -1 : 0;
++}
++#endif
+diff --git a/src/kernel/derived_cache.h b/src/kernel/derived_cache.h
+new file mode 100644
+index 00000000..091d9a92
+--- /dev/null
++++ b/src/kernel/derived_cache.h
+@@ -0,0 +1,28 @@
++/* Refresh a derived cache file from its authoritative source.
++ *
++ * A cache copy is current only when its bytes match the source and, if the
++ * policy asks, its creation time falls in the same bucket. Otherwise it is
++ * deleted so the title rebuilds it. Deletion needs full reads of both files
++ * and successful closes of read-only handles; reparse points, symlinks and
++ * the same file under two names are refused and leave the cache alone.
++ *
++ * Guest paths are translated with xbox_translate_path. */
++#ifndef XBOX_DERIVED_CACHE_H
++#define XBOX_DERIVED_CACHE_H
++
++#include <stdint.h>
++
++typedef struct {
++    const char *source;         /* guest path of the authoritative file */
++    const char *cache;          /* guest path of the derived copy */
++    const char *tag;            /* log tag, without brackets */
++    const char *label;          /* file name used in messages */
++    const char *rebuild;        /* what the title does after invalidation */
++    uint64_t creation_ticks;    /* creation-time bucket, 100 ns ticks; 0 ignores it */
++} XboxDerivedCachePolicy;
++
++/* Returns 1 when the cache was invalidated, 0 when it was left in place,
++ * and -1 when a path or handle could not be verified. */
++int xbox_derived_cache_refresh(const XboxDerivedCachePolicy *policy);
++
++#endif
+diff --git a/src/kernel/env_range.c b/src/kernel/env_range.c
+new file mode 100644
+index 00000000..1f4f8709
+--- /dev/null
++++ b/src/kernel/env_range.c
+@@ -0,0 +1,38 @@
++#include "env_range.h"
++#include <math.h>
++#include <stdio.h>
++#include <stdlib.h>
++
++float recomp_env_float_in_range(const char *tag, const char *name, float fallback,
++                                float lo, float hi)
++{
++    const char *env = getenv(name);
++    char *end = NULL;
++    float value;
++    if (!env)
++        return fallback;
++    value = strtof(env, &end);
++    if (end == env || *end || !isfinite(value) || value < lo || value > hi) {
++        fprintf(stderr, "[%s] invalid %s; expected %g..%g, using %g\n", tag, name,
++                lo, hi, fallback);
++        return fallback;
++    }
++    return value;
++}
++
++long recomp_env_long_in_range(const char *tag, const char *name, long fallback,
++                              long lo, long hi)
++{
++    const char *env = getenv(name);
++    char *end = NULL;
++    long value;
++    if (!env || !*env)
++        return fallback;
++    value = strtol(env, &end, 10);
++    if (end == env || *end || value < lo || value > hi) {
++        fprintf(stderr, "[%s] invalid %s; expected %ld..%ld, using %ld\n", tag, name,
++                lo, hi, fallback);
++        return fallback;
++    }
++    return value;
++}
+diff --git a/src/kernel/env_range.h b/src/kernel/env_range.h
+new file mode 100644
+index 00000000..b32fcf62
+--- /dev/null
++++ b/src/kernel/env_range.h
+@@ -0,0 +1,14 @@
++/* Numeric environment switches that must lie in a range.
++ *
++ * An unset variable gives the fallback. A value that does not parse, has
++ * trailing text, or lies outside [lo, hi] is reported on stderr under tag and
++ * gives the fallback. */
++#ifndef ENV_RANGE_H
++#define ENV_RANGE_H
++
++float recomp_env_float_in_range(const char *tag, const char *name, float fallback,
++                                float lo, float hi);
++long recomp_env_long_in_range(const char *tag, const char *name, long fallback,
++                              long lo, long hi);
++
++#endif
+diff --git a/src/kernel/feature_switch.c b/src/kernel/feature_switch.c
+new file mode 100644
+index 00000000..de1d8d35
+--- /dev/null
++++ b/src/kernel/feature_switch.c
+@@ -0,0 +1,14 @@
++#include "feature_switch.h"
++#include <stdlib.h>
++#include <string.h>
++
++int feature_switch_on(const char *env, int default_on, int required, int *cache)
++{
++    if (required)
++        return 1;
++    if (!*cache) {
++        const char *v = getenv(env);
++        *cache = (v && *v ? strcmp(v, "0") != 0 : default_on) ? 2 : 1;
++    }
++    return *cache == 2;
++}
+diff --git a/src/kernel/feature_switch.h b/src/kernel/feature_switch.h
+new file mode 100644
+index 00000000..bbdcb646
+--- /dev/null
++++ b/src/kernel/feature_switch.h
+@@ -0,0 +1,12 @@
++/* Environment switches for optional features.
++ *
++ * A switch is on when its variable is set and not "0". Unset, it takes the
++ * default. A required feature is always on. The variable is read once, on
++ * the first question, and the answer is kept in the caller's cache slot:
++ * 0 unread, 1 off, 2 on. */
++#ifndef FEATURE_SWITCH_H
++#define FEATURE_SWITCH_H
++
++int feature_switch_on(const char *env, int default_on, int required, int *cache);
++
++#endif
+diff --git a/src/kernel/fixed_step.c b/src/kernel/fixed_step.c
+new file mode 100644
+index 00000000..8acfc19c
+--- /dev/null
++++ b/src/kernel/fixed_step.c
+@@ -0,0 +1,19 @@
++#include "fixed_step.h"
++#include <math.h>
++
++int fixed_step_take(FixedStepClock *clock, float dt, float step, int max_steps, float *alpha)
++{
++    int n;
++    if (!(dt > 0.0f) || dt > 1.0f)
++        dt = step;
++    clock->clock += dt;
++    n = (int)(clock->clock / step);
++    if (n > max_steps) {
++        n = max_steps;
++        clock->clock = (float)max_steps * step;
++    }
++    clock->clock -= (float)n * step;
++    if (alpha)
++        *alpha = clock->clock / step;
++    return n;
++}
+diff --git a/src/kernel/fixed_step.h b/src/kernel/fixed_step.h
+new file mode 100644
+index 00000000..59917a93
+--- /dev/null
++++ b/src/kernel/fixed_step.h
+@@ -0,0 +1,18 @@
++/* Fixed-step accumulator: turns a variable frame time into whole steps.
++ *
++ * Each frame's time is added to a clock; whole steps are taken from it and the
++ * remainder carries to the next frame. A frame that would take more than
++ * max_steps is cut to max_steps, and the rest of the time is dropped, as a
++ * hitch. alpha is how far the clock is into the next step, 0..1. */
++#ifndef FIXED_STEP_H
++#define FIXED_STEP_H
++
++typedef struct {
++    float clock;
++} FixedStepClock;
++
++/* Returns the whole steps for this frame. dt values that are not positive,
++ * or longer than one second, count as one step (a load or a reset timer). */
++int fixed_step_take(FixedStepClock *clock, float dt, float step, int max_steps, float *alpha);
++
++#endif
+diff --git a/src/kernel/guest_call.c b/src/kernel/guest_call.c
+new file mode 100644
+index 00000000..ce8ba920
+--- /dev/null
++++ b/src/kernel/guest_call.c
+@@ -0,0 +1,36 @@
++#include "guest_call.h"
++#include "guest_state.h"
++#include "xbox_memory_layout.h"
++
++extern RECOMP_TLS uint32_t g_eax, g_ecx, g_edx, g_esp, g_ebx, g_esi, g_edi, g_ebp;
++
++static uint32_t guest32(uint32_t va)
++{
++    return *(volatile uint32_t *)((uintptr_t)va + (uintptr_t)xbox_GetMemoryOffset());
++}
++
++static void guest32_store(uint32_t va, uint32_t value)
++{
++    *(volatile uint32_t *)((uintptr_t)va + (uintptr_t)xbox_GetMemoryOffset()) = value;
++}
++
++void xbox_guest_call_repeated(void (*fn)(void), int n, int nargs, uint32_t ret_pop)
++{
++    uint32_t esp0 = g_esp, saved[8], eax = g_eax, ecx = g_ecx, edx = g_edx;
++    uint32_t ebx = g_ebx, esi = g_esi, edi = g_edi, ebp = g_ebp;
++    int i, a;
++    for (a = 0; a <= nargs && a < 8; a++)
++        saved[a] = guest32(esp0 + 4u * a);
++    for (i = 0; i < n; i++) {
++        g_esp = esp0;
++        for (a = 0; a <= nargs && a < 8; a++)
++            guest32_store(esp0 + 4u * a, saved[a]);
++        g_eax = eax; g_ecx = ecx; g_edx = edx;
++        g_ebx = ebx; g_esi = esi; g_edi = edi; g_ebp = ebp;
++        fn();
++    }
++    if (n == 0) {
++        g_eax = eax; g_ebx = ebx; g_esi = esi; g_edi = edi; g_ebp = ebp;
++    }
++    g_esp = esp0 + ret_pop;
++}
+diff --git a/src/kernel/guest_call.h b/src/kernel/guest_call.h
+new file mode 100644
+index 00000000..55bb95c8
+--- /dev/null
++++ b/src/kernel/guest_call.h
+@@ -0,0 +1,14 @@
++/* Calls a guest function several times as one call would.
++ *
++ * The guest stack's return address and nargs arguments are put back before
++ * each call, and the registers the caller keeps (eax, ecx, edx, ebx, esi, edi,
++ * ebp) are restored, so each repetition sees what the first did. ret_pop is
++ * the number of bytes the callee pops, which the caller's ESP then advances by. */
++#ifndef GUEST_CALL_H
++#define GUEST_CALL_H
++
++#include <stdint.h>
++
++void xbox_guest_call_repeated(void (*fn)(void), int n, int nargs, uint32_t ret_pop);
++
++#endif
+diff --git a/src/kernel/guest_read.c b/src/kernel/guest_read.c
+new file mode 100644
+index 00000000..3f5e3498
+--- /dev/null
++++ b/src/kernel/guest_read.c
+@@ -0,0 +1,16 @@
++#include "guest_read.h"
++#include "xbox_memory_layout.h"
++
++uint32_t xbox_guest_word_at(uint64_t va)
++{
++    uint32_t value = 0;
++    if (va > UINT32_MAX)
++        return 0;
++    xbox_GuestRead((uint32_t)va, &value, sizeof value);
++    return value;
++}
++
++uint64_t recomp_clock_capped_advance(uint64_t total, uint64_t elapsed, uint64_t cap)
++{
++    return total + (elapsed > cap ? cap : elapsed);
++}
+diff --git a/src/kernel/guest_read.h b/src/kernel/guest_read.h
+new file mode 100644
+index 00000000..dad84919
+--- /dev/null
++++ b/src/kernel/guest_read.h
+@@ -0,0 +1,16 @@
++/* Guest memory reads that take a 64-bit address, for pointer arithmetic that can
++ * leave the 32-bit guest range. */
++#ifndef GUEST_READ_H
++#define GUEST_READ_H
++
++#include <stdint.h>
++
++/* The word at va, or 0 when va is not a 32-bit guest address or the word is
++ * not readable. */
++uint32_t xbox_guest_word_at(uint64_t va);
++
++/* A capped step for a clock that only runs while the game is not paused:
++ * returns total plus the elapsed time, capped at cap. */
++uint64_t recomp_clock_capped_advance(uint64_t total, uint64_t elapsed, uint64_t cap);
++
++#endif
+diff --git a/src/kernel/guest_strings.c b/src/kernel/guest_strings.c
+new file mode 100644
+index 00000000..ec4bc2ac
+--- /dev/null
++++ b/src/kernel/guest_strings.c
+@@ -0,0 +1,25 @@
++#include "guest_strings.h"
++#include "xbox_memory_layout.h"
++#include <string.h>
++
++static volatile uint8_t *guest_bytes(uint32_t va)
++{
++    return (volatile uint8_t *)((uintptr_t)va + (uintptr_t)xbox_GetMemoryOffset());
++}
++
++int xbox_guest_cstring_equals(uint32_t va, const char *s)
++{
++    size_t j, length = strlen(s);
++    for (j = 0; j <= length; ++j)
++        if (guest_bytes(va + (uint32_t)j)[0] != (unsigned char)s[j])
++            return 0;
++    return 1;
++}
++
++void xbox_guest_write_utf16_ascii(uint32_t va, const char *s)
++{
++    size_t i, length = strlen(s);
++    volatile uint16_t *units = (volatile uint16_t *)guest_bytes(va);
++    for (i = 0; i <= length; ++i)
++        units[i] = (unsigned char)s[i];
++}
+diff --git a/src/kernel/guest_strings.h b/src/kernel/guest_strings.h
+new file mode 100644
+index 00000000..30870dde
+--- /dev/null
++++ b/src/kernel/guest_strings.h
+@@ -0,0 +1,14 @@
++/* Helpers for NUL-terminated strings in guest memory. */
++#ifndef GUEST_STRINGS_H
++#define GUEST_STRINGS_H
++
++#include <stdint.h>
++
++/* Returns 1 when the guest C string at va is exactly s (including its end). */
++int xbox_guest_cstring_equals(uint32_t va, const char *s);
++
++/* Writes s as UTF-16 code units at va, with a terminating zero unit. The caller
++ * guarantees the space; the string is ASCII. */
++void xbox_guest_write_utf16_ascii(uint32_t va, const char *s);
++
++#endif
+diff --git a/src/kernel/host_write_watch.c b/src/kernel/host_write_watch.c
+new file mode 100644
+index 00000000..f98feab3
+--- /dev/null
++++ b/src/kernel/host_write_watch.c
+@@ -0,0 +1,135 @@
++#include "host_write_watch.h"
++#include "platform/xbox_winnt.h"
++#include <stdio.h>
++#include <string.h>
++#include <errno.h>
++
++#if defined(_WIN32)
++/* Raised on the armed thread so the handler can write debug registers. */
++#define HOST_WRITE_WATCH_ARM 0xE0484457u
++#elif defined(__linux__)
++#include <linux/hw_breakpoint.h>
++#include <linux/perf_event.h>
++#include <sys/syscall.h>
++#include <unistd.h>
++#ifndef TRAP_PERF
++#define TRAP_PERF 6
++#endif
++#endif
++
++static DWORD s_thread;
++static volatile uint32_t *s_word;
++static HostWriteWatchFn s_fn;
++static void *s_user;
++static PVOID s_handler;
++
++static void host_write_watch_disarm(void)
++{
++    s_word = NULL;
++    s_fn = NULL;
++    s_user = NULL;
++}
++
++#if defined(_WIN32)
++static LONG CALLBACK host_write_watch_exception(EXCEPTION_POINTERS *p)
++{
++    CONTEXT *c = p->ContextRecord;
++    uint32_t value;
++    if (!s_word || GetCurrentThreadId() != s_thread) return EXCEPTION_CONTINUE_SEARCH;
++    if (p->ExceptionRecord->ExceptionCode == HOST_WRITE_WATCH_ARM) {
++        /* Do not take slot zero from an attached debugger. */
++        if (c->Dr7 & 3u) return EXCEPTION_CONTINUE_EXECUTION;
++        c->ContextFlags |= CONTEXT_DEBUG_REGISTERS;
++        c->Dr0 = (DWORD64)(uintptr_t)s_word;
++        c->Dr7 = (c->Dr7 & ~0xF0003ull) | 0xD0001ull; /* write, four bytes */
++        c->Dr6 &= ~1ull;
++        return EXCEPTION_CONTINUE_EXECUTION;
++    }
++    if (p->ExceptionRecord->ExceptionCode != EXCEPTION_SINGLE_STEP || !(c->Dr6 & 1u))
++        return EXCEPTION_CONTINUE_SEARCH;
++    value = *s_word;
++    c->Dr6 &= ~1ull;
++    if (!s_fn(s_user, value, c->Rip)) {
++        c->Dr7 &= ~3ull;
++        host_write_watch_disarm();
++    }
++    return EXCEPTION_CONTINUE_EXECUTION;
++}
++
++static int host_write_watch_hardware(void)
++{
++    RaiseException(HOST_WRITE_WATCH_ARM, 0, 0, NULL);
++    return 1;
++}
++#elif defined(__linux__)
++static int s_fd = -1;
++
++/* The breakpoint traps after the write. Other single-step users (the AC'97
++ * trap flag) also arrive as EXCEPTION_SINGLE_STEP; win32_compat passes the
++ * signal's si_code, and TRAP_PERF is ours. */
++static LONG CALLBACK host_write_watch_exception(EXCEPTION_POINTERS *p)
++{
++    const EXCEPTION_RECORD *rec = p->ExceptionRecord;
++    uint32_t value;
++    if (!s_word || GetCurrentThreadId() != s_thread || s_fd < 0 ||
++        rec->ExceptionCode != EXCEPTION_SINGLE_STEP || rec->NumberParameters < 1 ||
++        rec->ExceptionInformation[0] != TRAP_PERF)
++        return EXCEPTION_CONTINUE_SEARCH;
++    value = *s_word;
++    if (!s_fn(s_user, value, p->ContextRecord->Rip)) {
++        close(s_fd);
++        s_fd = -1;
++        host_write_watch_disarm();
++    }
++    return EXCEPTION_CONTINUE_EXECUTION;
++}
++
++static int host_write_watch_hardware(void)
++{
++    struct perf_event_attr attr;
++    memset(&attr, 0, sizeof attr);
++    attr.type = PERF_TYPE_BREAKPOINT;
++    attr.size = sizeof attr;
++    attr.bp_type = HW_BREAKPOINT_W;
++    attr.bp_addr = (uintptr_t)s_word;
++    attr.bp_len = HW_BREAKPOINT_LEN_4;
++    attr.sample_period = 1;
++    attr.exclude_kernel = 1;
++    attr.exclude_hv = 1;
++    attr.remove_on_exec = 1;
++    attr.sigtrap = 1;           /* synchronous SIGTRAP on the writing thread */
++    /* This thread only, any CPU: debug registers are per thread. */
++    s_fd = (int)syscall(SYS_perf_event_open, &attr, 0, -1, -1, PERF_FLAG_FD_CLOEXEC);
++    if (s_fd < 0) {
++        fprintf(stderr, "[HOST_WRITE_WATCH] perf_event breakpoint failed (%s)\n", strerror(errno));
++        return 0;
++    }
++    return 1;
++}
++#else
++static LONG CALLBACK host_write_watch_exception(EXCEPTION_POINTERS *p)
++{
++    (void)p;
++    return EXCEPTION_CONTINUE_SEARCH;
++}
++
++static int host_write_watch_hardware(void)
++{
++    fprintf(stderr, "[HOST_WRITE_WATCH] no hardware watchpoints on this host\n");
++    return 0;
++}
++#endif
++
++int host_write_watch_arm(volatile uint32_t *word, HostWriteWatchFn fn, void *user)
++{
++    if (s_word || !word || !fn) return 0;
++    if (!s_handler) s_handler = AddVectoredExceptionHandler(1, host_write_watch_exception);
++    if (!s_handler) return 0;
++    s_word = word;
++    s_fn = fn;
++    s_user = user;
++    s_thread = GetCurrentThreadId();
++    if (host_write_watch_hardware()) return 1;
++    host_write_watch_disarm();
++    return 0;
++}
+diff --git a/src/kernel/host_write_watch.h b/src/kernel/host_write_watch.h
+new file mode 100644
+index 00000000..33750130
+--- /dev/null
++++ b/src/kernel/host_write_watch.h
+@@ -0,0 +1,18 @@
++/* Hardware write watchpoint on one 32-bit host word, for diagnostics.
++ *
++ * The watch is armed on the calling thread and fires on that thread after each
++ * write to the word. The callback sees the stored value and the writing
++ * instruction's host address; returning 0 disarms the watch. One watch is
++ * armed per process at a time. */
++#ifndef HOST_WRITE_WATCH_H
++#define HOST_WRITE_WATCH_H
++
++#include <stdint.h>
++
++typedef int (*HostWriteWatchFn)(void *user, uint32_t value, uint64_t rip);
++
++/* Returns 1 when the watch is armed. Returns 0 when another watch is armed,
++ * when no hardware watchpoint is available, or when the OS refuses it. */
++int host_write_watch_arm(volatile uint32_t *word, HostWriteWatchFn fn, void *user);
++
++#endif
+diff --git a/src/kernel/kb_spline.c b/src/kernel/kb_spline.c
+new file mode 100644
+index 00000000..faf7b511
+--- /dev/null
++++ b/src/kernel/kb_spline.c
+@@ -0,0 +1,19 @@
++#include "kb_spline.h"
++
++KbPoint kb_segment_point(const KbPoint p[4], float u, float bias, float tension, float continuity)
++{
++    float h00, h10, h01, h11, out0, out1, in0, in1, factor = .5f * (1 - tension);
++    KbPoint result;
++    out0 = factor * (1 + bias) * (1 + continuity);
++    out1 = factor * (1 - bias) * (1 - continuity);
++    in0 = factor * (1 + bias) * (1 - continuity);
++    in1 = factor * (1 - bias) * (1 + continuity);
++    h00 = 2*u*u*u - 3*u*u + 1; h10 = u*u*u - 2*u*u + u;
++    h01 = -2*u*u*u + 3*u*u; h11 = u*u*u - u*u;
++#define KB_COMPONENT(axis) \
++    result.axis = h00*p[1].axis + h10*(out0*(p[1].axis-p[0].axis) + out1*(p[2].axis-p[1].axis)) + \
++                  h01*p[2].axis + h11*(in0*(p[2].axis-p[1].axis) + in1*(p[3].axis-p[2].axis))
++    KB_COMPONENT(x); KB_COMPONENT(y); KB_COMPONENT(z);
++#undef KB_COMPONENT
++    return result;
++}
+diff --git a/src/kernel/kb_spline.h b/src/kernel/kb_spline.h
+new file mode 100644
+index 00000000..39209b22
+--- /dev/null
++++ b/src/kernel/kb_spline.h
+@@ -0,0 +1,13 @@
++/* Kochanek–Bartels Hermite evaluation for one spline segment.
++ *
++ * p[0..3] are the segment's control points (p[1] and p[2] bracket the segment).
++ * u runs 0..1 across it. bias, tension and continuity are the Kochanek–Bartels
++ * shape parameters; zero for all three gives the Catmull-Rom curve. */
++#ifndef KB_SPLINE_H
++#define KB_SPLINE_H
++
++typedef struct { float x, y, z; } KbPoint;
++
++KbPoint kb_segment_point(const KbPoint p[4], float u, float bias, float tension, float continuity);
++
++#endif
+diff --git a/src/kernel/nv2a_pb_recovery.c b/src/kernel/nv2a_pb_recovery.c
+new file mode 100644
+index 00000000..13c0cfb5
+--- /dev/null
++++ b/src/kernel/nv2a_pb_recovery.c
+@@ -0,0 +1,44 @@
++#include "nv2a_pb_recovery.h"
++#include "nv2a_pb.h"
++#include "kernel.h"
++#include "xbox_memory_layout.h"
++#include <stdio.h>
++#include <string.h>
++
++/* The stop handler's range must be a whole word inside contiguous guest RAM. */
++static int pb_word_in_window(uint32_t va)
++{
++    return (va & 3u) == 0 && va - XBOX_CONTIG_BASE <= XBOX_CONTIG_SIZE - 4u;
++}
++
++void nv2a_pb_recover_semaphore_stop(uint32_t from, uint32_t to, const char *reason)
++{
++    const uint8_t *mem = (const uint8_t *)xbox_GetMemoryOffset();
++    static unsigned reports;
++    uint32_t last, releases;
++    int found = 0;
++    (void)reason;
++    if (from >= to || !pb_word_in_window(from) || !pb_word_in_window(to - 4u))
++        return;
++    last = nv2a_pb_exec_semaphore_last_value();
++    /* Heuristic: an odd value just past the last release can mistake payload
++     * for a command. Keep it opt-in until malformed submissions are fixed. */
++    for (uint32_t va = from; va + 4u < to; va += 4u) {
++        uint32_t word, value;
++        memcpy(&word, mem + va, 4);
++        if (word != 0x00041D70u)
++            continue;
++        memcpy(&value, mem + va + 4u, 4);
++        if ((value & 1u) && (int32_t)(value - last) > 0 && value - last <= 128u) {
++            last = value;
++            found = 1;
++        }
++    }
++    if (!found)
++        return;
++    releases = nv2a_pb_exec_semaphore_releases();
++    nv2a_pb_exec_method(0, 0x1D70u, last);
++    if (reports++ < 8)
++        fprintf(stderr, "[NV2A_PB] stop recovery fence=0x%08X released=%d\n",
++            last, nv2a_pb_exec_semaphore_releases() != releases);
++}
+diff --git a/src/kernel/nv2a_pb_recovery.h b/src/kernel/nv2a_pb_recovery.h
+new file mode 100644
+index 00000000..b3c4344e
+--- /dev/null
++++ b/src/kernel/nv2a_pb_recovery.h
+@@ -0,0 +1,15 @@
++/* Opt-in stop recovery for a malformed push-buffer submission.
++ *
++ * After a submission stops on data that is not a command, this searches the
++ * skipped words for a semaphore release (method 0x1D70 with an odd value one
++ * to 128 past the last release) and executes the last one found, so a title
++ * waiting on that fence is not stuck. It guesses, so it is never a default:
++ * register it with nv2a_pb_set_stop_handler only where the title needs it. */
++#ifndef NV2A_PB_RECOVERY_H
++#define NV2A_PB_RECOVERY_H
++
++#include <stdint.h>
++
++void nv2a_pb_recover_semaphore_stop(uint32_t from, uint32_t to, const char *reason);
++
++#endif
+diff --git a/src/kernel/nv2a_wbc_flush.c b/src/kernel/nv2a_wbc_flush.c
+new file mode 100644
+index 00000000..246ad7b2
+--- /dev/null
++++ b/src/kernel/nv2a_wbc_flush.c
+@@ -0,0 +1,63 @@
++/* XDK write-back-cache kick for the NV2A command stream.
++ *
++ * The retail routine fences guest writes, sets NV_PFB_WBC_FLUSH and waits for
++ * the executor to acknowledge by clearing it. A byte-lag threshold cannot prove
++ * the executor has consumed a reused push-buffer or produced a result the guest
++ * is about to read, so every kick waits for the acknowledgement. */
++#include "nv2a_wbc_flush.h"
++#include "../nv2a/nv2a_regs.h"
++#include "platform/xbox_winnt.h"
++#include "xbox_memory_layout.h"
++#include <stdio.h>
++#include <xmmintrin.h>
++
++/* Device object: the NV2A register block pointer lives at device+0x17C8. */
++#define NV2A_DEVICE_REGS_OFFSET 0x17C8u
++/* PFB base plus NV_PFB_WBC: the flush word is in the register block. */
++#define NV2A_PFB_WBC_ADDRESS (0x00100000u + NV_PFB_WBC)
++
++static uint32_t wbc_guest32(uint32_t va)
++{
++    return *(volatile uint32_t *)((uintptr_t)va + (uintptr_t)xbox_GetMemoryOffset());
++}
++
++static void wbc_guest32_store(uint32_t va, uint32_t value)
++{
++    *(volatile uint32_t *)((uintptr_t)va + (uintptr_t)xbox_GetMemoryOffset()) = value;
++}
++
++/* The ack thread clears the bit between segments. A dead thread would spin
++ * forever with no sign in the log, so report the wait every two seconds. It
++ * keeps waiting: leaving early would let the title reuse push-buffer space the
++ * executor has not read yet. */
++static void wbc_wait_ack(uint32_t flush_va)
++{
++    LARGE_INTEGER freq, start, now;
++    LONGLONG last;
++    unsigned reports = 0;
++    QueryPerformanceFrequency(&freq);
++    QueryPerformanceCounter(&start);
++    last = start.QuadPart;
++    while (wbc_guest32(flush_va) & NV_PFB_WBC_FLUSH) {
++        QueryPerformanceCounter(&now);
++        if (now.QuadPart - last >= 2 * freq.QuadPart) {
++            last = now.QuadPart;
++            fprintf(stderr, "[KICK_WAIT] ack bit 0x10000 at 0x%08X still set after %.1f s (report %u)\n",
++                    flush_va, (double)(now.QuadPart - start.QuadPart) / freq.QuadPart,
++                    ++reports);
++        }
++    }
++}
++
++void xbox_Nv2aWbcFlush(uint32_t device_ptr_va, uint32_t *object_out, uint32_t *value_out)
++{
++    uint32_t object = wbc_guest32(wbc_guest32(device_ptr_va) + NV2A_DEVICE_REGS_OFFSET);
++    uint32_t flush = object + NV2A_PFB_WBC_ADDRESS;
++    uint32_t value;
++    _mm_sfence();
++    value = wbc_guest32(flush) | NV_PFB_WBC_FLUSH;
++    wbc_guest32_store(flush, value);
++    wbc_wait_ack(flush);
++    if (object_out) *object_out = object;
++    if (value_out) *value_out = value;
++}
+diff --git a/src/kernel/nv2a_wbc_flush.h b/src/kernel/nv2a_wbc_flush.h
+new file mode 100644
+index 00000000..142c8201
+--- /dev/null
++++ b/src/kernel/nv2a_wbc_flush.h
+@@ -0,0 +1,22 @@
++/* XDK write-back-cache kick for the NV2A command stream. */
++#ifndef XBOX_NV2A_WBC_FLUSH_H
++#define XBOX_NV2A_WBC_FLUSH_H
++
++#include <stdint.h>
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++/* Fence guest writes, set NV_PFB_WBC_FLUSH in the device's flush word and wait
++ * until the executor clears it. device_ptr_va is the guest address that holds
++ * the device object; the object's register block is read from +0x17C8.
++ * object_out and value_out receive the register block and the flush word
++ * value written, so a guest-state wrapper can publish them. */
++void xbox_Nv2aWbcFlush(uint32_t device_ptr_va, uint32_t *object_out, uint32_t *value_out);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif
+diff --git a/src/kernel/piece_cluster.c b/src/kernel/piece_cluster.c
+new file mode 100644
+index 00000000..f38ef9c3
+--- /dev/null
++++ b/src/kernel/piece_cluster.c
+@@ -0,0 +1,97 @@
++#include "piece_cluster.h"
++#include <stdlib.h>
++
++static uint32_t *root_buf, *piece_buf, cap;
++static float (*box_buf)[4];
++
++#define FIND(x) do { while (root[x] != x) x = root[x] = root[root[x]]; } while (0)
++
++int recomp_piece_clusters(uint32_t nv, const float (*pos)[4], const uint32_t *idx,
++                          uint32_t sub, uint32_t ni, uint32_t per, float span, float gap,
++                          const void *ctx, int (*skip)(const void *ctx, uint32_t vertex),
++                          uint32_t *cluster, float (*box)[4])
++{
++    uint32_t *root = root_buf, *piece = piece_buf;
++    float (*scratch)[4] = box_buf;
++    uint32_t i, k, np = 0;
++
++    if (nv > cap) {
++        uint32_t *r = realloc(root_buf, (size_t)nv * sizeof *r);
++        uint32_t *pc = r ? realloc(piece_buf, (size_t)nv * sizeof *pc) : NULL;
++        float (*b)[4] = pc ? realloc(box_buf, (size_t)nv * sizeof *b) : NULL;
++        if (r) root_buf = r;
++        if (pc) piece_buf = pc;
++        if (!b) return 0;
++        box_buf = b;
++        cap = nv;
++        root = root_buf;
++        piece = piece_buf;
++        scratch = box_buf;
++    }
++
++    /* Pieces: vertices joined by primitives. */
++    for (i = 0; i < nv; i++) root[i] = i;
++    for (i = 0; i + per <= ni; i += per) {
++        if (skip && skip(ctx, idx[i])) continue;
++        for (k = 1; k < per; k++) {
++            uint32_t a = idx[i] - sub, b = idx[i + k] - sub;
++            if (a >= nv || b >= nv) return 0;
++            FIND(a); FIND(b);
++            if (a != b) root[b] = a;
++        }
++    }
++    for (i = 0; i < nv; i++) {
++        uint32_t r = i;
++        FIND(r);
++        if (r == i) {
++            piece[i] = np;
++            scratch[np][0] = scratch[np][2] = 1e30f;
++            scratch[np][1] = scratch[np][3] = -1e30f;
++            np++;
++        }
++    }
++    for (i = 0; i < nv; i++) {
++        uint32_t r = i, n;
++        FIND(r);
++        n = piece[r];
++        piece[i] = n;
++        if (skip && skip(ctx, sub + i)) continue;
++        if (pos[i][0] < scratch[n][0]) scratch[n][0] = pos[i][0];
++        if (pos[i][0] > scratch[n][1]) scratch[n][1] = pos[i][0];
++        if (pos[i][1] < scratch[n][2]) scratch[n][2] = pos[i][1];
++        if (pos[i][1] > scratch[n][3]) scratch[n][3] = pos[i][1];
++    }
++
++    /* Clusters: pieces on one line within gap. ponytail: O(pieces^2), fine for
++     * HUD batches of a few hundred glyphs. */
++    for (i = 0; i < np; i++) root[i] = i;
++    for (i = 0; i < np; i++)
++        for (k = i + 1; k < np; k++) {
++            uint32_t a = i, b = k;
++            /* A full-span quad overlaps every piece and stays its own. */
++            if ((scratch[i][0] <= 0.5f && scratch[i][1] >= span - 0.5f) ||
++                (scratch[k][0] <= 0.5f && scratch[k][1] >= span - 0.5f))
++                continue;
++            if (scratch[i][2] > scratch[k][3] || scratch[k][2] > scratch[i][3] ||
++                scratch[i][0] > scratch[k][1] + gap || scratch[k][0] > scratch[i][1] + gap)
++                continue;
++            FIND(a); FIND(b);
++            if (a == b) continue;
++            root[b] = a;
++            if (scratch[b][0] < scratch[a][0]) scratch[a][0] = scratch[b][0];
++            if (scratch[b][1] > scratch[a][1]) scratch[a][1] = scratch[b][1];
++            if (scratch[b][2] < scratch[a][2]) scratch[a][2] = scratch[b][2];
++            if (scratch[b][3] > scratch[a][3]) scratch[a][3] = scratch[b][3];
++        }
++
++    for (i = 0; i < nv; i++) {
++        uint32_t c = piece[i];
++        FIND(c);
++        cluster[i] = c;
++    }
++    for (i = 0; i < np; i++) {
++        box[i][0] = scratch[i][0]; box[i][1] = scratch[i][1];
++        box[i][2] = scratch[i][2]; box[i][3] = scratch[i][3];
++    }
++    return 1;
++}
+diff --git a/src/kernel/piece_cluster.h b/src/kernel/piece_cluster.h
+new file mode 100644
+index 00000000..b1746309
+--- /dev/null
++++ b/src/kernel/piece_cluster.h
+@@ -0,0 +1,24 @@
++/* Groups a batch of 2D primitives into pieces, then clusters the pieces.
++ *
++ * Vertices that share a primitive form a piece (union-find over the index list),
++ * and each piece's bounding box is taken over its vertices. Pieces that lie on
++ * one line, less than gap apart, join into a cluster. A piece spanning the whole
++ * width (span) is a full-screen quad and stays its own cluster.
++ *
++ * Primitives whose first vertex the skip callback names are left out of the
++ * grouping, and so are the skipped vertices' positions. Index values are
++ * absolute; vertex i of the position array is absolute vertex sub + i. */
++#ifndef PIECE_CLUSTER_H
++#define PIECE_CLUSTER_H
++
++#include <stdint.h>
++
++/* cluster[i] receives the cluster index of vertex i, and box[c] the bounds of
++ * cluster c (x0, x1, y0, y1). Returns 0 when an index is out of range or the
++ * scratch storage cannot be allocated. */
++int recomp_piece_clusters(uint32_t nv, const float (*pos)[4], const uint32_t *idx,
++                          uint32_t sub, uint32_t ni, uint32_t per, float span, float gap,
++                          const void *ctx, int (*skip)(const void *ctx, uint32_t vertex),
++                          uint32_t *cluster, float (*box)[4]);
++
++#endif
+diff --git a/src/kernel/polyline.c b/src/kernel/polyline.c
+new file mode 100644
+index 00000000..9e316138
+--- /dev/null
++++ b/src/kernel/polyline.c
+@@ -0,0 +1,38 @@
++#include "polyline.h"
++#include <string.h>
++
++void polyline_simplify_2d(const float *points, unsigned count, float tolerance,
++                          unsigned work_limit, unsigned char *keep, PolylineRange *ranges)
++{
++    unsigned pending = 1, inspected = 0;
++    if (!count) return;
++    memset(keep, 0, count);
++    keep[0] = keep[count - 1] = 1;
++    ranges[0].first = 0; ranges[0].last = count - 1;
++    while (pending) {
++        unsigned first = ranges[--pending].first;
++        unsigned last = ranges[pending].last, i, furthest = first;
++        double ax = points[2 * first], ay = points[2 * first + 1];
++        double dx = (double)points[2 * last] - ax, dy = (double)points[2 * last + 1] - ay;
++        double length2 = dx*dx + dy*dy, best = (double)tolerance * tolerance;
++        for (i = first + 1; i < last; ++i) {
++            double x = (double)points[2 * i] - ax;
++            double y = (double)points[2 * i + 1] - ay;
++            double t = length2 ? (x*dx + y*dy) / length2 : 0, distance;
++            /* RDP can be quadratic on a pathological zigzag. Bound the
++             * extra CPU work, then safely draw all original samples. */
++            if (++inspected > work_limit) {
++                memset(keep, 1, count); return;
++            }
++            t = t < 0 ? 0 : (t > 1 ? 1 : t);
++            x -= t*dx; y -= t*dy; distance = x*x + y*y;
++            if (distance > best) { best = distance; furthest = i; }
++        }
++        if (furthest == first) continue;
++        keep[furthest] = 1;
++        ranges[pending].first = first;
++        ranges[pending++].last = furthest;
++        ranges[pending].first = furthest;
++        ranges[pending++].last = last;
++    }
++}
+diff --git a/src/kernel/polyline.h b/src/kernel/polyline.h
+new file mode 100644
+index 00000000..b66e3384
+--- /dev/null
++++ b/src/kernel/polyline.h
+@@ -0,0 +1,16 @@
++/* Simplification of a 2D polyline by Ramer-Douglas-Peucker: the samples that
++ * keep the shape within a tolerance of the original line.
++ *
++ * points is interleaved x, y pairs. keep receives one flag per sample, and
++ * ranges is scratch that must hold count entries. Once the work spent on
++ * distance tests passes work_limit, every sample is kept, so a pathological
++ * zigzag costs bounded CPU and still draws the original path. */
++#ifndef POLYLINE_H
++#define POLYLINE_H
++
++typedef struct { unsigned first, last; } PolylineRange;
++
++void polyline_simplify_2d(const float *points, unsigned count, float tolerance,
++                          unsigned work_limit, unsigned char *keep, PolylineRange *ranges);
++
++#endif
+diff --git a/src/kernel/recomp_env.h b/src/kernel/recomp_env.h
+new file mode 100644
+index 00000000..c30086ad
+--- /dev/null
++++ b/src/kernel/recomp_env.h
+@@ -0,0 +1,18 @@
++/* Cached environment switch for diagnostics.
++ *
++ * getenv takes the CRT's environment lock and scans the block, which is far too
++ * slow on hot paths such as an allocator hook. A switch is read once, when
++ * first asked for, and the answer is kept in the caller's slot: -1 until read,
++ * then 0 or 1. The environment is fixed before the guest starts. */
++#ifndef RECOMP_ENV_H
++#define RECOMP_ENV_H
++
++#include <stdlib.h>
++
++static inline int recomp_env_flag(int *slot, const char *name)
++{
++    if (*slot < 0) *slot = getenv(name) != NULL;
++    return *slot;
++}
++
++#endif
+diff --git a/src/kernel/recomp_log_budget.h b/src/kernel/recomp_log_budget.h
+new file mode 100644
+index 00000000..8f98c41e
+--- /dev/null
++++ b/src/kernel/recomp_log_budget.h
+@@ -0,0 +1,43 @@
++/* Per-second line budget for diagnostic logs.
++ *
++ * Each one-second window admits `limit` lines. Lines past that are counted as
++ * suppressed, and the count of the window that just ended is reported through
++ * RecompLogRoll so the caller can say how much was dropped. The budget is
++ * per caller: keep one RecompLogBudget per log stream and per guest thread
++ * when the stream is thread-local. */
++#ifndef RECOMP_LOG_BUDGET_H
++#define RECOMP_LOG_BUDGET_H
++
++#include <stdint.h>
++
++typedef struct {
++    uint64_t second;     /* the window's start, in whole seconds */
++    unsigned lines;      /* lines admitted in this window */
++    unsigned suppressed; /* lines refused in this window */
++} RecompLogBudget;
++
++typedef struct {
++    uint64_t second;     /* the window that ended */
++    unsigned suppressed; /* lines refused in it; zero when nothing was dropped */
++} RecompLogRoll;
++
++/* Returns 1 when a line may be written at now_ms. */
++static inline int recomp_log_budget_take(RecompLogBudget *budget, uint64_t now_ms,
++                                         unsigned limit, RecompLogRoll *rolled)
++{
++    uint64_t second = now_ms / 1000;
++    if (rolled) { rolled->second = budget->second; rolled->suppressed = 0; }
++    if (second != budget->second) {
++        if (rolled) rolled->suppressed = budget->suppressed;
++        budget->second = second;
++        budget->lines = budget->suppressed = 0;
++    }
++    if (budget->lines >= limit) {
++        ++budget->suppressed;
++        return 0;
++    }
++    ++budget->lines;
++    return 1;
++}
++
++#endif
+diff --git a/src/kernel/recomp_lookup_cache.c b/src/kernel/recomp_lookup_cache.c
+new file mode 100644
+index 00000000..ab0d9e6d
+--- /dev/null
++++ b/src/kernel/recomp_lookup_cache.c
+@@ -0,0 +1,15 @@
++#include "recomp_lookup_cache.h"
++#include "xbox_memory_layout.h"
++
++#define RECOMP_LOOKUP_SLOTS 1024u
++
++RecompLookupTarget recomp_lookup_memoized(uint32_t guest_va, RecompLookupFn uncached)
++{
++    static RECOMP_TLS struct { uint32_t va; RecompLookupTarget fn; } cache[RECOMP_LOOKUP_SLOTS];
++    unsigned slot = (guest_va ^ (guest_va >> 10)) & (RECOMP_LOOKUP_SLOTS - 1u);
++    if (cache[slot].va != guest_va || !guest_va) {
++        cache[slot].fn = uncached(guest_va);
++        cache[slot].va = guest_va;
++    }
++    return cache[slot].fn;
++}
+diff --git a/src/kernel/recomp_lookup_cache.h b/src/kernel/recomp_lookup_cache.h
+new file mode 100644
+index 00000000..4f50c27d
+--- /dev/null
++++ b/src/kernel/recomp_lookup_cache.h
+@@ -0,0 +1,16 @@
++/* Per-thread memo for a function lookup keyed by guest address.
++ *
++ * Indirect calls ask a lookup chain on every call, and the answers do not
++ * change once made. recomp_lookup_memoized remembers each thread's answers in a
++ * direct-mapped table and asks the uncached lookup only on a miss. */
++#ifndef RECOMP_LOOKUP_CACHE_H
++#define RECOMP_LOOKUP_CACHE_H
++
++#include <stdint.h>
++
++typedef void (*RecompLookupTarget)(void);
++typedef RecompLookupTarget (*RecompLookupFn)(uint32_t guest_va);
++
++RecompLookupTarget recomp_lookup_memoized(uint32_t guest_va, RecompLookupFn uncached);
++
++#endif
+diff --git a/src/kernel/road_graph.c b/src/kernel/road_graph.c
+new file mode 100644
+index 00000000..ebd0f4a8
+--- /dev/null
++++ b/src/kernel/road_graph.c
+@@ -0,0 +1,180 @@
++#include "road_graph.h"
++#include <float.h>
++#include <math.h>
++#include <stdlib.h>
++#include <string.h>
++
++float graph_distance(GraphPoint a, GraphPoint b)
++{
++    float x = a.x - b.x, y = a.y - b.y, z = a.z - b.z;
++    return sqrtf(x*x + y*y + z*z);
++}
++
++int graph_point_valid(GraphPoint p)
++{
++    return isfinite(p.x) && isfinite(p.y) && isfinite(p.z) &&
++        fabsf(p.x) < 100000.0f && fabsf(p.y) < 100000.0f && fabsf(p.z) < 100000.0f;
++}
++
++void road_graph_free(RoadGraph *g)
++{
++    if (!g) return;
++    free(g->nodes); free(g->edges); free(g->distance);
++    free(g->previous); free(g->heap); free(g->heap_position);
++    free(g);
++}
++
++RoadGraph *road_graph_new(unsigned nodes, unsigned max_edges)
++{
++    RoadGraph *g;
++    unsigned i;
++    if (!nodes || !max_edges) return NULL;
++    g = (RoadGraph *)calloc(1, sizeof *g);
++    if (!g) return NULL;
++    g->nodes = (GraphNode *)calloc(nodes, sizeof(GraphNode));
++    g->edges = (GraphEdge *)malloc(max_edges * sizeof(GraphEdge));
++    g->distance = (float *)malloc(nodes * sizeof(float));
++    g->previous = (uint32_t *)malloc(nodes * sizeof(uint32_t));
++    g->heap = (uint32_t *)malloc(nodes * sizeof(uint32_t));
++    g->heap_position = (uint32_t *)malloc(nodes * sizeof(uint32_t));
++    if (!g->nodes || !g->edges || !g->distance || !g->previous || !g->heap || !g->heap_position) {
++        road_graph_free(g);
++        return NULL;
++    }
++    g->node_count = nodes;
++    g->max_edges = max_edges;
++    for (i = 0; i < nodes; ++i) g->nodes[i].first = ROAD_GRAPH_NO_NODE;
++    return g;
++}
++
++int road_graph_connect(RoadGraph *g, unsigned a, unsigned b)
++{
++    float length;
++    unsigned index;
++    if (a >= g->node_count || b >= g->node_count || a == b) return 0;
++    length = graph_distance(g->nodes[a].position, g->nodes[b].position);
++    if (!isfinite(length)) return 0;
++    /* Zero-length joins are real when two sections share an endpoint. */
++    if (length < .001f) length = .001f;
++    if (g->edge_count + 2 > g->max_edges) return 0;
++    index = g->edge_count;
++    g->edges[index].to = b; g->edges[index].length = length;
++    g->edges[index].next = g->nodes[a].first;
++    g->nodes[a].first = index;
++    g->edges[index + 1].to = a; g->edges[index + 1].length = length;
++    g->edges[index + 1].next = g->nodes[b].first;
++    g->nodes[b].first = index + 1;
++    g->edge_count += 2;
++    return 1;
++}
++
++static void heap_update(RoadGraph *g, unsigned node)
++{
++    unsigned position = g->heap_position[node];
++    if (position == ROAD_GRAPH_NO_NODE) position = g->heap_count++;
++    while (position) {
++        unsigned parent = (position - 1) / 2, other = g->heap[parent];
++        if (g->distance[other] <= g->distance[node]) break;
++        g->heap[position] = other; g->heap_position[other] = position;
++        position = parent;
++    }
++    g->heap[position] = node; g->heap_position[node] = position;
++}
++
++static unsigned heap_pop(RoadGraph *g)
++{
++    unsigned result = g->heap[0], node = g->heap[--g->heap_count];
++    unsigned position = 0;
++    if (g->heap_count) {
++        while (position * 2 + 1 < g->heap_count) {
++            unsigned child = position * 2 + 1;
++            if (child + 1 < g->heap_count && g->distance[g->heap[child + 1]] < g->distance[g->heap[child]])
++                ++child;
++            if (g->distance[node] <= g->distance[g->heap[child]]) break;
++            g->heap[position] = g->heap[child];
++            g->heap_position[g->heap[position]] = position;
++            position = child;
++        }
++        g->heap[position] = node; g->heap_position[node] = position;
++    }
++    g->heap_position[result] = ROAD_GRAPH_NO_NODE;
++    return result;
++}
++
++int road_graph_snap(const RoadGraph *g, GraphPoint position, float height_weight, float max_score,
++                    GraphSnap *snap)
++{
++    unsigned a, edge;
++    float best = FLT_MAX;
++    if (!graph_point_valid(position)) return 0;
++    for (a = 0; a < g->node_count; ++a)
++        for (edge = g->nodes[a].first; edge != ROAD_GRAPH_NO_NODE; edge = g->edges[edge].next) {
++            unsigned b = g->edges[edge].to;
++            GraphPoint p = g->nodes[a].position, q = g->nodes[b].position, projected;
++            float x, y, z, length2, t, score;
++            if (b <= a) continue;
++            x = q.x - p.x; y = q.y - p.y; z = q.z - p.z;
++            length2 = x*x + y*y + z*z;
++            if (length2 < .0001f) continue;
++            t = ((position.x - p.x)*x + (position.y - p.y)*y + (position.z - p.z)*z) / length2;
++            t = t < 0 ? 0 : (t > 1 ? 1 : t);
++            projected.x = p.x + t*x; projected.y = p.y + t*y; projected.z = p.z + t*z;
++            x = position.x - projected.x; y = position.y - projected.y; z = position.z - projected.z;
++            score = x*x + height_weight*y*y + z*z;
++            if (score < best) {
++                best = score; snap->position = projected; snap->a = a; snap->b = b;
++                snap->t = t; snap->length = sqrtf(length2);
++            }
++        }
++    return best < max_score;
++}
++
++unsigned road_graph_path(RoadGraph *g, const GraphSnap *from, const GraphSnap *to,
++                         GraphPoint *points, unsigned capacity)
++{
++    unsigned i, last = ROAD_GRAPH_NO_NODE, count = 0;
++    float best = FLT_MAX;
++    if (capacity < 2 || !g->edge_count) return 0;
++    if (from->a == to->a && from->b == to->b) {
++        points[0] = from->position; points[1] = to->position;
++        return graph_distance(points[0], points[1]) > .01f ? 2 : 0;
++    }
++    g->heap_count = 0;
++    for (i = 0; i < g->node_count; ++i) {
++        g->distance[i] = FLT_MAX; g->previous[i] = ROAD_GRAPH_NO_NODE;
++        g->heap_position[i] = ROAD_GRAPH_NO_NODE;
++    }
++    g->distance[from->a] = from->t * from->length;
++    g->distance[from->b] = (1 - from->t) * from->length;
++    heap_update(g, from->a); heap_update(g, from->b);
++    while (g->heap_count) {
++        unsigned node = heap_pop(g), edge;
++        float distance = g->distance[node], extra;
++        if (distance >= best) break;
++        if (node == to->a || node == to->b) {
++            extra = node == to->a ? to->t * to->length : (1 - to->t) * to->length;
++            if (distance + extra < best) { best = distance + extra; last = node; }
++        }
++        for (edge = g->nodes[node].first; edge != ROAD_GRAPH_NO_NODE; edge = g->edges[edge].next) {
++            unsigned next = g->edges[edge].to;
++            float candidate = distance + g->edges[edge].length;
++            if (candidate < g->distance[next]) {
++                g->distance[next] = candidate; g->previous[next] = node;
++                heap_update(g, next);
++            }
++        }
++    }
++    if (last == ROAD_GRAPH_NO_NODE) return 0;
++    for (i = last; i != ROAD_GRAPH_NO_NODE; i = g->previous[i]) {
++        if (count + 2 >= capacity) return 0;
++        points[count++] = g->nodes[i].position;
++    }
++    for (i = 0; i < count / 2; ++i) {
++        GraphPoint swap = points[i]; points[i] = points[count - 1 - i]; points[count - 1 - i] = swap;
++    }
++    memmove(points + 1, points, count * sizeof *points);
++    points[0] = from->position; points[count + 1] = to->position;
++    for (i = 1, last = 1; i < count + 2; ++i)
++        if (graph_distance(points[last - 1], points[i]) > .01f) points[last++] = points[i];
++    return last >= 2 ? last : 0;
++}
+diff --git a/src/kernel/road_graph.h b/src/kernel/road_graph.h
+new file mode 100644
+index 00000000..affe1b02
+--- /dev/null
++++ b/src/kernel/road_graph.h
+@@ -0,0 +1,57 @@
++/* A graph of 3D points joined by edges, with snapping and shortest paths.
++ *
++ * Nodes carry a position and a list of edges; an edge's length is the distance
++ * between its ends (never less than 0.001, so shared endpoints still join).
++ * A point snaps to the nearest edge, by its distance to the edge with height
++ * counted at height_weight, and a path runs between two snapped points along
++ * the graph (Dijkstra with an indexed heap). Nothing here knows a title's data. */
++#ifndef ROAD_GRAPH_H
++#define ROAD_GRAPH_H
++
++#include <stdint.h>
++
++typedef struct { float x, y, z; } GraphPoint;
++
++typedef struct { GraphPoint position; uint32_t first; } GraphNode;
++typedef struct { uint32_t to, next; float length; } GraphEdge;
++
++typedef struct {
++    GraphPoint position;   /* the projection on the edge */
++    uint32_t a, b;         /* the edge's end nodes */
++    float t, length;       /* the projection's place along the edge, and its length */
++} GraphSnap;
++
++typedef struct RoadGraph {
++    GraphNode *nodes;
++    GraphEdge *edges;
++    float *distance;
++    uint32_t *previous, *heap, *heap_position;
++    unsigned node_count, edge_count, heap_count, max_edges;
++} RoadGraph;
++
++#define ROAD_GRAPH_NO_NODE UINT32_MAX
++
++float graph_distance(GraphPoint a, GraphPoint b);
++int graph_point_valid(GraphPoint p);
++
++/* Allocates a graph of nodes nodes, with room for max_edges directed edges.
++ * Returns NULL when the request is empty or allocation fails. */
++RoadGraph *road_graph_new(unsigned nodes, unsigned max_edges);
++void road_graph_free(RoadGraph *graph);
++
++/* Joins a and b both ways. Returns 0 for out-of-range or equal nodes, a
++ * non-finite length, or no room. */
++int road_graph_connect(RoadGraph *graph, unsigned a, unsigned b);
++
++/* Snaps p to the nearest edge. The score is dx^2 + height_weight*dy^2 + dz^2;
++ * returns 0 when p is invalid or the best score is not below max_score. */
++int road_graph_snap(const RoadGraph *graph, GraphPoint p, float height_weight, float max_score,
++                    GraphSnap *snap);
++
++/* The points of the shortest path from one snap to the other, including both
++ * snapped ends with duplicated endpoints removed. Returns 0 when there is no
++ * route or the path does not fit in capacity. */
++unsigned road_graph_path(RoadGraph *graph, const GraphSnap *from, const GraphSnap *to,
++                         GraphPoint *points, unsigned capacity);
++
++#endif
+diff --git a/src/kernel/slot_publish.c b/src/kernel/slot_publish.c
+new file mode 100644
+index 00000000..226bd0c5
+--- /dev/null
++++ b/src/kernel/slot_publish.c
+@@ -0,0 +1,39 @@
++#include "slot_publish.h"
++
++#if defined(_MSC_VER)
++#include <intrin.h>
++static uint32_t atomic_add32(volatile uint32_t *p, uint32_t v)
++{
++    return (uint32_t)_InterlockedExchangeAdd((volatile long *)p, (long)v);
++}
++static uint32_t atomic_cas32(volatile uint32_t *p, uint32_t cmp, uint32_t val)
++{
++    return (uint32_t)_InterlockedCompareExchange((volatile long *)p, (long)val, (long)cmp);
++}
++#else
++static uint32_t atomic_add32(volatile uint32_t *p, uint32_t v)
++{
++    return __sync_fetch_and_add(p, v);
++}
++static uint32_t atomic_cas32(volatile uint32_t *p, uint32_t cmp, uint32_t val)
++{
++    return __sync_val_compare_and_swap(p, cmp, val);
++}
++#endif
++
++void xbox_slot_publish(volatile uint32_t *sequence, volatile uint32_t *words, unsigned count,
++                       const uint32_t *values, volatile uint32_t *owner, uint32_t owner_value)
++{
++    unsigned i;
++    atomic_add32(sequence, 1); /* odd: unpublished */
++    for (i = 0; i < count; ++i)
++        atomic_cas32(&words[i], xbox_slot_read(&words[i]), values ? values[i] : 0);
++    if (owner)
++        *owner = owner_value;
++    atomic_add32(sequence, 1); /* even: complete */
++}
++
++uint32_t xbox_slot_read(volatile uint32_t *word)
++{
++    return atomic_add32(word, 0);
++}
+diff --git a/src/kernel/slot_publish.h b/src/kernel/slot_publish.h
+new file mode 100644
+index 00000000..83f58a47
+--- /dev/null
++++ b/src/kernel/slot_publish.h
+@@ -0,0 +1,20 @@
++/* Lock-free publication of a slot's words to another thread.
++ *
++ * A writer makes a slot's sequence odd, writes its words with compare-and-swap,
++ * sets the slot's owner, and makes the sequence even again. A reader takes the
++ * sequence, reads a word, and trusts the result only when the sequence is even
++ * and unchanged afterwards. Nothing waits and nothing can tear a result. */
++#ifndef SLOT_PUBLISH_H
++#define SLOT_PUBLISH_H
++
++#include <stdint.h>
++
++/* Publishes count words (values, or zeros when values is NULL) and then sets
++ * *owner to owner_value, between two sequence increments. owner may be NULL. */
++void xbox_slot_publish(volatile uint32_t *sequence, volatile uint32_t *words, unsigned count,
++                       const uint32_t *values, volatile uint32_t *owner, uint32_t owner_value);
++
++/* Reads a word atomically, with sequential consistency. */
++uint32_t xbox_slot_read(volatile uint32_t *word);
++
++#endif
+diff --git a/src/kernel/string_ci.c b/src/kernel/string_ci.c
+new file mode 100644
+index 00000000..3811726d
+--- /dev/null
++++ b/src/kernel/string_ci.c
+@@ -0,0 +1,14 @@
++#include "string_ci.h"
++
++static unsigned ascii_lower(unsigned c)
++{
++    return c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c;
++}
++
++int recomp_strings_equal_ci(const char *a, const char *b)
++{
++    for (; *a && *b; ++a, ++b)
++        if (ascii_lower((unsigned char)*a) != ascii_lower((unsigned char)*b))
++            return 0;
++    return *a == *b;
++}
+diff --git a/src/kernel/string_ci.h b/src/kernel/string_ci.h
+new file mode 100644
+index 00000000..e6c89605
+--- /dev/null
++++ b/src/kernel/string_ci.h
+@@ -0,0 +1,9 @@
++/* ASCII case-insensitive string comparison, for names the game stores in
++ * mixed case (car aliases, file names). Non-ASCII bytes compare exactly. */
++#ifndef STRING_CI_H
++#define STRING_CI_H
++
++/* Returns 1 when a and b are equal ignoring ASCII case. */
++int recomp_strings_equal_ci(const char *a, const char *b);
++
++#endif
+diff --git a/src/kernel/thick_line.c b/src/kernel/thick_line.c
+new file mode 100644
+index 00000000..da2ed316
+--- /dev/null
++++ b/src/kernel/thick_line.c
+@@ -0,0 +1,13 @@
++#include <math.h>
++#include "thick_line.h"
++
++int thick_line_quad(float xy[8], float x1, float y1, float x2, float y2, float width)
++{
++    float dx = x2 - x1, dy = y2 - y1, length = sqrtf(dx * dx + dy * dy);
++    float nx, ny;
++    if (length <= 0.0f) return 0;
++    nx = dy * width * 0.5f / length; ny = -dx * width * 0.5f / length;
++    xy[0] = x1 + nx; xy[1] = y1 + ny; xy[2] = x2 + nx; xy[3] = y2 + ny;
++    xy[4] = x2 - nx; xy[5] = y2 - ny; xy[6] = x1 - nx; xy[7] = y1 - ny;
++    return 1;
++}
+diff --git a/src/kernel/thick_line.h b/src/kernel/thick_line.h
+new file mode 100644
+index 00000000..75756e71
+--- /dev/null
++++ b/src/kernel/thick_line.h
+@@ -0,0 +1,9 @@
++/* The four corners of a segment drawn as a quad of a given width, for drawing
++ * thick 2D lines as triangles. Corners are written as x, y pairs in order
++ * around the quad. Returns 0 and writes nothing for a zero-length segment. */
++#ifndef THICK_LINE_H
++#define THICK_LINE_H
++
++int thick_line_quad(float xy[8], float x1, float y1, float x2, float y2, float width);
++
++#endif
+diff --git a/src/kernel/vec3_rotate.c b/src/kernel/vec3_rotate.c
+new file mode 100644
+index 00000000..5d771d67
+--- /dev/null
++++ b/src/kernel/vec3_rotate.c
+@@ -0,0 +1,10 @@
++#include "vec3_rotate.h"
++
++void vec3_rotate_about_horizontal(float out[3], const float in[3], float dx, float dz,
++                                  float c, float s)
++{
++    float dot = dz * in[0] - dx * in[2];
++    out[0] = c * in[0] + s * dx * in[1] + (1.0f - c) * dz * dot;
++    out[1] = c * in[1] - s * (dx * in[0] + dz * in[2]);
++    out[2] = c * in[2] + s * dz * in[1] - (1.0f - c) * dx * dot;
++}
+diff --git a/src/kernel/vec3_rotate.h b/src/kernel/vec3_rotate.h
+new file mode 100644
+index 00000000..40b85f3f
+--- /dev/null
++++ b/src/kernel/vec3_rotate.h
+@@ -0,0 +1,11 @@
++/* Rotation of a 3D vector about the horizontal axis perpendicular to (dx, 0, dz).
++ *
++ * The axis is cross(up, (dx, 0, dz)) = (dz, 0, -dx), and the rotation is
++ * Rodrigues' formula with cos = c and sin = s. out may not alias in. */
++#ifndef VEC3_ROTATE_H
++#define VEC3_ROTATE_H
++
++void vec3_rotate_about_horizontal(float out[3], const float in[3], float dx, float dz,
++                                  float c, float s);
++
++#endif
+diff --git a/src/kernel/xbox_std_string.c b/src/kernel/xbox_std_string.c
+new file mode 100644
+index 00000000..29acb8ef
+--- /dev/null
++++ b/src/kernel/xbox_std_string.c
+@@ -0,0 +1,27 @@
++#include "xbox_std_string.h"
++#include "xbox_memory_layout.h"
++
++/* Layout: +4 is the inline buffer (or, when the capacity is 16 or more, a
++ * pointer to the heap buffer), +20 the size, +24 the capacity. */
++size_t xbox_read_msvc_std_string(uint32_t string_va, char *out, size_t cap)
++{
++    uint32_t inline_or_ptr, size, capacity, text;
++    size_t n;
++    if (!out || !cap)
++        return 0;
++    out[0] = 0;
++    if (!xbox_GuestRead(string_va + 4u, &inline_or_ptr, 4) ||
++        !xbox_GuestRead(string_va + 20u, &size, 4) ||
++        !xbox_GuestRead(string_va + 24u, &capacity, 4))
++        return 0;
++    text = capacity >= 16u ? inline_or_ptr : string_va + 4u;
++    if (size >= cap)
++        size = (uint32_t)cap - 1u;
++    if (size && !xbox_GuestRangeInWindow(text, size))
++        return 0;
++    if (size && !xbox_GuestRead(text, out, size))
++        return 0;
++    n = size;
++    out[n] = 0;
++    return n;
++}
+diff --git a/src/kernel/xbox_std_string.h b/src/kernel/xbox_std_string.h
+new file mode 100644
+index 00000000..6ffc7540
+--- /dev/null
++++ b/src/kernel/xbox_std_string.h
+@@ -0,0 +1,13 @@
++/* Reads an MSVC std::string (the x86 layout: a 16-byte inline buffer, a
++ * pointer when the capacity is larger) out of guest memory. */
++#ifndef XBOX_STD_STRING_H
++#define XBOX_STD_STRING_H
++
++#include <stddef.h>
++#include <stdint.h>
++
++/* Copies the string into out, at most cap - 1 bytes, and NUL-terminates it.
++ * Returns the number of bytes copied; 0 when the object is not in guest RAM. */
++size_t xbox_read_msvc_std_string(uint32_t string_va, char *out, size_t cap);
++
++#endif
+diff --git a/src/nv2a/CMakeLists.txt b/src/nv2a/CMakeLists.txt
+index d23f251e..6636fac4 100644
+--- a/src/nv2a/CMakeLists.txt
++++ b/src/nv2a/CMakeLists.txt
+@@ -8,6 +8,7 @@
+ add_library(xbox_nv2a STATIC
+     nv2a_core.c
+     nv2a_mmio_hook.c
++    nv2a_pb_reserve.c
+ )
+ 
+ target_include_directories(xbox_nv2a PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/src/nv2a/nv2a_pb_reserve.c b/src/nv2a/nv2a_pb_reserve.c
+new file mode 100644
+index 00000000..bdbc4548
+--- /dev/null
++++ b/src/nv2a/nv2a_pb_reserve.c
+@@ -0,0 +1,32 @@
++#include "nv2a_pb_reserve.h"
++#include "xbox_memory_layout.h"
++
++static uint32_t pb_guest32(uint32_t va)
++{
++    return *(volatile uint32_t *)((uintptr_t)va + (uintptr_t)xbox_GetMemoryOffset());
++}
++
++static void pb_guest32_store(uint32_t va, uint32_t value)
++{
++    *(volatile uint32_t *)((uintptr_t)va + (uintptr_t)xbox_GetMemoryOffset()) = value;
++}
++
++static int pb_room(uint32_t cursor, uint32_t limit, uint32_t bytes)
++{
++    return cursor && !(cursor & 3u) && limit >= cursor && limit - cursor >= bytes;
++}
++
++uint32_t xbox_pb_reserve(uint32_t device, uint32_t bytes, Nv2aPbRolloverFn rollover, void *user)
++{
++    uint32_t cursor = pb_guest32(device), limit = pb_guest32(device + 4u);
++    /* The native cursor may already be beyond its soft limit. Roll over
++     * through the title's normal path rather than dropping the record. */
++    if (cursor && !(cursor & 3u) && (limit < cursor || limit - cursor < bytes)) {
++        rollover(user);
++        cursor = pb_guest32(device);
++        limit = pb_guest32(device + 4u);
++    }
++    if (!pb_room(cursor, limit, bytes)) return 0;
++    pb_guest32_store(device, cursor + bytes);
++    return cursor;
++}
+diff --git a/src/nv2a/nv2a_pb_reserve.h b/src/nv2a/nv2a_pb_reserve.h
+new file mode 100644
+index 00000000..8a284818
+--- /dev/null
++++ b/src/nv2a/nv2a_pb_reserve.h
+@@ -0,0 +1,20 @@
++/* Reserve space in a guest NV2A push buffer.
++ *
++ * The device object holds the write cursor at +0 and the soft limit at +4,
++ * both guest addresses. A reservation needs an aligned cursor and room for
++ * the whole record. When the room is short, the title's own rollover runs
++ * first (it is the title's native code that moves the cursor to a fresh
++ * segment), then the check is repeated. */
++#ifndef NV2A_PB_RESERVE_H
++#define NV2A_PB_RESERVE_H
++
++#include <stdint.h>
++
++/* Runs the title's rollover; it must leave the device cursor and limit updated. */
++typedef void (*Nv2aPbRolloverFn)(void *user);
++
++/* Returns the guest address of the reserved bytes and advances the cursor past
++ * them, or returns 0 when no room exists even after rollover. */
++uint32_t xbox_pb_reserve(uint32_t device, uint32_t bytes, Nv2aPbRolloverFn rollover, void *user);
++
++#endif
+diff --git a/src/platform/CMakeLists.txt b/src/platform/CMakeLists.txt
+index 334a9ed4..b9397e8e 100644
+--- a/src/platform/CMakeLists.txt
++++ b/src/platform/CMakeLists.txt
+@@ -37,12 +37,15 @@ target_include_directories(host_time PUBLIC
+ )
+ 
+ if(WIN32)
++    # line_server: a named-pipe line protocol for host tools (POSIX: a socket).
++    add_library(line_server STATIC line_server.c)
++    target_include_directories(line_server PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+     add_library(platform INTERFACE)
+-    target_link_libraries(platform INTERFACE host_time)
++    target_link_libraries(platform INTERFACE host_time line_server)
+     target_include_directories(platform INTERFACE ${XBOXRECOMP_SRC_DIR})
+     target_link_libraries(platform INTERFACE recomp_exit_hook)
+ else()
+-    add_library(platform STATIC win32_compat.c)
++    add_library(platform STATIC win32_compat.c line_server.c)
+     target_include_directories(platform PUBLIC
+         ${XBOXRECOMP_SRC_DIR}
+         ${CMAKE_CURRENT_SOURCE_DIR}
+diff --git a/src/platform/line_server.c b/src/platform/line_server.c
+new file mode 100644
+index 00000000..5e31e98b
+--- /dev/null
++++ b/src/platform/line_server.c
+@@ -0,0 +1,144 @@
++#include "line_server.h"
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#if defined(_WIN32)
++#include <windows.h>
++#else
++#include "platform/xbox_winnt.h"
++#include <errno.h>
++#include <sys/socket.h>
++#include <sys/time.h>
++#include <sys/types.h>
++#include <sys/un.h>
++#include <unistd.h>
++#endif
++
++#if !defined(_WIN32)
++#ifndef MSG_NOSIGNAL
++#define MSG_NOSIGNAL 0
++#endif
++#endif
++
++static LineServerAnswer s_answer;
++#if defined(_WIN32)
++static char s_pipe_name[96];
++#endif
++
++#if defined(_WIN32)
++static DWORD WINAPI pipe_thread(void *unused)
++{
++    for (;;) {
++        HANDLE pipe = CreateNamedPipeA(s_pipe_name, PIPE_ACCESS_DUPLEX,
++            PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
++            1, 2048, 2048, 0, NULL);
++        if (pipe == INVALID_HANDLE_VALUE) return 1;
++        if (ConnectNamedPipe(pipe, NULL) || GetLastError() == ERROR_PIPE_CONNECTED) {
++            char command[128] = {0}, reply[2048];
++            DWORD bytes;
++            if (ReadFile(pipe, command, sizeof(command) - 1, &bytes, NULL)) {
++                command[bytes] = 0;
++                s_answer(command, reply, sizeof(reply));
++                if (WriteFile(pipe, reply, (DWORD)strlen(reply), &bytes, NULL))
++                    FlushFileBuffers(pipe); /* do not discard an unread reply on disconnect */
++            }
++        }
++        DisconnectNamedPipe(pipe);
++        CloseHandle(pipe);
++    }
++}
++#else
++static char socket_path[sizeof(((struct sockaddr_un *)0)->sun_path)];
++
++static void socket_unlink(void)
++{
++    unlink(socket_path);
++}
++
++static int socket_path_init(const char *name)
++{
++    const char *dir = getenv("XDG_RUNTIME_DIR");
++    int n;
++    if (!dir || !*dir) dir = "/tmp";
++    n = snprintf(socket_path, sizeof(socket_path), "%s/%s-%lu.sock",
++                 dir, name, (unsigned long)getpid());
++    if (n < 0 || (size_t)n >= sizeof(socket_path)) return 0;
++    atexit(socket_unlink);
++    return 1;
++}
++
++/* Request: bytes up to the first newline, or until the client half-closes.
++ * Reply: the text, then the connection closes (the client reads to EOF). */
++static void serve_connection(int fd)
++{
++    char command[128] = {0}, reply[2048];
++    size_t used = 0, sent = 0, len;
++    ssize_t got;
++    /* A client that sends neither a newline nor a half-close must not hold the
++     * single accept loop; the timeout drops it. */
++    struct timeval idle = {2, 0};
++    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &idle, sizeof idle);
++    while (used < sizeof(command) - 1 &&
++           (got = recv(fd, command + used, sizeof(command) - 1 - used, 0)) != 0) {
++        if (got < 0) {
++            if (errno == EINTR) continue;
++            break;
++        }
++        used += (size_t)got;
++        if (memchr(command, '\n', used)) break;
++    }
++    command[used] = 0;
++    command[strcspn(command, "\r\n")] = 0;
++    s_answer(command, reply, sizeof(reply));
++    len = strlen(reply);
++    while (sent < len) {
++        ssize_t w = send(fd, reply + sent, len - sent, MSG_NOSIGNAL);
++        if (w < 0 && errno == EINTR) continue;
++        if (w <= 0) break;
++        sent += (size_t)w;
++    }
++}
++
++static DWORD WINAPI socket_thread(void *unused)
++{
++    struct sockaddr_un addr;
++    int listener;
++    (void)unused;
++    listener = socket(AF_UNIX, SOCK_STREAM, 0);
++    if (listener < 0) return 1;
++    memset(&addr, 0, sizeof(addr));
++    addr.sun_family = AF_UNIX;
++    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", socket_path);
++    unlink(socket_path); /* stale file, if a dead process left one behind */
++    if (bind(listener, (struct sockaddr *)&addr, sizeof(addr)) != 0 || listen(listener, 4) != 0) {
++        close(listener);
++        return 1;
++    }
++    for (;;) {
++        int fd = accept(listener, NULL, NULL);
++        if (fd < 0) {
++            if (errno == EINTR || errno == ECONNABORTED) continue;
++            close(listener);
++            return 1;
++        }
++        serve_connection(fd);
++        close(fd);
++    }
++}
++#endif
++
++int line_server_start(const char *name, LineServerAnswer answer)
++{
++    HANDLE thread;
++    s_answer = answer;
++#if defined(_WIN32)
++    snprintf(s_pipe_name, sizeof(s_pipe_name), "\\\\.\\pipe\\%s-%lu", name, GetCurrentProcessId());
++    thread = CreateThread(NULL, 0, pipe_thread, NULL, 0, NULL);
++#else
++    if (!socket_path_init(name)) return 0;
++    thread = CreateThread(NULL, 0, socket_thread, NULL, 0, NULL);
++#endif
++    if (!thread) return 0;
++    CloseHandle(thread);
++    return 1;
++}
+diff --git a/src/platform/line_server.h b/src/platform/line_server.h
+new file mode 100644
+index 00000000..50402eb3
+--- /dev/null
++++ b/src/platform/line_server.h
+@@ -0,0 +1,18 @@
++/* Local control server: one request line in, one reply out, per connection.
++ *
++ * Windows serves a message-mode named pipe, \\.\pipe\<name>-<pid>. Other hosts
++ * serve a Unix stream socket, $XDG_RUNTIME_DIR/<name>-<pid>.sock (else /tmp),
++ * removed at exit. A request is read up to the first newline, or until the
++ * client half-closes; the reply is written and the connection closed. The
++ * answer callback owns the protocol. */
++#ifndef PLATFORM_LINE_SERVER_H
++#define PLATFORM_LINE_SERVER_H
++
++#include <stddef.h>
++
++typedef void (*LineServerAnswer)(const char *request, char *reply, size_t size);
++
++/* Starts the server thread. Returns 1 when it is running. */
++int line_server_start(const char *name, LineServerAnswer answer);
++
++#endif
+diff --git a/src/ui/rmlui_host.cpp b/src/ui/rmlui_host.cpp
+new file mode 100644
+index 00000000..82714cb8
+--- /dev/null
++++ b/src/ui/rmlui_host.cpp
+@@ -0,0 +1,176 @@
++#include "rmlui_host.h"
++#include <RmlUi_Backend.h>
++#include <stdio.h>
++
++#if defined(XBOXRECOMP_SDL3)
++#include <SDL3/SDL.h>
++extern "C" int xbox_FramebufferStartHidden(void);
++extern "C" void xbox_FramebufferSdlHints(void);
++#else
++#include <RmlUi_Renderer_DX11.h>
++#include <windows.h>
++#include <dwmapi.h>
++#endif
++
++#if !defined(XBOXRECOMP_SDL3)
++/* A dark caption in the client's colour instead of the light default. */
++static void dark_title_bar(int icon_resource)
++{
++    HWND hwnd = NULL;
++    EnumThreadWindows(GetCurrentThreadId(), [](HWND h, LPARAM p) -> BOOL {
++        if (!IsWindowVisible(h))
++            return TRUE;
++        *(HWND *)p = h;
++        return FALSE;
++    }, (LPARAM)&hwnd);
++    if (!hwnd)
++        return;
++    const BOOL dark = TRUE;
++    const COLORREF caption = RGB(0x12, 0x14, 0x18);
++    DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &dark, sizeof dark);
++    DwmSetWindowAttribute(hwnd, 35 /* DWMWA_CAPTION_COLOR, Windows 11 */, &caption, sizeof caption);
++    if (icon_resource) {
++        if (HICON icon = LoadIconA(GetModuleHandleA(NULL), MAKEINTRESOURCEA(icon_resource))) {
++            SendMessageA(hwnd, WM_SETICON, ICON_BIG, (LPARAM)icon);
++            SendMessageA(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)icon);
++        }
++    }
++}
++#endif
++
++int rmlui_host_run(const RmlUiHostOptions *options, const RmlUiHostClient *client)
++{
++    int width, height;
++#if defined(XBOXRECOMP_SDL3)
++    /* 10/9 of the window size, so the usable display bounds can shrink it. */
++    SDL_Rect work = {0, 0, options->max_width * 10 / 9, options->max_height * 10 / 9};
++    xbox_FramebufferSdlHints();   /* the same video driver choice as the game */
++    if (SDL_InitSubSystem(SDL_INIT_VIDEO))
++        SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &work);
++    width = Rml::Math::Min(options->max_width, work.w * 9 / 10);
++    height = Rml::Math::Min(options->max_height, work.h * 9 / 10);
++    /* The SDL GPU backend ships SPIR-V shaders only, which only Vulkan takes on Windows. */
++    SDL_SetHint(SDL_HINT_GPU_DRIVER, "vulkan");
++#else
++    /* Not DPI-aware yet, so the work area is in the backend's 96-dpi units. */
++    RECT work = {0, 0, options->max_width, options->max_height};
++    SystemParametersInfoA(SPI_GETWORKAREA, 0, &work, 0);
++    width = Rml::Math::Min(options->max_width, (int)(work.right - work.left) * 9 / 10);
++    height = Rml::Math::Min(options->max_height, (int)(work.bottom - work.top) * 9 / 10);
++#endif
++    if (!Backend::Initialize(options->title, width, height, false)) {
++        if (client->unavailable)
++            client->unavailable(client->user);
++        return 0;
++    }
++#if !defined(XBOXRECOMP_SDL3)
++    if (options->dark_title_bar)
++        dark_title_bar(options->icon_resource);
++#else
++    /* A hidden start (scripts, tests), which the Win32 backend's first
++     * ShowWindow honours and SDL's window does not. */
++    if (xbox_FramebufferStartHidden()) {
++        int count = 0;
++        SDL_Window **windows = SDL_GetWindows(&count);
++        for (int i = 0; i < count; i++)
++            SDL_HideWindow(windows[i]);
++        SDL_free(windows);
++    }
++#endif
++    client->bind_system(client->user);
++    Rml::SetSystemInterface(client->system);
++    Rml::SetRenderInterface(Backend::GetRenderInterface());
++    Rml::Initialise();
++    if (client->prepare)
++        client->prepare(client->user);
++
++    Rml::Context *ctx = Rml::CreateContext(options->log_tag, Rml::Vector2i(width, height));
++    if (ctx && client->load(ctx, client->user)) {
++        bool rendered = false;
++        /* Waits for messages only in the background: in front, the controller
++         * is polled every frame (the backend presents with v-sync). */
++        while (client->keep_running(client->user) &&
++               Backend::ProcessEvents(ctx, client->on_key, !
++#if defined(XBOXRECOMP_SDL3)
++                   SDL_GetKeyboardFocus()
++#else
++                   GetActiveWindow()
++#endif
++               )) {
++            const double now = Rml::GetSystemInterface()->GetElapsedTime();
++            client->before_update(ctx, now, client->user);
++            ctx->Update();
++            client->after_update(ctx, client->user);
++            /* The first WM_SIZE can precede creation of the backend renderer.
++             * A hidden startup need not send another one: seed its viewport
++             * from the context's actual pixel size before drawing. */
++            const Rml::Vector2i dimensions = ctx->GetDimensions();
++#if !defined(XBOXRECOMP_SDL3)
++            static_cast<RenderInterface_DX11 *>(Backend::GetRenderInterface())->SetViewport(
++                dimensions.x, dimensions.y);
++#endif
++#if defined(XBOXRECOMP_SDL3)
++            /* No swapchain image while hidden or minimized, and RmlUi's SDL GPU
++             * backend then submits a cancelled command buffer: skip the frame. */
++            {
++                int count = 0;
++                SDL_Window **windows = SDL_GetWindows(&count);
++                bool drawable = count > 0 && !(SDL_GetWindowFlags(windows[0]) &
++                                               (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED));
++                SDL_free(windows);
++                if (!drawable) {
++                    SDL_Delay(16);
++                    continue;
++                }
++            }
++#endif
++            /* The SDL GPU renderer takes its viewport from each swapchain image. */
++            Backend::BeginFrame();
++            ctx->Render();
++            Backend::PresentFrame();
++            if (!rendered && (!client->frame_ok || client->frame_ok(client->user))) {
++                fprintf(stderr, "[%s] first frame rendered: %dx%d\n", options->log_tag,
++                        dimensions.x, dimensions.y);
++                fflush(stderr);
++                rendered = true;
++            }
++        }
++    }
++    Rml::Shutdown();
++    Backend::Shutdown();
++    return 1;
++}
++
++/* Candidate sans-serif pairs, regular then bold, in the order a host tries them. */
++int rmlui_host_load_sans_fonts(const char *family)
++{
++    static const char *const faces[][2] = {
++        {"C:/Windows/Fonts/segoeui.ttf", "C:/Windows/Fonts/segoeuib.ttf"},
++        {"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
++         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"},
++        {"/usr/share/fonts/TTF/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf"},
++        {"/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
++         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"},
++        {"/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
++         "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"},
++        {"/System/Library/Fonts/Supplemental/Arial.ttf",
++         "/System/Library/Fonts/Supplemental/Arial Bold.ttf"},
++    };
++    for (const auto &pair : faces) {
++        FILE *regular = fopen(pair[0], "rb");
++        FILE *bold;
++        if (!regular)
++            continue;
++        fclose(regular);
++        Rml::LoadFontFace(pair[0], family, Rml::Style::FontStyle::Normal,
++                          Rml::Style::FontWeight::Normal, true);
++        bold = fopen(pair[1], "rb");
++        if (bold) {
++            fclose(bold);
++            Rml::LoadFontFace(pair[1], family, Rml::Style::FontStyle::Normal,
++                              Rml::Style::FontWeight::Bold);
++        }
++        return 1;
++    }
++    return 0;
++}
+diff --git a/src/ui/rmlui_host.h b/src/ui/rmlui_host.h
+new file mode 100644
+index 00000000..035cc544
+--- /dev/null
++++ b/src/ui/rmlui_host.h
+@@ -0,0 +1,65 @@
++/* Host loop for a RmlUi window: backend start, window sizing, the frame loop
++ * and shutdown.
++ *
++ * The client is the title. It binds its system interface, loads the fonts and
++ * data model it shows, handles keys, and does the per-frame work around the
++ * context update. The host does not know what the window shows. RmlUi and its
++ * backends (RmlUi_Backend.h, RmlUi_Renderer_DX11.h or the SDL GPU backend) are
++ * the consumer's to fetch and compile. */
++#ifndef UI_RMLUI_HOST_H
++#define UI_RMLUI_HOST_H
++
++#include <RmlUi/Core.h>
++#include <stdio.h>
++
++struct RmlUiHostOptions {
++    const char *title;
++    int max_width, max_height;   /* the window is at most this, and within 90% of the work area */
++    int dark_title_bar;          /* Win32 only: dark caption; 0 keeps the light default */
++    int icon_resource;           /* Win32 only: icon resource id for the window; 0 keeps the class icon */
++    const char *log_tag;         /* prefix for the host's own diagnostics */
++};
++
++struct RmlUiHostClient {
++    void *user;
++    void (*bind_system)(void *user);  /* after the backend starts: set the client's system interface */
++    Rml::SystemInterface *system;     /* then installed with Rml::SetSystemInterface */
++    void (*prepare)(void *user);      /* after RmlUi is initialised, before the context: fonts */
++    int (*load)(Rml::Context *ctx, void *user);  /* data model and document; 0 = no window */
++    bool (*on_key)(Rml::Context *ctx, Rml::Input::KeyIdentifier key, int mods, float, bool priority);
++    int (*keep_running)(void *user);  /* 0 ends the loop */
++    void (*before_update)(Rml::Context *ctx, double now, void *user);
++    void (*after_update)(Rml::Context *ctx, void *user);  /* after the first ctx->Update() */
++    int (*frame_ok)(void *user);      /* 0 while the client has logged errors; suppresses the first-frame line */
++    void (*unavailable)(void *user);  /* the backend could not start */
++};
++
++/* Returns 1 when the backend started and the loop ran, 0 when it could not start. */
++int rmlui_host_run(const RmlUiHostOptions *options, const RmlUiHostClient *client);
++
++/* Registers the first installed sans-serif pair (regular, then bold) under family, and as the
++ * fallback face for glyphs the family lacks. Returns 0 when no candidate is installed. */
++int rmlui_host_load_sans_fonts(const char *family);
++
++/* A system interface that forwards to base and writes RmlUi's messages to
++ * stderr as "[tag] message", counting the errors. Set base before the host
++ * starts; the errors count feeds the client's first-frame check. */
++struct RmlUiHostLogSystem : Rml::SystemInterface {
++    Rml::SystemInterface *base = nullptr;
++    const char *tag = "rmlui";
++    unsigned errors = 0;
++    double GetElapsedTime() override { return base->GetElapsedTime(); }
++    void SetMouseCursor(const Rml::String &name) override { base->SetMouseCursor(name); }
++    void SetClipboardText(const Rml::String &text) override { base->SetClipboardText(text); }
++    void GetClipboardText(Rml::String &text) override { base->GetClipboardText(text); }
++    bool LogMessage(Rml::Log::Type type, const Rml::String &message) override
++    {
++        if (type == Rml::Log::LT_ERROR || type == Rml::Log::LT_ASSERT)
++            ++errors;
++        fprintf(stderr, "[%s] %s\n", tag, message.c_str());
++        fflush(stderr);
++        return true;
++    }
++};
++
++#endif
+diff --git a/tests/kernel_geometry/CMakeLists.txt b/tests/kernel_geometry/CMakeLists.txt
+new file mode 100644
+index 00000000..17c508fc
+--- /dev/null
++++ b/tests/kernel_geometry/CMakeLists.txt
+@@ -0,0 +1,14 @@
++cmake_minimum_required(VERSION 3.20)
++project(recomp_kernel_geometry C)
++set(CMAKE_C_STANDARD 11)
++add_executable(recomp_kernel_geometry test_kernel_geometry.c
++    ../../src/kernel/polyline.c
++    ../../src/kernel/road_graph.c
++    ../../src/kernel/vec3_rotate.c
++    ../../src/kernel/kb_spline.c
++    ../../src/kernel/guest_read.c
++    ../../src/kernel/thick_line.c)
++target_include_directories(recomp_kernel_geometry PRIVATE ../../src ../../src/kernel)
++target_link_libraries(recomp_kernel_geometry PRIVATE m)
++enable_testing()
++add_test(NAME recomp_kernel_geometry COMMAND recomp_kernel_geometry)
+diff --git a/tests/kernel_geometry/test_kernel_geometry.c b/tests/kernel_geometry/test_kernel_geometry.c
+new file mode 100644
+index 00000000..4bc750f3
+--- /dev/null
++++ b/tests/kernel_geometry/test_kernel_geometry.c
+@@ -0,0 +1,112 @@
++#include <math.h>
++#include <stdio.h>
++#include "kb_spline.h"
++#include "polyline.h"
++#include "road_graph.h"
++#include "vec3_rotate.h"
++#include "guest_read.h"
++#include "thick_line.h"
++
++/* guest_read.c links against guest memory; this test never reads it. */
++#include <stddef.h>
++#include <stdint.h>
++int xbox_GuestRead(uint32_t va, void *out, size_t size) { (void)va; (void)out; (void)size; return 0; }
++
++/* Not assert: the calls inside the checks must run in release builds too. */
++#define CHECK(x) do { if (!(x)) { printf("%s:%d: failed: %s\n", __FILE__, __LINE__, #x); return 1; } } while (0)
++#define NEAR(a, b) (fabsf((float)(a) - (float)(b)) < 1e-4f)
++
++static int test_polyline(void)
++{
++    /* Collinear samples collapse to their endpoints. */
++    float line[] = {0, 0, 1, 0, 2, 0, 3, 0, 4, 0};
++    unsigned char keep[5];
++    PolylineRange ranges[5];
++    polyline_simplify_2d(line, 5, .25f, 5 * 64, keep, ranges);
++    CHECK(keep[0] && !keep[1] && !keep[2] && !keep[3] && keep[4]);
++
++    /* A peak well outside the tolerance survives. */
++    {
++        float peak[] = {0, 0, 2, 3, 4, 0};
++        polyline_simplify_2d(peak, 3, .25f, 3 * 64, keep, ranges);
++        CHECK(keep[0] && keep[1] && keep[2]);
++    }
++
++    /* A zero work limit keeps every sample. */
++    polyline_simplify_2d(line, 5, .25f, 0, keep, ranges);
++    CHECK(keep[0] && keep[1] && keep[2] && keep[3] && keep[4]);
++    return 0;
++}
++
++static int test_road_graph(void)
++{
++    RoadGraph *g = road_graph_new(3, 8);
++    GraphSnap from, to;
++    GraphPoint path[8];
++    unsigned count;
++    CHECK(g != NULL);
++    g->nodes[0].position = (GraphPoint){0, 0, 0};
++    g->nodes[1].position = (GraphPoint){10, 0, 0};
++    g->nodes[2].position = (GraphPoint){10, 0, 10};
++    CHECK(road_graph_connect(g, 0, 1));
++    CHECK(road_graph_connect(g, 1, 2));
++    CHECK(!road_graph_connect(g, 0, 0));
++    CHECK(NEAR(graph_distance(g->nodes[0].position, g->nodes[2].position), sqrtf(200.0f)));
++
++    /* Snap a point just above the first edge, then route to the far end. */
++    CHECK(road_graph_snap(g, (GraphPoint){5, 2, 0}, 1.0f, 100.0f, &from));
++    CHECK(NEAR(from.position.x, 5) && NEAR(from.position.z, 0));
++    CHECK(road_graph_snap(g, (GraphPoint){10, 0, 8}, 1.0f, 100.0f, &to));
++    count = road_graph_path(g, &from, &to, path, 8);
++    CHECK(count >= 2);
++    CHECK(NEAR(path[0].x, 5) && NEAR(path[count - 1].z, 8));
++
++    CHECK(!graph_point_valid((GraphPoint){1e9f, 0, 0}));
++    road_graph_free(g);
++    return 0;
++}
++
++static int test_vec3_rotate(void)
++{
++    /* Axis (dz, 0, -dx) = (1, 0, 0): a quarter turn takes +y to +z. */
++    const float in[3] = {0, 1, 0};
++    float out[3];
++    vec3_rotate_about_horizontal(out, in, 0, 1, 0, 1);
++    CHECK(NEAR(out[0], 0) && NEAR(out[1], 0) && NEAR(out[2], 1));
++    return 0;
++}
++
++static int test_kb_spline(void)
++{
++    const KbPoint p[4] = {{0, 0, 0}, {1, 0, 0}, {2, 0, 0}, {3, 0, 0}};
++    KbPoint a = kb_segment_point(p, 0, 0, 0, 0), b = kb_segment_point(p, 1, 0, 0, 0);
++    CHECK(NEAR(a.x, 1) && NEAR(b.x, 2));
++    return 0;
++}
++
++static int test_thick_line(void)
++{
++    /* A horizontal segment of width 2 becomes a band of half-width 1. */
++    float xy[8];
++    CHECK(thick_line_quad(xy, 0, 0, 10, 0, 2));
++    CHECK(NEAR(xy[0], 0) && NEAR(xy[1], -1) && NEAR(xy[2], 10) && NEAR(xy[3], -1));
++    CHECK(NEAR(xy[4], 10) && NEAR(xy[5], 1) && NEAR(xy[6], 0) && NEAR(xy[7], 1));
++    CHECK(!thick_line_quad(xy, 3, 3, 3, 3, 2));
++    return 0;
++}
++
++static int test_clock(void)
++{
++    CHECK(recomp_clock_capped_advance(10, 3, 5) == 13);
++    CHECK(recomp_clock_capped_advance(10, 9, 5) == 15);
++    return 0;
++}
++
++int main(void)
++{
++    if (test_polyline() || test_road_graph() || test_vec3_rotate() || test_kb_spline() ||
++        test_thick_line() || test_clock())
++        return 1;
++    printf("kernel_geometry: all checks passed\n");
++    return 0;
++}
+diff --git a/tests/kernel_host_write_watch/test_main.c b/tests/kernel_host_write_watch/test_main.c
+new file mode 100644
+index 00000000..3d92ce15
+--- /dev/null
++++ b/tests/kernel_host_write_watch/test_main.c
+@@ -0,0 +1,53 @@
++/* Hardware write watch contract (Windows debug registers).
++ *
++ * Build and run from a VS developer prompt:
++ *   cl /nologo /W3 /WX /std:c11 /I ..\..\src /I ..\..\src\kernel /I ..\..\include test_main.c ..\..\src\kernel\host_write_watch.c
++ *
++ * A watch fires once per write on the armed thread and passes the stored
++ * value. It refuses a second watch while one is armed, and disarms when the
++ * callback returns 0. */
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include "host_write_watch.h"
++
++#define CHECK(c) do { if (!(c)) { fprintf(stderr, "host-write-watch line %d: %s\n", __LINE__, #c); exit(1); } } while (0)
++
++static volatile uint32_t word;
++static unsigned fires;
++static uint32_t last_value;
++
++/* 0x3000 and 0x4000 end their watch; other values keep it armed. */
++static int on_write(void *user, uint32_t value, uint64_t rip)
++{
++    (void)user; (void)rip;
++    ++fires;
++    last_value = value;
++    return value != 0x3000u && value != 0x4000u;
++}
++
++int main(void)
++{
++    volatile uint32_t *field = &word;
++    word = 0;
++
++    CHECK(host_write_watch_arm(field, on_write, NULL) == 1);
++    CHECK(host_write_watch_arm(field, on_write, NULL) == 0); /* one watch at a time */
++    word = 0x1234u;
++    CHECK(fires == 1 && last_value == 0x1234u);
++    word = 0x2000u;
++    CHECK(fires == 2 && last_value == 0x2000u);
++    word = 0x3000u; /* callback returns 0: disarm */
++    CHECK(fires == 3 && last_value == 0x3000u);
++    word = 0x3001u;
++    CHECK(fires == 3); /* disarmed */
++
++    CHECK(host_write_watch_arm(field, on_write, NULL) == 1); /* re-arm after disarm */
++    word = 0x4000u;
++    CHECK(fires == 4 && last_value == 0x4000u);
++    word = 0x5000u;
++    CHECK(fires == 4);
++
++    puts("host write watch contract passed.");
++    return 0;
++}
+diff --git a/tests/nv2a_wbc_flush/CMakeLists.txt b/tests/nv2a_wbc_flush/CMakeLists.txt
+new file mode 100644
+index 00000000..08f535af
+--- /dev/null
++++ b/tests/nv2a_wbc_flush/CMakeLists.txt
+@@ -0,0 +1,10 @@
++cmake_minimum_required(VERSION 3.20)
++project(recomp_nv2a_wbc_flush C)
++set(CMAKE_C_STANDARD 11)
++if(WIN32)
++    add_executable(recomp_nv2a_wbc_flush test_nv2a_wbc_flush.c
++        ../../src/kernel/nv2a_wbc_flush.c)
++    target_include_directories(recomp_nv2a_wbc_flush PRIVATE ../../src ../../src/kernel ../../include)
++    enable_testing()
++    add_test(NAME recomp_nv2a_wbc_flush COMMAND recomp_nv2a_wbc_flush)
++endif()
+diff --git a/tests/nv2a_wbc_flush/test_nv2a_wbc_flush.c b/tests/nv2a_wbc_flush/test_nv2a_wbc_flush.c
+new file mode 100644
+index 00000000..88ec8c9d
+--- /dev/null
++++ b/tests/nv2a_wbc_flush/test_nv2a_wbc_flush.c
+@@ -0,0 +1,57 @@
++/* xbox_Nv2aWbcFlush: the flush word is set, the call waits for the executor
++ * to clear it, and the register block and flush value are reported. Windows
++ * only, like the threads it uses. */
++#include <windows.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <assert.h>
++#include "nv2a_wbc_flush.h"
++#include "../../src/nv2a/nv2a_regs.h"
++
++static unsigned char ram[0x300000];
++static ptrdiff_t g_mem_offset;
++ptrdiff_t xbox_GetMemoryOffset(void) { return g_mem_offset; }
++#define GUEST32(a) (*(volatile uint32_t *)(ram + (a)))
++
++/* Device object at 0x2000 holds its register block pointer at +0x17C8. */
++#define DEVICE 0x2000u
++#define REGS 0x10000u
++#define FLUSH (REGS + 0x00100000u + NV_PFB_WBC)
++
++static volatile LONG acknowledged;
++
++static DWORD WINAPI acknowledge(void *unused)
++{
++    ULONGLONG start = GetTickCount64();
++    (void)unused;
++    while (!(GUEST32(FLUSH) & NV_PFB_WBC_FLUSH) && GetTickCount64() - start < 500) Sleep(0);
++    if (GUEST32(FLUSH) & NV_PFB_WBC_FLUSH) {
++        Sleep(20);
++        GUEST32(FLUSH) &= ~NV_PFB_WBC_FLUSH;
++        InterlockedExchange(&acknowledged, 1);
++    }
++    return 0;
++}
++
++int main(void)
++{
++    uint32_t object = 0, value = 0;
++    HANDLE thread;
++    g_mem_offset = (ptrdiff_t)ram;
++    GUEST32(DEVICE) = 0x4000;
++    GUEST32(0x4000 + 0x17C8) = REGS;
++    GUEST32(FLUSH) = 0x1234;
++    acknowledged = 0;
++    thread = CreateThread(NULL, 0, acknowledge, NULL, 0, NULL);
++    assert(thread);
++    xbox_Nv2aWbcFlush(DEVICE, &object, &value);
++    assert(WaitForSingleObject(thread, 1000) == WAIT_OBJECT_0);
++    CloseHandle(thread);
++    /* The call returned only after the executor cleared the bit. */
++    assert(acknowledged == 1);
++    assert(!(GUEST32(FLUSH) & NV_PFB_WBC_FLUSH));
++    assert(object == REGS);
++    assert(value == ((0x1234u | NV_PFB_WBC_FLUSH)));
++    printf("PASS: flush bit set, call waits for acknowledgement, object and value reported\n");
++    return 0;
++}

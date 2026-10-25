@@ -56,6 +56,7 @@ def prerequisites():
         raise SystemExit("git not found on PATH.")
     if not (REPO / "tools/xboxrecomp/CMakeLists.txt").exists():
         run(["git", "submodule", "update", "--init", "--recursive"], "git submodule update")
+    run([sys.executable, str(REPO / "scripts/patch_xboxrecomp.py")], "apply xboxrecomp patches")
 
     msvc = None
     portable = None

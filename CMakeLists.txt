@@ -43,6 +43,15 @@ endif()
 set(XBOXRECOMP_DSP_PROGRAM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/game_files/dsp")
 # MM3 owns its depth-view compatibility shader; both host renderers use it.
 set(XBOXRECOMP_NV2A_SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/mods/shaders/nv2a")
+# The submodule is upstream xboxrecomp; patches/xboxrecomp holds the generic
+# changes this port still carries on top of it.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/patch_xboxrecomp.py"
+    RESULT_VARIABLE xboxrecomp_patched)
+if(xboxrecomp_patched)
+    message(FATAL_ERROR "Could not apply patches/xboxrecomp to ${XBOXRECOMP_DIR}")
+endif()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/patch_xboxrecomp.py)
 add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)
 # MM3 VP-only playback was measured about 10 dB above GP output (-10.7 vs
 # -20.7 dBFS in a race). Keep its existing calibration outside the runtime.
@@ -372,15 +381,12 @@ foreach(distance_input IN LISTS distance_owners)
     list(APPEND RECOMP_GEN_SOURCES "${distance_output}")
 endforeach()
 
-# Helpers only this port uses, kept out of the generic runtime.
-file(GLOB MM3_RUNTIME_SOURCES CONFIGURE_DEPENDS src/runtime/*.c src/runtime/*.cpp)
-
 add_executable(${PROJECT_NAME}
     src/main.c
     src/mm3_asset_cache.c
        src/mm3_host_video.c
     src/mm3_launcher.cpp
-    ${MM3_RUNTIME_SOURCES}
+    ${XBOXRECOMP_DIR}/src/ui/rmlui_host.cpp
     ${MM3_RMLUI_BACKEND}
     src/mods/mods.c
     src/mods/render_commands.c
@@ -418,7 +424,7 @@ if(WIN32)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3.rc)
 endif()
 if(XBOXRECOMP_RENDERER STREQUAL "SDL3_GPU")
-    set_property(SOURCE ${MM3_RMLUI_BACKEND} src/mm3_launcher.cpp src/runtime/rmlui_host.cpp APPEND PROPERTY
+    set_property(SOURCE ${MM3_RMLUI_BACKEND} src/mm3_launcher.cpp ${XBOXRECOMP_DIR}/src/ui/rmlui_host.cpp APPEND PROPERTY
         COMPILE_DEFINITIONS RMLUI_SDL_VERSION_MAJOR=3)
 endif()
 
@@ -442,7 +448,6 @@ endif()
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     src
-    src/runtime
     src/recomp
     ${RECOMP_GEN_DIR}
     ${XBOXRECOMP_DIR}/include
@@ -457,7 +462,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${rmlui_SOURCE_DIR}/Backends)
 # vocabulary off Windows (on Windows it only adds the include path).
 foreach(check teleport dev_tools draw_distance)
     add_executable(mm3_${check}_contract EXCLUDE_FROM_ALL tests/mm3_${check}_contract.c)
-    target_include_directories(mm3_${check}_contract PRIVATE src src/runtime src/recomp ${RECOMP_GEN_DIR}
+    target_include_directories(mm3_${check}_contract PRIVATE src src/recomp ${RECOMP_GEN_DIR}
         ${XBOXRECOMP_DIR}/include ${XBOXRECOMP_DIR}/src/video ${XBOXRECOMP_DIR}/src/kernel)
     target_link_libraries(mm3_${check}_contract PRIVATE platform ${MM3_WIN32_LIBS} ${MM3_LIBM})
     if(MSVC)

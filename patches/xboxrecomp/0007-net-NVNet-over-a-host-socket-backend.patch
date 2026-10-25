@@ -1,0 +1,1356 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Matt Graham <matt.sg@hotmail.com>
+Date: Sun, 25 Oct 2026 19:25:15 +0000
+Subject: [PATCH 07/12] net: NVNet over a host socket backend
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/net/CMakeLists.txt |  19 ++
+ src/net/net.h          |  36 +++
+ src/net/net_backend.c  | 589 +++++++++++++++++++++++++++++++++++++++++
+ src/net/net_platform.h | 149 +++++++++++
+ src/net/nvnet.c        | 514 +++++++++++++++++++++++++++++++++++
+ 5 files changed, 1307 insertions(+)
+ create mode 100644 src/net/CMakeLists.txt
+ create mode 100644 src/net/net.h
+ create mode 100644 src/net/net_backend.c
+ create mode 100644 src/net/net_platform.h
+ create mode 100644 src/net/nvnet.c
+
+diff --git a/src/net/CMakeLists.txt b/src/net/CMakeLists.txt
+new file mode 100644
+index 00000000..6fbef323
+--- /dev/null
++++ b/src/net/CMakeLists.txt
+@@ -0,0 +1,19 @@
++# Network: the MCPX Ethernet controller a title's XNet drives, and the NAT and
++# peer tunnel that carry its frames (RECOMP_NET)
++
++add_library(xbox_net STATIC
++    nvnet.c
++    net_backend.c
++)
++
++target_include_directories(xbox_net PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
++target_link_libraries(xbox_net PUBLIC platform)
++if(WIN32)
++    target_link_libraries(xbox_net PUBLIC ws2_32 iphlpapi winmm)
++endif()
++
++if(MSVC)
++    target_compile_options(xbox_net PRIVATE /W4 /O2)
++else()
++    target_compile_options(xbox_net PRIVATE -Wall -Wextra -O2)
++endif()
+diff --git a/src/net/net.h b/src/net/net.h
+new file mode 100644
+index 00000000..c750c897
+--- /dev/null
++++ b/src/net/net.h
+@@ -0,0 +1,36 @@
++/*
++ * net.h -- the Xbox network adapter (nvnet.c) and what carries its frames
++ * (net_backend.c).
++ *
++ * RECOMP_NET=nat turns it on. The adapter is the MCPX Ethernet controller a
++ * title's XNet drives; the backend is a user-mode NAT through the host's
++ * sockets (DHCP, DNS, UDP), plus, with RECOMP_NET_PEERS, a tunnel that
++ * carries Ethernet frames to other players over UDP so system link works
++ * across the internet as it does on one LAN.
++ */
++#ifndef XBOX_NET_H
++#define XBOX_NET_H
++
++#include <stdint.h>
++
++/* The adapter: does nothing unless RECOMP_NET is set. */
++void xbox_NicInit(void);
++int  xbox_NicOwnsAddress(uint32_t xbox_va);
++int  xbox_NicHandleMmio(void *ctx, uint32_t xbox_va);  /* ctx: PCONTEXT */
++void xbox_NicReport(void);
++
++/* Optional DNS aliases, configured before network startup. The caller owns
++ * the table and non-NULL strings for the backend's lifetime; NULL clears it.
++ * No aliases are installed by default. A/IN requests for matching names resolve
++ * through the host; other names retain ordinary upstream DNS forwarding. */
++typedef struct { const char *query, *target; } XboxDnsAlias;
++void net_backend_set_dns_aliases(const XboxDnsAlias *aliases, unsigned count);
++
++/* The backend, called by the adapter. */
++int  net_backend_init(const char *mode);
++void net_backend_send(const uint8_t *frame, uint32_t len);   /* guest -> network */
++uint32_t net_backend_peek(uint8_t *buf, uint32_t cap);      /* next frame for the guest, 0 none */
++void net_backend_pop(void);
++void net_backend_wait(unsigned ms);                          /* until a frame is queued or ms pass */
++
++#endif
+diff --git a/src/net/net_backend.c b/src/net/net_backend.c
+new file mode 100644
+index 00000000..e0117b3f
+--- /dev/null
++++ b/src/net/net_backend.c
+@@ -0,0 +1,589 @@
++/*
++ * net_backend.c -- where the Xbox adapter's Ethernet frames go.
++ *
++ * NAT, the way xemu's default ("user", libslirp) network works, but through
++ * the host's own sockets: the guest sees a router at 10.0.2.2 that answers
++ * ARP and DHCP, a DNS server at 10.0.2.3 that forwards to the host's (or
++ * RECOMP_NET_DNS), and UDP to anywhere, each guest port carried by a host
++ * socket. Xbox Live -- Kerberos and the security gateway -- is UDP, so this
++ * supports those services. DNS aliases are optional caller-owned policy.
++ *
++ * ponytail: no TCP or ICMP through the NAT. Xbox Live titles talk UDP; add a
++ * TCP relay if a title's service is found using it.
++ *
++ * Peers, the way xemu's "udp" netdev tunnels frames: with RECOMP_NET_PEERS
++ * (host:port,...) every frame that is not for the router -- broadcasts,
++ * system link discovery, ARP for another console -- also goes to each peer
++ * as a UDP datagram on RECOMP_NET_PORT, and frames peers send are delivered
++ * to the guest. A peer that sends first is learned, so only one side needs
++ * the other's address. Each guest gets a stable address from its MAC; the
++ * 200-address mapping does not guarantee unique leases across peers.
++ */
++#include "net.h"
++#include "net_platform.h"
++
++#define FRAME_MAX   1536
++#define QUEUE_LEN   256
++#define MAX_NAT     64
++#define MAX_PEERS   8
++#define TUNNEL_MAGIC 0x4E4C4258u   /* "XBLN" */
++
++static const uint8_t k_router_mac[6] = {0x52, 0x54, 0x00, 0x12, 0x35, 0x02};
++static const uint8_t k_bcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
++#define NET_PREFIX  0x0A000200u     /* 10.0.2.0/24 */
++#define ROUTER_IP   (NET_PREFIX | 2)
++#define DNS_IP      (NET_PREFIX | 3)
++
++/* RECOMP_NET_TRACE: the first frames each way, one line each; =u skips
++ * broadcasts, which otherwise use up the budget before a join starts. */
++static void trace_frame(const char *dir, const uint8_t *f, uint32_t n)
++{
++    static int on = -1;
++    static volatile LONG count;
++    if (on < 0)
++        on = getenv("RECOMP_NET_TRACE") ? 1 + (getenv("RECOMP_NET_TRACE")[0] == 'u') : 0;
++    if (!on || n < 14 || (on == 2 && (f[0] & 1)) || InterlockedIncrement(&count) > 300)
++        return;
++    unsigned type = (unsigned)(f[12] << 8 | f[13]);
++    if (type == 0x0800 && n >= 34) {
++        const uint8_t *ip = f + 14, *l4 = ip + (ip[0] & 15) * 4;
++        fprintf(stderr, "  [NET] %s %u.%u.%u.%u:%u -> %u.%u.%u.%u:%u proto %u len %u\n", dir,
++                ip[12], ip[13], ip[14], ip[15], (unsigned)(l4[0] << 8 | l4[1]),
++                ip[16], ip[17], ip[18], ip[19], (unsigned)(l4[2] << 8 | l4[3]), ip[9], n);
++    } else {
++        fprintf(stderr, "  [NET] %s type %04X to %02X:%02X:%02X:%02X:%02X:%02X len %u\n", dir, type,
++                f[0], f[1], f[2], f[3], f[4], f[5], n);
++    }
++    fflush(stderr);
++}
++
++/* ---- the queue of frames for the guest --------------------------------- */
++
++static struct {
++    SRWLOCK lock;
++    HANDLE event;
++    uint8_t data[QUEUE_LEN][FRAME_MAX];
++    uint32_t len[QUEUE_LEN];
++    unsigned head, tail;   /* head: next out; tail: next in */
++} q = {.lock = SRWLOCK_INIT};
++
++static void deliver(const uint8_t *f, uint32_t n)
++{
++    if (n > FRAME_MAX)
++        return;
++    trace_frame("in ", f, n);
++    AcquireSRWLockExclusive(&q.lock);
++    if (q.tail - q.head < QUEUE_LEN) {
++        memcpy(q.data[q.tail % QUEUE_LEN], f, n);
++        q.len[q.tail % QUEUE_LEN] = n;
++        q.tail++;
++    }
++    ReleaseSRWLockExclusive(&q.lock);
++    SetEvent(q.event);
++}
++
++uint32_t net_backend_peek(uint8_t *buf, uint32_t cap)
++{
++    uint32_t n = 0;
++    AcquireSRWLockShared(&q.lock);
++    if (q.head != q.tail && q.len[q.head % QUEUE_LEN] <= cap) {
++        n = q.len[q.head % QUEUE_LEN];
++        memcpy(buf, q.data[q.head % QUEUE_LEN], n);
++    }
++    ReleaseSRWLockShared(&q.lock);
++    return n;
++}
++
++void net_backend_pop(void)
++{
++    AcquireSRWLockExclusive(&q.lock);
++    if (q.head != q.tail)
++        q.head++;
++    ReleaseSRWLockExclusive(&q.lock);
++}
++
++void net_backend_wait(unsigned ms)
++{
++    WaitForSingleObject(q.event, ms);
++}
++
++/* ---- state ------------------------------------------------------------- */
++
++static struct {
++    SRWLOCK lock;
++    uint8_t guest_mac[6];
++    int have_mac;
++    uint32_t guest_ip;              /* host order */
++    uint32_t dns_upstream;          /* network order */
++    SOCKET dns;
++    uint16_t dns_guest_port;
++    struct { SOCKET s; uint16_t guest_port; DWORD used; } nat[MAX_NAT];
++    SOCKET tunnel;
++    struct sockaddr_in peer[MAX_PEERS];
++    int npeers;
++    unsigned out, in;
++} st = {.lock = SRWLOCK_INIT};
++
++/* ---- packet building --------------------------------------------------- */
++
++static uint16_t rd16(const uint8_t *p) { return (uint16_t)(p[0] << 8 | p[1]); }
++static uint32_t rd32(const uint8_t *p) { return (uint32_t)p[0] << 24 | p[1] << 16 | p[2] << 8 | p[3]; }
++static void wr16(uint8_t *p, uint16_t v) { p[0] = (uint8_t)(v >> 8); p[1] = (uint8_t)v; }
++static void wr32(uint8_t *p, uint32_t v) { wr16(p, (uint16_t)(v >> 16)); wr16(p + 2, (uint16_t)v); }
++
++static uint32_t sum16(const uint8_t *p, uint32_t n, uint32_t acc)
++{
++    for (; n > 1; p += 2, n -= 2)
++        acc += rd16(p);
++    if (n)
++        acc += (uint32_t)p[0] << 8;
++    return acc;
++}
++
++static uint16_t fold(uint32_t acc)
++{
++    while (acc >> 16)
++        acc = (acc & 0xFFFF) + (acc >> 16);
++    return (uint16_t)~acc;
++}
++
++/* An Ethernet/IPv4/UDP frame to the guest. */
++static void send_udp_to_guest(const uint8_t dst_mac[6], uint32_t src_ip, uint16_t sport,
++                              uint32_t dst_ip, uint16_t dport, const uint8_t *data, uint32_t n)
++{
++    uint8_t f[FRAME_MAX];
++    if (14 + 20 + 8 + n > sizeof f)
++        return;
++    memcpy(f, dst_mac, 6);
++    memcpy(f + 6, k_router_mac, 6);
++    wr16(f + 12, 0x0800);
++    uint8_t *ip = f + 14, *udp = ip + 20;
++    memset(ip, 0, 20);
++    ip[0] = 0x45;
++    wr16(ip + 2, (uint16_t)(20 + 8 + n));
++    ip[8] = 64;
++    ip[9] = 17;
++    wr32(ip + 12, src_ip);
++    wr32(ip + 16, dst_ip);
++    wr16(ip + 10, fold(sum16(ip, 20, 0)));
++    wr16(udp, sport);
++    wr16(udp + 2, dport);
++    wr16(udp + 4, (uint16_t)(8 + n));
++    wr16(udp + 6, 0);
++    memcpy(udp + 8, data, n);
++    {   /* checksum over the pseudo-header */
++        uint32_t acc = sum16(ip + 12, 8, 17 + 8 + n);
++        uint16_t c = fold(sum16(udp, 8 + n, acc));
++        wr16(udp + 6, c ? c : 0xFFFF);
++    }
++    deliver(f, 14 + 20 + 8 + n);
++}
++
++/* Stable guest address: 10.0.2.16-215 selected from its MAC. */
++static void learn_mac(const uint8_t mac[6])
++{
++    if (st.have_mac)
++        return;
++    memcpy(st.guest_mac, mac, 6);
++    st.have_mac = 1;
++    st.guest_ip = NET_PREFIX | (16 + ((mac[3] ^ mac[4] * 7 ^ mac[5] * 13) % 200));
++    fprintf(stderr, "  NET: guest %02X:%02X:%02X:%02X:%02X:%02X gets 10.0.2.%u\n",
++            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], st.guest_ip & 0xFF);
++    fflush(stderr);
++}
++
++/* ---- ARP and DHCP ------------------------------------------------------ */
++
++static void arp(const uint8_t *f, uint32_t n)
++{
++    if (n < 42 || rd16(f + 20) != 1)         /* requests only */
++        return;
++    uint32_t target = rd32(f + 38);
++    if (target != ROUTER_IP && target != DNS_IP)
++        return;
++    uint8_t r[42];
++    memcpy(r, f + 6, 6);
++    memcpy(r + 6, k_router_mac, 6);
++    wr16(r + 12, 0x0806);
++    wr16(r + 14, 1); wr16(r + 16, 0x0800); r[18] = 6; r[19] = 4;
++    wr16(r + 20, 2);
++    memcpy(r + 22, k_router_mac, 6);
++    wr32(r + 28, target);
++    memcpy(r + 32, f + 22, 6);
++    memcpy(r + 38, f + 28, 4);
++    deliver(r, sizeof r);
++}
++
++static void dhcp(const uint8_t *bootp, uint32_t n)
++{
++    if (n < 240 || bootp[0] != 1 || rd32(bootp + 236) != 0x63825363u)
++        return;
++    int type = 0;
++    for (uint32_t i = 240; i + 1 < n && bootp[i] != 255;) {
++        if (bootp[i] == 0) { i++; continue; }
++        if (bootp[i] == 53 && i + 2 < n)
++            type = bootp[i + 2];
++        i += 2 + bootp[i + 1];
++    }
++    if (type != 1 && type != 3)              /* DISCOVER, REQUEST */
++        return;
++    learn_mac(bootp + 28);
++    uint8_t r[300];
++    memset(r, 0, sizeof r);
++    r[0] = 2; r[1] = 1; r[2] = 6;
++    memcpy(r + 4, bootp + 4, 4);             /* xid */
++    memcpy(r + 10, bootp + 10, 2);           /* flags */
++    wr32(r + 16, st.guest_ip);               /* yiaddr */
++    wr32(r + 20, ROUTER_IP);                 /* siaddr */
++    memcpy(r + 28, bootp + 28, 16);          /* chaddr */
++    wr32(r + 236, 0x63825363u);
++    uint8_t *o = r + 240;
++    *o++ = 53; *o++ = 1; *o++ = (uint8_t)(type == 1 ? 2 : 5);   /* OFFER / ACK */
++    *o++ = 54; *o++ = 4; wr32(o, ROUTER_IP); o += 4;
++    *o++ = 51; *o++ = 4; wr32(o, 86400); o += 4;
++    *o++ = 1;  *o++ = 4; wr32(o, 0xFFFFFF00u); o += 4;
++    *o++ = 3;  *o++ = 4; wr32(o, ROUTER_IP); o += 4;
++    *o++ = 6;  *o++ = 4; wr32(o, DNS_IP); o += 4;
++    *o++ = 255;
++    send_udp_to_guest(k_bcast, ROUTER_IP, 67, 0xFFFFFFFFu, 68, r, (uint32_t)(o - r));
++    fprintf(stderr, "  NET: DHCP %s 10.0.2.%u\n", type == 1 ? "offer" : "ack", st.guest_ip & 0xFF);
++    fflush(stderr);
++}
++
++/* ---- UDP through host sockets ------------------------------------------ */
++
++static SOCKET udp_socket(uint16_t port)
++{
++    SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
++    struct sockaddr_in a;
++    if (s == INVALID_SOCKET)
++        return s;
++    memset(&a, 0, sizeof a);
++    a.sin_family = AF_INET;
++    a.sin_port = htons(port);
++    if (bind(s, (struct sockaddr *)&a, sizeof a) != 0 && port) {
++        a.sin_port = 0;                      /* taken: any port */
++        bind(s, (struct sockaddr *)&a, sizeof a);
++    }
++    net_sock_set_nonblocking(s, 1);
++    net_sock_set_broadcast(s);
++    net_sock_ignore_udp_reset(s);
++    return s;
++}
++
++/* The host socket carrying a guest port, made on first use. */
++static SOCKET nat_socket(uint16_t guest_port)
++{
++    int free_i = -1, oldest = 0;
++    SOCKET s;
++    AcquireSRWLockExclusive(&st.lock);
++    for (int i = 0; i < MAX_NAT; i++) {
++        if (st.nat[i].s != INVALID_SOCKET && st.nat[i].guest_port == guest_port) {
++            st.nat[i].used = GetTickCount();
++            s = st.nat[i].s;
++            ReleaseSRWLockExclusive(&st.lock);
++            return s;
++        }
++        if (st.nat[i].s == INVALID_SOCKET && free_i < 0)
++            free_i = i;
++        if (st.nat[i].used < st.nat[oldest].used)
++            oldest = i;
++    }
++    if (free_i < 0) {   /* full: reuse the least recently used */
++        net_sock_close(st.nat[oldest].s);
++        free_i = oldest;
++    }
++    s = udp_socket(guest_port);
++    st.nat[free_i].s = s;
++    st.nat[free_i].guest_port = guest_port;
++    st.nat[free_i].used = GetTickCount();
++    ReleaseSRWLockExclusive(&st.lock);
++    return s;
++}
++
++static const XboxDnsAlias *s_dns_aliases;
++static unsigned s_dns_alias_count;
++void net_backend_set_dns_aliases(const XboxDnsAlias *aliases, unsigned count)
++{
++    s_dns_aliases = aliases;
++    s_dns_alias_count = aliases ? count : 0;
++}
++
++/* The answer to query q (n bytes) if it asks for one of those names, in
++ * out; its length, or 0 to forward the query. */
++static int dns_alias_answer(const uint8_t *qry, int n, uint8_t *out)
++{
++    char name[256];
++    int i = 12, o = 0;
++    if (n < 17 || rd16(qry + 4) != 1)
++        return 0;
++    while (i < n && qry[i]) {                     /* the labels, dotted */
++        int l = qry[i++];
++        if (l > 63 || i + l > n || o + l + 1 >= (int)sizeof name)
++            return 0;
++        if (o) name[o++] = '.';
++        memcpy(name + o, qry + i, l);
++        o += l; i += l;
++    }
++    name[o] = 0;
++    if (i + 5 > n)
++        return 0;
++    if (rd16(qry + i + 1) != 1 || rd16(qry + i + 3) != 1) return 0;
++    i += 5;                                     /* the end, A, IN */
++    for (unsigned z = 0; z < s_dns_alias_count; z++) {
++        struct addrinfo hints = {0}, *res = NULL;
++        if (_stricmp(name, s_dns_aliases[z].query))
++            continue;
++        memcpy(out, qry, i);
++        wr16(out + 2, 0x8180);                  /* a response, recursion available */
++        wr16(out + 6, 0); wr16(out + 8, 0); wr16(out + 10, 0);
++        hints.ai_family = AF_INET;
++        if (rd16(qry + i - 4) == 1 && !getaddrinfo(s_dns_aliases[z].target, NULL, &hints, &res)) {
++            uint8_t *a = out + i;
++            wr16(a, 0xC00C); wr16(a + 2, 1); wr16(a + 4, 1);   /* the name, A, IN */
++            wr32(a + 6, 300); wr16(a + 10, 4);
++            memcpy(a + 12, &((struct sockaddr_in *)res->ai_addr)->sin_addr, 4);
++            wr16(out + 6, 1);
++            i += 16;
++            freeaddrinfo(res);
++        }
++        return i;
++    }
++    return 0;
++}
++
++static void udp_out(const uint8_t *ip, const uint8_t *udp, uint32_t len)
++{
++    uint32_t dst = rd32(ip + 16);
++    uint16_t sport = rd16(udp), dport = rd16(udp + 2);
++    struct sockaddr_in to;
++    memset(&to, 0, sizeof to);
++    to.sin_family = AF_INET;
++    if (dst == DNS_IP && dport == 53) {
++        uint8_t reply[600];
++        int r = len - 8 <= 512 ? dns_alias_answer(udp + 8, (int)len - 8, reply) : 0;
++        if (r) {
++            send_udp_to_guest(st.guest_mac, DNS_IP, 53, st.guest_ip, sport, reply, (uint32_t)r);
++            return;
++        }
++        if (!st.dns_upstream)
++            return;
++        st.dns_guest_port = sport;
++        to.sin_addr.s_addr = st.dns_upstream;
++        to.sin_port = htons(53);
++        sendto(st.dns, (const char *)udp + 8, (int)len - 8, 0, (struct sockaddr *)&to, sizeof to);
++        return;
++    }
++    /* The LAN, broadcasts included: peers carry those as frames. A socket
++     * would rewrite system link's 0.0.0.1 source and hear its own echo. */
++    if ((dst & 0xFFFFFF00u) == NET_PREFIX || dst == 0xFFFFFFFFu)
++        return;
++    SOCKET s = nat_socket(sport);
++    if (s == INVALID_SOCKET)
++        return;
++    to.sin_addr.s_addr = htonl(dst);
++    to.sin_port = htons(dport);
++    sendto(s, (const char *)udp + 8, (int)len - 8, 0, (struct sockaddr *)&to, sizeof to);
++}
++
++/* A frame for the router: ARP, DHCP, or IPv4 to route. */
++static void to_router(const uint8_t *f, uint32_t n)
++{
++    uint16_t type = rd16(f + 12);
++    if (type == 0x0806) {
++        arp(f, n);
++        return;
++    }
++    if (type != 0x0800 || n < 14 + 20)
++        return;
++    const uint8_t *ip = f + 14;
++    uint32_t ihl = (ip[0] & 15) * 4u, total = rd16(ip + 2);
++    if (total > n - 14 || ihl < 20 || total < ihl)
++        return;
++    if (ip[9] != 17 || total < ihl + 8)      /* UDP only */
++        return;
++    const uint8_t *udp = ip + ihl;
++    uint32_t ulen = rd16(udp + 4);
++    if (ulen < 8 || ulen > total - ihl)
++        return;
++    if (rd16(udp + 2) == 67) {
++        dhcp(udp + 8, ulen - 8);
++        return;
++    }
++    learn_mac(f + 6);
++    udp_out(ip, udp, ulen);
++}
++
++/* ---- peers ------------------------------------------------------------- */
++
++static void to_peers(const uint8_t *f, uint32_t n)
++{
++    uint8_t buf[4 + FRAME_MAX];
++    if (st.tunnel == INVALID_SOCKET || n > FRAME_MAX)
++        return;
++    wr32(buf, TUNNEL_MAGIC);
++    memcpy(buf + 4, f, n);
++    for (int i = 0; i < st.npeers; i++)
++        sendto(st.tunnel, (const char *)buf, (int)n + 4, 0, (struct sockaddr *)&st.peer[i],
++               sizeof st.peer[i]);
++}
++
++static void add_peer(const struct sockaddr_in *a)
++{
++    for (int i = 0; i < st.npeers; i++)
++        if (st.peer[i].sin_addr.s_addr == a->sin_addr.s_addr && st.peer[i].sin_port == a->sin_port)
++            return;
++    if (st.npeers < MAX_PEERS) {
++        st.peer[st.npeers++] = *a;
++        fprintf(stderr, "  NET: peer %s:%u\n", inet_ntoa(a->sin_addr), ntohs(a->sin_port));
++        fflush(stderr);
++    }
++}
++
++void net_backend_send(const uint8_t *f, uint32_t n)
++{
++    if (n < 14)
++        return;
++    trace_frame("out", f, n);
++    st.out++;
++    if (!memcmp(f, k_router_mac, 6)) {
++        to_router(f, n);
++        return;
++    }
++    if (!memcmp(f, k_bcast, 6))
++        to_router(f, n);                     /* ARP for the router, DHCP */
++    to_peers(f, n);
++}
++
++/* ---- the receive thread ------------------------------------------------ */
++
++static DWORD WINAPI net_thread(LPVOID unused)
++{
++    static uint8_t buf[4 + FRAME_MAX];
++    (void)unused;
++    for (;;) {
++        fd_set rd;
++        SOCKET socks[MAX_NAT];
++        uint16_t ports[MAX_NAT];
++        int nn = 0;
++        struct timeval tv = {0, 5000};
++        NetWatch w = {0, 0};
++        FD_ZERO(&rd);
++        if (st.dns != INVALID_SOCKET) net_watch(&rd, &w, st.dns);
++        if (st.tunnel != INVALID_SOCKET) net_watch(&rd, &w, st.tunnel);
++        AcquireSRWLockShared(&st.lock);
++        for (int i = 0; i < MAX_NAT; i++)
++            if (st.nat[i].s != INVALID_SOCKET) {
++                socks[nn] = st.nat[i].s;
++                ports[nn++] = st.nat[i].guest_port;
++                net_watch(&rd, &w, st.nat[i].s);
++            }
++        ReleaseSRWLockShared(&st.lock);
++        if (w.count == 0) {
++            Sleep(5);
++            continue;
++        }
++        if (select(w.nfds, &rd, NULL, NULL, &tv) <= 0)
++            continue;
++        struct sockaddr_in from;
++        net_socklen_t fl = sizeof from;
++        int n;
++        if (st.dns != INVALID_SOCKET && FD_ISSET(st.dns, &rd)) {
++            while ((n = recvfrom(st.dns, (char *)buf, FRAME_MAX - 64, 0, (struct sockaddr *)&from, &fl)) > 0) {
++                send_udp_to_guest(st.guest_mac, DNS_IP, 53, st.guest_ip, st.dns_guest_port, buf, (uint32_t)n);
++                fl = sizeof from;
++            }
++        }
++        if (st.tunnel != INVALID_SOCKET && FD_ISSET(st.tunnel, &rd)) {
++            fl = sizeof from;
++            while ((n = recvfrom(st.tunnel, (char *)buf, sizeof buf, 0, (struct sockaddr *)&from, &fl)) > 0) {
++                if (n > 4 + 14 && rd32(buf) == TUNNEL_MAGIC) {
++                    add_peer(&from);
++                    deliver(buf + 4, (uint32_t)n - 4);
++                    st.in++;
++                }
++                fl = sizeof from;
++            }
++        }
++        for (int i = 0; i < nn; i++) {
++            if (!FD_ISSET(socks[i], &rd))
++                continue;
++            fl = sizeof from;
++            while ((n = recvfrom(socks[i], (char *)buf, FRAME_MAX - 64, 0, (struct sockaddr *)&from, &fl)) > 0) {
++                send_udp_to_guest(st.guest_mac, ntohl(from.sin_addr.s_addr), ntohs(from.sin_port),
++                                  st.guest_ip, ports[i], buf, (uint32_t)n);
++                st.in++;
++                fl = sizeof from;
++            }
++        }
++    }
++#if defined(__GNUC__) || defined(__clang__)
++    /* The loop above never exits; stating that silences -Wreturn-type. MSVC
++     * warns about code after an endless loop, so it gets nothing here. */
++    __builtin_unreachable();
++#endif
++}
++
++/* The host's first DNS server, unless RECOMP_NET_DNS names one. */
++static uint32_t upstream_dns(void)
++{
++    const char *env = getenv("RECOMP_NET_DNS");
++    struct in_addr a;
++    if (env && *env && inet_pton(AF_INET, env, &a) == 1)
++        return a.s_addr;
++    return net_host_dns_first();
++}
++
++int net_backend_init(const char *mode)
++{
++    (void)mode;   /* "nat" (or "1"): the only mode; peers come on top */
++    if (!net_sock_startup())
++        return 0;
++    q.event = CreateEventA(NULL, FALSE, FALSE, NULL);
++    st.dns = udp_socket(0);
++    st.dns_upstream = upstream_dns();
++    st.tunnel = INVALID_SOCKET;
++    for (int i = 0; i < MAX_NAT; i++)
++        st.nat[i].s = INVALID_SOCKET;
++    st.guest_ip = NET_PREFIX | 15;
++
++    const char *peers = getenv("RECOMP_NET_PEERS");
++    const char *port = getenv("RECOMP_NET_PORT");
++    if ((peers && *peers) || (port && *port)) {
++        uint16_t p = (uint16_t)(port && *port ? atoi(port) : 3075);
++        st.tunnel = udp_socket(p);
++        char list[512];
++        snprintf(list, sizeof list, "%s", peers ? peers : "");
++        for (char *tok = strtok(list, ", "); tok; tok = strtok(NULL, ", ")) {
++            char *colon = strrchr(tok, ':');
++            struct addrinfo hints = {0}, *res = NULL;
++            hints.ai_family = AF_INET;
++            hints.ai_socktype = SOCK_DGRAM;
++            if (colon)
++                *colon = 0;
++            if (getaddrinfo(tok, colon ? colon + 1 : "3075", &hints, &res) == 0 && res) {
++                add_peer((struct sockaddr_in *)res->ai_addr);
++                freeaddrinfo(res);
++            } else {
++                fprintf(stderr, "  NET: cannot resolve peer %s\n", tok);
++            }
++        }
++        {
++            struct sockaddr_in me;
++            net_socklen_t l = sizeof me;
++            getsockname(st.tunnel, (struct sockaddr *)&me, &l);
++            fprintf(stderr, "  NET: peer tunnel on UDP %u\n", ntohs(me.sin_port));
++        }
++    }
++    {
++        struct in_addr a;
++        a.s_addr = st.dns_upstream;
++        fprintf(stderr, "  NET: NAT 10.0.2.0/24, DNS via %s\n", st.dns_upstream ? inet_ntoa(a) : "(none)");
++        fflush(stderr);
++    }
++    HANDLE th = CreateThread(NULL, 0, net_thread, NULL, 0, NULL);
++    if (!th)
++        return 0;
++    CloseHandle(th);
++    return 1;
++}
+diff --git a/src/net/net_platform.h b/src/net/net_platform.h
+new file mode 100644
+index 00000000..74c901b9
+--- /dev/null
++++ b/src/net/net_platform.h
+@@ -0,0 +1,149 @@
++/*
++ * net_platform.h -- the socket calls where Winsock and BSD sockets differ.
++ *
++ * net_backend.c is one implementation; only these shims know the host. The
++ * threads, events, SRW locks and timeouts it uses come from the platform
++ * layer (win32_compat.h off Windows), which is the same on both.
++ */
++#ifndef NET_PLATFORM_H
++#define NET_PLATFORM_H
++
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#if defined(_WIN32)
++#include <winsock2.h>
++#include <ws2tcpip.h>
++#include <iphlpapi.h>
++#include <windows.h>
++
++typedef int net_socklen_t;
++
++static inline int net_sock_startup(void)
++{
++    WSADATA wsa;
++    return WSAStartup(MAKEWORD(2, 2), &wsa) == 0;
++}
++
++static inline void net_sock_close(SOCKET s) { closesocket(s); }
++
++static inline void net_sock_set_nonblocking(SOCKET s, int on)
++{
++    u_long v = on ? 1 : 0;
++    ioctlsocket(s, FIONBIO, &v);
++}
++
++static inline void net_sock_set_broadcast(SOCKET s)
++{
++    BOOL yes = TRUE;
++    setsockopt(s, SOL_SOCKET, SO_BROADCAST, (const char *)&yes, sizeof yes);
++}
++
++static inline void net_sock_set_recv_timeout(SOCKET s, unsigned ms)
++{
++    DWORD tmo = ms;
++    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tmo, sizeof tmo);
++}
++
++/* An ICMP port-unreachable must not turn into an error on the next read. */
++static inline void net_sock_ignore_udp_reset(SOCKET s)
++{
++    BOOL off = FALSE;
++    DWORD ret;
++    WSAIoctl(s, _WSAIOW(IOC_VENDOR, 12) /* SIO_UDP_CONNRESET */, &off, sizeof off,
++             NULL, 0, &ret, NULL, NULL);
++}
++
++/* The host's first DNS server (network order), 0 if none. */
++static inline uint32_t net_host_dns_first(void)
++{
++    ULONG size = 0;
++    GetNetworkParams(NULL, &size);
++    FIXED_INFO *info = (FIXED_INFO *)malloc(size);
++    struct in_addr a;
++    uint32_t r = 0;
++    if (info && GetNetworkParams(info, &size) == NO_ERROR &&
++        inet_pton(AF_INET, info->DnsServerList.IpAddress.String, &a) == 1)
++        r = a.s_addr;
++    free(info);
++    return r;
++}
++
++#else /* POSIX: Linux, macOS */
++#include <errno.h>
++#include <fcntl.h>
++#include <unistd.h>
++#include <sys/types.h>
++#include <sys/socket.h>
++#include <sys/select.h>
++#include <sys/time.h>
++#include <netinet/in.h>
++#include <arpa/inet.h>
++#include <netdb.h>
++#include "../platform/win32_compat.h"   /* Sleep, events, SRW locks, threads */
++
++typedef int SOCKET;
++#define INVALID_SOCKET (-1)
++typedef socklen_t net_socklen_t;
++
++static inline int net_sock_startup(void) { return 1; }
++
++static inline void net_sock_close(SOCKET s) { close(s); }
++
++static inline void net_sock_set_nonblocking(SOCKET s, int on)
++{
++    int fl = fcntl(s, F_GETFL, 0);
++    if (fl >= 0)
++        fcntl(s, F_SETFL, on ? (fl | O_NONBLOCK) : (fl & ~O_NONBLOCK));
++}
++
++static inline void net_sock_set_broadcast(SOCKET s)
++{
++    int yes = 1;
++    setsockopt(s, SOL_SOCKET, SO_BROADCAST, &yes, sizeof yes);
++}
++
++static inline void net_sock_set_recv_timeout(SOCKET s, unsigned ms)
++{
++    struct timeval tv = {(time_t)(ms / 1000), (suseconds_t)(ms % 1000) * 1000};
++    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
++}
++
++/* Unconnected UDP sockets do not surface ICMP errors here, so nothing to do. */
++static inline void net_sock_ignore_udp_reset(SOCKET s) { (void)s; }
++
++/* The first nameserver in /etc/resolv.conf (network order), 0 if none. */
++static inline uint32_t net_host_dns_first(void)
++{
++    char line[256];
++    struct in_addr a;
++    uint32_t r = 0;
++    FILE *f = fopen("/etc/resolv.conf", "r");
++    if (!f)
++        return 0;
++    while (!r && fgets(line, sizeof line, f)) {
++        char ip[64];
++        if (sscanf(line, " nameserver %63s", ip) == 1 && inet_pton(AF_INET, ip, &a) == 1)
++            r = a.s_addr;
++    }
++    fclose(f);
++    return r;
++}
++#endif
++
++/* Read-set bookkeeping: select() wants the highest descriptor + 1 on POSIX
++ * (Winsock ignores it), and the count says whether there is anything to wait
++ * on at all. */
++typedef struct { int count; int nfds; } NetWatch;
++
++static inline void net_watch(fd_set *rd, NetWatch *w, SOCKET s)
++{
++    FD_SET(s, rd);
++    w->count++;
++    if ((int)s >= w->nfds)
++        w->nfds = (int)s + 1;
++}
++
++#endif /* NET_PLATFORM_H */
+diff --git a/src/net/nvnet.c b/src/net/nvnet.c
+new file mode 100644
+index 00000000..a30f0178
+--- /dev/null
++++ b/src/net/nvnet.c
+@@ -0,0 +1,514 @@
++/*
++ * nvnet.c -- the MCPX nForce Ethernet controller at 0xFEF00000.
++ *
++ * Ported from xemu's hw/xbox/mcpx/nvnet/nvnet.c:
++ *   Copyright (c) 2013 espes
++ *   Copyright (c) 2015-2025 Matt Borgerson
++ * Licensed under the GNU Lesser General Public License 2.1 or later
++ * (LICENSES/LGPL-2.1.txt).
++ *
++ * A title's XNet is linked into its image and drives these registers
++ * itself: a TX and an RX ring of 8-byte descriptors in contiguous memory, a
++ * kick to transmit, an interrupt when a frame lands. Without the model the
++ * registers read back from plain RAM, nothing is ever sent, DHCP never
++ * answers and the title's network readiness never comes.
++ *
++ * The register semantics follow xemu. What differs is the plumbing: the
++ * aperture is trapped like the USB controllers' (mmio_decode.h), DMA goes
++ * through the bus resolver the OHCI model uses, and frames go to and come
++ * from net_backend.c instead of a QEMU netdev. Received frames are queued
++ * by the backend's thread and moved into the RX ring here, under the lock,
++ * by the NIC thread, which also calls the title's interrupt routine.
++ */
++#include "net.h"
++#include "../platform/mmio_decode.h"
++#include "../kernel/xbox_memory_layout.h"
++#include "../kernel/kernel.h"
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <stddef.h>
++
++#if defined(_WIN32)
++#include <windows.h>
++#include <mmsystem.h>
++#else
++#include "../platform/win32_compat.h"
++#endif
++
++typedef void (*recomp_func_t)(void);
++extern recomp_func_t recomp_lookup(uint32_t xbox_va);
++extern uint32_t xbox_GetConnectedInterrupt(uint32_t vector);
++extern XBOX_THREAD_LOCAL uint32_t g_eax, g_ecx, g_edx, g_esp;
++extern XBOX_THREAD_LOCAL uint32_t g_ebx, g_esi, g_edi;
++extern XBOX_THREAD_LOCAL uint32_t g_fs_base;
++
++#define NIC_BASE    0xFEF00000u
++#define NIC_SIZE    0x1000u     /* the page; the registers are the first 0x400 */
++#define NIC_REGS    0x400u
++#define NIC_VECTOR  4           /* HalGetInterruptVector(4): the NIC's IRQ */
++
++/* Registers (offsets from forcedeth's names, as xemu uses them). */
++#define R_IRQ_STATUS        0x000
++#define   IRQ_RX              0x00000002u
++#define   IRQ_TX              0x00000010u
++#define   IRQ_MIIEVENT        0x00000040u
++#define R_IRQ_MASK          0x004
++#define R_TRANSMITTER_CTL   0x084
++#define R_PACKET_FILTER     0x08C
++#define   FILTER_MYADDR       0x00000020u
++#define R_RECEIVER_CTL      0x094
++#define R_MAC_ADDR_A        0x0A8
++#define R_MAC_ADDR_B        0x0AC
++#define R_MCAST_ADDR_A      0x0B0
++#define R_MCAST_ADDR_B      0x0B4
++#define R_MCAST_MASK_A      0x0B8
++#define R_MCAST_MASK_B      0x0BC
++#define R_TX_RING           0x100
++#define R_RX_RING           0x104
++#define R_RING_SIZE         0x108
++#define R_TX_CUR_DESC       0x11C
++#define R_RX_CUR_DESC       0x120
++#define R_SETUP5            0x130
++#define R_TX_NEXT_DESC      0x134
++#define R_RX_NEXT_DESC      0x138
++#define R_TX_RX_CTL         0x144
++#define   TXRX_KICK           0x00000001u
++#define   TXRX_BIT1           0x00000002u
++#define   TXRX_BIT2           0x00000004u
++#define   TXRX_IDLE           0x00000008u
++#define   TXRX_RESET          0x00000010u
++#define R_MII_STATUS        0x180
++#define   MII_LINKCHANGE      0x00000008u
++#define R_ADAPTER_CTL       0x188
++#define   ADAPTER_LINKUP      0x00000004u
++#define R_MDIO_ADDR         0x190
++#define   MDIO_INUSE          0x00008000u
++#define   MDIO_WRITE          0x00000400u
++#define R_MDIO_DATA         0x194
++
++#define NV_TX_LASTPACKET    (1u << 0)
++#define NV_TX_VALID         (1u << 15)
++#define NV_TX_ERRORS        ((1u << 3) | (1u << 10) | (1u << 11) | (1u << 12) | \
++                             (1u << 13) | (1u << 14))
++#define NV_RX_DESCRIPTORVALID (1u << 0)
++#define NV_RX_BIT4          (1u << 4)
++#define NV_RX_AVAIL         (1u << 15)
++
++/* The PHY at MDIO address 1: auto-negotiated 100 Mbit full duplex, link up. */
++#define PHY_ADDR  1
++enum { MII_BMCR, MII_BMSR, MII_PHYID1, MII_PHYID2, MII_ANAR, MII_ANLPAR };
++static const uint32_t phy_init[6] = {
++    [MII_BMCR] = 0x1100,               /* full duplex, auto-negotiation on */
++    [MII_BMSR] = 0x0008 | 0x0020 | 0x0004, /* can autoneg, done, link */
++    [MII_ANAR] = 0x01E1,
++    [MII_ANLPAR] = 0x41E1,             /* + acknowledge */
++};
++
++#define BUF_SIZE  (1500 + 128)
++
++/* Flushed: stderr is buffered when redirected, and a killed run keeps nothing. */
++#define NIC_LOG(...) do { fprintf(stderr, __VA_ARGS__); fflush(stderr); } while (0)
++
++static struct {
++    CRITICAL_SECTION lock;
++    uint8_t regs[NIC_REGS];
++    uint32_t phy[6];
++    uint8_t tx_buf[BUF_SIZE];
++    uint32_t tx_len;
++    int enabled, link_announced;
++    unsigned tx_frames, rx_frames, rx_dropped, decode_fail, irqs;
++} s;
++
++/* ---- guest DMA memory ------------------------------------------------- */
++
++#define CONTIG_BASE 0x80000000u
++#define CONTIG_SIZE (64u * 1024u * 1024u)
++
++static uint8_t *bus_ptr(uint32_t addr, uint32_t bytes)
++{
++    uint32_t guest_va;
++    size_t mapped = xbox_GetMappedSize();
++    /* Runtime RAM IDs are disjoint from guest VAs. For legacy low addresses,
++     * allocated contiguous DMA memory takes precedence over an image VA. */
++    if (xbox_PhysicalAddressResolve(addr, bytes, &guest_va) == 1)
++        addr = guest_va;
++    else if (addr < CONTIG_BASE && xbox_ContiguousRangeAllocated(addr, bytes))
++        addr += CONTIG_BASE;
++    if (addr >= CONTIG_BASE
++            ? (uint64_t)addr + bytes > (uint64_t)CONTIG_BASE + CONTIG_SIZE
++            : (addr == 0 || (uint64_t)addr + bytes > mapped))
++        return NULL;
++    return (uint8_t *)xbox_GetMemoryOffset() + addr;
++}
++
++/* ---- registers --------------------------------------------------------- */
++
++static uint32_t get(uint32_t off) { uint32_t v; memcpy(&v, s.regs + off, 4); return v; }
++static void put(uint32_t off, uint32_t v) { memcpy(s.regs + off, &v, 4); }
++static void or_(uint32_t off, uint32_t v) { put(off, get(off) | v); }
++static void and_(uint32_t off, uint32_t v) { put(off, get(off) & v); }
++
++static int irq_pending(void) { return (get(R_IRQ_STATUS) & get(R_IRQ_MASK)) != 0; }
++
++static void set_irq(uint32_t bits) { or_(R_IRQ_STATUS, bits); }
++
++static int link_up(void) { return (s.phy[MII_BMSR] & 0x0004) != 0; }
++static int dma_enabled(void) { return (get(R_TX_RX_CTL) & TXRX_BIT2) == 0; }
++
++typedef struct { uint32_t buf; uint16_t len, flags; } Desc;
++
++static int load_desc(uint32_t at, Desc *d)
++{
++    uint8_t *p = bus_ptr(at, 8);
++    if (!p)
++        return 0;
++    memcpy(&d->buf, p, 4);
++    memcpy(&d->len, p + 4, 2);
++    memcpy(&d->flags, p + 6, 2);
++    return 1;
++}
++
++static void store_desc(uint32_t at, const Desc *d)
++{
++    uint8_t *p = bus_ptr(at, 8);
++    if (!p)
++        return;
++    memcpy(p, &d->buf, 4);
++    memcpy(p + 4, &d->len, 2);
++    memcpy(p + 6, &d->flags, 2);
++}
++
++/* The current descriptor of a ring: the next one. A next pointer outside the
++ * ring is the driver's bug; it is refused (0 returned, nothing moves) and the
++ * ring stops until the driver rewrites its pointers, rather than being reset
++ * to the base. Wrapping past the end is ring_advance's job. */
++static int ring_current(uint32_t base_reg, uint32_t next_reg, uint32_t cur_reg, unsigned n, uint32_t *out)
++{
++    uint32_t base = get(base_reg), cur = get(next_reg);
++    if (cur < base || (uint64_t)cur + 8 > (uint64_t)base + (uint64_t)n * 8) {
++        static unsigned bad_ptr;
++        if (bad_ptr++ < 8)
++            NIC_LOG("nvnet: ring pointer 0x%08X outside ring [0x%08X, +%u descs); ring stopped\n",
++                    cur, base, n);
++        return 0;
++    }
++    put(cur_reg, cur);
++    *out = cur;
++    return 1;
++}
++
++static void ring_advance(uint32_t base_reg, uint32_t next_reg, uint32_t cur_reg, unsigned n)
++{
++    uint32_t base = get(base_reg), next = get(cur_reg) + 8;
++    put(next_reg, next >= base + n * 8 ? base : next);
++}
++
++static unsigned tx_ring_n(void) { return (get(R_RING_SIZE) & 0xFFFF) + 1; }
++static unsigned rx_ring_n(void) { return (get(R_RING_SIZE) >> 16) + 1; }
++
++static void transmit(void)
++{
++    int sent = 0;
++    if (!(get(R_TRANSMITTER_CTL) & 1) || !dma_enabled() || !link_up())
++        return;
++    and_(R_TX_RX_CTL, ~TXRX_IDLE);
++    for (unsigned i = 0; i < tx_ring_n(); i++) {
++        uint32_t at;
++        Desc d;
++        if (!ring_current(R_TX_RING, R_TX_NEXT_DESC, R_TX_CUR_DESC, tx_ring_n(), &at))
++            break;
++        if (!load_desc(at, &d) || !(d.flags & NV_TX_VALID))
++            break;
++        uint32_t len = (uint32_t)d.len + 1;
++        uint8_t *src = bus_ptr(d.buf, len);
++        if (src && s.tx_len + len <= sizeof s.tx_buf) {
++            memcpy(s.tx_buf + s.tx_len, src, len);
++            s.tx_len += len;
++        }
++        int last = (d.flags & NV_TX_LASTPACKET) != 0;
++        if (last) {
++            net_backend_send(s.tx_buf, s.tx_len);
++            s.tx_frames++;
++            s.tx_len = 0;
++            sent = 1;
++        }
++        d.flags &= ~(NV_TX_VALID | NV_TX_ERRORS);
++        store_desc(at, &d);
++        ring_advance(R_TX_RING, R_TX_NEXT_DESC, R_TX_CUR_DESC, tx_ring_n());
++        if (last)
++            break;
++    }
++    or_(R_TX_RX_CTL, TXRX_IDLE);
++    if (sent)
++        set_irq(IRQ_TX);
++}
++
++static int accept(const uint8_t *f, uint32_t n)
++{
++    static const uint8_t bcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
++    uint32_t a[2], m[2];
++    if (n < 14)
++        return 0;
++    if (!memcmp(f, bcast, 6) || !(get(R_PACKET_FILTER) & FILTER_MYADDR))
++        return 1;
++    a[0] = get(R_MCAST_ADDR_A); a[1] = get(R_MCAST_ADDR_B);
++    if (memcmp(a, bcast, 6)) {
++        memcpy(m, f, 6);
++        m[0] &= get(R_MCAST_MASK_A); m[1] &= get(R_MCAST_MASK_B);
++        if (!memcmp(m, a, 6))
++            return 1;
++    }
++    a[0] = get(R_MAC_ADDR_A); a[1] = get(R_MAC_ADDR_B);
++    return !memcmp(f, a, 6);
++}
++
++/* One frame into the RX ring. 0 when the guest has no buffer free yet. */
++static int receive(const uint8_t *f, uint32_t n)
++{
++    Desc d;
++    if (!(get(R_RECEIVER_CTL) & 1) || !dma_enabled() || !link_up())
++        return 0;
++    uint32_t at;
++    if (!ring_current(R_RX_RING, R_RX_NEXT_DESC, R_RX_CUR_DESC, rx_ring_n(), &at))
++        return 0;
++    if (!load_desc(at, &d) || !(d.flags & NV_RX_AVAIL))
++        return 0;
++    if ((uint32_t)d.len + 1 < n) { /* xemu asserts; drop instead */
++        s.rx_dropped++;
++        return 1;
++    }
++    uint8_t *dst = bus_ptr(d.buf, n);
++    if (!dst) {
++        s.rx_dropped++;
++        return 1;
++    }
++    and_(R_TX_RX_CTL, ~TXRX_IDLE);
++    memcpy(dst, f, n);
++    d.len = (uint16_t)n;
++    d.flags = NV_RX_BIT4 | NV_RX_DESCRIPTORVALID;
++    store_desc(at, &d);
++    set_irq(IRQ_RX);
++    ring_advance(R_RX_RING, R_RX_NEXT_DESC, R_RX_CUR_DESC, rx_ring_n());
++    or_(R_TX_RX_CTL, TXRX_IDLE);
++    s.rx_frames++;
++    return 1;
++}
++
++/* RECOMP_NIC_TRACE: the first register accesses, with their values. */
++static void trace(const char *op, uint32_t off, uint32_t v)
++{
++    static int on = -1;
++    static unsigned n, last_off = ~0u, repeats;
++    if (on < 0)
++        on = getenv("RECOMP_NIC_TRACE") != NULL;
++    if (!on || n >= 400)
++        return;
++    if (off == last_off && op[0] == 'r' && ++repeats > 3)
++        return; /* a poll loop: show it once */
++    if (off != last_off)
++        repeats = 0;
++    last_off = off;
++    n++;
++    NIC_LOG("  [NIC] %s +0x%03X %08X\n", op, off, v);
++}
++
++static uint64_t nic_read(void *dev, uint32_t off, int size)
++{
++    uint64_t v = 0;
++    (void)dev;
++    if (off + (uint32_t)size > NIC_REGS)
++        return 0;
++    EnterCriticalSection(&s.lock);
++    memcpy(&v, s.regs + off, (size_t)size);
++    LeaveCriticalSection(&s.lock);
++    trace("read ", off, (uint32_t)v);
++    return v;
++}
++
++static void nic_write(void *dev, uint32_t off, uint64_t val, int size)
++{
++    uint32_t v = (uint32_t)val;
++    (void)dev;
++    if (off + (uint32_t)size > NIC_REGS)
++        return;
++    trace("write", off, v);
++    EnterCriticalSection(&s.lock);
++    switch (off) {
++    case R_MDIO_ADDR: {
++        unsigned addr = (v >> 5) & 0x1F, reg = v & 0x1F;
++        put(off, v);
++        if (v & MDIO_WRITE) {
++            if (addr == PHY_ADDR && reg < 6)
++                s.phy[reg] = get(R_MDIO_DATA) & 0xFFFF;
++        } else {
++            put(R_MDIO_DATA, addr == PHY_ADDR ? (reg < 6 ? s.phy[reg] : 0) : 0xFFFFFFFFu);
++        }
++        and_(R_MDIO_ADDR, ~MDIO_INUSE);
++        break;
++    }
++    case R_TX_RX_CTL:
++        put(off, (get(off) & (v | TXRX_IDLE)) | (v & ~TXRX_IDLE));
++        if (v & TXRX_KICK)
++            transmit();
++        if (v & TXRX_RESET) {
++            put(R_TX_CUR_DESC, get(R_TX_RING)); put(R_TX_NEXT_DESC, get(R_TX_RING));
++            put(R_RX_CUR_DESC, get(R_RX_RING)); put(R_RX_NEXT_DESC, get(R_RX_RING));
++            s.tx_len = 0;
++        }
++        if (v & TXRX_BIT1)
++            put(R_IRQ_STATUS, 0);
++        else if (v == 0)
++            put(R_SETUP5, 0x80000000u);   /* forcedeth waits for bit 31 */
++        break;
++    case R_IRQ_STATUS:
++    case R_MII_STATUS: { /* write one to clear */
++        uint32_t cur = 0;
++        memcpy(&cur, s.regs + off, (size_t)size);
++        cur &= ~v;
++        memcpy(s.regs + off, &cur, (size_t)size);
++        break;
++    }
++    default:
++        memcpy(s.regs + off, &v, (size_t)size);
++        break;
++    }
++    LeaveCriticalSection(&s.lock);
++}
++
++/* ---- the interrupt ----------------------------------------------------- */
++
++static void call_isr(void)
++{
++    uint32_t kint = xbox_GetConnectedInterrupt(NIC_VECTOR);
++    uint8_t *mem = (uint8_t *)xbox_GetMemoryOffset();
++    if (!kint)
++        return;
++    uint32_t routine = *(uint32_t *)(mem + kint), context = *(uint32_t *)(mem + kint + 4);
++    recomp_func_t fn = routine ? recomp_lookup(routine) : NULL;
++    int slot = fn ? xbox_worker_stack_alloc() : -1;
++    if (slot < 0) {
++        static int warned;
++        if (!warned++)
++            NIC_LOG("  [NIC] cannot call ISR 0x%08X (%s)\n", routine,
++                    fn ? "no worker stack" : "no translation");
++        return;
++    }
++    g_esp = XBOX_WORKER_STACK_TOP(slot);
++    g_eax = g_ecx = g_edx = g_ebx = g_esi = g_edi = 0;
++    g_esp -= 4; *(uint32_t *)(mem + g_esp) = context;
++    g_esp -= 4; *(uint32_t *)(mem + g_esp) = kint;
++    g_esp -= 4; *(uint32_t *)(mem + g_esp) = 0xDEADBEEFu;
++    { int irql = xbox_IrqlEnterInterrupt(16); fn(); xbox_IrqlLeaveInterrupt(irql); }
++    xbox_worker_stack_free(slot);
++    if (s.irqs++ < 3)
++        NIC_LOG("  [NIC] interrupt delivered to 0x%08X -> %s\n", routine,
++                (g_eax & 1) ? "claimed" : "declined");
++}
++
++/* Moves received frames into the ring and raises the line while it is up.
++ * 1 ms: a frame waits at most that long for its interrupt. */
++static DWORD WINAPI nic_thread(LPVOID unused)
++{
++    static uint8_t frame[BUF_SIZE];
++    (void)unused;
++    g_fs_base = xbox_AllocThreadTib();
++    if (!g_fs_base) {
++        NIC_LOG("  [NIC] no TIB for the NIC thread; no interrupts\n");
++        return 0;
++    }
++#if defined(_WIN32)
++    timeBeginPeriod(1);     /* the wait below is only as fine as the timer */
++#endif
++    for (;;) {
++        uint32_t n;
++        int pending;
++        net_backend_wait(1);
++        EnterCriticalSection(&s.lock);
++        while ((n = net_backend_peek(frame, sizeof frame)) != 0) {
++            if (!accept(frame, n)) {
++                net_backend_pop();
++                continue;
++            }
++            if (!receive(frame, n))
++                break;   /* no free buffer: keep it until the guest frees one */
++            net_backend_pop();
++        }
++        /* Auto-negotiation completing: xemu's autoneg_done -> set_link_up
++         * reports the link through an MII interrupt, which is what sends
++         * XNet to read the link state and start DHCP. Once, when the driver
++         * listens for it and has a routine connected to hear it. */
++        if (!s.link_announced && (get(R_IRQ_MASK) & IRQ_MIIEVENT) && link_up() &&
++            xbox_GetConnectedInterrupt(NIC_VECTOR)) {
++            s.link_announced = 1;
++            or_(R_MII_STATUS, MII_LINKCHANGE);
++            set_irq(IRQ_MIIEVENT);
++        }
++        pending = irq_pending();
++        LeaveCriticalSection(&s.lock);
++        if (pending)
++            call_isr();
++    }
++}
++
++void xbox_NicInit(void)
++{
++    const char *mode = getenv("RECOMP_NET");
++    ptrdiff_t off = xbox_GetMemoryOffset();
++    DWORD old;
++    if (!mode || !*mode || !strcmp(mode, "0"))
++        return;
++#if !defined(_WIN32) && !defined(__x86_64__)
++    /* The aperture is trapped and decoded by mmio_decode.h, which is x86-64 only. */
++    NIC_LOG("  NIC: needs an x86-64 host; network off\n");
++    return;
++#endif
++    if (!off || !net_backend_init(mode)) {
++        NIC_LOG("  NIC: backend '%s' unavailable; network off\n", mode);
++        return;
++    }
++    InitializeCriticalSection(&s.lock);
++    memcpy(s.phy, phy_init, sizeof s.phy);
++    or_(R_TX_RX_CTL, TXRX_IDLE);
++    or_(R_ADAPTER_CTL, ADAPTER_LINKUP);
++    if (!VirtualProtect((LPVOID)((uintptr_t)off + NIC_BASE), NIC_SIZE, PAGE_NOACCESS, &old)) {
++        NIC_LOG("  NIC: cannot trap 0x%08X (error %lu); network off\n",
++                NIC_BASE, (unsigned long)GetLastError());
++        return;
++    }
++    s.enabled = 1;
++    HANDLE th = CreateThread(NULL, 0, nic_thread, NULL, 0, NULL);
++    if (th)
++        CloseHandle(th);
++    NIC_LOG("  NIC: nForce Ethernet at 0x%08X, backend %s\n", NIC_BASE, mode);
++    fflush(stderr);
++}
++
++int xbox_NicOwnsAddress(uint32_t va)
++{
++    return s.enabled && va >= NIC_BASE && va < NIC_BASE + NIC_SIZE;
++}
++
++int xbox_NicHandleMmio(void *ctx, uint32_t va)
++{
++#if defined(_WIN32) || defined(__x86_64__)
++    int ok = mmio_emulate((PCONTEXT)ctx, va - NIC_BASE, NULL, nic_read, nic_write);
++    if (!ok && s.decode_fail++ < 20) {
++        const uint8_t *ip = (const uint8_t *)((PCONTEXT)ctx)->Rip;
++        NIC_LOG("  [NIC] undecoded access at +0x%03X: %02X %02X %02X %02X\n",
++                va - NIC_BASE, ip[0], ip[1], ip[2], ip[3]);
++        fflush(stderr);
++    }
++    return ok;
++#else
++    (void)ctx; (void)va;
++    return 0;
++#endif
++}
++
++void xbox_NicReport(void)
++{
++    if (s.enabled)
++        NIC_LOG("  NIC: %u frames out, %u in, %u dropped, %u interrupts\n",
++                s.tx_frames, s.rx_frames, s.rx_dropped, s.irqs);
++}

@@ -416,7 +416,7 @@ int main(int argc,char **argv){
 '''
 
 
-# Test double for the fork's xbox_GuestRead (tree_read): the host-checked read over this fixture's RAM.
+# Test double for the runtime's xbox_GuestRead (tree_read): the host-checked read over this fixture's RAM.
 GUEST_READ_DOUBLE = r'''
 extern ptrdiff_t g_xbox_mem_offset;
 int xbox_GuestRead(uint32_t va, void *out, size_t size)

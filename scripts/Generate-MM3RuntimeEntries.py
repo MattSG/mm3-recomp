@@ -31,7 +31,7 @@ for entry in entries:
         raise RuntimeError(f'Generation failed: {entry["start"]}')
     if entry.get('x87_helper_unwinds_caller'):
         # 9BC04 discards 9BC52's return address and returns from this dispatch
-        # entry directly; the fork's rewrite makes the caller return with it.
+        # entry directly; the runtime's rewrite makes the caller return with it.
         try:
             body = unwind_after_call(body, 0x0009BC52)
         except ValueError:

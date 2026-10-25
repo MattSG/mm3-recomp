@@ -90,7 +90,7 @@ cmake --build build --config RelWithDebInfo --target mm3_overlay_contract mm3_de
 ./build/RelWithDebInfo/mm3_overlay_contract.exe
 ./build/RelWithDebInfo/mm3_dev_tools_contract.exe
 ./build/RelWithDebInfo/mm3_teleport_contract.exe
-# Input capture is the fork's CTest target: tools/xboxrecomp/tests/input_capture
+# Input capture is the runtime's CTest target: tools/xboxrecomp/tests/input_capture
 New-Item -ItemType Directory -Force out/settings-contract | Out-Null
 Push-Location out/settings-contract
 ../../build/RelWithDebInfo/mm3_launcher_settings_contract.exe --write
