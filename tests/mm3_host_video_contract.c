@@ -10,8 +10,11 @@ static unsigned sleeps;
 static char last_path[MAX_PATH*4];
 static void (*open_observer)(const xbox_host_char *);
 static void (*firmware_hook)(ULONG);
+int video_dump_frame_bmp(const char *path) { (void)path; return 0; }
+void xbox_VideoSetPresentHandler(void (*handler)(unsigned frame)) { (void)handler; }
 static void test_sleep(DWORD ms) { assert(ms==50); sleeps++; if (playing>0) playing--; }
 #define Sleep test_sleep
+#include "../tools/xboxrecomp/src/video/video_host_policy.c"
 #include "../src/mm3_host_video.c"
 #undef Sleep
 void xbox_SetFileOpenObserver(void (*observer)(const xbox_host_char *)) { open_observer=observer; }

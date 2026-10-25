@@ -81,9 +81,9 @@ def main():
             'file(WRITE "${OUTPUT}" "${content}")\n')
         def transform(source, name, reject=False):
             original_path.write_bytes(source.encode())
-            result = subprocess.run(["cmake", f"-DINPUT={original_path}",
-                                     f"-DOUTPUT={modified_path}", f"-DHOOKED={name}",
-                                     "-P", str(script)], capture_output=True, text=True)
+            result = subprocess.run([cc.cmake_program(), f"-DINPUT={original_path.as_posix()}",
+                                     f"-DOUTPUT={modified_path.as_posix()}", f"-DHOOKED={name}",
+                                     "-P", script.as_posix()], capture_output=True, text=True)
             if reject:
                 assert result.returncode and "MM3 map zoom" in result.stderr, result
                 return None

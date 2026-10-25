@@ -19,6 +19,7 @@ void nv2a_d3d_set_overlay_hooks(const NvOverlayHooks *hooks) { overlay = hooks; 
 void mm3_debug_teleport_init(void) { ++teleport_calls; }
 void mm3_dev_tools_tick(void) { ++dev_calls; }
 void mm3_debug_overlay_init(void) {}
+void mm3_dvd_media_init(void) {}
 void mm3_keyboard_driving_init(int (*probe)(void)) { keyboard_probe = probe; }
 
 int main(int argc, char **argv)

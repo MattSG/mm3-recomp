@@ -173,8 +173,8 @@ static void fixture_roads(void) {
     unsigned i;
     road_graph_clear(); assert(road_graph_allocate(4));
     for (i = 0; i < 4; ++i) {
-        s_roads.nodes[i].position.x = points[i][0];
-        s_roads.nodes[i].position.z = points[i][1];
+        s_roads->nodes[i].position.x = points[i][0];
+        s_roads->nodes[i].position.z = points[i][1];
         if (i) assert(road_graph_edge(i - 1, i));
     }
 }
@@ -254,7 +254,7 @@ static void clipping_and_state_contract(void) {
     unsigned i;
     /* Both points may be outside the map while their segment crosses it. */
     road_graph_clear(); assert(road_graph_allocate(2));
-    s_roads.nodes[0].position.x = -200; s_roads.nodes[1].position.x = 200;
+    s_roads->nodes[0].position.x = -200; s_roads->nodes[1].position.x = 200;
     assert(road_graph_edge(0, 1));
     mm3_race_guidance_begin(0);
     for (i = 0; i < 2; ++i) {
@@ -519,10 +519,10 @@ static void road_navigation_contract(void) {
     const RoadPoint positions[8] = {{-60,0,-40}, {-60,0,40}, {60,0,40}, {60,0,-40},
                                    {0,0,-80}, {0,0,80}, {-60,12,-40}, {-60,12,40}};
     RoadPoint route[16], start = {-60,0,-30}, finish = {60,0,-30};
-    RoadSnap snap;
+    GraphSnap snap;
     unsigned i, count;
     road_graph_clear(); assert(road_graph_allocate(8));
-    for (i = 0; i < 8; ++i) s_roads.nodes[i].position = positions[i];
+    for (i = 0; i < 8; ++i) s_roads->nodes[i].position = positions[i];
     for (i = 0; i < 3; ++i) assert(road_graph_edge(i, i+1));
     assert(road_graph_edge(4,5)); assert(road_graph_edge(6,7));
     count = road_path(start, finish, route, 16);
@@ -531,8 +531,9 @@ static void road_navigation_contract(void) {
     near_check(route[2].z, 40); near_check(route[3].x, 60);
     /* A crossing in screen space cannot connect unrelated roads. */
     assert(road_path(positions[4], finish, route, 16) == 0);
-    assert(road_snap((RoadPoint){-60,12,0}, &snap)); near_check(snap.position.y, 12);
-    assert(!road_snap((RoadPoint){1000,0,1000}, &snap));
+    assert(road_graph_snap(s_roads, (RoadPoint){-60,12,0}, 9.0f, 200.0f * 200.0f, &snap));
+    near_check(snap.position.y, 12);
+    assert(!road_graph_snap(s_roads, (RoadPoint){1000,0,1000}, 9.0f, 200.0f * 200.0f, &snap));
     /* Capacity reserves both snapped endpoints and every intervening bend. */
     assert(road_path(start, finish, route, 3) == 0);
     assert(road_path(start, (RoadPoint){-50,0,40}, route, 3) == 3);
@@ -560,7 +561,7 @@ static void road_navigation_contract(void) {
     near_check(.5f*(draws[0].xy[1][1]+draws[0].xy[2][1]), MEMF(node+0x98)-20);
     mm3_race_guidance_roads(0, 0);
     abi_start(0); sub_0011CAE8(); abi_end(); assert(draw_count == 0);
-    assert(!s_roads.nodes && !s_roads.edge_count);
+    assert(!s_roads);
     MEMF(origin) = MEMF(origin + 4) = MEMF(origin + 8) = 0;
 }
 
@@ -652,14 +653,14 @@ static void retail_road_contract(const char *filename) {
     assert(fread(memory + header[0], header[2], 1, file) == 1); fclose(file);
     city = header[1]; roads = header[3]; junctions = header[4];
     mm3_race_guidance_roads(city, 1);
-    assert(s_roads.node_count == header[5] && s_roads.edge_count > s_roads.node_count);
-    visited = (unsigned char *)calloc(s_roads.node_count, 1); assert(visited);
-    visited[junctions] = 1; s_roads.heap[pending++] = junctions;
+    assert(s_roads->node_count == header[5] && s_roads->edge_count > s_roads->node_count);
+    visited = (unsigned char *)calloc(s_roads->node_count, 1); assert(visited);
+    visited[junctions] = 1; s_roads->heap[pending++] = junctions;
     while (pending) {
-        unsigned n = s_roads.heap[--pending], edge; ++reachable;
-        for (edge = s_roads.nodes[n].first; edge != NO_NODE; edge = s_roads.edges[edge].next) {
-            unsigned next = s_roads.edges[edge].to;
-            if (!visited[next]) { visited[next] = 1; s_roads.heap[pending++] = next; }
+        unsigned n = s_roads->heap[--pending], edge; ++reachable;
+        for (edge = s_roads->nodes[n].first; edge != NO_NODE; edge = s_roads->edges[edge].next) {
+            unsigned next = s_roads->edges[edge].to;
+            if (!visited[next]) { visited[next] = 1; s_roads->heap[pending++] = next; }
         }
     }
     /* Both cities have a complete core street network. Washington's two
@@ -689,19 +690,19 @@ static void retail_road_contract(const char *filename) {
             ++samples;
         }
     }
-    for (i = junctions; i < s_roads.node_count; i += 311) {
-        unsigned finish = (i + s_roads.node_count / 2) % s_roads.node_count;
+    for (i = junctions; i < s_roads->node_count; i += 311) {
+        unsigned finish = (i + s_roads->node_count / 2) % s_roads->node_count;
         if (visited[i] && visited[finish]) {
-            unsigned count = road_path(s_roads.nodes[i].position, s_roads.nodes[finish].position, route, ACTIVE_POINTS);
+            unsigned count = road_path(s_roads->nodes[i].position, s_roads->nodes[finish].position, route, ACTIVE_POINTS);
             assert(count >= 2);
-            assert(road_distance(route[0], s_roads.nodes[i].position) < .01f);
-            assert(road_distance(route[count-1], s_roads.nodes[finish].position) < .01f);
+            assert(road_distance(route[0], s_roads->nodes[i].position) < .01f);
+            assert(road_distance(route[count-1], s_roads->nodes[finish].position) < .01f);
         }
     }
     printf("PASS retail street graph: %s roads=%u junctions=%u reachable=%u/%u native_spline_samples=%u\n",
-           filename, roads, junctions, reachable, s_roads.node_count, samples);
+           filename, roads, junctions, reachable, s_roads->node_count, samples);
     free(visited); mm3_race_guidance_roads(city, 0);
-    assert(!s_roads.node_count && !s_roads.edge_count);
+    assert(!s_roads);
 }
 
 int main(int argc, char **argv) {

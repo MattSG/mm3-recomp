@@ -9,7 +9,12 @@
 #include "../src/mods/draw_distance.c"
 
 ptrdiff_t g_xbox_mem_offset;
-RECOMP_TLS uint32_t g_eax, g_ecx, g_esp, g_ebp;
+ptrdiff_t xbox_GetMemoryOffset(void) { return g_xbox_mem_offset; }
+RECOMP_TLS uint32_t g_eax, g_ecx, g_edx, g_esp, g_ebp, g_seh_ebp;
+/* Generated functions the mod calls. The budget logic under test does not
+ * depend on their bodies, so they are inert here. */
+void sub_00248518_original(void) {}
+void sub_00344770(void) {}
 static unsigned char memory[0x10000], expected[0x10000];
 static unsigned original_calls;
 static unsigned constructor_budget = 12;

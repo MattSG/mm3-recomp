@@ -218,8 +218,8 @@ def main():
             'file(WRITE "${OUTPUT}" "${content}")\n')
         def transform(source, name, reject=False):
             original.write_bytes(source.encode())
-            result = subprocess.run(["cmake", f"-DINPUT={original}", f"-DOUTPUT={output}",
-                                     f"-DOWNER={name}", "-P", str(script)],
+            result = subprocess.run([cc.cmake_program(), f"-DINPUT={original.as_posix()}", f"-DOUTPUT={output.as_posix()}",
+                                     f"-DOWNER={name}", "-P", script.as_posix()],
                                     capture_output=True, text=True)
             if reject:
                 assert result.returncode and "MM3 race guidance" in result.stderr, result
@@ -262,12 +262,14 @@ def main():
         shutil.copyfile(ROOT / "src/mm3_race_guidance.c", folder / "production_race_guidance.c")
         executable = folder / f"contract{cc.exe_suffix()}"
         subprocess.run(cc.compile_command(
-            [ROOT / "tests/mm3_race_guidance_contract.c"], executable,
+            [ROOT / "tests/mm3_race_guidance_contract.c",
+             ROOT / "tools/xboxrecomp/src/kernel/road_graph.c",
+             ROOT / "tools/xboxrecomp/src/kernel/kb_spline.c",
+             ROOT / "tools/xboxrecomp/src/kernel/polyline.c"], executable,
             includes=[folder, ROOT / "tools/xboxrecomp/include", ROOT / "tools/xboxrecomp/src", ROOT / "tools/xboxrecomp/src/kernel"], std="c11", optimize="none",
             warnings="normal", werror=True,
             # Generated native fixture: unused _flags/_icall_esp temporaries are emitted by the translator.
-            disable_warnings=("4101", "4102"),
-            obj=folder / "contract.obj"), check=True, cwd=folder)
+            disable_warnings=("4101", "4102")), check=True, cwd=folder)
         fixtures = [retail_city_fixture(city, folder / (city + ".bin")) for city in ("Paris", "Washington")]
         subprocess.run([str(executable), *(str(path) for path in fixtures)], check=True, cwd=folder)
     print("PASS race guidance seams: source owners, LF/CRLF, unchanged native instructions and invalid anchors")

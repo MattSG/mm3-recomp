@@ -78,8 +78,8 @@ def main():
 
         def transform(text, reject=False):
             source.write_bytes(text.encode())
-            result = subprocess.run(["cmake", f"-DINPUT={source}", f"-DOUTPUT={output}",
-                                     "-P", str(cmake_script)], capture_output=True, text=True)
+            result = subprocess.run([cc.cmake_program(), f"-DINPUT={source.as_posix()}", f"-DOUTPUT={output.as_posix()}",
+                                     "-P", cmake_script.as_posix()], capture_output=True, text=True)
             if reject:
                 assert result.returncode != 0 and "MM3 speedometer readout" in result.stderr
                 return None
