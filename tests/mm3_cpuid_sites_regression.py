@@ -86,7 +86,7 @@ void sub_000A4FE0(void);
 void sub_000A5060(void);
 ''' + aliases
             + pragma_push + '\n'.join(bodies) + r'''
-static void run_site(uint32_t site){RECOMP_UNIMPL("cpuid",site);}
+static void run_site(uint32_t site){(void)site;recomp_cpuid(g_eax,g_ecx,&g_eax,&g_ebx,&g_ecx,&g_edx);}
 ''' + '#ifdef _MSC_VER\n#pragma warning(pop)\n#endif\n' + unaliases + r'''
 static RecompXmm *xmm[8];
 static RecompMmx *mm[8];
@@ -129,7 +129,7 @@ int main(int argc,char **argv){
   g_eax=leaf;g_ecx=(uint32_t)strtoul(argv[4],0,0);
   memcpy(saved_memory,memory,sizeof(memory));run_site(site);check_other_state(direction);
   assert(g_esp==0x700000&&memcmp(saved_memory,memory,sizeof(memory))==0);
-  assert(fallback_calls==(unsigned)(site==0xA4FEE));
+  assert(fallback_calls==0); /* Every CPUID site is lowered; none reaches RECOMP_UNIMPL. */
   printf("%u %u %u %u\n",g_eax,g_ebx,g_ecx,g_edx);
  }else{
   assert(argc==3);
@@ -167,8 +167,7 @@ def main():
                 for subleaf in (0, 0x12345678):
                     for direction in (0, 1):
                         output = subprocess.check_output([str(executable), 'site', str(site), str(leaf), str(subleaf), str(direction)], text=True)
-                        expected = (leaf, 0x12345678, subleaf, 0x432) if site == 0xA4FEE else (
-                            (0, 0, 0, 0) if leaf == 0x40000000 else LEAVES[min(leaf, 2)])
+                        expected = (0, 0, 0, 0) if leaf == 0x40000000 else LEAVES[min(leaf, 2)]
                         assert list(map(int, output.split())) == list(expected)
                         cases += 1
         for mode, entry in (('descriptor', 0xA4FE0), ('gate', 0xA5060)):
