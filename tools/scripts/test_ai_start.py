@@ -101,7 +101,7 @@ def main():
     log = os.path.join(run_dir, "stderr.log")
     envs = {
         "RECOMP_PB_EXEC": "1", "RECOMP_FB_WINDOW": "1", "RECOMP_USB": "1", "RECOMP_PAD_LIVE": pad,
-        "RECOMP_APU_DSP_ACK": "0x80458810", "MM3_SAVE_DIR": save,
+        "MM3_SAVE_DIR": save,
         "RECOMP_FPS_LIMIT": str(args.fps_limit), "MM3_DEBUG_TELEPORT": "1",
         "RECOMP_FRAME_CSV": os.path.join(run_dir, "frames.csv"),
     }

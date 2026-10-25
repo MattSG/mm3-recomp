@@ -4,7 +4,6 @@
 #include <string.h>
 #include "kernel.h"
 #include "video/video_player.h"
-#include "video/video_host_policy.h"
 
 /* Preserve the port's optional two-frame host-player diagnostic. */
 static void mm3_video_capture_present(unsigned frame)
@@ -20,5 +19,4 @@ static void mm3_video_capture_present(unsigned frame)
 void mm3_host_video_init(void)
 {
     xbox_VideoSetPresentHandler(mm3_video_capture_present);
-    xbox_video_host_install_wmv_policy();
 }

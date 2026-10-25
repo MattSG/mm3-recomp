@@ -190,7 +190,7 @@ def launch(args):
 
     defaults = {
         "RECOMP_PB_EXEC": "1", "RECOMP_FB_WINDOW": "1", "RECOMP_USB": "1",
-        "RECOMP_APU_DSP_ACK": "0x80458810", "MM3_PERFORMANCE_PROFILE": args.profile,
+        "MM3_PERFORMANCE_PROFILE": args.profile,
         "RECOMP_ASPECT": "16:10",
     }
     if args.fps_limit is not None:

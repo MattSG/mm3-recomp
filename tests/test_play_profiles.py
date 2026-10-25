@@ -113,7 +113,6 @@ class PlayLauncherTest(unittest.TestCase):
             # Graphics/FPS profile values are chosen by the shared C helper.
             self.assertIsNone(row.get("RECOMP_RENDER_SCALE"))
             self.assertEqual(row["RECOMP_PB_EXEC"], "1")
-            self.assertEqual(row["RECOMP_APU_DSP_ACK"], "0x80458810")
             self.assertIsNone(row.get("MM3_BUILDING_TRACE"))
             self.assertIsNone(row.get("RECOMP_TEXTURE_STREAM_TRACE"))
             self.assertIsNone(row.get("RECOMP_ASYNC_WAIT_TRACE"))

@@ -38,6 +38,8 @@ int mm3_mod_on(int mod) {
     return !setting || strcmp(setting, "0") != 0;
 }
 #include "production_widescreen.c"
+#include "camera_math.c"
+#include "slot_publish.c"
 
 #define eax g_eax
 #define ecx g_ecx

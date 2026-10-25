@@ -28,6 +28,8 @@ void sub_001EEC53_original(void) { g_esp += 60; }
 #include "mods.h"
 int mm3_mod_on(int mod) { (void)mod; return 1; }
 #include "production_widescreen.c"
+#include "camera_math.c"
+#include "slot_publish.c"
 
 static uint32_t data(unsigned group, unsigned part) {
     return 0x2000000 + group * 0x10000 + part * 0x1000;

@@ -24,7 +24,7 @@ def main():
         executable = folder / f"contract{cc.exe_suffix()}"
         subprocess.run(cc.compile_command(
             [ROOT / "tests/mm3_facade_fade_contract.c"], executable,
-            includes=[ROOT / "src/recomp/gen", ROOT / "tools/xboxrecomp/include", ROOT / "tools/xboxrecomp/src/video"],
+            includes=[ROOT / "src/recomp/gen", ROOT / "tools/xboxrecomp/include", ROOT / "tools/xboxrecomp/src/video", ROOT / "tools/xboxrecomp/src", ROOT / "tools/xboxrecomp/src/kernel"],
             defines=["_CRT_SECURE_NO_WARNINGS"], std="c11", optimize="none", warnings="high",
             obj=folder / "contract.obj"), check=True, cwd=folder)
         for scale in ("1", "2", "4"):

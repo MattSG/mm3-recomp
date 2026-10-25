@@ -15,7 +15,7 @@ def main():
         folder = Path(temporary)
         executable = folder / f"contract{cc.exe_suffix()}"
         # POSIX has no _putenv_s: the runtime compat layer provides it.
-        sources = [ROOT / "tests/mm3_mods_init_contract.c", ROOT / "tools/xboxrecomp/src/kernel/feature_switch.c"]
+        sources = [ROOT / "tests/mm3_mods_init_contract.c", ROOT / "src/runtime/feature_switch.c"]
         if os.name != "nt":
             sources.append(ROOT / "tools/xboxrecomp/src/platform/win32_compat.c")
         subprocess.run(cc.compile_command(

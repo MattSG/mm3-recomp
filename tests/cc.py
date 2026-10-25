@@ -14,6 +14,13 @@ _spec.loader.exec_module(_module)
 globals().update({k: v for k, v in vars(_module).items() if not k.startswith("__")})
 
 
+def compile_command(sources, output, *, includes=(), **kwargs):
+    """The runtime's compile_command, with the port's src/runtime helpers on
+    the include path as in the game build."""
+    runtime = Path(__file__).resolve().parents[1] / "src/runtime"
+    return _module.compile_command(sources, output, includes=[*includes, runtime], **kwargs)
+
+
 def cmake_program():
     """Return a CMake that accepts Windows drive paths in -D and script args.
 

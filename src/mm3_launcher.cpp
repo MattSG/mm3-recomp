@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include "mods/mods.h"
 #include "keymap_spec.h"
-#include "ui/rmlui_host.h"
+#include "runtime/rmlui_host.h"
 
 #if defined(XBOXRECOMP_SDL3)
 /* The SDL3 GPU build (also Linux) has no Win32 or XInput. The launcher's
@@ -773,8 +773,6 @@ void save_and_export()
     set_env("RECOMP_PB_EXEC", "1");
     set_env("RECOMP_FB_WINDOW", "1");
     set_env("RECOMP_USB", "1");
-    if (!getenv("RECOMP_APU_DSP_ACK"))
-        set_env("RECOMP_APU_DSP_ACK", "0x80458810");
 }
 
 /* Started from build\<config>\: run from the folder above that holds game_files\. */

@@ -14,8 +14,8 @@ static double contract_sin(double angle) { ++contract_sin_count; return sin(angl
 #define sin contract_sin
 /* The shared guest-state helpers, as shipped. */
 #include "../tools/xboxrecomp/src/kernel/guest_state.c"
-#include "../tools/xboxrecomp/src/kernel/string_ci.c"
-#include "../tools/xboxrecomp/src/kernel/thick_line.c"
+#include "../src/runtime/string_ci.c"
+#include "../src/runtime/thick_line.c"
 #include "../src/mm3_speedometer.c"
 #undef cos
 #undef sin

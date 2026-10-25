@@ -41,9 +41,6 @@ python3 tools/scripts/send_teleport.py --process-id 12345 --x -512.25 --z 1001.1
 These example coordinates are fixture values, not a verified destination.
 For standalone live runs enable `RECOMP_FB_WINDOW=1`, `RECOMP_PB_EXEC=1`,
 `RECOMP_USB=1`, optionally `RECOMP_KEYBOARD=1`, and use separate game/save data.
-This runtime's stubbed audio DSP also needs its existing passthrough mailbox
-acknowledgement `RECOMP_APU_DSP_ACK=0x80458810` to pass MM3's loading wait.
-That option does not emulate the DSP program.
 
 ## PAL evidence
 

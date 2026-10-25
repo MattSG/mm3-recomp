@@ -2,12 +2,15 @@
 #include <string.h>
 #include "recomp_types.h"
 ptrdiff_t g_xbox_mem_offset;
+ptrdiff_t xbox_GetMemoryOffset(void) { return g_xbox_mem_offset; }
 RECOMP_TLS uint32_t g_eax,g_ecx,g_edx,g_esp,g_ebx,g_esi,g_edi,g_ebp,g_seh_ebp;
 static unsigned char memory[0x400000];
 static int enabled=1, reserves, originals;
 static uint32_t flare_capacity;
 static const uint32_t device=0x10000, camera=0x20000, object=0x30000, buffer=0x40000, stack=0x50000;
 #include "../src/mods/draw_distance.c"
+#include "env_range.c"
+#include "nv2a_pb_reserve.c"
 int mm3_mod_on(int mod) { (void)mod; return enabled; }
 #define UNUSED(name) void name(void) {}
 UNUSED(sub_000E2D5B_original) UNUSED(sub_000D9E2E_original)

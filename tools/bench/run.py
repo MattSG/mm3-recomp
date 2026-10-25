@@ -150,7 +150,7 @@ def main():
     fps_limit = args.fps_limit if args.fps_limit is not None else profile["fps"]
     envs = {
         "RECOMP_PB_EXEC": "1", "RECOMP_FB_WINDOW": "1", "RECOMP_USB": "1", "RECOMP_PAD_LIVE": pad,
-        "RECOMP_APU_DSP_ACK": "0x80458810", "MM3_SAVE_DIR": run_save, "MM3_PERFORMANCE_PROFILE": args.profile,
+        "MM3_SAVE_DIR": run_save, "MM3_PERFORMANCE_PROFILE": args.profile,
         "RECOMP_ASPECT": "16:10", "RECOMP_WINDOW_SIZE": "1280x800", "RECOMP_RENDER_SCALE": profile["scale"],
         "RECOMP_MSAA": profile["msaa"], "RECOMP_DRAW_DISTANCE": profile["distance"], "RECOMP_ANISO": "16",
         "RECOMP_FPS_LIMIT": str(fps_limit), "RECOMP_PAUSE_UNFOCUSED": "0", "RECOMP_D3D_PROFILE": "1",

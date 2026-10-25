@@ -86,7 +86,8 @@ int main(int argc, char **argv) {
             libs=["user32"], obj=folder / "launcher_maps.obj"),
             cwd=folder, check=True)
         subprocess.run(cc.compile_command(
-            [ROOT / "tests/mm3_input_contract.c", ROOT / "tools/xboxrecomp/src/input/mkb_input.c"], input_exe, std="c11", optimize="speed",
+            [ROOT / "tests/mm3_input_contract.c"] + [ROOT / "tools/xboxrecomp/src/input" / f for f in
+             ("mkb_input.c", "keyboard.c", "keymap_spec.c", "input_map.c")], input_exe, std="c11", optimize="speed",
             warnings="normal", defines=["WIN32_LEAN_AND_MEAN", "NOMINMAX", "_CRT_SECURE_NO_WARNINGS"],
             includes=[ROOT / "tools/xboxrecomp/src"], libs=["user32", "xinput"]), cwd=folder, check=True)
         for saved in (False, True):

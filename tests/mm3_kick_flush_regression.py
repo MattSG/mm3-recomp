@@ -72,7 +72,7 @@ int main(void)
         cfile = folder / "flush.c"
         cfile.write_text(fixture, encoding="utf-8")
         exe = folder / "flush.exe"
-        includes = [ROOT / "tools/xboxrecomp/src/kernel", ROOT / "tools/xboxrecomp/src",
+        includes = [ROOT / "src/runtime", ROOT / "tools/xboxrecomp/src/kernel", ROOT / "tools/xboxrecomp/src",
                     ROOT / "tools/xboxrecomp/src/nv2a", ROOT / "tools/xboxrecomp/templates/runtime",
                     ROOT / "tools/xboxrecomp/include"]
         subprocess.run(cc.compile_command([cfile], exe, std="c11", optimize="none",

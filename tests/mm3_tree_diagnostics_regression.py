@@ -33,6 +33,8 @@ static void trace_log(const char *format,...){
 #define MM3_TREE_LOG trace_log
 #define MM3_TREE_FLUSH() (++flushes)
 #include "guest_state.c"
+#include "vec3_rotate.c"
+#include "guest_read.c"
 #include "mm3_tree_diagnostics.c"
 ptrdiff_t g_xbox_mem_offset;
 RECOMP_TLS uint32_t g_eax,g_ecx,g_edx,g_esp,g_ebx,g_esi,g_edi,g_ebp,g_seh_ebp,g_fs_base;

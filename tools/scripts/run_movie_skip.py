@@ -5,7 +5,7 @@ Usage:
   python tools/scripts/run_movie_skip.py [--headless] [--input-mode Live|Timed]
       [--button start|a|b] [--skip-movies dice.bik msgs.bik ...]
       [--duration-seconds 45] [--skip-delay-seconds 0]
-      [--trace-post-movie-frame] [--dsp-passthrough]
+      [--trace-post-movie-frame]
       [--executable PATH]
 
 Requires an executable built with MM3_MOVIE_INPUT_TRACE=ON. Live mode presses
@@ -13,7 +13,6 @@ only during the selected movies (identified by the [MOVIE_FRAME] total= count)
 and stops once they close. Timed mode repeats a fixed USB timeline over the
 run. Each run gets its own save and logs under conformance_tmp/movie_skip_<stamp>.
 --trace-post-movie-frame requests one GPU frame trace 5 s after intro.bik closes.
---dsp-passthrough completes the observed APU command mailbox (0x80458810).
 
 Default executable: build-msvc-tailfix/movie-input/RelWithDebInfo/mm3_recomp.exe
 on Windows, build-msvc-tailfix/movie-input/mm3_recomp elsewhere.
@@ -71,7 +70,6 @@ def main():
     parser.add_argument("--skip-delay-seconds", dest="skip_delay", type=int, default=0, help="0-600")
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--trace-post-movie-frame", dest="trace_post_movie_frame", action="store_true")
-    parser.add_argument("--dsp-passthrough", dest="dsp_passthrough", action="store_true")
     args = parser.parse_args()
     if not 1 <= args.duration <= 600:
         die("--duration-seconds must be between 1 and 600")
@@ -106,11 +104,6 @@ def main():
     if args.trace_post_movie_frame:
         settings["RECOMP_FRAME_TRACE"] = os.path.join(run, "frame.flag")
         settings["RECOMP_FRAME_TRACE_METHODS"] = None
-    if args.dsp_passthrough:
-        # The repo's GP/EP stub mixes voices but does not execute DSP effects.
-        # This address was verified in sub_0027AA53 for the current MM3 build.
-        settings["RECOMP_APU_DSP_ACK"] = "0x80458810"
-        settings["RECOMP_DSP_ACK"] = None
     if args.input_mode == "Live":
         settings["RECOMP_PAD_LIVE"] = live
     else:

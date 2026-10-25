@@ -151,7 +151,7 @@ def capture_dsp(exe, msvc):
     env = build_env(msvc)
     env.update({
         "RECOMP_PB_EXEC": "1", "RECOMP_USB": "1", "RECOMP_AUDIO_MUTE": "1",
-        "RECOMP_APU_DSP_ACK": "0x80458810", "RECOMP_DSP_PROGRAM_DIR": str(DSP_DIR),
+        "RECOMP_DSP_PROGRAM_DIR": str(DSP_DIR),
         "MM3_PERFORMANCE_PROFILE": "LowPower", "MM3_SAVE_DIR": str(saves),
     })
     game = subprocess.Popen([str(exe)], cwd=REPO, env=env, stdin=subprocess.DEVNULL,

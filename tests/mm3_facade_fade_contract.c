@@ -12,9 +12,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include "../src/mods/draw_distance.c"
+#include "env_range.c"
+#include "nv2a_pb_reserve.c"
 
 ptrdiff_t g_xbox_mem_offset;
-RECOMP_TLS uint32_t g_eax, g_ecx, g_esp, g_ebp;
+ptrdiff_t xbox_GetMemoryOffset(void) { return g_xbox_mem_offset; }
+RECOMP_TLS uint32_t g_eax, g_ecx, g_edx, g_esp, g_ebp, g_seh_ebp;
 static unsigned char memory[0x400000], expected[0x400000];
 static unsigned setter_calls;
 static float original_bias, original_slope;
@@ -26,6 +29,8 @@ void sub_000FE71E_original(void) {}
 void sub_0022F298_original(void) {}
 void sub_000F4AC3_original(void) {}
 void sub_002256C7_original(void) {}
+void sub_00248518_original(void) {}
+void sub_00344770(void) {}   /* the pushbuffer rollover; never reached here */
 void sub_001630A7_original(void) {
     g_eax = 0x150000u;
     MEM32(g_eax + 0x1ED0) = 0x3000;

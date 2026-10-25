@@ -51,6 +51,8 @@ def fixture_source():
         "#include <stdio.h>\n#include <stdlib.h>\n"
         "#include <string.h>\n#include <ctype.h>\n#include <string>\n#include <vector>\n"
         '#include "mods.h"\n'
+        '#include "keymap_spec.h"\n'
+        '#include "' + (ROOT / "tools/xboxrecomp/src/input/keymap_spec.c").as_posix() + '"\n'
         "namespace Rml { using String = std::string; template<class T> using Vector = std::vector<T>; }\n",
     ]
     for name in ("Choice", "Option", "Bind"):
@@ -207,7 +209,7 @@ def main():
         subprocess.run(cc.compile_command(["settings.cpp", "registry.obj"], executable, std="c++17",
                                           optimize="none", warnings="normal", werror=True,
                                           defines=["_CRT_SECURE_NO_WARNINGS"], libs=["user32"],
-                                          includes=[ROOT / "tools/xboxrecomp/src"]),
+                                          includes=[ROOT / "tools/xboxrecomp/src", ROOT / "tools/xboxrecomp/src/input"]),
                        check=True, cwd=folder)
         environment = {key: value for key, value in os.environ.items()
                        if not key.upper().startswith(("RECOMP_", "MM3_"))}

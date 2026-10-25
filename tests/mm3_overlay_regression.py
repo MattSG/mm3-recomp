@@ -15,7 +15,7 @@ def main():
         folder = Path(temporary)
         executable = folder / f"contract{cc.exe_suffix()}"
         # POSIX has no Interlocked* in libc: the runtime compat layer provides them.
-        sources = [ROOT / "tests/mm3_overlay_contract.c", ROOT / "tools/xboxrecomp/src/kernel/piece_cluster.c"]
+        sources = [ROOT / "tests/mm3_overlay_contract.c", ROOT / "src/runtime/piece_cluster.c"]
         if os.name != "nt":
             sources.append(ROOT / "tools/xboxrecomp/src/platform/win32_compat.c")
         subprocess.run(cc.compile_command(

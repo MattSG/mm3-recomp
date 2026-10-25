@@ -504,7 +504,7 @@ class Session:
             (self.run_dir / "pad.txt").touch()
             # Do not inherit unrelated diagnostics, input, save paths or render experiments.
             env = {k: v for k, v in os.environ.items() if not k.upper().startswith(("MM3_", "RECOMP_"))}
-            settings = {"RECOMP_FB_WINDOW": "1", "RECOMP_USB": "1", "RECOMP_APU_DSP_ACK": "0x80458810",
+            settings = {"RECOMP_FB_WINDOW": "1", "RECOMP_USB": "1",
                         "RECOMP_FPS_LIMIT": "60", "RECOMP_VSYNC": "0", "RECOMP_RENDER_SCALE": "1",
                         "RECOMP_ASPECT": "16:9", "RECOMP_WINDOW_SIZE": "960x540", "RECOMP_MSAA": "1",
                         "MM3_MOD_SKIP_INTRO": "1", "MM3_LOG_UNBUFFERED": "1", "RECOMP_PAUSE_UNFOCUSED": "0"}

@@ -16,6 +16,7 @@ RECOMP_TLS uint16_t g_fp_cc, g_fp_control_word;
 #define MM3_FACTORY_CONTRACT 1
 #endif
 #include "../src/mm3_factory_physics.c"
+#include "string_ci.c"
 
 /* Extracted native gearing, wheel-force conversion and body integration. */
 #define eax g_eax

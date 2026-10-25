@@ -169,7 +169,6 @@ def main():
     # Runtime semantics stay project-owned.
     shutil.copy(REPO / 'src/mm3_recomp_types.h', out / 'recomp_types.h')
     shutil.copy(REPO / 'tools/xboxrecomp/templates/runtime/recomp_types.h', out / 'recomp_base.h')
-    shutil.copy(REPO / 'tools/xboxrecomp/include/recomp_cpu.h', out / 'recomp_cpu.h')
     print(f'generated {len(list(out.glob("*.c")))} sources in {out}')
 
 

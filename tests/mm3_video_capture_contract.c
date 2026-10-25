@@ -2,10 +2,6 @@
 #include <string.h>
 static void (*present_callback)(unsigned);
 void xbox_VideoSetPresentHandler(void (*handler)(unsigned)) { present_callback=handler; }
-int xbox_VideoPlayFile(const char *path) { (void)path;return -1; }
-int xbox_VideoIsPlaying(void) { return 0; }
-void xbox_SetFirmwareReturnHook(void (*handler)(ULONG)) { (void)handler; }
-void xbox_SetFileOpenObserver(void (*handler)(const xbox_host_char *)) { (void)handler; }
 #ifndef _WIN32
 #include <strings.h>
 int _stricmp(const char *a, const char *b) { return strcasecmp(a,b); }

@@ -276,7 +276,7 @@ def main():
         # Sound eligibility must still read the authored flag in the final gate.
         final_sound_gate = retail[retail.index('loc_001D1A10: ;'):retail.index('loc_001D1A19: ;')]
         assert final_sound_gate in corrected
-        corrected = ('#define WIN32_LEAN_AND_MEAN\n#include <windows.h>\n#include "guest_state.c"\n'
+        corrected = ('#define WIN32_LEAN_AND_MEAN\n#include <windows.h>\n#include "guest_state.c"\n#include "vec3_rotate.c"\n#include "guest_read.c"\n'
                      'RECOMP_TLS RecompMmx g_mm0, g_mm1, g_mm2, g_mm3, g_mm4, g_mm5, g_mm6, g_mm7;\n'
                      'RECOMP_TLS RecompXmm g_xmm0, g_xmm1, g_xmm2, g_xmm3, g_xmm4, g_xmm5, g_xmm6, g_xmm7;\n'
                      + GUEST_READ_DOUBLE + corrected)

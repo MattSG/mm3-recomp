@@ -138,7 +138,7 @@ def main():
     settings = {
         "RECOMP_PB_EXEC": "1", "RECOMP_FB_WINDOW": "1", "RECOMP_USB": "1",
         "RECOMP_KEYBOARD": "1", "RECOMP_MENU_KEYS": "1",
-        "RECOMP_APU_DSP_ACK": "0x80458810", "RECOMP_FPS_LIMIT": "60",
+        "RECOMP_FPS_LIMIT": "60",
         "RECOMP_ASPECT": "16:9", "RECOMP_RENDER_SCALE": "2", "MM3_LOG_UNBUFFERED": "1",
         "RECOMP_PAD_LIVE": os.path.join(run, "pad.txt"), "RECOMP_PAD_SCRIPT": None,
         "RECOMP_PAD_PRESS": None, "MM3_SAVE_DIR": save,
