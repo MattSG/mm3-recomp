@@ -5,12 +5,13 @@
 Runs the whole recipe the build depends on, in order:
   1. analysis (disasm with mm3_runtime_function_seeds.json, func_id, abi)
   2. the batch: every function, minus recomp_manual.c's hand-written bodies,
-     with the native tail constructors and the proven GUI boundary coalescing
+     with the native tail constructor entries
   3. overlays the project wraps: memmove tails, alternate-SEH and ABI bodies
   4. runtime-proven entries (mm3_runtime_entry_repairs.json)
 Tested with Capstone 5.0.7; scripts/setup.py installs that disassembler version.
 """
 import argparse
+import hashlib
 import json
 import re
 import shutil
@@ -18,28 +19,31 @@ import subprocess
 import sys
 from pathlib import Path
 
-import io
 import os
-import tarfile
 
 REPO = Path(__file__).resolve().parents[1]
-# The toolkit (tools/xboxrecomp) is generated from this pinned commit. Its lifter
-# carries the fixes this project used to patch in here (fld tbyte, flag joins,
-# dead branches). Pair any pin change with a game-validated regeneration.
-# MM3_GENERATOR_DIR points at another checkout for isolated comparisons.
-GENERATOR_COMMIT = '3f006956dd702d9f2a6dfadb2484405d75604b7b'
 
 
 def generator_dir():
+    """The runtime's own tools generate the code. MM3_GENERATOR_DIR points at
+    another checkout for comparisons."""
     if os.environ.get('MM3_GENERATOR_DIR'):
         return Path(os.environ['MM3_GENERATOR_DIR']).resolve()
-    out = REPO / 'tools/.generator' / (GENERATOR_COMMIT[:12])
-    if not (out / 'tools/recomp/__main__.py').exists():
-        tar = subprocess.run(['git', '-C', str(REPO / 'tools/xboxrecomp'), 'archive', '--format=tar',
-                              GENERATOR_COMMIT, 'tools'], check=True, capture_output=True).stdout
-        with tarfile.open(fileobj=io.BytesIO(tar)) as t:
-            t.extractall(out, filter='data')
-    return out
+    return REPO / 'tools/xboxrecomp'
+
+
+def generation_key():
+    toolkit_tree = subprocess.check_output(
+        ['git', '-C', str(generator_dir()), 'rev-parse', 'HEAD:tools', 'HEAD:templates/runtime'])
+    digest = hashlib.sha256(toolkit_tree)
+    for path in ('scripts/generate_mm3.py', 'scripts/Generate-MM3RuntimeEntries.py',
+                 'scripts/mm3_runtime_unwind.py', 'tools/prepare_mm3_gui_boundaries.py',
+                 'mm3_runtime_entry_repairs.json', 'mm3_runtime_function_seeds.json',
+                 'mm3_tail_constructor_functions.json', 'src/recomp_manual.c',
+                 'src/mm3_recomp_types.h', 'game_files/default.xbe'):
+        digest.update((REPO / path).read_bytes())
+    # shortcut: committed toolkit trees only; use --force for local toolkit edits.
+    return digest.hexdigest() + '\n'
 
 
 XBE = REPO / 'game_files/default.xbe'
@@ -125,10 +129,12 @@ def main():
     py(REPO / 'tools/prepare_mm3_gui_boundaries.py', '--output', gui)
     from tools.recomp.manual_scan import scan
     skip, wrap, _ = scan(str(REPO / 'src/recomp_manual.c'))
+    recovered = {int(entry['start'], 16) for entry in
+                 json.loads((REPO / 'mm3_runtime_entry_repairs.json').read_text())}
     manual = out / 'manual_functions.json'
-    manual.write_text(json.dumps({hex(a): f'sub_{a:08X}' for a in skip | wrap}))
+    manual.write_text(json.dumps({hex(a): f'sub_{a:08X}' for a in skip | wrap | recovered}))
     py('-m', 'tools.recomp', XBE, '--all', '--split', 1000, '--gen-dir', out, '--functions', gui,
-       '--manual-functions', manual, '--coalesce-functions', REPO / 'mm3_function_coalescences.json',
+       '--manual-functions', manual,
        '--skip-binary-check')
 
     tails = out / 'memmove_tail_functions.json'
@@ -169,6 +175,7 @@ def main():
     # Runtime semantics stay project-owned.
     shutil.copy(REPO / 'src/mm3_recomp_types.h', out / 'recomp_types.h')
     shutil.copy(REPO / 'tools/xboxrecomp/templates/runtime/recomp_types.h', out / 'recomp_base.h')
+    (out / 'generation.sha256').write_text(generation_key())
     print(f'generated {len(list(out.glob("*.c")))} sources in {out}')
 
 

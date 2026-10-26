@@ -23,6 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from devenv import (IS_WIN, REPO, build_env, cmake_exe, find_vs, msvc_env,  # noqa: E402
                     portable_msvc, venv_python, which)
+from generate_mm3 import generation_key
 
 # Capstone 5.0.7 is the tested disassembler; its version affects generated output.
 CAPSTONE = "capstone==5.0.7"
@@ -56,7 +57,6 @@ def prerequisites():
         raise SystemExit("git not found on PATH.")
     if not (REPO / "tools/xboxrecomp/CMakeLists.txt").exists():
         run(["git", "submodule", "update", "--init", "--recursive"], "git submodule update")
-    run([sys.executable, str(REPO / "scripts/patch_xboxrecomp.py")], "apply xboxrecomp patches")
 
     msvc = None
     portable = None
@@ -109,10 +109,13 @@ def game_files(iso, skip_hash, force, msvc):
 
 def generate(force, msvc):
     step("Generate translated code (src/recomp/gen/)")
-    if force or not (REPO / "src/recomp/gen/recomp_dispatch.c").exists():
+    generated = REPO / "src/recomp/gen"
+    marker = generated / "generation.sha256"
+    current = marker.is_file() and marker.read_text() == generation_key()
+    if force or not (generated / "recomp_dispatch.c").exists() or not current:
         run([venv_python(), "scripts/generate_mm3.py"], "generation", build_env(msvc))
     else:
-        print("src/recomp/gen present (use --force to regenerate)")
+        print("src/recomp/gen matches the fork and MM3 recipe (use --force to regenerate)")
 
 
 def configure(config, renderer, cmake, kind, msvc):

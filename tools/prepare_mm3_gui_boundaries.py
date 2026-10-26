@@ -1,4 +1,4 @@
-"""Seed native menu tail entries and repair proven GUI entry boundaries."""
+"""Seed native menu tail entries not detected by the general analysis."""
 import argparse
 import json
 import os
@@ -19,16 +19,6 @@ for entry in json.loads((repo / 'mm3_tail_constructor_functions.json').read_text
     else:
         functions.append(entry)
         by_start[address] = entry
-# F7FCF is the store following F7FC8's allocation call, reached by fallthrough.
-# Its apparent data pointer at 366EBC belongs to a numeric table, not a vtable.
-# F8000 is similarly the store following F7FFB's call. Immediate/data matches
-# alone do not make either address an independently callable native function.
-# Keep the upstream coalescer's CFG, external-call and callback validation.
-for address, method in ((0xF7FCF, 'tail_jump_alias'), (0xF8000, 'imm_ref_target')):
-    item = by_start[address]
-    if item['detection_method'] != method or item.get('called_by') or item.get('has_prologue'):
-        raise RuntimeError(f'Entry evidence changed for {address:08X}; re-investigate')
-    item['detection_method'] = 'mm3_verified_interior'
 output = Path(args.output)
 output.parent.mkdir(parents=True, exist_ok=True)
 output.write_text(json.dumps(functions, indent=2) + '\n')

@@ -19,7 +19,9 @@ def compile_command(sources, output, *, includes=(), **kwargs):
     the include path, so a fixture can include a helper's source by name."""
     src = Path(__file__).resolve().parents[1] / "tools/xboxrecomp/src"
     return _module.compile_command(sources, output,
-                                   includes=[*includes, src / "kernel", src / "nv2a"], **kwargs)
+                                   includes=[*includes, Path(__file__).resolve().parents[1] / "src",
+                                             Path(__file__).resolve().parents[1] / "src/geometry",
+                                             src / "kernel", src / "nv2a"], **kwargs)
 
 
 def cmake_program():

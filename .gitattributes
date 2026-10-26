@@ -1,5 +1,3 @@
 * text=auto
 *.iso binary
 *.xbe binary
-# Preserve runtime patch bytes and unified-diff context across platforms.
-patches/**/*.patch -text -whitespace

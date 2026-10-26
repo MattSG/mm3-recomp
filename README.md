@@ -1,7 +1,7 @@
 # Midtown Madness 3 recompilation
 
 A static recompilation of the Xbox game to native Windows x64, using
-[xboxrecomp](https://github.com/sp00nznet/xboxrecomp) and Direct3D 11 or SDL3 GPU
+[xboxrecomp](https://github.com/MattSG/xboxrecomp) and Direct3D 11 or SDL3 GPU
 (Vulkan / Direct3D 12). No game files are included: you build it from your own disc.
 
 > **Largely AI-written.** Nearly all of the code was written with AI assistance
@@ -139,9 +139,9 @@ submit. Keep each PR to one problem and say which checks you ran; see
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Changes to how MM3 plays or looks belong here, as mods. Fixes to the runtime
-must stay game-agnostic: they live as patches in `patches/xboxrecomp` on top of
-upstream [xboxrecomp](https://github.com/sp00nznet/xboxrecomp), to be sent
-upstream.
+belong in our [xboxrecomp fork](https://github.com/MattSG/xboxrecomp): upstream
+[sp00nznet/xboxrecomp](https://github.com/sp00nznet/xboxrecomp) plus small,
+game-agnostic commits, each meant to be offered upstream.
 
 Never commit, upload or link any of these:
 - disc images or game files;

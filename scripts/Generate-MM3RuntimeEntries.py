@@ -9,7 +9,7 @@ toolkit = pathlib.Path(os.environ.get('MM3_GENERATOR_DIR', repo / 'tools/xboxrec
 sys.path.insert(0, str(toolkit))
 from tools.recomp import config
 from tools.recomp.translator import BatchTranslator
-from tools.recomp.unwind_patch import unwind_after_call
+from mm3_runtime_unwind import unwind_after_call
 
 out = pathlib.Path(sys.argv[1])
 entries = json.loads((repo / 'mm3_runtime_entry_repairs.json').read_text())
@@ -31,7 +31,7 @@ for entry in entries:
         raise RuntimeError(f'Generation failed: {entry["start"]}')
     if entry.get('x87_helper_unwinds_caller'):
         # 9BC04 discards 9BC52's return address and returns from this dispatch
-        # entry directly; the runtime's rewrite makes the caller return with it.
+        # entry directly; the port's rewrite makes the caller return with it.
         try:
             body = unwind_after_call(body, 0x0009BC52)
         except ValueError:

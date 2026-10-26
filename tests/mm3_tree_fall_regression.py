@@ -449,7 +449,7 @@ def native_source():
       memset(&g_xmm0,0,sizeof g_xmm0);memset(&g_xmm7,0,sizeof g_xmm7);
     }''', code, count=1)
     assert 'MEM32(end)=MEM32(input)' in code
-    return ('#define WIN32_LEAN_AND_MEAN\n#include <windows.h>\n#include "guest_state.c"\n#include "vec3_rotate.c"\n#include "guest_read.c"\n'
+    return ('#define WIN32_LEAN_AND_MEAN\n#include <windows.h>\n#include "guest_state.c"\n#include "vec3_rotate.c"\n#include "guest_read.c"\n#include "fixed_step.c"\n'
             'RECOMP_TLS RecompMmx g_mm0, g_mm1, g_mm2, g_mm3, g_mm4, g_mm5, g_mm6, g_mm7;\n'
             'RECOMP_TLS RecompXmm g_xmm0, g_xmm1, g_xmm2, g_xmm3, g_xmm4, g_xmm5, g_xmm6, g_xmm7;\n'
             + GUEST_READ_DOUBLE + code + C_TEST)
@@ -595,7 +595,7 @@ def real_renderer_source(directory, patched):
     support = C_TEST.split('void sub_0016AEDB_original(void){', 1)[0]
     for name in ('point', 'close_enough', 'fall_count', 'reset', 'retire', 'advance'):
         support += '\n' + re.search(r'static [^\n]+ ' + name + r'\([^\n]*\)\{.*?(?=\n(?:static |int main|void ))', C_TEST, re.S).group()
-    return ('#define WIN32_LEAN_AND_MEAN\n#include <windows.h>\n#include "guest_state.c"\n#include "vec3_rotate.c"\n#include "guest_read.c"\n'
+    return ('#define WIN32_LEAN_AND_MEAN\n#include <windows.h>\n#include "guest_state.c"\n#include "vec3_rotate.c"\n#include "guest_read.c"\n#include "fixed_step.c"\n'
             'RECOMP_TLS RecompMmx g_mm0, g_mm1, g_mm2, g_mm3, g_mm4, g_mm5, g_mm6, g_mm7;\n'
             'RECOMP_TLS RecompXmm g_xmm0, g_xmm1, g_xmm2, g_xmm3, g_xmm4, g_xmm5, g_xmm6, g_xmm7;\n'
             'static unsigned billboard_calls,mesh_calls,billboard_result;\n'

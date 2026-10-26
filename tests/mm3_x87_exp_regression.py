@@ -21,15 +21,15 @@ sys.path.insert(0, str(ROOT / 'tools/xboxrecomp'))
 from tools.rtti.rtti import Image
 
 ENTRIES = (0x25371C, 0x9B8C2, 0x9B3DC, 0x9BB15, 0x9BC52,
-           0x9BC04, 0x9BC35, 0x9B4E2, 0x9B4D4, 0x9B4E9, 0x9B94E)
+           0x9BC04, 0x9BC35, 0x9B4E2, 0x9B4D4, 0x9B4E9, 0x9B94E, 0x9B582)
 VALUES = (-1000000.0, -1000.0, -100.0, -10.0, -1.0, -0.01, -0.0,
           0.0, 0.01, 1.0, 10.0, 100.0, 1000.0, 1000000.0)
 SENTINELS = (123.25, -91.5)
 
 
-def native_source():
+def native_source(generated_dir=None):
     found = {}
-    for path in sorted((ROOT / 'src/recomp/gen').glob('recomp_*.c')):
+    for path in sorted((generated_dir or ROOT / 'src/recomp/gen').glob('recomp_*.c')):
         for match in re.finditer(r'void (sub_\w+)\(void\)\n\{.*?(?=\n/\*\*|\Z)',
                                  path.read_text(), re.S):
             found[match.group(1)] = match.group(0)
@@ -49,6 +49,7 @@ def native_source():
     return r'''
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #define RECOMP_GENERATED_CODE
 #include "mm3_recomp_types.h"
 ptrdiff_t g_xbox_mem_offset;
@@ -80,7 +81,12 @@ int main(int argc,char**argv){
     g_esp=0x700000;MEM32(g_esp)=0x600000;
     g_fp_top=5;g_fp_stack[5]=strtod(argv[3],0);
     g_fp_stack[6]=-91.5;g_fp_stack[7]=123.25;
-    if(argc>4){
+    if(argc>4 && !strcmp(argv[4],"power-helper")){
+        g_seh_ebp=g_ebp=0x710000;
+        MEM8(g_ebp-144)=(uint8_t)strtol(argv[3],0,0);
+        sub_0009B582();
+    }
+    else if(argc>4){
         g_seh_ebp=g_ebp=0x710000;sub_0009BC35();
         if(MEM8(g_ebp-144)!=3)return 4;
     }
@@ -88,12 +94,13 @@ int main(int argc,char**argv){
     printf("%.17g %.17g %.17g %u %u %u %u %u %u\n",
            g_fp_stack[g_fp_top],g_fp_stack[(g_fp_top+1)&7],g_fp_stack[(g_fp_top+2)&7],
            g_fp_top,g_esp,g_fp_control_word,g_ebx,g_esi,g_edi);
+    if(argc>4 && !strcmp(argv[4],"power-helper")) printf("%u\n",MEM8(g_ebp-144));
     return 0;
 }
 '''
 
 
-def original_result(ram, value, control, entry=0x25371C):
+def original_result(ram, value, control, entry=0x25371C, status=0):
     machine = unicorn.Uc(unicorn.UC_ARCH_X86, unicorn.UC_MODE_32)
     machine.mem_map(0, len(ram))
     machine.mem_write(0, bytes(ram))
@@ -107,16 +114,19 @@ def original_result(ram, value, control, entry=0x25371C):
         code.extend(b'\xdd\x05' + struct.pack('<I', address))
     call = 0x600000 + len(code)
     code.extend(b'\xe8' + struct.pack('<i', entry - call - 5))
-    for address in (0x600130, 0x600138, 0x600140):
+    for address in ((0x600130, 0x600138) if entry == 0x9B582 else
+                    (0x600130, 0x600138, 0x600140)):
         code.extend(b'\xdd\x1d' + struct.pack('<I', address))
     code.extend(b'\xd9\x3d' + struct.pack('<I', 0x600148))
     machine.mem_write(0x600000, bytes(code))
     for register, initial in ((x86.UC_X86_REG_ESP, 0x700004),
-                              (x86.UC_X86_REG_EBP, 0x710000 if entry==0x9BC35 else 0x456789AB),
+                              (x86.UC_X86_REG_EBP, 0x710000 if entry in (0x9BC35, 0x9B582) else 0x456789AB),
                               (x86.UC_X86_REG_EBX, 0x12345678),
                               (x86.UC_X86_REG_ESI, 0x23456789),
                               (x86.UC_X86_REG_EDI, 0x3456789A)):
         machine.reg_write(register, initial)
+    if entry == 0x9B582:
+        machine.mem_write(0x710000 - 144, bytes([status & 255]))
 
     def omit_reporting_callback(uc, address, size, _):
         if address == 0x9E5D4:
@@ -131,7 +141,10 @@ def original_result(ram, value, control, entry=0x25371C):
     assert machine.reg_read(x86.UC_X86_REG_EIP) == 0x600000 + len(code)
     values = struct.unpack('<ddd', machine.mem_read(0x600130, 24))
     restored_control = struct.unpack('<H', machine.mem_read(0x600148, 2))[0]
-    assert values[1:] == SENTINELS[::-1], (value, values)
+    if entry == 0x9B582:
+        assert values[1] == SENTINELS[0], values
+    else:
+        assert values[1:] == SENTINELS[::-1], (value, values)
     assert machine.reg_read(x86.UC_X86_REG_ESP) == 0x700004
     assert restored_control == control
     for register, initial in ((x86.UC_X86_REG_EBX, 0x12345678),
@@ -141,10 +154,12 @@ def original_result(ram, value, control, entry=0x25371C):
     assert (machine.reg_read(x86.UC_X86_REG_FPSW) >> 11) & 7 == 0
     if entry == 0x9BC35:
         assert machine.mem_read(0x710000-144,1) == b'\x03'
+    if entry == 0x9B582:
+        return values[0], machine.mem_read(0x710000 - 144, 1)[0]
     return values[0]
 
 
-def main():
+def main(generated_dir=None):
     cc.require_compiler()
     image = Image(str(ROOT / 'game_files/default.xbe'))
     ram = bytearray(0x1000000)
@@ -155,7 +170,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='x87-exp-', dir=scratch) as directory:
         directory = Path(directory)
         source, executable = directory / 'exp.c', directory / ('exp' + cc.exe_suffix())
-        source.write_text(native_source())
+        source.write_text(native_source(generated_dir))
         memory = directory / 'image.bin'
         memory.write_bytes(ram)
         subprocess.run(cc.compile_command([source], executable,
@@ -189,7 +204,15 @@ def main():
             assert actual == original_result(ram, 2.0, control, entry=0x9BC35) == math.inf
             assert (second, third) == SENTINELS[::-1]
             assert tuple(map(int,result[3:])) == (5,0x700004,control,0x12345678,0x23456789,0x3456789A)
-        print(f'PASS: {count} native exp cases (48 original-XBE comparisons, 8 double-range limits), plus 4 original-XBE overflow-helper cases; x87 stack, ESP, registers, and control word preserved.')
+            for status in (-1, 0, 7):
+                result = subprocess.run([str(executable), str(memory), hex(control), str(status), 'power-helper'],
+                                        capture_output=True, text=True, check=True).stdout.split()
+                expected, expected_status = original_result(ram, status, control, entry=0x9B582, status=status)
+                assert 'nan' in result[0].lower() and math.isnan(expected), result
+                assert float(result[1]) == SENTINELS[0], result
+                assert tuple(map(int, result[3:9])) == (6, 0x700004, control, 0x12345678, 0x23456789, 0x3456789A), result
+                assert int(result[9]) == expected_status, result
+        print(f'PASS: {count} native exp cases (48 original-XBE comparisons, 8 double-range limits), plus 4 overflow-helper and 12 power-tail original-XBE cases; x87 stack, ESP, registers, and control word preserved.')
 
 
 if __name__ == '__main__':

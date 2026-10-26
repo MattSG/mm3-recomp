@@ -30,6 +30,11 @@
     "note": "Shared x87 exponential-underflow tail: replace the input with zero while preserving the floating-point stack depth. The unresolved stub leaves the negative exponent as the tire-force result."
   },
   {
+    "start": "0x0009B582",
+    "end": "0x0009B59F",
+    "note": "Direct x87 power-dispatch helper called by recovered 9BB04. Native bytes pop two operands, load the extended result constant, update the inherited frame's status and return at 9B59E; the detector places it after a return inside 9B543."
+  },
+  {
     "start": "0x0009BB04",
     "end": "0x0009BC04",
     "note": "Related x87 power dispatch entry sharing the caller's frame and the 9BB22 result path.",

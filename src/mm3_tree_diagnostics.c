@@ -10,6 +10,7 @@
 #include "mm3_recomp_types.h"
 #include "vec3_rotate.h"
 #include "guest_read.h"
+#include "fixed_step.h"
 
 extern void sub_0016AEDB_original(void);
 extern void sub_000E1F49_original(void);

@@ -16,7 +16,7 @@ def main():
         executable = folder / f"contract{cc.exe_suffix()}"
         # POSIX has no _putenv_s: the runtime compat layer provides it.
         sources = [ROOT / "tests/mm3_particle_budget_contract.c",
-                   ROOT / "tools/xboxrecomp/src/kernel/env_range.c",
+                   ROOT / "src/env_range.c",
                    ROOT / "tools/xboxrecomp/src/nv2a/nv2a_pb_reserve.c"]
         if os.name != "nt":
             sources.append(ROOT / "tools/xboxrecomp/src/platform/win32_compat.c")

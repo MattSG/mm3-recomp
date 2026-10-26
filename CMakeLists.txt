@@ -43,15 +43,6 @@ endif()
 set(XBOXRECOMP_DSP_PROGRAM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/game_files/dsp")
 # MM3 owns its depth-view compatibility shader; both host renderers use it.
 set(XBOXRECOMP_NV2A_SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/mods/shaders/nv2a")
-# The submodule is upstream xboxrecomp; patches/xboxrecomp holds the generic
-# changes this port still carries on top of it.
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
-execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/patch_xboxrecomp.py"
-    RESULT_VARIABLE xboxrecomp_patched)
-if(xboxrecomp_patched)
-    message(FATAL_ERROR "Could not apply patches/xboxrecomp to ${XBOXRECOMP_DIR}")
-endif()
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/patch_xboxrecomp.py)
 add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)
 # MM3 VP-only playback was measured about 10 dB above GP output (-10.7 vs
 # -20.7 dBFS in a race). Keep its existing calibration outside the runtime.
@@ -207,8 +198,6 @@ list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0016AEDB sub_000E1F49 sub_001D137B
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001EEC53)
 # Cache map texture ownership at native load/reconfiguration/destruction boundaries.
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0011C742 sub_0011CAAC sub_0007CEC3)
-# Keep same-chunk calls directed to the recovered x87 helper definitions.
-list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0009BC04 sub_0009BC35 sub_0009BC52)
 # Preserve same-chunk locale calls to the custom vehicle-name extension.
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0011C194)
 # Preserve same-chunk catalog calls to the retired-car selection fallback.
@@ -382,11 +371,24 @@ foreach(distance_input IN LISTS distance_owners)
 endforeach()
 
 add_executable(${PROJECT_NAME}
+    src/derived_cache.c
+    src/fixed_step.c
+    src/feature_switch.c
+    src/env_range.c
+    src/string_ci.c
+    src/slot_publish.c
+    src/geometry/camera_math.c
+    src/geometry/piece_cluster.c
+    src/geometry/road_graph.c
+    src/geometry/kb_spline.c
+    src/geometry/polyline.c
+    src/geometry/thick_line.c
+    src/geometry/vec3_rotate.c
     src/main.c
     src/mm3_asset_cache.c
        src/mm3_host_video.c
     src/mm3_launcher.cpp
-    ${XBOXRECOMP_DIR}/src/ui/rmlui_host.cpp
+    src/ui/rmlui_host.cpp
     ${MM3_RMLUI_BACKEND}
     src/mods/mods.c
     src/mods/render_commands.c
@@ -424,7 +426,7 @@ if(WIN32)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3.rc)
 endif()
 if(XBOXRECOMP_RENDERER STREQUAL "SDL3_GPU")
-    set_property(SOURCE ${MM3_RMLUI_BACKEND} src/mm3_launcher.cpp ${XBOXRECOMP_DIR}/src/ui/rmlui_host.cpp APPEND PROPERTY
+    set_property(SOURCE ${MM3_RMLUI_BACKEND} src/mm3_launcher.cpp src/ui/rmlui_host.cpp APPEND PROPERTY
         COMPILE_DEFINITIONS RMLUI_SDL_VERSION_MAJOR=3)
 endif()
 
@@ -448,6 +450,7 @@ endif()
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     src
+    src/geometry
     src/recomp
     ${RECOMP_GEN_DIR}
     ${XBOXRECOMP_DIR}/include
@@ -501,9 +504,10 @@ if(MSVC)
 endif()
 
 add_executable(mm3_launcher_settings_contract EXCLUDE_FROM_ALL
-    tests/mm3_launcher_settings_contract.cpp src/mods/mods.c ${MM3_RMLUI_BACKEND})
+    tests/mm3_launcher_settings_contract.cpp src/mods/mods.c src/feature_switch.c
+    ${XBOXRECOMP_DIR}/src/input/keymap_spec.c ${MM3_RMLUI_BACKEND})
 target_include_directories(mm3_launcher_settings_contract PRIVATE src
-    ${rmlui_SOURCE_DIR}/Backends ${XBOXRECOMP_DIR}/src/video)
+    ${rmlui_SOURCE_DIR}/Backends ${XBOXRECOMP_DIR}/src/video ${XBOXRECOMP_DIR}/src/input)
 target_link_libraries(mm3_launcher_settings_contract PRIVATE platform RmlUi::RmlUi
     ${MM3_RMLUI_BACKEND_LIBS} ${MM3_WIN32_LIBS} ${MM3_LIBM})
 if(XBOXRECOMP_RENDERER STREQUAL "SDL3_GPU")

@@ -3,7 +3,10 @@ extern "C" {
 #include "nv2a_d3d11.h"
 }
 #include <assert.h>
+int rmlui_host_run(const RmlUiHostOptions *, const RmlUiHostClient *) { assert(false); return 0; }
 extern "C" {
+void mm3_render_commands_init(void) { assert(false); }
+void mm3_dvd_media_init(void) { assert(false); }
 void xbox_InputSetMenuProbe(int (*)(void)) { assert(false); }
 /* The SDL3 launcher's hidden-start query; the settings checks never start hidden. */
 int xbox_FramebufferStartHidden(void) { return 0; }

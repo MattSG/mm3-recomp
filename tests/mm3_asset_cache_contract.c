@@ -101,7 +101,7 @@ static DWORD test_attributes(LPCWSTR path)
 #define CreateFileW test_create
 #define GetFileInformationByHandle test_info
 #define CloseHandle test_close
-#include "../tools/xboxrecomp/src/kernel/derived_cache.c"
+#include "../src/derived_cache.c"
 #include "../src/mm3_asset_cache.c"
 #undef ReadFile
 #undef DeleteFileW
