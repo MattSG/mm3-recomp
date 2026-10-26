@@ -18,6 +18,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / 'tools/xboxrecomp'))
 from tools.xiso.xdvdfs import Xiso, XisoError  # noqa: E402
+from tools.xiso.__main__ import _safe_component  # noqa: E402
 
 # sha256 of default.xbe's sections, media-check branch normalised (see below).
 CODE_SHA256 = '9c437324a42a8dbd2d7dd6852969f942ad2da3a6a513196b068db4776bbf8ba4'
@@ -68,6 +69,7 @@ def main():
     ap.add_argument('iso', type=Path)
     ap.add_argument('--out', type=Path, default=REPO / 'game_files')
     ap.add_argument('--skip-iso-hash', action='store_true', help='skip the (slow) whole-image hash')
+    ap.add_argument('--check-only', action='store_true', help='validate without extracting')
     args = ap.parse_args()
 
     try:
@@ -90,8 +92,17 @@ def main():
             sha1 = file_sha1(args.iso)
             print(f'image sha1 {sha1}: ' + TESTED_IMAGES.get(
                 sha1, 'not a dump this project was tested with, but its code matches'))
-        args.out.mkdir(parents=True, exist_ok=True)
+        if args.check_only:
+            return
         files = list(iso.walk())
+        root = args.out.resolve()
+        for d, e in files:
+            parts = (d.split("/") if d else []) + [e.name]
+            if not all(_safe_component(p) for p in parts):
+                sys.exit(f"unsafe disc path: {parts!r}")
+            if not root.joinpath(*parts).resolve().is_relative_to(root):
+                sys.exit(f"disc path escapes output directory: {parts!r}")
+        args.out.mkdir(parents=True, exist_ok=True)
         for n, (d, e) in enumerate(files, 1):
             dest = args.out.joinpath(*(d.split('/') if d else []), e.name)
             if not d and e.name.lower() == 'default.xbe':

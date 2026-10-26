@@ -10,16 +10,43 @@ A static recompilation of the Xbox game to native Windows x64, using
 
 ## Quick start
 
-You need:
-- Windows 10/11 x64;
-- Visual Studio 2022 or newer with **Desktop development with C++**;
-- Python 3.12;
-- git;
-- a dump of your own Midtown Madness 3 disc.
+You need a dump of your own Midtown Madness 3 disc, Python 3.12, git, CMake,
+and an x86-64 Windows or Linux PC. Windows also needs Visual Studio 2022 or
+newer with **Desktop development with C++** and **C++ CMake tools for
+Windows**. Linux needs a C/C++ compiler, the dependencies listed in the
+[Linux section](#linux-sdl3-gpu--vulkan), and Tkinter (for example,
+`python3-tk` on Ubuntu).
+
+1. Clone the repository and its submodules:
+
+   ```sh
+   git clone --recurse-submodules https://github.com/MattSG/mm3-recomp.git
+   cd mm3-recomp
+   ```
+
+2. Download the standalone builder for your OS from the repository releases
+   and run it, or run `python scripts/build_gui.py` on Windows /
+   `python3 scripts/build_gui.py` on Linux. If prompted, select the checkout
+   folder created in step 1. On Linux, make the download executable with
+   `chmod +x mm3-builder-linux` before running it. The standalone app can
+   check a disc without Python; building the game still needs Python and the
+   listed build tools.
+3. Choose your disc image and select **Check SHA** to verify its image SHA-1
+   and game-code SHA-256. The result shows whether the image matches a tested
+   dump; **Show log** has the details.
+4. Choose a graphics API and select **Build**. The disc is checked again before
+   building. Open **Show log** for progress and any errors.
+5. When the build finishes, select **Launch game**. The chosen graphics API is
+   used for that launch.
+
+The builder reuses existing extracted game files and keeps separate Windows
+and Linux renderer builds under `build/gui-*`. Direct3D 11 and Direct3D 12
+are available on Windows; Vulkan is available on Windows and Linux. macOS game
+builds are not supported yet.
+
+For command-line setup instead, run:
 
 ```powershell
-git clone --recurse-submodules https://github.com/MattSG/mm3-recomp.git
-cd mm3-recomp
 python scripts/setup.py --iso "<path to your disc image>"
 .\build\RelWithDebInfo\mm3_recomp.exe
 ```

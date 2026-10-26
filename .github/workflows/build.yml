@@ -1,0 +1,49 @@
+name: Build and test
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  contracts:
+    name: Asset-free contracts (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test builder
+        run: python -m unittest discover -s tests -p test_build_gui.py -v
+      - name: Configure contracts
+        run: cmake -S tools/xboxrecomp/tests/guest_read -B build-contracts
+      - name: Build contracts
+        run: cmake --build build-contracts --config Debug --parallel
+      - name: Test contracts
+        run: ctest --test-dir build-contracts -C Debug --output-on-failure
+  runtime:
+    name: Runtime libraries (${{ matrix.os }}, ${{ matrix.renderer }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            renderer: D3D11
+          - os: windows-latest
+            renderer: SDL3_GPU
+          - os: ubuntu-latest
+            renderer: SDL3_GPU
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libssl-dev libepoxy-dev libasound2-dev libpulse-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev libwayland-dev libxkbcommon-dev libudev-dev
+      - name: Configure runtime
+        run: cmake -S tools/xboxrecomp -B build-runtime -DXBOXRECOMP_RENDERER=${{ matrix.renderer }}
+      - name: Build runtime
+        run: cmake --build build-runtime --config Release --parallel 2

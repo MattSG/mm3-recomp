@@ -1,0 +1,67 @@
+name: Release builder
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/**'
+      - 'tools/xboxrecomp'
+      - '.github/workflows/release-builder.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: mm3-builder-windows
+            file: mm3-builder-windows.exe
+          - os: ubuntu-22.04
+            name: mm3-builder-linux
+            file: mm3-builder-linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Linux Tk dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y python3-tk tk-dev
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install pyinstaller==6.22.3
+      - run: python -m unittest discover -s tests -p test_build_gui.py -v
+      - name: Package builder
+        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name ${{ matrix.name }} --paths tools/xboxrecomp --hidden-import tools.xiso.xdvdfs --hidden-import tools.xiso.__main__ scripts/build_gui.py
+      - name: Smoke test executable
+        shell: python
+        run: |
+          import subprocess
+          subprocess.run(['dist/${{ matrix.file }}', '--self-test'], check=True, timeout=60)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: dist/${{ matrix.file }}
+          if-no-files-found: error
+  release:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+      - name: Publish calendar-versioned release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          version="$(date -u +%Y.%m.%d).${RUN_NUMBER}.${RUN_ATTEMPT}"
+          gh release create "v${version}" packages/mm3-builder-windows/mm3-builder-windows.exe packages/mm3-builder-linux/mm3-builder-linux --target "$TARGET_SHA" --title "Builder ${version}" --notes "Standalone builder for Windows and Linux. Game files are not included."

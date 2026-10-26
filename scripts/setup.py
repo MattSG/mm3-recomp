@@ -118,7 +118,7 @@ def generate(force, msvc):
         print("src/recomp/gen matches the fork and MM3 recipe (use --force to regenerate)")
 
 
-def configure(config, renderer, cmake, kind, msvc):
+def configure(config, renderer, cmake, kind, msvc, build_dir="build"):
     step(f"Build ({config})")
     if kind == "vs":
         gen = ["-A", "x64"]
@@ -128,19 +128,19 @@ def configure(config, renderer, cmake, kind, msvc):
         gen = ["-G", "Ninja", f"-DCMAKE_BUILD_TYPE={config}"]
     else:
         gen = ["-G", "Unix Makefiles", f"-DCMAKE_BUILD_TYPE={config}"]
-    run([cmake, "-S", ".", "-B", "build", *gen, f"-DXBOXRECOMP_RENDERER={renderer}"],
+    run([cmake, "-S", ".", "-B", build_dir, *gen, f"-DXBOXRECOMP_RENDERER={renderer}"],
         "cmake configure", build_env(msvc))
 
 
-def compile_game(config, cmake, msvc):
-    run([cmake, "--build", "build", "--config", config, "--target", "mm3_recomp", "--parallel"],
+def compile_game(config, cmake, msvc, build_dir="build"):
+    run([cmake, "--build", build_dir, "--config", config, "--target", "mm3_recomp", "--parallel"],
         "build", build_env(msvc))
 
 
-def exe_path(config):
+def exe_path(config, build_dir="build"):
     if IS_WIN:
-        return REPO / "build" / config / "mm3_recomp.exe"
-    return REPO / "build/mm3_recomp"
+        return REPO / build_dir / config / "mm3_recomp.exe"
+    return REPO / build_dir / "mm3_recomp"
 
 
 def all_dsp():
@@ -172,14 +172,14 @@ def capture_dsp(exe, msvc):
     return all_dsp()
 
 
-def dsp_step(exe, config, cmake, msvc):
+def dsp_step(exe, config, cmake, msvc, build_dir="build"):
     step("Audio DSP programs (game_files/dsp/)")
     if all_dsp():
         print("Captured and compiled in (delete game_files/dsp to capture again)")
         return
     print("Running the game, hidden and muted, to capture them...")
     if capture_dsp(exe, msvc):
-        compile_game(config, cmake, msvc)
+        compile_game(config, cmake, msvc, build_dir)
     else:
         print("WARNING: The DSP programs were not saved. Audio still works through the interpreter; "
               "the game saves them as you play and the next build compiles them.", file=sys.stderr)
@@ -194,6 +194,7 @@ def main(argv=None):
     ap.add_argument("--force", action="store_true", help="redo finished steps")
     ap.add_argument("--renderer", choices=["D3D11", "SDL3_GPU"], default=default_renderer,
                     help=f"host renderer (default: {default_renderer})")
+    ap.add_argument("--build-dir", default="build", help="CMake build directory (default: build)")
     args = ap.parse_args(argv)
     iso = args.iso.resolve() if args.iso else None
 
@@ -201,13 +202,16 @@ def main(argv=None):
     python_env(args.force, msvc)
     game_files(iso, args.skip_iso_hash, args.force, msvc)
     generate(args.force, msvc)
-    configure(args.config, args.renderer, cmake, kind, msvc)
-    compile_game(args.config, cmake, msvc)
+    configure(args.config, args.renderer, cmake, kind, msvc, args.build_dir)
+    compile_game(args.config, cmake, msvc, args.build_dir)
 
-    exe = exe_path(args.config)
-    dsp_step(exe, args.config, cmake, msvc)
+    exe = exe_path(args.config, args.build_dir)
+    dsp_step(exe, args.config, cmake, msvc, args.build_dir)
     print(f"\nBuilt {exe}")
-    print("Play:  python scripts/play.py    (--keyboard to drive with the keyboard)")
+    if args.build_dir == "build":
+        print("Play:  python scripts/play.py    (--keyboard to drive with the keyboard)")
+    else:
+        print(f"Play:  {exe}")
 
 
 if __name__ == "__main__":
