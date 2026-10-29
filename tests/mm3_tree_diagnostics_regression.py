@@ -35,12 +35,14 @@ static void trace_log(const char *format,...){
 #include "guest_state.c"
 #include "vec3_rotate.c"
 #include "guest_read.c"
+#include "fixed_step.c"
 #include "mm3_tree_diagnostics.c"
 ptrdiff_t g_xbox_mem_offset;
-RECOMP_TLS uint32_t g_eax,g_ecx,g_edx,g_esp,g_ebx,g_esi,g_edi,g_ebp,g_seh_ebp,g_fs_base;
+RECOMP_TLS uint32_t g_eax,g_ecx,g_edx,g_esp,g_ebx,g_esi,g_edi,g_ebp,g_seh_ebp,g_fs_base,g_eflags,g_mxcsr;
 RECOMP_TLS int g_fp_top,g_df,g_fp_cmp;
 RECOMP_TLS uint16_t g_fp_control_word,g_fp_cc;
 RECOMP_TLS double g_fp_stack[8];
+RECOMP_TLS uint32_t g_fp_valid;
 RECOMP_TLS RecompXmm g_xmm0,g_xmm1,g_xmm2,g_xmm3,g_xmm4,g_xmm5,g_xmm6,g_xmm7;
 RECOMP_TLS RecompMmx g_mm0,g_mm1,g_mm2,g_mm3,g_mm4,g_mm5,g_mm6,g_mm7;
 /* Test double for the runtime's xbox_GuestRead: the same host-checked read over this fixture's RAM. */
@@ -58,9 +60,9 @@ static unsigned calls,events;
 static int direct_call,unreadable;
 static const uint32_t stack=0x200000,object=0x120000,owner=0x130000,local=0x160000;
 static const uint32_t event=0x170000,velocity=0x180000,output=0x190000;
-typedef struct {uint32_t r[10];int m[3];uint16_t c[2];double fp[8];} State;
+typedef struct {uint32_t r[12];int m[3];uint16_t c[2];double fp[8];} State;
 static State state(void){
- State s={{g_eax,g_ecx,g_edx,g_esp,g_ebx,g_esi,g_edi,g_ebp,g_seh_ebp,g_fs_base},
+ State s={{g_eax,g_ecx,g_edx,g_esp,g_ebx,g_esi,g_edi,g_ebp,g_seh_ebp,g_fs_base,g_eflags,g_mxcsr},
  {g_fp_top,g_df,g_fp_cmp},{g_fp_control_word,g_fp_cc},{0}};
  memcpy(s.fp,g_fp_stack,sizeof s.fp);return s;
 }
@@ -68,6 +70,7 @@ static void result_state(void){
  g_eax=0xABCDEF01;g_ecx=0xBCDEF012;g_edx=0xCDEF0123;g_esp=stack+40;
  g_ebx=0x12345678;g_esi=0x23456789;g_edi=0x3456789A;
  g_ebp=0x456789AB;g_seh_ebp=0x56789ABC;g_fs_base=0x6789ABCD;
+ g_eflags=0x247;g_mxcsr=0x3F80;
  g_fp_top=3;g_df=1;g_fp_cmp=-1;g_fp_control_word=0x37F;g_fp_cc=0x4100;
  for(unsigned i=0;i<8;i++)g_fp_stack[i]=i*1.25-3.0;
 }

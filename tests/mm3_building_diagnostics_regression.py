@@ -243,7 +243,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='mm3-building-diagnostics-') as path:
         folder = Path(path)
         source, executable = folder / 'contract.c', folder / f'contract{cc.exe_suffix()}'
-        generated = (ROOT / 'src/recomp/gen/recomp_0014.c').read_text()
+        generated = ''.join(p.read_text() for p in sorted((ROOT / 'src/recomp/gen').glob('recomp_*.c')))
         native = generated.split('void sub_00162F75(void)', 1)[1].split('\n/**', 1)[0]
         native = 'void sub_00162F75_original(void)' + native
         native = re.sub(r'\b(eax|ecx|edx|esp|ebx|esi|edi|ebp)\b', r'g_\1', native)

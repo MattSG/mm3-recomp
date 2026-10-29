@@ -482,7 +482,7 @@ file(WRITE "{output.as_posix()}" "${{content}}")
 
 
 def check_mesh_seam(directory):
-    source = (ROOT / 'src/recomp/gen/recomp_0014.c').read_text()
+    source = ''.join(p.read_text() for p in sorted((ROOT / 'src/recomp/gen').glob('recomp_*.c')))
     body = re.search(r'void sub_0016AEDB\(void\)\n\{.*?\n\}', source, re.S).group()
     expected = '    if (mm3_tree_fall_drawing()) goto loc_0016B072;'
     cases = 0
@@ -604,7 +604,7 @@ def real_renderer_source(directory, patched):
 
 
 def check_render_seams(directory):
-    source = (ROOT / 'src/recomp/gen/recomp_0014.c').read_text()
+    source = ''.join(p.read_text() for p in sorted((ROOT / 'src/recomp/gen').glob('recomp_*.c')))
     cases = 0
     for owner, expected, changed in (
         ('sub_0015BF5A', 'mm3_tree_render_mask(edi, MEM32(edi + 0xC), 1u)',

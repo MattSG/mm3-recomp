@@ -112,10 +112,10 @@ int main(void)
 
 def main():
     gen = ROOT / "src/recomp/gen"
-    if not (gen / "recomp_0000.c").exists() or not (gen / "recomp_0018.c").exists():
+    chunks = sorted(gen.glob("recomp_*.c"))
+    if not chunks:
         raise SystemExit("run scripts/generate_mm3.py first: the lifted routine is generated")
-    text0 = (gen / "recomp_0000.c").read_text(encoding="utf-8", errors="replace")
-    text18 = (gen / "recomp_0018.c").read_text(encoding="utf-8", errors="replace")
+    text0 = text18 = "".join(c.read_text(encoding="utf-8", errors="replace") for c in chunks)
     helpers = extract(text0, "sub_000120B6") + "\n" + extract(text18, "sub_001F02AD")
     routine = extract(text0, "sub_000145DC")
     table = ", ".join(f"0x{entry:08X}u" for entry in jump_table())
