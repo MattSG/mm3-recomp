@@ -39,10 +39,10 @@ def original_probe(image, cached, flags, direction):
         if address != 0x9379E:
             return
         # The only queried feature is MMX. Supply it independently of the host.
-        uc.reg_write(common.x86.UC_X86_REG_EAX, 0x68A)
+        uc.reg_write(common.x86.UC_X86_REG_EAX, 0x683)
         uc.reg_write(common.x86.UC_X86_REG_EBX, 0)
         uc.reg_write(common.x86.UC_X86_REG_ECX, 0)
-        uc.reg_write(common.x86.UC_X86_REG_EDX, 0x0383F9FD)
+        uc.reg_write(common.x86.UC_X86_REG_EDX, 0x0383F9FF)
         uc.reg_write(common.x86.UC_X86_REG_EIP, address + size)
 
     machine.hook_add(common.unicorn.UC_HOOK_CODE, xbox_cpuid)
@@ -54,6 +54,12 @@ def original_probe(image, cached, flags, direction):
             *struct.unpack('<I', machine.mem_read(0x393004, 4)),
             *struct.unpack('<I', machine.mem_read(0x46E580, 4)),
             (machine.reg_read(common.x86.UC_X86_REG_EFLAGS) >> 10) & 1]
+
+
+def runtime_cpuid():
+    """The runtime's xbox_Cpuid, compiled as it ships."""
+    source = (ROOT / 'tools/xboxrecomp/src/kernel/kernel_hal.c').read_text()
+    return re.search(r'void xbox_Cpuid\(uint32_t leaf.*?\n\}', source, re.S).group() + '\n'
 
 
 COMMON_NATIVE = r'''
@@ -74,7 +80,7 @@ static unsigned char memory[0x1000000];
 
 
 def cpu_fixture():
-    generated = (ROOT / 'src/recomp/gen/recomp_0008.c').read_text()
+    generated = ''.join(p.read_text() for p in sorted((ROOT / 'src/recomp/gen').glob('recomp_*.c')))
     original = re.search(r'void sub_00093770\(void\)\n\{.*?\n\}', generated, re.S).group()
     original = original.replace('sub_00093770(void)', 'original_generated_probe(void)')
     # The emitted fallback variable is unused, and generated code normally /w.
@@ -84,10 +90,9 @@ def cpu_fixture():
     unaliases = ''.join(f'#undef {r}\n' for r in ('eax', 'ebx', 'ecx', 'edx'))
     original = (aliases + '#pragma warning(push)\n#pragma warning(disable:4102 4127)\n'
                 + original + '\n#pragma warning(pop)\n' + unaliases)
-    return (COMMON_NATIVE + '\n' + (ROOT / 'src/mm3_cpu_compat.c').read_text()
+    return (COMMON_NATIVE + 'RECOMP_TLS uint32_t g_eflags;\n' + runtime_cpuid()
             + '\nvoid recomp_unimpl(const char*text,uint32_t va){(void)text;(void)va;}\n'
             + original + r'''
-static unsigned char expected_memory[sizeof(memory)];
 static void init_cpu(char**argv){
  memset(memory,0,sizeof(memory));
  MEM32(0x393004)=(uint32_t)strtol(argv[1],0,0);
@@ -95,20 +100,9 @@ static void init_cpu(char**argv){
  g_ebx=0x12345678;g_esi=0x23456789;g_edi=0x3456789A;g_ebp=0x456789AB;
  g_seh_ebp=0x56789ABC;g_ecx=0x321;g_edx=0x432;g_df=atoi(argv[3]);
 }
-static void snapshot(uint32_t *s){
- s[0]=g_eax;s[1]=g_ecx;s[2]=g_edx;s[3]=g_esp;s[4]=g_ebx;
- s[5]=g_esi;s[6]=g_edi;s[7]=g_ebp;s[8]=g_seh_ebp;s[9]=(uint32_t)g_df;
-}
 int main(int argc,char**argv){
- uint32_t expected[10],actual[10];
  assert(argc==4);g_xbox_mem_offset=(ptrdiff_t)memory;
- init_cpu(argv);original_generated_probe();snapshot(expected);
- memcpy(expected_memory,memory,sizeof(memory));
- init_cpu(argv);
- sub_00093770();
- snapshot(actual);
- assert(memcmp(expected,actual,sizeof(expected))==0);
- assert(memcmp(expected_memory,memory,sizeof(memory))==0);
+ init_cpu(argv);original_generated_probe();
  assert(g_ebp==0x6ffffc && g_seh_ebp==0x6ffffc);
  assert(MEM32(0x700000)==0x600000 && MEM32(0x700004)==(uint32_t)strtoul(argv[2],0,0));
  /* EBP remains local in generated code; the saved word is the x86 register. */
@@ -196,7 +190,7 @@ def main():
         trap_env = dict(diagnostic_env, RECOMP_UNIMPL_TRAP='1')
         result = subprocess.run([str(diagnostics), 'trap'], capture_output=True, text=True, env=trap_env)
         assert result.returncode not in (0, 99) and '0x0035F882' in result.stderr, result
-        print(f'PASS: {cases} CPU-probe cases match original Xbox instructions and the generated baseline. Known hardware sites preserve registers and log once; unknown instructions and mismatched known-site operands stop execution; explicit traps stop known sites too.')
+        print(f'PASS: {cases} CPU-probe cases of the generated code match the original Xbox instructions. Known hardware sites preserve registers and log once; unknown instructions and mismatched known-site operands stop execution; explicit traps stop known sites too.')
 
 
 if __name__ == '__main__':

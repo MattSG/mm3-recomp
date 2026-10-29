@@ -202,8 +202,6 @@ list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0011C742 sub_0011CAAC sub_0007CEC3
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0011C194)
 # Preserve same-chunk catalog calls to the retired-car selection fallback.
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001DDFC5)
-# The CRT MMX probe must preserve the stack effects of PUSHFD/POPFD.
-list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_00093770)
 # The hot visibility leaf keeps its balanced x87 scratch stack in native locals.
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001C793A)
 # Factory profiles bind the real constructed controller and leave retail cars
@@ -415,7 +413,6 @@ add_executable(${PROJECT_NAME}
  src/mm3_car_selection_compat.c
  src/mm3_speedometer.c
  src/mm3_factory_physics.c
- src/mm3_cpu_compat.c
  src/mods/widescreen.c
  src/mods/draw_distance.c
  src/mods/teleport.c

@@ -18,8 +18,11 @@ ROOT = common.ROOT
 STACK = 0x700000
 DESCRIPTOR = 0x800000
 LEAVES = ((2, 0x756E6547, 0x6C65746E, 0x49656E69),
-          (0x68A, 0, 0, 0x0383F9FD),
-          (0x03020101, 0, 0, 0x0C040841))
+          (0x683, 0, 0, 0x0383F9FF),
+          (0x03020101, 0, 0, 0x0C040800))
+
+
+
 
 
 def original_result(image, entry, direction):
@@ -60,7 +63,7 @@ def original_result(image, entry, direction):
 
 
 def native_source():
-    source = (ROOT / 'src/recomp/gen/recomp_0008.c').read_text()
+    source = ''.join(p.read_text() for p in sorted((ROOT / 'src/recomp/gen').glob('recomp_*.c')))
     names = ('sub_000A4FE0', 'sub_000A5060')
     bodies = []
     for name in names:
@@ -74,10 +77,12 @@ def native_source():
             '#define RECOMP_GENERATED_CODE\n#include "recomp_types.h"') + r'''
 RECOMP_TLS uint32_t g_eflags;
 RECOMP_TLS double g_fp_stack[8];
+RECOMP_TLS uint32_t g_fp_valid;
 RECOMP_TLS int g_fp_top,g_fp_cmp;
 RECOMP_TLS uint16_t g_fp_control_word,g_fp_cc;
 RECOMP_TLS RecompXmm g_xmm0,g_xmm1,g_xmm2,g_xmm3,g_xmm4,g_xmm5,g_xmm6,g_xmm7;
 RECOMP_TLS RecompMmx g_mm0,g_mm1,g_mm2,g_mm3,g_mm4,g_mm5,g_mm6,g_mm7;
+''' + diagnostics.runtime_cpuid() + r'''
 static unsigned fallback_calls;
 void recomp_unimpl(const char *text,uint32_t va){
  assert(strcmp(text,"cpuid")==0 && va==0xA4FEE);fallback_calls++;
@@ -86,7 +91,7 @@ void sub_000A4FE0(void);
 void sub_000A5060(void);
 ''' + aliases
             + pragma_push + '\n'.join(bodies) + r'''
-static void run_site(uint32_t site){(void)site;recomp_cpuid(g_eax,g_ecx,&g_eax,&g_ebx,&g_ecx,&g_edx);}
+static void run_site(uint32_t site){uint32_t id[4];(void)site;xbox_Cpuid(g_eax,g_ecx,id);g_eax=id[0];g_ebx=id[1];g_ecx=id[2];g_edx=id[3];}
 ''' + '#ifdef _MSC_VER\n#pragma warning(pop)\n#endif\n' + unaliases + r'''
 static RecompXmm *xmm[8];
 static RecompMmx *mm[8];
@@ -167,7 +172,7 @@ def main():
                 for subleaf in (0, 0x12345678):
                     for direction in (0, 1):
                         output = subprocess.check_output([str(executable), 'site', str(site), str(leaf), str(subleaf), str(direction)], text=True)
-                        expected = (0, 0, 0, 0) if leaf == 0x40000000 else LEAVES[min(leaf, 2)]
+                        expected = LEAVES[min(leaf, 2)]          # the runtime clamps every higher leaf
                         assert list(map(int, output.split())) == list(expected)
                         cases += 1
         for mode, entry in (('descriptor', 0xA4FE0), ('gate', 0xA5060)):
