@@ -1,4 +1,4 @@
-/* Exercise the real keyboard window handler, XInput translation and USB
+/* Exercise the real keyboard window handler, pad translation and USB
  * report encoder without running MM3 or requiring a physical controller. */
 #include <windows.h>
 #include <xinput.h>
@@ -23,30 +23,15 @@ static void set_driving_probe(int (*driving)(void))
     if (mod_on) mm3_keyboard_driving_init(driving);
 }
 
-static DWORD WINAPI fixture_get_state(DWORD port, XINPUT_STATE *state)
+/* The production pad merge reads its host pad through host_pad_state; the test supplies it. */
+#define XBOX_INPUT_HOST_PAD 1
+static DWORD host_pad_state(DWORD port, XINPUT_STATE *state)
 {
     if (!host_connected || port != 0) return ERROR_DEVICE_NOT_CONNECTED;
     *state = host_state;
     return ERROR_SUCCESS;
 }
 
-static DWORD WINAPI fixture_set_state(DWORD port, XINPUT_VIBRATION *vibration)
-{
-    (void)port; (void)vibration;
-    return ERROR_SUCCESS;
-}
-
-static DWORD WINAPI fixture_get_caps(DWORD port, DWORD flags,
-                                    XINPUT_CAPABILITIES *caps)
-{
-    (void)port; (void)flags;
-    memset(caps, 0, sizeof(*caps));
-    return ERROR_SUCCESS;
-}
-
-#define XInputGetState fixture_get_state
-#define XInputSetState fixture_set_state
-#define XInputGetCapabilities fixture_get_caps
 #include "../tools/xboxrecomp/src/input/xinput_device.c"
 #include "../tools/xboxrecomp/src/video/fb_present.c"
 #include "../tools/xboxrecomp/src/video/fb_window_win32.c"

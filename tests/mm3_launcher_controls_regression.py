@@ -33,7 +33,7 @@ def function(source, name):
 
 
 def main():
-    cc.skip_unless_windows("the fixtures include windows.h and link user32/xinput")
+    cc.skip_unless_windows("the fixtures include windows.h and link user32")
     cc.require_compiler()
     source = (ROOT / "src/mm3_launcher.cpp").read_text(encoding="utf-8")
     parts = [
@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
             [ROOT / "tests/mm3_input_contract.c"] + [ROOT / "tools/xboxrecomp/src/input" / f for f in
              ("mkb_input.c", "keyboard.c", "keymap_spec.c", "input_map.c")], input_exe, std="c11", optimize="speed",
             warnings="normal", defines=["WIN32_LEAN_AND_MEAN", "NOMINMAX", "_CRT_SECURE_NO_WARNINGS"],
-            includes=[ROOT / "tools/xboxrecomp/src"], libs=["user32", "xinput"]), cwd=folder, check=True)
+            includes=[ROOT / "tools/xboxrecomp/src"], libs=["user32"]), cwd=folder, check=True)
         for saved in (False, True):
             command = [str(maps_exe)] + (["saved"] if saved else [])
             exported = subprocess.check_output(command, text=True, cwd=folder)
