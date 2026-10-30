@@ -72,3 +72,21 @@ Love). It does not use xemu code.
 
 Stay on our stack. Do experiment 1 under "worth pulling" (it is the only item that could move the frame-time
 number), then item 2 (cheap, correctness), and treat the rest as reference reading.
+
+## What was pulled across (2026-10-30)
+
+| Idea | Outcome |
+|---|---|
+| Monitor-refresh frame cap | **Done** (fork `frame_limit.h`): `RECOMP_FPS_LIMIT=auto`, or unset, follows the display; launcher has a "Monitor" choice. Test added; measured 32.0 fps on this session's 32 Hz display. |
+| Crash dumps | **Done** (fork `crash_report.c`): a minidump in `CrashDumps/` beside the exe, dbghelp loaded on demand. The test caught a real struct-packing bug. |
+| SDL3 for input | **Done**: one pad path (SDL3 gamepads: Xbox, PlayStation, Switch, hot plug, rumble) on every platform, no XInput backend left. Launcher and debug overlay now read pads through a new `xbox_InputHostPad`; the pad state has a lock. Checked by running all three mission wins on the D3D11 build. |
+| CPU calling convention | **Measured, not ported.** A sampling profiler of the game thread (`profile` pipe command, `tools/game_test/profile_thread.py`) shows ~31% of its time in translated code and ~67% blocked in ntdll waits, with no exe address above 1.2%. A context-passing ABI could only improve that minority and has no hot spot to target. |
+| x87 / CRT math / `fprem1` | **Already covered** in the fork (`recomp_fprem` with the C2 fix, x87 trig and fprem tests in `tools/conformance`). Nothing to port. |
+| Write-if-changed generation | **Already present** (`test_write_if_changed.py`). |
+| Redundant state skipping | **Mostly present**: vertex/pixel shader, constant buffer and sampler binds are cached. Texture views are not, on purpose: binding render targets can unbind them, so a plain cache would be wrong. Left alone. |
+| Point sprites | **Measured, not ported.** MM3 does draw point lists (night rain) but sets sizes 1.0 and 0.5 px (register values 8 and 4, in 1/8 px); D3D11 has no point size and a geometry-shader expansion is not worth a barely visible gain. |
+| Float / reverse depth | Not ported: our depth follows the NV2A formats the game and the Y16 reinterpretation rely on. |
+| XDK signature scanner | Not ported: signatures exist only for builds 4831/5849 and would have to be generated from MM3 (build 5233) first; `tools/func_id` already identifies library code here. |
+| Bink fix, boot splash | Not applicable: MM3 ships no Bink files and has its own launcher and intro skip. |
+| System Link by direct IP | Already covered by `RECOMP_NET_PEERS` tunnelling. |
+
