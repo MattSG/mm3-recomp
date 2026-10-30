@@ -168,3 +168,12 @@ destination. The same-road test above allows two seconds to settle and retains
 the rendered city. Failed calibration runs correctly reported timeouts or
 insufficient motion rather than passing; `wait_motion` was added to handle the
 variable initial countdown. The unrelated pre-existing game remained running.
+
+## Winning missions (`mission_win.py`)
+
+`MM3_MISSION=checkpoint|blitz MM3_SAVE_TEMPLATE=<copied save> python tools/game_test/mission_win.py`
+boots with all mods on (smoothing off), holds throttle until the car moves, then teleports through the
+race's remaining checkpoints using the `route` debug-pipe command. It exits 0 after every checkpoint is
+passed and the game refuses further teleports; inspect the captured "CONGRATULATIONS!" screen. Verified on a
+Paris Checkpoint race (8/8) and a Washington Blitz (7/7). Work Undercover is not covered (`route` is empty
+in mode 0; the box positions are unknown).
