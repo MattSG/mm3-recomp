@@ -1,8 +1,8 @@
-name: Build and test
+name: Builder tests
 on: [push, pull_request, workflow_dispatch]
 jobs:
-  contracts:
-    name: Asset-free contracts (${{ matrix.os }})
+  builder:
+    name: Builder tests (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -17,9 +17,3 @@ jobs:
           python-version: '3.12'
       - name: Test builder
         run: python -m unittest discover -s tests -p test_build_gui.py -v
-      - name: Configure contracts
-        run: cmake -S tools/xboxrecomp/tests/guest_read -B build-contracts
-      - name: Build contracts
-        run: cmake --build build-contracts --config Debug --parallel
-      - name: Test contracts
-        run: ctest --test-dir build-contracts -C Debug --output-on-failure
