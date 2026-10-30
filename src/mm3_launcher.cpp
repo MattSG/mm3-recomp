@@ -255,7 +255,7 @@ Rml::Vector<Option> g_options = {
      {{"30", "30"}, {"60", "60"}, {"120", "120"}, {"144", "144"}, {"165", "165"}, {"240", "240"},
       {"0", "Unlimited"}}},
     {"", "Tick rate", "World updates a second, whatever the frame rate. The Xbox ran 30.",
-     "MM3_SIM_HZ", "60", "", {{"30", "30 (Xbox)"}, {"60", "60"}, {"90", "90"}}},
+     "MM3_SIM_HZ", "30", "", {{"30", "30 (Xbox)"}, {"60", "60"}, {"90", "90"}}},
     {"", "Draw every frame", "Also draw frames between world updates; they show the last update again.",
      "MM3_RENDER_EVERY_FRAME", "0", "", {{"0", "Off"}, {"1", "On"}}, 0, true},
     {"", "V-Sync", "", "RECOMP_VSYNC", "0", "",

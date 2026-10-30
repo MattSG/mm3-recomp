@@ -11,10 +11,14 @@
  * whatever the frame rate. MM3 presents with D3DPRESENT_INTERVAL_TWO_OR_
  * IMMEDIATE at 60 Hz (0x1ECB..: +0x34 = 0x80000002), so on the Xbox it ran
  * at 30 fps: the world updated 30 times a second, each update taking four
- * 1/120 s physics steps. MM3_SIM_HZ picks the rate: 30 (the console's), 60
- * (the default) or 90. At 120 the player car covers ~5% less ground (302 vs
- * 311-336 units in 12 s, tools/scripts/test_ai_start.py), likely from one-step ticks
- * rounding.
+ * 1/120 s physics steps. MM3_SIM_HZ picks the rate: 30 (the console's, the
+ * default: exact by construction, since the game's physics, AI and scripts
+ * then see the dt they were built for), 60 or 90 (the AI needs the gate below).
+ * The player car's acceleration (time to 10 and 20 units/s on a straight) was
+ * the same at 15, 20, 30, 60, 144, 240 fps and uncapped
+ * (tools/game_test/physics_sweep.py). At 120 the player car covered ~5% less
+ * ground in one early measurement (tools/scripts/test_ai_start.py), possibly
+ * noise: that rate is not offered.
  *
  * The main loop (0x1E77F3, ebx the game object) sets up once, then each
  * frame (0x1E7849..0x1E792F) runs the state machine (0x2545A), times the
@@ -41,7 +45,9 @@ extern void sub_0002545A_original(void);
 void sub_00025422(void) { sub_00025422_original(); }
 void sub_0002545A(void) { sub_0002545A_original(); }
 
-#define MAX_TICKS 4
+/* A slow frame catches up for up to 1/7.5 s of simulation (4 ticks at 30 Hz),
+ * so the game stays in real time down to ~7.5 fps at any tick rate. */
+#define MAX_TICKS_SECS (2.0f / 15.0f)
 
 /* One tick: 1/MM3_SIM_HZ s. */
 static float tick(void)
@@ -49,8 +55,8 @@ static float tick(void)
     static float t;
     if (!t) {
         const char *v = getenv("MM3_SIM_HZ");
-        int hz = v && *v ? atoi(v) : 60;
-        t = 1.0f / (float)(hz == 30 || hz == 90 ? hz : 60);
+        int hz = v && *v ? atoi(v) : 30;
+        t = 1.0f / (float)(hz == 60 || hz == 90 ? hz : 30);
     }
     return t;
 }
@@ -64,7 +70,7 @@ static float s_alpha;
 static int ticks_for(float dt)
 {
     static FixedStepClock clock;
-    return fixed_step_take(&clock, dt, TICK, MAX_TICKS, &s_alpha);
+    return fixed_step_take(&clock, dt, TICK, (int)(MAX_TICKS_SECS / TICK + 0.5f), &s_alpha);
 }
 
 /* The race AI's update (0x22DBBF: ecx the AI module, dt and a flag, ret 8).
