@@ -37,6 +37,11 @@ jobs:
             renderer: SDL3_GPU
     runs-on: ${{ matrix.os }}
     steps:
+      # The SDL3 patch is applied with git apply, which rejects its blank context
+      # lines once a Windows checkout has turned the file into CRLF.
+      - name: Keep LF line endings on Windows
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
         with:
           submodules: recursive
