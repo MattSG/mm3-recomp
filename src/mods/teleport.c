@@ -189,8 +189,59 @@ static void sample_car(uint32_t player)
     ReleaseSRWLockExclusive(&lock);
 }
 
+/* The "profile <seconds> <file>" pipe command: a sampling profiler for the game thread that
+ * needs no elevation. Every millisecond it suspends the thread, reads its RIP and writes one line
+ * per sample ("exe <rva>" inside the executable, "<module> <offset>" elsewhere, so waits show up
+ * as ntdll). Debug use only, behind MM3_DEBUG_TELEPORT: a suspended thread holding a lock stalls. */
+static HANDLE s_prof_thread;
+static struct { int seconds; char path[200]; } s_prof_job;
+static DWORD WINAPI prof_run(void *arg)
+{
+    enum { MAXS = 200000 };
+    static unsigned long long samples[MAXS];
+    unsigned n = 0;
+    unsigned long long base = (unsigned long long)(uintptr_t)GetModuleHandleW(NULL);
+    DWORD end = GetTickCount() + (DWORD)s_prof_job.seconds * 1000u;
+    (void)arg;
+    while (GetTickCount() < end && n < MAXS) {
+        CONTEXT c;
+        memset(&c, 0, sizeof c);
+        c.ContextFlags = CONTEXT_CONTROL;
+        if (SuspendThread(s_prof_thread) != (DWORD)-1) {
+            if (GetThreadContext(s_prof_thread, &c)) samples[n++] = c.Rip - base;
+            ResumeThread(s_prof_thread);
+        }
+        Sleep(1);
+    }
+    {
+        FILE *f = fopen(s_prof_job.path, "w");
+        if (f) {
+            for (unsigned i = 0; i < n; ++i) {
+                unsigned long long rva = samples[i];
+                if (rva < 0x4000000ull) { fprintf(f, "exe %llx\n", rva); continue; }
+                {
+                    HMODULE mod = NULL;
+                    wchar_t name[MAX_PATH] = L"?";
+                    unsigned long long abs_rip = rva + base;
+                    if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                           (LPCWSTR)(uintptr_t)abs_rip, &mod)) {
+                        GetModuleFileNameW(mod, name, MAX_PATH);
+                        fprintf(f, "%ls %llx\n", wcsrchr(name, L'\\') ? wcsrchr(name, L'\\') + 1 : name,
+                                abs_rip - (unsigned long long)(uintptr_t)mod);
+                    } else fprintf(f, "unknown %llx\n", abs_rip);
+                }
+            }
+            fclose(f);
+        }
+    }
+    return 0;
+}
+
 void sub_002203E5(void)
 {
+    if (!s_prof_thread)
+        DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &s_prof_thread,
+                        THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, 0);
     uint32_t primary = primary_player();
     if (primary && g_ecx == primary) {
         uint32_t car, vehicle;
@@ -328,6 +379,14 @@ static void teleport_answer(const char *command, char *reply, size_t size)
     if ((fields == 2 || (fields == 3 && isfinite(heading))) &&
         isfinite(xyz[0]) && isfinite(xyz[2])) {
         request_teleport(xyz, fields == 3 ? heading : NAN, reply, size);
+    } else if (strncmp(command, "profile ", 8) == 0) {
+        int secs = 0, off = 0;
+        if (sscanf(command + 8, "%d %n", &secs, &off) >= 1 && secs > 0 && s_prof_thread) {
+            s_prof_job.seconds = secs;
+            snprintf(s_prof_job.path, sizeof s_prof_job.path, "%s", command + 8 + off);
+            CloseHandle(CreateThread(NULL, 0, prof_run, NULL, 0, NULL));
+            snprintf(reply, size, "{\"result\":\"started\"}");
+        } else snprintf(reply, size, "{\"result\":\"no game thread yet\"}");
     } else if (strcmp(command, "cars") == 0) {
         uint32_t primary = primary_player();
         size_t n = (size_t)snprintf(reply, size, "{\"cars\":[");

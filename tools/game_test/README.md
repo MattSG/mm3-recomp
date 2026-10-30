@@ -179,3 +179,11 @@ career script's zones (`ZN-0..9` in `Scripts/Paris/Career/00/00Setup.lua`, insid
 into them in order. Inspect the captures: "CONGRATULATIONS!" for the races, Mathilda's end scene followed by the
 post-mission menu (RESTART RACE / NEXT RACE) for Undercover. Verified on a Paris Checkpoint race (8/8), a
 Washington Blitz (7/7) and Paris "Delivery by dawn" (10/10 zones).
+
+## Profiling the game thread (`profile_thread.py`)
+
+`MM3_SAVE_TEMPLATE=<copied save> python tools/game_test/profile_thread.py [seconds] [fps_limit]` samples the
+game thread through the debug pipe's `profile` command (every millisecond, no elevation needed) and prints
+how much of its time is inside the translated code, in ntdll (a blocking wait) and elsewhere. First
+reading, uncapped Checkpoint race at the harness settings: about 31% in the exe, 67% in ntdll waits, and no exe
+address above 1.2%, so translated guest code is a minority of the game thread's time and has no hot spot.
