@@ -159,6 +159,14 @@ Mods tab. The mods marked "always" are needed for the game to run.
 - **Skipping the launcher:** run `python scripts/play.py --keyboard --profile Balanced`.
 - **Saves:** back them up before you try a new build.
 
+## More documentation
+
+In [docs/](docs/): [debug tools](docs/IMGUI_DEBUG_TOOLS.md), [teleport pipe](docs/DEBUG_TELEPORT.md),
+[custom menus](docs/CUSTOM_MENUS.md), [menu mouse](docs/MENU_MOUSE.md),
+[who owns what between this repo and the xboxrecomp fork](docs/XBOXRECOMP_OWNERSHIP.md), and the
+[XboxXBERecomp comparison](docs/xboxxberecomp-evaluation.md). Old audits are in [docs/history/](docs/history/).
+The runtime test harness is in [tools/game_test/README.md](tools/game_test/README.md).
+
 ## Contributing
 
 PRs are welcome, including AI-assisted ones. Review and understand what you
