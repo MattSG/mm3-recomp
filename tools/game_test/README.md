@@ -171,9 +171,11 @@ variable initial countdown. The unrelated pre-existing game remained running.
 
 ## Winning missions (`mission_win.py`)
 
-`MM3_MISSION=checkpoint|blitz MM3_SAVE_TEMPLATE=<copied save> python tools/game_test/mission_win.py`
-boots with all mods on (smoothing off), holds throttle until the car moves, then teleports through the
-race's remaining checkpoints using the `route` debug-pipe command. It exits 0 after every checkpoint is
-passed and the game refuses further teleports; inspect the captured "CONGRATULATIONS!" screen. Verified on a
-Paris Checkpoint race (8/8) and a Washington Blitz (7/7). Work Undercover is not covered (`route` is empty
-in mode 0; the box positions are unknown).
+`MM3_MISSION=checkpoint|blitz|undercover MM3_SAVE_TEMPLATE=<copied save> python tools/game_test/mission_win.py`
+boots with all mods on (smoothing off) and holds throttle. Checkpoint and Blitz read the race's remaining
+checkpoints with the `route` debug-pipe command and teleport through them; it exits 0 once every checkpoint is
+passed and the game refuses further teleports. Work Undercover has no checkpoint list: the harness parses the
+career script's zones (`ZN-0..9` in `Scripts/Paris/Career/00/00Setup.lua`, inside `Data_hd.zip`) and teleports
+into them in order. Inspect the captures: "CONGRATULATIONS!" for the races, Mathilda's end scene followed by the
+post-mission menu (RESTART RACE / NEXT RACE) for Undercover. Verified on a Paris Checkpoint race (8/8), a
+Washington Blitz (7/7) and Paris "Delivery by dawn" (10/10 zones).

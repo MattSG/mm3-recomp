@@ -1,14 +1,14 @@
 """Win a Checkpoint race or a Blitz run by teleporting through the native route, all mods on.
 
-Usage: MM3_MISSION=checkpoint|blitz python tools/game_test/mission_win.py [exe] [assets] [save_template]
-Work Undercover (a 'collect 5 boxes' mission) is not supported: its targets are not in the
-`route` snapshot (empty in mode 0), so a win needs the box positions found first.
+Usage: MM3_MISSION=checkpoint|blitz|undercover python tools/game_test/mission_win.py [exe] [assets] [save_template]
+Work Undercover (MM3_MISSION=undercover, Paris career 00/00 "Delivery by dawn") has no checkpoint
+list; its Lua setup script (Data_hd.zip) places zones ZN-0..ZN-9 that must be entered in order.
 Reads the race's remaining checkpoints with the `route` pipe command (the list
 shrinks as they are passed), teleports to the next one until the game refuses
 the teleport (race over), then captures the results screen for inspection.
 Exit 0 when every checkpoint was passed and the player update stopped.
 """
-import json, os, sys, time
+import json, os, re, sys, time, zipfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from tools.game_test.run import Session
 
@@ -32,9 +32,46 @@ def route(g):
     return json.loads(g.request("route"))
 
 
+def undercover_zones(assets, script="Scripts/Paris/Career/00/00Setup.lua"):
+    """ZN-n positions of a career script, in the order the mission enables them."""
+    with zipfile.ZipFile(os.path.join(assets, "Data", "Data_hd.zip")) as z:
+        lua = z.read(script).decode("latin1")
+    zones = {}
+    for n, x, z_ in re.findall(r'objectCreate\(3,"ZN-(\d+)"\).*?objectSetPos\(([-\d.]+),[-\d.]+,([-\d.]+)\)', lua, re.S):
+        zones.setdefault(int(n), (float(x), float(z_)))
+    return [zones[i] for i in sorted(zones)]
+
+
+def run_zones(g, zones):
+    """Teleport into each zone in turn; a refused spot is retried a little to the side."""
+    for i, (x, z) in enumerate(zones):
+        for dx, dz in ((0, 0), (4, 0), (-4, 0), (0, 4), (0, -4), (8, 8), (-8, -8)) * 3:
+            try:
+                g.teleport(x + dx, z + dz)
+                break
+            except AssertionError as e:
+                last = e
+                time.sleep(1)
+        else:
+            print("zone %d (%.0f,%.0f) refused: %s" % (i, x, z, last))
+            return i
+        time.sleep(3)
+        print("zone %d entered at (%.0f,%.0f)" % (i, x, z), flush=True)
+    return len(zones)
+
+
 def main(exe, assets, save, mission="checkpoint"):
     with Session(exe, assets, save_template=save, timeout=420, env=ALL_MODS) as g:
         g.run({"steps": MENUS[mission]})
+        if mission == "undercover":
+            time.sleep(8)                       # countdown
+            zones = undercover_zones(assets)
+            done = run_zones(g, zones)
+            for _ in range(3):                  # end-of-mission scene, then the results
+                time.sleep(10)
+                g.capture()
+            print("zones %d/%d, results capture in %s" % (done, len(zones), g.run_dir))
+            return 0 if done == len(zones) else 1
         while route(g)["count"] == 0 or route(g)["current"] >= route(g)["count"]:
             time.sleep(1)                       # countdown: the list is not targeted yet
         g.press("rt", 60000, wait_release=False)
