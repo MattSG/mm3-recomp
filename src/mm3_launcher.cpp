@@ -120,68 +120,6 @@ static bool GetCursorPos(POINT *p)
     return true;
 }
 
-/* XInput's stick Y is up-positive; SDL's is down-positive. */
-static int stick(SDL_Gamepad *g, SDL_GamepadAxis axis)
-{
-    const int v = SDL_GetGamepadAxis(g, axis);
-    return v < -32767 ? -32767 : v;
-}
-
-static BYTE trigger(SDL_Gamepad *g, SDL_GamepadAxis axis)
-{
-    const int v = SDL_GetGamepadAxis(g, axis);
-    return v <= 0 ? 0 : (BYTE)(v * 255 / 32767);
-}
-
-/* The first controller in each slot, through SDL's gamepad API. */
-static DWORD XInputGetState(DWORD user, XINPUT_STATE *s)
-{
-    static SDL_Gamepad *pads[XUSER_MAX_COUNT];
-    if (user >= XUSER_MAX_COUNT)
-        return ERROR_DEVICE_NOT_CONNECTED;
-    if (!SDL_WasInit(SDL_INIT_GAMEPAD))
-        SDL_InitSubSystem(SDL_INIT_GAMEPAD);
-    if (!pads[user]) {
-        int count = 0;
-        SDL_JoystickID *ids = SDL_GetGamepads(&count);
-        if (ids && (int)user < count)
-            pads[user] = SDL_OpenGamepad(ids[user]);
-        SDL_free(ids);
-    }
-    if (pads[user] && !SDL_GamepadConnected(pads[user])) {
-        SDL_CloseGamepad(pads[user]);
-        pads[user] = nullptr;
-    }
-    SDL_Gamepad *g = pads[user];
-    if (!g)
-        return ERROR_DEVICE_NOT_CONNECTED;
-    static const struct {
-        SDL_GamepadButton button;
-        WORD bit;
-    } buttons[] = {
-        {SDL_GAMEPAD_BUTTON_SOUTH, XINPUT_GAMEPAD_A}, {SDL_GAMEPAD_BUTTON_EAST, XINPUT_GAMEPAD_B},
-        {SDL_GAMEPAD_BUTTON_WEST, XINPUT_GAMEPAD_X}, {SDL_GAMEPAD_BUTTON_NORTH, XINPUT_GAMEPAD_Y},
-        {SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, XINPUT_GAMEPAD_LEFT_SHOULDER},
-        {SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, XINPUT_GAMEPAD_RIGHT_SHOULDER},
-        {SDL_GAMEPAD_BUTTON_START, XINPUT_GAMEPAD_START}, {SDL_GAMEPAD_BUTTON_BACK, XINPUT_GAMEPAD_BACK},
-        {SDL_GAMEPAD_BUTTON_LEFT_STICK, XINPUT_GAMEPAD_LEFT_THUMB},
-        {SDL_GAMEPAD_BUTTON_RIGHT_STICK, XINPUT_GAMEPAD_RIGHT_THUMB},
-        {SDL_GAMEPAD_BUTTON_DPAD_UP, XINPUT_GAMEPAD_DPAD_UP}, {SDL_GAMEPAD_BUTTON_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_DOWN},
-        {SDL_GAMEPAD_BUTTON_DPAD_LEFT, XINPUT_GAMEPAD_DPAD_LEFT},
-        {SDL_GAMEPAD_BUTTON_DPAD_RIGHT, XINPUT_GAMEPAD_DPAD_RIGHT},
-    };
-    WORD held = 0;
-    for (const auto &b : buttons)
-        if (SDL_GetGamepadButton(g, b.button))
-            held |= b.bit;
-    s->Gamepad.wButtons = held;
-    s->Gamepad.sThumbLX = (SHORT)stick(g, SDL_GAMEPAD_AXIS_LEFTX);
-    s->Gamepad.sThumbLY = (SHORT)-stick(g, SDL_GAMEPAD_AXIS_LEFTY);
-    s->Gamepad.bLeftTrigger = trigger(g, SDL_GAMEPAD_AXIS_LEFT_TRIGGER);
-    s->Gamepad.bRightTrigger = trigger(g, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER);
-    return ERROR_SUCCESS;
-}
-
 /* The virtual-key code a key prompt records for an RmlUi key; modifiers are
  * not bindable (as on Windows, where they are skipped). 0 for the rest. */
 static int vk_of_key(Rml::Input::KeyIdentifier k)
@@ -214,8 +152,31 @@ static int vk_of_key(Rml::Input::KeyIdentifier k)
 #else
 #include <windows.h>
 #include <dwmapi.h>
-#include <Xinput.h>
+#include <Xinput.h>   /* the XINPUT_STATE type only: the pad itself is read through the runtime */
 #endif
+
+/* The launcher's controller reads use the runtime's one host pad path (SDL3,
+ * tools/xboxrecomp/src/input/xinput_device.c) in both builds. */
+extern "C" uint32_t xbox_InputHostPad(uint32_t port, uint16_t *buttons, uint8_t *left_trigger, uint8_t *right_trigger,
+                                      int16_t *lx, int16_t *ly, int16_t *rx, int16_t *ry);
+
+static DWORD LauncherPadState(DWORD user, XINPUT_STATE *s)
+{
+    uint16_t buttons = 0;
+    uint8_t left = 0, right = 0;
+    int16_t lx = 0, ly = 0, rx = 0, ry = 0;
+    const DWORD result = xbox_InputHostPad(user, &buttons, &left, &right, &lx, &ly, &rx, &ry);
+    if (result != 0)
+        return result;
+    s->Gamepad.wButtons = buttons;
+    s->Gamepad.bLeftTrigger = left;
+    s->Gamepad.bRightTrigger = right;
+    s->Gamepad.sThumbLX = lx;
+    s->Gamepad.sThumbLY = ly;
+    s->Gamepad.sThumbRX = rx;
+    s->Gamepad.sThumbRY = ry;
+    return ERROR_SUCCESS;
+}
 
 namespace {
 
@@ -973,10 +934,10 @@ void poll_pad(double now)
     if (slot < 0 && now >= scan) { /* polling empty slots is slow: once a second */
         scan = now + 1;
         for (int p = 0; p < XUSER_MAX_COUNT && slot < 0; p++)
-            if (XInputGetState(p, &s) == ERROR_SUCCESS)
+            if (LauncherPadState(p, &s) == ERROR_SUCCESS)
                 slot = p;
     }
-    if (slot >= 0 && XInputGetState(slot, &s) != ERROR_SUCCESS)
+    if (slot >= 0 && LauncherPadState(slot, &s) != ERROR_SUCCESS)
         slot = -1;
     const bool front = GetActiveWindow() != NULL;
     WORD b = front ? s.Gamepad.wButtons : 0;

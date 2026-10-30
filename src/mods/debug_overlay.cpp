@@ -168,6 +168,17 @@ void pad_edge(bool focused, bool down)
     if (!focused) visible.exchange(0);
 }
 
+/* The first pad's buttons in the XINPUT layout the mask uses, through the runtime's
+ * one host pad path (SDL3); called from capture() and render() on different threads. */
+extern "C" uint32_t xbox_InputHostPad(uint32_t port, uint16_t *buttons, uint8_t *left_trigger, uint8_t *right_trigger,
+                                      int16_t *lx, int16_t *ly, int16_t *rx, int16_t *ry);
+
+unsigned short pad_buttons()
+{
+    uint16_t buttons = 0;
+    return xbox_InputHostPad(0, &buttons, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr) == 0 ? buttons : 0;
+}
+
 void build_frame()
 {
     ImGui::NewFrame();
@@ -188,12 +199,6 @@ void *overlay_window()
 bool window_focused(void *window)
 {
     return GetForegroundWindow() == (HWND)window;
-}
-
-unsigned short pad_buttons()
-{
-    XINPUT_STATE pad = {};
-    return XInputGetState(0, &pad) == ERROR_SUCCESS ? pad.Gamepad.wButtons : 0;
 }
 
 bool backend_init(void *window, void *device, void *context)
@@ -238,7 +243,6 @@ int message(HWND h, UINT m, WPARAM w, LPARAM l)
 /* ---- SDL3 SDLGPU platform ---- */
 
 SDL_Scancode toggle_scancode = SDL_SCANCODE_UNKNOWN;
-SDL_Gamepad *gamepad;
 
 /* Config VK code -> physical key. Covers letters, digits, F1-F24, Tab, Enter, Esc, Space;
  * other VKs get no keyboard toggle (ceiling: add a row when a binding needs one). */
@@ -276,39 +280,6 @@ void *overlay_window()
 bool window_focused(void *window)
 {
     return (SDL_GetWindowFlags((SDL_Window *)window) & SDL_WINDOW_INPUT_FOCUS) != 0;
-}
-
-/* Pad bits in the XINPUT layout the mask uses, mapped to the first opened gamepad. */
-struct PadBit { unsigned short xinput; SDL_GamepadButton button; };
-const PadBit pad_map[] = {
-    {0x0001, SDL_GAMEPAD_BUTTON_DPAD_UP},     {0x0002, SDL_GAMEPAD_BUTTON_DPAD_DOWN},
-    {0x0004, SDL_GAMEPAD_BUTTON_DPAD_LEFT},   {0x0008, SDL_GAMEPAD_BUTTON_DPAD_RIGHT},
-    {0x0010, SDL_GAMEPAD_BUTTON_START},       {0x0020, SDL_GAMEPAD_BUTTON_BACK},
-    {0x0040, SDL_GAMEPAD_BUTTON_LEFT_STICK},  {0x0080, SDL_GAMEPAD_BUTTON_RIGHT_STICK},
-    {0x0100, SDL_GAMEPAD_BUTTON_LEFT_SHOULDER}, {0x0200, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER},
-    {0x1000, SDL_GAMEPAD_BUTTON_SOUTH},       {0x2000, SDL_GAMEPAD_BUTTON_EAST},
-    {0x4000, SDL_GAMEPAD_BUTTON_WEST},        {0x8000, SDL_GAMEPAD_BUTTON_NORTH},
-};
-
-/* Called from capture() and render(), which are not under one lock: pad_lock guards the gamepad handle. */
-unsigned short pad_buttons()
-{
-    static std::mutex pad_lock;
-    static bool tried;
-    std::lock_guard<std::mutex> guard(pad_lock);
-    if (!tried) { tried = true; SDL_InitSubSystem(SDL_INIT_GAMEPAD); }
-    if (gamepad && !SDL_GamepadConnected(gamepad)) { SDL_CloseGamepad(gamepad); gamepad = nullptr; }
-    if (!gamepad) {
-        int count = 0;
-        SDL_JoystickID *ids = SDL_GetGamepads(&count);
-        if (ids && count > 0) gamepad = SDL_OpenGamepad(ids[0]);
-        SDL_free(ids);
-    }
-    if (!gamepad) return 0;
-    unsigned short bits = 0;
-    for (const PadBit &b : pad_map)
-        if (SDL_GetGamepadButton(gamepad, b.button)) bits |= b.xinput;
-    return bits;
 }
 
 bool backend_init(void *window, void *device, void *)
