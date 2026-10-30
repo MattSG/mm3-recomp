@@ -175,20 +175,6 @@ void build_frame()
     mm3_teleport_state(&state);
     if (!state.available || state.world != bookmark.world) bookmark_saved = false;
     if (visible) draw_tools(state);
-    float phase = mm3_loading_phase();
-    if (phase > 0) {
-        ImVec2 size = ImGui::GetIO().DisplaySize;
-        float scale = size.y / 720.f;
-        ImVec2 centre(size.x - 40.f * scale, size.y - 40.f * scale);
-        ImDrawList *draw = ImGui::GetForegroundDrawList();
-        for (int n = 0; n < 32; ++n) {
-            float a = (phase + .15f + .85f * n / 32.f) * 6.2831853f;
-            float b = a + .85f * 6.2831853f / 32.f;
-            draw->AddLine(ImVec2(centre.x + cosf(a)*13.f*scale, centre.y + sinf(a)*13.f*scale),
-                          ImVec2(centre.x + cosf(b)*13.f*scale, centre.y + sinf(b)*13.f*scale),
-                          IM_COL32(232,163,61,255*n/32), 2.f*scale);
-        }
-    }
 }
 
 #if !defined(XBOXRECOMP_SDL3)
@@ -405,7 +391,7 @@ void render(void *h, void *device, void *context, void *target)
     std::lock_guard<std::recursive_mutex> guard(imgui_lock);
     static bool failed;
     if (!h || !device || !context || !target) return;
-    if (!debug_enabled && mm3_loading_phase() <= 0) return;
+    if (!debug_enabled) return;
     if (failed) return;
     if (!backend_ready) {
         create_context();
@@ -429,8 +415,7 @@ extern "C" void mm3_debug_overlay_init()
 {
     const char *enabled = getenv("MM3_DEBUG_OVERLAY");
     debug_enabled = enabled && *enabled && strcmp(enabled, "0");
-    const char *spinner = getenv("RECOMP_LOADING_SPINNER");
-    if (!debug_enabled && !(spinner && atoi(spinner) != 0)) return;
+    if (!debug_enabled) return;
     toggle_key = setting("MM3_OVERLAY_KEY", kVkF4, 255);
     toggle_mouse = setting("MM3_OVERLAY_MOUSE", 0, 6);
     if (toggle_mouse != kVkMButton && toggle_mouse != kVkXButton1 && toggle_mouse != kVkXButton2) toggle_mouse = 0;

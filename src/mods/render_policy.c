@@ -79,22 +79,6 @@ int mm3_render_cubic_filter(const NvD3DState *st, int source_is_target, uint32_t
         st->blend_sfactor == 0x304 && st->blend_dfactor == 0x305;
 }
 
-/* Called and consumed on the renderer thread, including flip resets. */
-static float loading_phase;
-float mm3_loading_phase(void) { return loading_phase; }
-int mm3_render_idle(uint32_t now_ms, uint32_t idle_ms, int movie)
-{
-    /* Read once: the renderer asks on every idle present. */
-    static int spinner = -1;
-    if (spinner < 0) {
-        const char *enabled = getenv("RECOMP_LOADING_SPINNER");
-        spinner = enabled && atoi(enabled) != 0;
-    }
-    loading_phase = spinner && !movie && idle_ms > 700
-        ? 1.f + (float)(now_ms % 1000) / 1000.f : 0.f;
-    return loading_phase > 0;
-}
-
 /* The authored display passes need position and texture interpolation shifted
  * together; offscreen ripple targets keep pixel-zero edge snapping. */
 void mm3_render_vertex_alignment(uint32_t width, uint32_t height, float *snap, float *offset)

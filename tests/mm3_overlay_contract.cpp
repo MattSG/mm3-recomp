@@ -1,7 +1,6 @@
 #include "../src/mods/debug_overlay.cpp"
 #include <assert.h>
 #include <stdio.h>
-extern "C" float mm3_loading_phase(void) { return 0; }
 extern "C" HWND xbox_FramebufferWindowHandle(void) { return nullptr; }
 extern "C" void xbox_FramebufferSetHostOverlay(const XboxHostOverlay *) {}
 extern "C" void mm3_teleport_state(Mm3TeleportState *s) { memset(s, 0, sizeof *s); }
