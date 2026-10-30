@@ -15,6 +15,7 @@ import sys
 import tempfile
 import time
 import unittest
+import zipfile
 from unittest.mock import patch
 
 
@@ -305,6 +306,19 @@ def fixture():
             struct.pack_into("<IiiHH", header, 14, 40, 2, 2, 1, 24)
             Path(os.environ["RECOMP_PRESENT_CAPTURE"] + "-000.bmp").write_bytes(header + bytes(16))
         time.sleep(.01)
+
+
+class MissionWinTests(unittest.TestCase):
+    def test_undercover_zones_come_back_in_mission_order(self):
+        spec = importlib.util.spec_from_file_location("mission_win", ROOT / "tools/game_test/mission_win.py")
+        mission_win = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mission_win)
+        lua = ('objectCreate(3,"ZN-1")\nobjectSetPos(2.5,9.0,-4.0)\nobjectCreate(7,"PU1-1")\nobjectSetPos(8,8,8)\nobjectCreate(3,"ZN-0")\nobjectRotate(0)\nobjectSetPos(-1.0,5.0,7.5)\nobjectCreate(5,"WP-0")\nobjectSetPos(9,9,9)')
+        with tempfile.TemporaryDirectory() as root:
+            os.mkdir(os.path.join(root, "Data"))
+            with zipfile.ZipFile(os.path.join(root, "Data", "Data_hd.zip"), "w") as z:
+                z.writestr("Scripts/x/Setup.lua", lua)
+            self.assertEqual(mission_win.undercover_zones(root, "Scripts/x/Setup.lua"), [(-1.0, 7.5), (2.5, -4.0)])
 
 
 if __name__ == "__main__":
