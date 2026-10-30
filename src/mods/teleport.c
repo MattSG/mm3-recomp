@@ -311,6 +311,10 @@ int mm3_teleport_queue(float x, float z, float heading)
     return accepted;
 }
 
+/* The race's checkpoints (src/mm3_race_guidance.c), for "route". */
+extern unsigned mm3_race_snapshot(unsigned player, float (*xz)[2], unsigned capacity,
+                                  unsigned *current, unsigned *closed);
+
 /* One request in, one JSON reply out. The line server (fork platform/line_server)
  * calls this for both its named pipe and its Unix socket. */
 static void teleport_answer(const char *command, char *reply, size_t size)
@@ -338,6 +342,17 @@ static void teleport_answer(const char *command, char *reply, size_t size)
         }
         ReleaseSRWLockShared(&lock);
         snprintf(reply + n, size - n, "]}");
+    } else if (strcmp(command, "route") == 0) {
+        /* The native race's ordered checkpoints as x,z (Y is automatic on a
+         * teleport), the index of the one it waits for (the count when none: the
+         * finish), whether the course loops, and the native event mode. */
+        float xz[96][2];
+        unsigned current = 0, closed = 0, n = mm3_race_snapshot(0, xz, 96, &current, &closed);
+        size_t len = (size_t)snprintf(reply, size, "{\"mode\":%u,\"closed\":%s,\"count\":%u,\"current\":%u,\"points\":[",
+                                      (unsigned)MEM32(0x407C1C), closed ? "true" : "false", n, current);
+        for (unsigned i = 0; i < n && len + 40 < size; ++i)
+            len += (size_t)snprintf(reply + len, size - len, "%s[%.1f,%.1f]", i ? "," : "", xz[i][0], xz[i][1]);
+        snprintf(reply + len, size - len, "]}");
     } else if (sscanf(command, "peek %x %x", &peek_at, &peek_len) == 2) {
         /* Guest memory as hex, for working out a structure. */
         size_t n = 0;

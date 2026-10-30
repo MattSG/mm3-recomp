@@ -430,7 +430,7 @@ extern "C" void mm3_debug_overlay_init()
     const char *enabled = getenv("MM3_DEBUG_OVERLAY");
     debug_enabled = enabled && *enabled && strcmp(enabled, "0");
     const char *spinner = getenv("RECOMP_LOADING_SPINNER");
-    if (!debug_enabled && spinner && atoi(spinner) == 0) return;
+    if (!debug_enabled && !(spinner && atoi(spinner) != 0)) return;
     toggle_key = setting("MM3_OVERLAY_KEY", kVkF4, 255);
     toggle_mouse = setting("MM3_OVERLAY_MOUSE", 0, 6);
     if (toggle_mouse != kVkMButton && toggle_mouse != kVkXButton1 && toggle_mouse != kVkXButton2) toggle_mouse = 0;

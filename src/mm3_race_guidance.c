@@ -234,6 +234,51 @@ void mm3_race_guidance_checkpoint(uint32_t player, uint32_t object,
     s_race[player].count = count + 1;
 }
 
+/* The last complete checkpoint list per player, for the debug pipe's "route"
+ * (a test harness drives the race through it). seq is odd while it is being
+ * written, so the reader copies without a lock and retries if it was caught. */
+static struct {
+    volatile unsigned seq;
+    RoadPoint points[RACE_CHECKPOINTS];
+    unsigned count, current, closed;
+} s_snap[RACE_PLAYERS];
+
+static void race_snapshot(unsigned player)
+{
+    unsigned i;
+    if (!s_race[player].count) return;       /* keep the list through HUD frames with none */
+    s_snap[player].seq++;
+    for (i = 0; i < s_race[player].count; ++i)
+        s_snap[player].points[i] = s_race[player].checkpoints[i].position;
+    s_snap[player].count = s_race[player].count;
+    s_snap[player].current = s_race[player].current;
+    s_snap[player].closed = s_race[player].closed;
+    s_snap[player].seq++;
+}
+
+/* Copies a player's last checkpoint list as x,z pairs; returns how many there
+ * are (0 before the first). current is the index of the checkpoint the race is
+ * waiting for, equal to the count when it has none (the finish). */
+unsigned mm3_race_snapshot(unsigned player, float (*xz)[2], unsigned capacity,
+                           unsigned *current, unsigned *closed)
+{
+    unsigned attempt, i, n = 0, before;
+    if (player >= RACE_PLAYERS) return 0;
+    for (attempt = 0; attempt < 8; ++attempt) {
+        before = s_snap[player].seq;
+        if (before & 1) continue;
+        n = s_snap[player].count < capacity ? s_snap[player].count : capacity;
+        for (i = 0; i < n; ++i) {
+            xz[i][0] = s_snap[player].points[i].x;
+            xz[i][1] = s_snap[player].points[i].z;
+        }
+        if (current) *current = s_snap[player].current;
+        if (closed) *closed = s_snap[player].closed;
+        if (s_snap[player].seq == before) return n;
+    }
+    return 0;
+}
+
 void mm3_race_guidance_end(uint32_t player)
 {
     unsigned i;
@@ -245,8 +290,9 @@ void mm3_race_guidance_end(uint32_t player)
     for (i = 0; i < s_race[player].count; ++i)
         if (s_race[player].checkpoints[i].object == s_race[player].current_object) {
             s_race[player].current = i;
-            return;
+            break;
         }
+    race_snapshot(player);
 }
 
 static void race_paths_update(unsigned player)

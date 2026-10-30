@@ -88,7 +88,7 @@ int mm3_render_idle(uint32_t now_ms, uint32_t idle_ms, int movie)
     static int spinner = -1;
     if (spinner < 0) {
         const char *enabled = getenv("RECOMP_LOADING_SPINNER");
-        spinner = !enabled || atoi(enabled) != 0;
+        spinner = enabled && atoi(enabled) != 0;
     }
     loading_phase = spinner && !movie && idle_ms > 700
         ? 1.f + (float)(now_ms % 1000) / 1000.f : 0.f;

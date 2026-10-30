@@ -1,3 +1,7 @@
+/* teleport.c's "route" reads the race guidance module, which this test does not build. */
+unsigned mm3_race_snapshot(unsigned player, float (*xz)[2], unsigned capacity,
+                           unsigned *current, unsigned *closed)
+{ (void)player; (void)xz; (void)capacity; (void)current; (void)closed; return 0; }
 #include "../src/mods/teleport.c"
 #include "../tools/xboxrecomp/src/kernel/guest_state.c"
 #include <assert.h>

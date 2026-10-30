@@ -1,0 +1,70 @@
+"""Win a Checkpoint race by teleporting through the native route, all mods on.
+
+Usage: python tools/game_test/mission_win.py [exe] [assets] [save_template]
+Reads the race's remaining checkpoints with the `route` pipe command (the list
+shrinks as they are passed), teleports to the next one until the game refuses
+the teleport (race over), then captures the results screen for inspection.
+Exit 0 when every checkpoint was passed and the player update stopped.
+"""
+import json, os, sys, time
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+from tools.game_test.run import Session
+
+ALL_MODS = {k: "1" for k in (
+    "MM3_DEBUG_OVERLAY", "MM3_MOD_WIDESCREEN", "MM3_MOD_DRAW_DISTANCE", "MM3_MOD_SKY", "MM3_MOD_MENU_MOUSE",
+    "MM3_MOD_DEV_TOOLS", "MM3_MOD_COLLISION_FIX", "MM3_MOD_SKIP_INTRO", "MM3_MOD_FOV", "MM3_MOD_FRAMERATE",
+    "MM3_MOD_TRANSLATION", "MM3_MOD_KEYBOARD_DRIVING", "MM3_MOD_FLARE_DEPTH")}
+ALL_MODS.update(MM3_SMOOTH="0", RECOMP_FPS_LIMIT="60")
+
+MENU = [{"action": "wait_log", "text": "[MOD] skip_intro: intro", "timeout": 60}, {"action": "wait", "seconds": 30}] + [
+    {"action": "press", "buttons": b, "after": t} for b, t in
+    (("start", 3), ("a", 7), ("down", 3), ("a", 3), ("down", 1), ("down", 1), ("a", 3), ("a", 3), ("a", 3), ("a", 3), ("a", 2))] + [
+    {"action": "wait_player", "timeout": 60, "advance": "start"}]
+
+
+def route(g):
+    return json.loads(g.request("route"))
+
+
+def main(exe, assets, save):
+    with Session(exe, assets, save_template=save, timeout=420, env=ALL_MODS) as g:
+        g.run({"steps": MENU})
+        while route(g)["count"] == 0 or route(g)["current"] >= route(g)["count"]:
+            time.sleep(1)                       # countdown: the list is not targeted yet
+        g.press("rt", 60000, wait_release=False)
+        t_end = time.time() + 60
+        def pos():
+            c = [x for x in json.loads(g.request("cars"))["cars"] if x["player"]]
+            return (c[0]["x"], c[0]["z"]) if c else (0, 0)
+        p0 = pos()
+        while time.time() < t_end:              # teleports only count once the race is live
+            time.sleep(0.5)
+            p1 = pos()
+            if abs(p1[0] - p0[0]) + abs(p1[1] - p0[1]) > 3:
+                break
+        total = route(g)["count"]
+        passed = 0
+        while True:
+            r = route(g)
+            x, z = r["points"][r["current"]]
+            try:
+                g.teleport(x, z)
+            except AssertionError as e:
+                print("teleport refused, race over:", e)
+                break
+            passed += 1
+            t0 = time.time()
+            while time.time() - t0 < 8 and route(g)["points"][0] == r["points"][0]:
+                time.sleep(0.4)
+            if passed > total + 2:
+                break
+        g.capture()
+        print("checkpoints %d/%d, results capture in %s" % (passed, total, g.run_dir))
+        return 0 if passed == total else 1
+
+
+if __name__ == "__main__":
+    a = sys.argv[1:] + [None] * 3
+    root = os.path.join(os.path.dirname(__file__), "..", "..")
+    sys.exit(main(a[0] or os.path.join(root, "build/RelWithDebInfo/mm3_recomp.exe"),
+                  a[1] or os.path.join(root, "game_files"), a[2] or os.environ["MM3_SAVE_TEMPLATE"]))
