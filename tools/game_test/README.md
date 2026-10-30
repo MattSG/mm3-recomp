@@ -171,14 +171,24 @@ variable initial countdown. The unrelated pre-existing game remained running.
 
 ## Winning missions (`mission_win.py`)
 
-`MM3_MISSION=checkpoint|blitz|undercover MM3_SAVE_TEMPLATE=<copied save> python tools/game_test/mission_win.py`
-boots with all mods on (smoothing off) and holds throttle. Checkpoint and Blitz read the race's remaining
-checkpoints with the `route` debug-pipe command and teleport through them; it exits 0 once every checkpoint is
-passed and the game refuses further teleports. Work Undercover has no checkpoint list: the harness parses the
-career script's zones (`ZN-0..9` in `Scripts/Paris/Career/00/00Setup.lua`, inside `Data_hd.zip`) and teleports
-into them in order. Inspect the captures: "CONGRATULATIONS!" for the races, Mathilda's end scene followed by the
-post-mission menu (RESTART RACE / NEXT RACE) for Undercover. Verified on a Paris Checkpoint race (8/8), a
-Washington Blitz (7/7) and Paris "Delivery by dawn" (10/10 zones).
+`MM3_MISSION=<name> MM3_SAVE_TEMPLATE=<copied save> python tools/game_test/mission_win.py` boots with all mods
+on (smoothing off) and holds throttle. Names: `checkpoint` and `checkpoint-washington`, `blitz` (Washington) and
+`blitz-paris`, `undercover`.
+
+- Races read their remaining checkpoints with the `route` debug-pipe command and teleport through them; the
+  script exits 0 once every checkpoint is passed and the game refuses further teleports.
+- `undercover` is Paris career 00/00 "Delivery by dawn". It has no checkpoint list, so the harness parses the
+  career script's zones (`ZN-0..9` in `Scripts/Paris/Career/00/00Setup.lua`, inside `Data_hd.zip`) and teleports
+  into them in order.
+- Inspect the captures: "CONGRATULATIONS!" for races, Mathilda's end scene and the post-mission menu
+  (RESTART RACE / NEXT RACE) for undercover.
+
+Verified wins: Paris Checkpoint (8/8), Washington Checkpoint (7/7), Washington Blitz (7/7), Paris Blitz (5/5),
+Paris Delivery by dawn (10/10 zones).
+
+Limits: the zone parser only fits delivery-style career scripts. Measured over the 54 career setups, 14 give as many
+`ZN` zones as their `total_targets`; the rest use passengers, pursuits or `CP`/`WP` checkpoint races, and none of
+them is reachable on a save that has not unlocked it (the Work Undercover menu lists them locked).
 
 ## Profiling the game thread (`profile_thread.py`)
 

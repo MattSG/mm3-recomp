@@ -1,8 +1,10 @@
 """Win a Checkpoint race or a Blitz run by teleporting through the native route, all mods on.
 
-Usage: MM3_MISSION=checkpoint|blitz|undercover python tools/game_test/mission_win.py [exe] [assets] [save_template]
+Usage: MM3_MISSION=checkpoint|blitz|undercover|checkpoint-washington|blitz-paris python tools/game_test/mission_win.py [exe] [assets] [save_template]
 Work Undercover (MM3_MISSION=undercover, Paris career 00/00 "Delivery by dawn") has no checkpoint
 list; its Lua setup script (Data_hd.zip) places zones ZN-0..ZN-9 that must be entered in order.
+Only delivery-style scripts parse that way (14 of the 54 career setups give as many zones as their
+total_targets); the rest use passengers, pursuits or CP/WP checkpoint races.
 Reads the race's remaining checkpoints with the `route` pipe command (the list
 shrinks as they are passed), teleports to the next one until the game refuses
 the teleport (race over), then captures the results screen for inspection.
@@ -25,7 +27,12 @@ CHECKPOINT = [{"action": "wait_log", "text": "[MOD] skip_intro: intro", "timeout
 
 UNDERCOVER = [{"action": "wait_log", "text": "[MOD] skip_intro: intro", "timeout": 60}, {"action": "wait", "seconds": 40}, {"action": "press", "buttons": "start", "after": 2}, {"action": "press", "buttons": "a", "after": 2}, {"action": "press", "buttons": "a", "after": 4}, {"action": "press", "buttons": "left", "after": 1}, {"action": "press", "buttons": "a", "after": 3}, {"action": "press", "buttons": "a", "after": 15}, {"action": "press", "buttons": "a", "after": 20}, {"action": "press", "buttons": "start", "after": 5}, {"action": "wait_player", "timeout": 45, "advance": "start"}]
 BLITZ = [{"action": "wait_log", "text": "[MOD] skip_intro: intro", "timeout": 60}, {"action": "wait", "seconds": 40}, {"action": "press", "buttons": "start", "after": 2}, {"action": "press", "buttons": "a", "after": 2}, {"action": "press", "buttons": "down", "after": 2}, {"action": "press", "buttons": "a", "after": 2}, {"action": "press", "buttons": "down", "after": 1}, {"action": "press", "buttons": "a", "after": 2}, {"action": "press", "buttons": "right", "after": 2}, {"action": "press", "buttons": "a", "after": 2}, {"action": "press", "buttons": "a", "after": 2}, {"action": "press", "buttons": "a", "after": 2}, {"action": "press", "buttons": "a"}, {"action": "wait_player", "timeout": 30, "advance": "start"}]
-MENUS = {"checkpoint": CHECKPOINT, "undercover": UNDERCOVER, "blitz": BLITZ}
+RIGHT = {"action": "press", "buttons": "right", "after": 1}
+MENUS = {
+    "checkpoint": CHECKPOINT, "undercover": UNDERCOVER, "blitz": BLITZ,
+    "checkpoint-washington": CHECKPOINT[:9] + [RIGHT] + CHECKPOINT[9:],   # the city screen: Right picks Washington
+    "blitz-paris": BLITZ[:8] + BLITZ[9:],                                  # drop the Right that picks Washington
+}
 
 
 def route(g):
