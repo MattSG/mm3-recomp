@@ -9,6 +9,7 @@
 ptrdiff_t g_xbox_mem_offset;
 RECOMP_TLS uint32_t g_eax, g_ecx, g_edx, g_esp, g_ebx, g_esi, g_edi;
 RECOMP_TLS uint32_t g_ebp, g_seh_ebp;
+RECOMP_TLS uint32_t g_mxcsr = 0x1F80u; /* the generated speedometer code saves and restores MXCSR */
 RECOMP_TLS double g_fp_stack[8];
 RECOMP_TLS int g_fp_top, g_fp_cmp;
 RECOMP_TLS uint16_t g_fp_cc, g_fp_control_word;

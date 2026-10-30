@@ -30,7 +30,7 @@ void sub_0022F298_original(void) {}
 void sub_000F4AC3_original(void) {}
 void sub_002256C7_original(void) {}
 void sub_00248518_original(void) {}
-void sub_00344770(void) {}   /* the pushbuffer rollover; never reached here */
+void sub_00344770(void) { g_esp += 12; }   /* the pushbuffer rollover: ret 8 pops the three words the hook pushes (return slot + 2 args); the ring-full case below reaches it */
 void sub_001630A7_original(void) {
     g_eax = 0x150000u;
     MEM32(g_eax + 0x1ED0) = 0x3000;
