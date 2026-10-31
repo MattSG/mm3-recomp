@@ -202,6 +202,8 @@ list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0011C742 sub_0011CAAC sub_0007CEC3
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0011C194)
 # Preserve same-chunk catalog calls to the retired-car selection fallback.
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001DDFC5)
+# The saved language (and its voices): menu base constructor and updateLanguage.
+list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001193A6 sub_00124822)
 # The hot visibility leaf keeps its balanced x87 scratch stack in native locals.
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001C793A)
 # Factory profiles bind the real constructed controller and leave retail cars
@@ -410,6 +412,7 @@ add_executable(${PROJECT_NAME}
  src/mm3_tree_diagnostics.c
  src/mm3_visibility.c
  src/mm3_custom_car_names.c
+ src/mm3_language.c
  src/mm3_car_selection_compat.c
  src/mm3_speedometer.c
  src/mm3_factory_physics.c
