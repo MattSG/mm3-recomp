@@ -158,6 +158,9 @@ Mods tab. The mods marked "always" are needed for the game to run.
 - **Sound stutters:** set Audio > Sound processor to Off.
 - **Skipping the launcher:** run `python scripts/play.py --keyboard --profile Balanced`.
 - **Saves:** back them up before you try a new build.
+- **Saves from an Xbox** load as damaged, because the console signed them with its own key.
+  `python tools/saves/resign_save.py <UDATA folder> <new folder>` makes a copy signed for
+  this port; put its `4d53002a` folder in your saves' `UDATA`.
 
 ## More documentation
 
