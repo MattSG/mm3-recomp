@@ -193,7 +193,14 @@ them is reachable on a save that has not unlocked it (the Work Undercover menu l
 ## Profiling the game thread (`profile_thread.py`)
 
 `MM3_SAVE_TEMPLATE=<copied save> python tools/game_test/profile_thread.py [seconds] [fps_limit]` samples the
-game thread through the debug pipe's `profile` command (every millisecond, no elevation needed) and prints
-how much of its time is inside the translated code, in ntdll (a blocking wait) and elsewhere. First
-reading, uncapped Checkpoint race at the harness settings: about 31% in the exe, 67% in ntdll waits, and no exe
-address above 1.2%, so translated guest code is a minority of the game thread's time and has no hot spot.
+game thread through the debug pipe's `profile` command (every millisecond, no elevation needed). It prints the
+share of time in translated code, in ntdll (blocked), the hottest exe code, the exe functions the thread is blocked
+under (the first exe frame of its stack, named through the pdb), and the game process's CPU use in cores.
+
+First readings, uncapped Checkpoint race at the harness settings: about 30% of the game thread's samples are in the
+exe and 70% in ntdll waits, with no exe address above 1.2%, so translated guest code has no hot spot. The waits were
+`nv2a_d3d_repeat_frame` (47%, a `SwitchToThread` spin while the presenter shows the repeated frame),
+`xbox_Nv2aWbcFlush` (15%, a real wait for the GPU executor) and `xbox_GuestMapped`/`xbox_GuestRead` (5%, memory
+probes). Making the frame-request wait sleep on an event and caching `xbox_GuestMapped` took the process from
+2.72 to 2.20 CPU cores for the same run.
+

@@ -195,20 +195,42 @@ static void sample_car(uint32_t player)
  * as ntdll). Debug use only, behind MM3_DEBUG_TELEPORT: a suspended thread holding a lock stalls. */
 static HANDLE s_prof_thread;
 static struct { int seconds; char path[200]; } s_prof_job;
+/* The first frame of the (suspended) thread's stack that lies inside the executable: the code that
+ * made the call it is blocked in. 0 when the stack has no such frame within 48 levels. */
+static unsigned long long prof_exe_caller(CONTEXT c, unsigned long long base, unsigned long long size)
+{
+    for (int depth = 0; depth < 48; ++depth) {
+        DWORD64 image;
+        PRUNTIME_FUNCTION fn = RtlLookupFunctionEntry(c.Rip, &image, NULL);
+        PVOID handler_data;
+        DWORD64 frame;
+        if (!fn) return 0;
+        RtlVirtualUnwind(UNW_FLAG_NHANDLER, image, c.Rip, fn, &c, &handler_data, &frame, NULL);
+        if (!c.Rip) return 0;
+        if (c.Rip >= base && c.Rip - base < size) return c.Rip - base;
+    }
+    return 0;
+}
+
 static DWORD WINAPI prof_run(void *arg)
 {
     enum { MAXS = 200000 };
-    static unsigned long long samples[MAXS];
+    static unsigned long long samples[MAXS], callers[MAXS];
     unsigned n = 0;
     unsigned long long base = (unsigned long long)(uintptr_t)GetModuleHandleW(NULL);
+    unsigned long long size = 0x4000000ull; /* the exe image is far smaller than 64 MB */
     DWORD end = GetTickCount() + (DWORD)s_prof_job.seconds * 1000u;
     (void)arg;
     while (GetTickCount() < end && n < MAXS) {
         CONTEXT c;
         memset(&c, 0, sizeof c);
-        c.ContextFlags = CONTEXT_CONTROL;
+        c.ContextFlags = CONTEXT_FULL;
         if (SuspendThread(s_prof_thread) != (DWORD)-1) {
-            if (GetThreadContext(s_prof_thread, &c)) samples[n++] = c.Rip - base;
+            if (GetThreadContext(s_prof_thread, &c)) {
+                samples[n] = c.Rip - base;
+                callers[n] = samples[n] < size ? 0 : prof_exe_caller(c, base, size);
+                ++n;
+            }
             ResumeThread(s_prof_thread);
         }
         Sleep(1);
@@ -218,7 +240,7 @@ static DWORD WINAPI prof_run(void *arg)
         if (f) {
             for (unsigned i = 0; i < n; ++i) {
                 unsigned long long rva = samples[i];
-                if (rva < 0x4000000ull) { fprintf(f, "exe %llx\n", rva); continue; }
+                if (rva < size) { fprintf(f, "exe %llx\n", rva); continue; }
                 {
                     HMODULE mod = NULL;
                     wchar_t name[MAX_PATH] = L"?";
@@ -226,9 +248,9 @@ static DWORD WINAPI prof_run(void *arg)
                     if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                                            (LPCWSTR)(uintptr_t)abs_rip, &mod)) {
                         GetModuleFileNameW(mod, name, MAX_PATH);
-                        fprintf(f, "%ls %llx\n", wcsrchr(name, L'\\') ? wcsrchr(name, L'\\') + 1 : name,
-                                abs_rip - (unsigned long long)(uintptr_t)mod);
-                    } else fprintf(f, "unknown %llx\n", abs_rip);
+                        fprintf(f, "%ls %llx caller=%llx\n", wcsrchr(name, L'\\') ? wcsrchr(name, L'\\') + 1 : name,
+                                abs_rip - (unsigned long long)(uintptr_t)mod, callers[i]);
+                    } else fprintf(f, "unknown %llx caller=%llx\n", abs_rip, callers[i]);
                 }
             }
             fclose(f);
