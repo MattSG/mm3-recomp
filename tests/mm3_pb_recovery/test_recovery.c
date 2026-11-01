@@ -1,4 +1,4 @@
-#include "mm3_pb_recovery.h"
+#include "nv2a_pb_recovery.h"
 #include <kernel.h>
 #include <xbox_memory_layout.h>
 #include <nv2a_pb.h>
@@ -30,31 +30,31 @@ int main(void)
     words[0] = 0x04000001; /* malformed jump: not a real packet header */
     words[1] = 0x00041D70; words[2] = 7;
     words[3] = 0x00041D70; words[4] = 9;
-    mm3_pb_recover_stop(from, from + 20, "test");
+    nv2a_pb_recover_semaphore_stop(from, from + 20, "test");
     CHECK(calls == 1 && last == 9 && dispatched == 9);
     /* Even, backwards and overly distant candidates are not accepted. */
     calls = 0;
     words[2] = 10; words[4] = 0x9001;
-    mm3_pb_recover_stop(from, from + 20, "test");
+    nv2a_pb_recover_semaphore_stop(from, from + 20, "test");
     CHECK(calls == 0 && last == 9);
     words[2] = 7; words[4] = 7;
-    mm3_pb_recover_stop(from, from + 20, "test");
+    nv2a_pb_recover_semaphore_stop(from, from + 20, "test");
     CHECK(calls == 0);
     /* No reads for wrapped, unaligned, out-of-window or empty spans. */
-    mm3_pb_recover_stop(from + 20, from, "test");
-    mm3_pb_recover_stop(from + 1, from + 20, "test");
-    mm3_pb_recover_stop(from, from + 19, "test");
-    mm3_pb_recover_stop(XBOX_CONTIG_BASE - 4, from, "test");
-    mm3_pb_recover_stop(from, XBOX_CONTIG_BASE + XBOX_CONTIG_SIZE + 4, "test");
-    mm3_pb_recover_stop(from, from, "test");
+    nv2a_pb_recover_semaphore_stop(from + 20, from, "test");
+    nv2a_pb_recover_semaphore_stop(from + 1, from + 20, "test");
+    nv2a_pb_recover_semaphore_stop(from, from + 19, "test");
+    nv2a_pb_recover_semaphore_stop(XBOX_CONTIG_BASE - 4, from, "test");
+    nv2a_pb_recover_semaphore_stop(from, XBOX_CONTIG_BASE + XBOX_CONTIG_SIZE + 4, "test");
+    nv2a_pb_recover_semaphore_stop(from, from, "test");
     CHECK(calls == 0);
     /* A header without its value is not read past PUT. */
     words[0] = 0x00041D70; words[1] = 11;
-    mm3_pb_recover_stop(from, from + 4, "test");
+    nv2a_pb_recover_semaphore_stop(from, from + 4, "test");
     CHECK(calls == 0);
-    mm3_pb_recover_stop(from, from + 8, "test");
+    nv2a_pb_recover_semaphore_stop(from, from + 8, "test");
     CHECK(calls == 1 && last == 11);
     free(ram);
-    puts("PASS: MM3 owns bounded fence recovery heuristic");
+    puts("PASS: bounded semaphore stop recovery heuristic");
     return 0;
 }

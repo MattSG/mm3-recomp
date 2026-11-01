@@ -1,7 +1,7 @@
 # Midtown Madness 3 recompilation
 
 A static recompilation of the Xbox game to native Windows x64, using
-[xboxrecomp](https://github.com/MattSG/xboxrecomp) and Direct3D 11 or SDL3 GPU
+[xboxrecomp](https://github.com/MattSG/xboxrecomp) and SDL3 GPU
 (Vulkan / Direct3D 12). No game files are included: you build it from your own disc.
 
 > **Largely AI-written.** Nearly all of the code was written with AI assistance
@@ -14,7 +14,7 @@ You need a dump of your own Midtown Madness 3 disc, Python 3.12, git, CMake,
 and an x86-64 Windows or Linux PC. Windows also needs Visual Studio 2022 or
 newer with **Desktop development with C++** and **C++ CMake tools for
 Windows**. Linux needs a C/C++ compiler, the dependencies listed in the
-[Linux section](#linux-sdl3-gpu--vulkan), and Tkinter (for example,
+[dependencies below](#graphics-and-dependencies), and Tkinter (for example,
 `python3-tk` on Ubuntu).
 
 1. Clone the repository and its submodules:
@@ -39,10 +39,9 @@ Windows**. Linux needs a C/C++ compiler, the dependencies listed in the
 5. When the build finishes, select **Launch game**. The chosen graphics API is
    used for that launch.
 
-The builder reuses existing extracted game files and keeps separate Windows
-and Linux renderer builds under `build/gui-*`. Direct3D 11 and Direct3D 12
-are available on Windows; Vulkan is available on Windows and Linux. macOS game
-builds are not supported yet.
+The builder reuses extracted game files and builds under `build/gui-*`.
+Direct3D 12 and Vulkan share one SDL3 build on Windows; Linux uses Vulkan.
+macOS game builds are not supported.
 
 For command-line setup instead, run:
 
@@ -51,60 +50,41 @@ python scripts/setup.py --iso "<path to your disc image>"
 .\build\RelWithDebInfo\mm3_recomp.exe
 ```
 
-### Windows: SDL3 GPU (Vulkan and Direct3D 12)
+### Graphics and dependencies
 
-Include Visual Studio's **C++ CMake tools for Windows** component. From the
-repository root, build once for both backends:
+Windows needs Visual Studio's **C++ CMake tools for Windows** component.
+CMake downloads SDL3, shader tools and FFmpeg; no Vulkan SDK is needed.
+Vulkan requires a compatible GPU driver. Graphics, gamepads and audio use
+SDL3; video and WMA decoding use FFmpeg.
 
-```powershell
-python scripts/setup.py --iso "<path to your disc image>" --renderer SDL3_GPU
-```
-
-Already set up? Omit `--iso`. CMake downloads SDL3 and the shader compiler;
-no Vulkan SDK is needed. Vulkan requires a compatible GPU driver.
-
-Select the backend in PowerShell, closing the game before switching:
+Select Direct3D 12 or Vulkan in the builder, or set the backend before launching:
 
 ```powershell
-# Vulkan
-$env:RECOMP_SDL_GPU_DRIVER = "vulkan"
+$env:RECOMP_SDL_GPU_DRIVER = "vulkan" # or "direct3d12"
 .\build\RelWithDebInfo\mm3_recomp.exe
-
-# Direct3D 12
-$env:RECOMP_SDL_GPU_DRIVER = "direct3d12"
-.\build\RelWithDebInfo\mm3_recomp.exe
-
-# Restore automatic selection
-Remove-Item Env:RECOMP_SDL_GPU_DRIVER -ErrorAction SilentlyContinue
 ```
 
-The startup log confirms `[SDLGPU] device: vulkan` or `direct3d12`.
-For source-only rebuilds, use **Developer PowerShell for Visual Studio**:
+Close the game before switching backends. Remove that environment variable to
+restore automatic selection. The startup log reports the selected GPU backend.
+
+For a source-only rebuild, use Developer PowerShell for Visual Studio:
 
 ```powershell
 cmake --build build --config RelWithDebInfo --target mm3_recomp --parallel
 ```
 
-To return to Direct3D 11, run `python scripts/setup.py --renderer D3D11`;
-that build ignores `RECOMP_SDL_GPU_DRIVER`. For a Release build, pass
-`--config Release` to setup and launch `build\Release\mm3_recomp.exe`.
+On Linux x86-64, install a C/C++ compiler, CMake, Ninja, pkg-config, OpenSSL,
+SDL3's platform build dependencies, a Vulkan driver, and FFmpeg development
+packages (`libavformat`, `libavcodec`, `libavutil`, `libswscale`, `libswresample`).
+Use `python3 scripts/setup.py --iso "<path to your disc image>"`, then
+`RECOMP_SDL_GPU_DRIVER=vulkan ./build/mm3_recomp`.
+The full migration has been validated on Windows; Linux execution has not been
+rechecked for this change.
 
-### Linux: SDL3 GPU / Vulkan
-
-On Linux x86-64 (tested on Ubuntu 22.04), install Python, CMake, Ninja, a C/C++
-compiler, OpenSSL, libepoxy, SDL3's build dependencies and a Vulkan GPU driver.
-
-```sh
-python3 scripts/setup.py --iso "<path to your disc image>" --renderer SDL3_GPU
-RECOMP_SDL_GPU_DRIVER=vulkan ./build/mm3_recomp
-```
-
-Subsequent builds can omit `--iso`. Direct3D backends require Windows.
-
-Setup verifies your disc, extracts it, translates the game code (about six
-minutes) and builds. It then runs the game for about ten seconds, hidden and
-muted, to capture its audio DSP programs, and rebuilds with them compiled in. The game opens a launcher with **Settings**, **Controls**
-and **Mods** tabs; press **Play**.
+Setup verifies and extracts the disc, translates the code, builds, then captures
+the game's DSP programs in a short hidden run and rebuilds with them compiled in.
+The game opens a launcher with Settings, Controls and Mods tabs; press **Play**.
+Subsequent setup runs can omit `--iso`. Pass `--config Release` for a Release build.
 
 ### Supported discs
 
@@ -118,13 +98,14 @@ These images were tested:
 
 ## What's improved
 
-- **Rendering:** Direct3D 11 or SDL3 GPU (Vulkan / Direct3D 12), with render scale,
+- **Rendering:** SDL3 GPU (Vulkan / Direct3D 12), with render scale,
   MSAA, anisotropic filtering, any aspect ratio and a frame-rate limit. Performance profiles (Balanced,
   Quality, LowPower) set these for you.
 - **Audio:** the Xbox's sound DSP (reverb, 3D sound and the game's own mix),
   captured during setup and compiled to native code.
 - **Input:** keyboard, mouse and controllers, all rebindable.
-- **Multiplayer:** System Link on one PC or a LAN. Xbox Live goes to
+- **Multiplayer:** System Link support; live two-machine play is not yet verified.
+  Xbox Live goes to
   [Insignia](https://insignia.live), but sign-in is not yet verified.
 - **Extra cars:** nine extra cars, with an editor for their paint, ratings,
   physics and gearing, in [mm3-car-tools](https://github.com/MattSG/mm3-car-tools).
@@ -166,6 +147,7 @@ In [docs/](docs/): [debug tools](docs/IMGUI_DEBUG_TOOLS.md), [teleport pipe](doc
 [who owns what between this repo and the xboxrecomp fork](docs/XBOXRECOMP_OWNERSHIP.md), and the
 [XboxXBERecomp comparison](docs/xboxxberecomp-evaluation.md). Old audits are in [docs/history/](docs/history/).
 The runtime test harness is in [tools/game_test/README.md](tools/game_test/README.md).
+See [SDL3 migration validation](docs/SDL3_MIGRATION_VALIDATION.md) for test coverage.
 
 ## Contributing
 

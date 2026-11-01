@@ -20,8 +20,7 @@ from setup import REPO as SOURCE_REPO
 
 def graphics_options(system):
     if system == 'Windows':
-        return {'Direct3D 11': ('D3D11', None),
-                'Direct3D 12': ('SDL3_GPU', 'direct3d12'),
+        return {'Direct3D 12': ('SDL3_GPU', 'direct3d12'),
                 'Vulkan': ('SDL3_GPU', 'vulkan')}
     if system == 'Linux':
         return {'Vulkan': ('SDL3_GPU', 'vulkan')}

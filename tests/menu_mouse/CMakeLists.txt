@@ -12,9 +12,11 @@ foreach(target menu_mouse_contract mods_init_contract)
         ../../src ../../tools/xboxrecomp/src
         ../../tools/xboxrecomp/src/kernel ../../tools/xboxrecomp/src/video)
     target_compile_options(${target} PRIVATE /UNDEBUG)
-    target_link_libraries(${target} PRIVATE user32 gdi32 xinput)
+    target_link_libraries(${target} PRIVATE user32 gdi32)
 endforeach()
 enable_testing()
 add_test(NAME native_mouse COMMAND menu_mouse_contract)
 add_test(NAME mods_enabled COMMAND mods_init_contract enabled)
 add_test(NAME mods_disabled COMMAND mods_init_contract disabled)
+
+target_sources(mods_init_contract PRIVATE ../../src/feature_switch.c)

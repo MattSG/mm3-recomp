@@ -524,3 +524,7 @@ endif()
 target_sources(mm3_recomp PRIVATE src/mods/render_fog.c)
 include(cmake/MM3RenderFog.cmake)
 mm3_render_fog_shaders(mm3_recomp "${XBOXRECOMP_RENDERER}")
+
+if(COMMAND xbox_copy_runtime_dlls)
+    xbox_copy_runtime_dlls(mm3_recomp)
+endif()

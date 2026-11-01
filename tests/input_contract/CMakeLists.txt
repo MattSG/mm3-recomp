@@ -4,10 +4,14 @@ if(NOT WIN32)
     message(FATAL_ERROR "This input contract exercises the Windows keyboard/XInput backend.")
 endif()
 set(CMAKE_C_STANDARD 11)
-add_executable(mm3_input_contract ../mm3_input_contract.c)
+add_executable(mm3_input_contract ../mm3_input_contract.c
+    ../../tools/xboxrecomp/src/input/keyboard.c
+    ../../tools/xboxrecomp/src/input/keymap_spec.c
+    ../../tools/xboxrecomp/src/input/input_map.c
+    ../../tools/xboxrecomp/src/input/mkb_input.c)
 target_include_directories(mm3_input_contract PRIVATE ../../tools/xboxrecomp/src)
 target_compile_definitions(mm3_input_contract PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
-target_link_libraries(mm3_input_contract PRIVATE user32 xinput)
+target_link_libraries(mm3_input_contract PRIVATE user32)
 enable_testing()
 add_test(NAME mm3_keyboard COMMAND mm3_input_contract mm3)
 add_test(NAME legacy_keyboard COMMAND mm3_input_contract legacy)

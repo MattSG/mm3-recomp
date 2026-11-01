@@ -4,7 +4,10 @@ extern "C" {
 }
 #include <assert.h>
 int rmlui_host_run(const RmlUiHostOptions *, const RmlUiHostClient *) { assert(false); return 0; }
+int rmlui_host_load_sans_fonts(const char *) { assert(false); return 0; }
 extern "C" {
+uint32_t xbox_InputHostPad(uint32_t, uint16_t *, uint8_t *, uint8_t *, int16_t *, int16_t *, int16_t *, int16_t *)
+{ assert(false); return ERROR_DEVICE_NOT_CONNECTED; }
 void mm3_render_commands_init(void) { assert(false); }
 void mm3_dvd_media_init(void) { assert(false); }
 void xbox_InputSetMenuProbe(int (*)(void)) { assert(false); }
