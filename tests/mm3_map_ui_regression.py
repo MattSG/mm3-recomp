@@ -41,6 +41,7 @@ def main():
     cc.skip_unless_windows("the contract includes windows.h")
     cc.require_compiler()
     cmake = (ROOT / "CMakeLists.txt").read_text()
+    cmake += (ROOT / "cmake/MM3GeneratedCode.cmake").read_text()
     assert "list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0011C742 sub_0011CAAC sub_0007CEC3)" in cmake
     with tempfile.TemporaryDirectory(prefix="mm3-map-ui-") as folder:
         folder = Path(folder)

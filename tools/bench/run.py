@@ -32,11 +32,12 @@ import sys
 import time
 import uuid
 
-PROFILES = {
-    "Quality": {"scale": "3.0", "msaa": "8", "distance": "2", "fps": 60},
-    "LowPower": {"scale": "1.5", "msaa": "1", "distance": "1", "fps": 30},
-    "Balanced": {"scale": "2.0", "msaa": "4", "distance": "2", "fps": 60},
-}
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "scripts"))
+from performance_profiles import load_profiles
+
+PROFILES = {name: {"scale": value["render_scale"], "msaa": value["msaa"],
+                   "distance": value["draw_distance"], "fps": int(value["fps_limit"])}
+            for name, value in load_profiles().items()}
 TAG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$")
 
 

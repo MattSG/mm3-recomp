@@ -54,7 +54,7 @@ def main():
             startup.index("if (!xbox_HostGraphicsInit("))
     assert "src/mods/widescreen.c" in (ROOT / "CMakeLists.txt").read_text()
     assert "mm3_pause_ui_active()" in (ROOT / "src/mods/widescreen_hud.c").read_text()
-    assert "nv2a_d3d_set_overlay_hooks(&mm3_hud_hooks);" in (ROOT / "src/mods/mods.c").read_text()
+    assert "nv2a_d3d_set_overlay_hooks(&mm3_hud_hooks);" in (ROOT / "src/mods/mods_runtime.c").read_text()
     harness = r'''
 #include <assert.h>
 #include <stdio.h>

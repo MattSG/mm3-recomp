@@ -191,6 +191,7 @@ def main():
     cc.skip_unless_windows('the contract includes windows.h')
     cc.require_compiler()
     cmake = (ROOT / 'CMakeLists.txt').read_text()
+    cmake += (ROOT / "cmake/MM3GeneratedCode.cmake").read_text()
     assert 'list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0016AEDB sub_000E1F49 sub_001D137B)' in cmake
     assert cmake.count('src/mm3_tree_diagnostics.c') == 1
     with tempfile.TemporaryDirectory(prefix='mm3-tree-diagnostics-') as path:

@@ -10,7 +10,7 @@
 extern int mm3_map_texture_role(uint32_t address);
 extern int mm3_pause_ui_active(void);
 
-/* The widescreen mod's 2D placement (mods.c installs it as the renderer's
+/* The widescreen mod's 2D placement (mods_runtime.c installs it as the renderer's
  * overlay hooks; widescreen.c says when a race HUD is up and where it
  * starts). Menus and loading screens span the display; the race HUD keeps
  * its proportions, each piece anchored to its own screen edge, and the name
