@@ -40,6 +40,13 @@ def native_source(old_tail=False):
     if old_tail:
         # Exact former unresolved stub. Only the temporary fixture changes.
         bodies['sub_00144ED9'] = 'void sub_00144ED9(void){g_esp += 8;}'
+        # 17.0 retains the shared tail inside its owner; break that same
+        # entry rather than replacing an adapter the owner no longer calls.
+        bodies['sub_00144EAE'], changed = re.subn(
+            r'loc_00144ED9: ;\n.*?return; /\* ret 4 \*/',
+            'loc_00144ED9: ;\n    esp += 8; return;',
+            bodies['sub_00144EAE'], count=1, flags=re.S)
+        assert changed == 1
     references = set()
     for body in bodies.values():
         references.update(re.findall(r'RECOMP_ABI_CALL\(0x\w+u, (sub_\w+)\)', body))
