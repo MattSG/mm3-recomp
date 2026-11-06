@@ -30,7 +30,7 @@ def native_source():
     # The generic deleting destructor has unrelated, unreachable lifted tail
     # fragments after its first RET. Test its actual entry through that RET.
     destructor = found["sub_0007CEC3"]
-    end = destructor.index("    esp += 8; return; /* ret 4 */")
+    end = destructor.index("esp += 8; return; /* ret 4 */")
     found["sub_0007CEC3"] = destructor[:end] + "    esp += 8; return;\n}\n"
     for name in names[:3]:
         found[name] = found[name].replace("void " + name, "void " + name + "_original", 1)

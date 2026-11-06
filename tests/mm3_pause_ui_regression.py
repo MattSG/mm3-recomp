@@ -80,7 +80,7 @@ int mm3_mod_on(int mod) { (void)mod; return 1; }
 #include "camera_math.c"
 #include "slot_publish.c"
 static uint32_t eax, esi, esp;
-static void native_singleton_return(void) { SINGLETON }
+static void native_singleton_return(void) { uint32_t ebp = g_ebp; SINGLETON }
 static void native_pause_open(uint32_t singleton) {
     esi = singleton;
     OPEN

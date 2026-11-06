@@ -41,7 +41,7 @@ function(mm3_fix_collision_calls source_variable function_name)
     PUSH32(esp, eax);
     eax = MEM32(ecx);
     PUSH32(esp, esi);
-    { uint32_t _icall_target = MEM32(eax + 0x5C); PUSH32(esp, 0x0013FEB9u); RECOMP_ICALL_SAFE_AT(_icall_target, _icall_esp, 0x0013FEB6u); } /* indirect call */
+    g_ebp = ebp; g_seh_ebp = ebp; { uint32_t _icall_target = MEM32(eax + 0x5C); PUSH32(esp, 0x0013FEB9u); RECOMP_ICALL_SAFE_AT(_icall_target, _icall_esp, 0x0013FEB6u); } /* indirect call */
     }
 
 loc_0013FEB9: ;
@@ -60,7 +60,7 @@ loc_0013FEB9: ;
     PUSH32(esp, eax);
     eax = MEM32(ecx);
     PUSH32(esp, esi);
-    { uint32_t _icall_target = MEM32(eax + 0x5C); PUSH32(esp, 0x0013FEE8u); RECOMP_ICALL_SAFE_AT(_icall_target, _icall_esp, 0x0013FEE5u); } /* indirect call */
+    g_ebp = ebp; g_seh_ebp = ebp; { uint32_t _icall_target = MEM32(eax + 0x5C); PUSH32(esp, 0x0013FEE8u); RECOMP_ICALL_SAFE_AT(_icall_target, _icall_esp, 0x0013FEE5u); } /* indirect call */
     }
 
 loc_0013FEE8: ;
@@ -80,7 +80,7 @@ loc_0013FEE8: ;
     eax = ebp + -28;
     PUSH32(esp, eax);
     eax = MEM32(ecx);
-    { uint32_t _icall_target = MEM32(eax + 0x5C); PUSH32(esp, 0x0014E8B9u); RECOMP_ICALL_SAFE_AT(_icall_target, _icall_esp, 0x0014E8B6u); } /* indirect call */
+    g_ebp = ebp; g_seh_ebp = ebp; { uint32_t _icall_target = MEM32(eax + 0x5C); PUSH32(esp, 0x0014E8B9u); RECOMP_ICALL_SAFE_AT(_icall_target, _icall_esp, 0x0014E8B6u); } /* indirect call */
     }
 
 loc_0014E8B9: ;
