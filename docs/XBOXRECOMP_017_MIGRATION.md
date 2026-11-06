@@ -108,3 +108,16 @@ These Windows checks do not establish Linux/POSIX execution, physical audio
 fidelity, two-machine System Link, unbounded play, or parity on every GPU/settings
 combination. Mission teleport checks establish native progression, rather than
 normal driving through an entire event.
+
+## Publication
+
+Published toolkit main joins the old SDL3 main history with the validated 17.0
+migration using an explicit history merge. Its source tree is byte-for-byte
+identical to the tested toolkit `fc51b71a`; publication commit is
+`d0ab118819932a54b2d4907fbf51393c3ff353a0`.
+The game main includes `feat/profile-thread` and the migration commits.
+Occupied old local main worktrees were retained on
+`archive/main-before-v017-publish`, preserving their uncommitted work.
+Historical experiment, audit, backup and PR branches were retained; they are not
+all assumed completed merely because a branch exists. The existing `sdl3-gpu-linux`
+branch predates the tested host migration and is retained for comparison.
