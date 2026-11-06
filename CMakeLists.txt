@@ -30,6 +30,12 @@ option(MM3_FRONTEND_WATCH "Trace writes to the RootLevel child pointer" OFF)
 option(MM3_TRACY "Profile the host rendering pipeline with Tracy" OFF)
 option(MM3_NATIVE_FENCE_WAIT "Wait on native GPU notifications in the direct guest fence loop" ON)
 option(MM3_DSP_AUTO_INLINE "Allow automatic inlining in the optimized DSP interpreter" ON)
+option(MM3_LEGACY_TIMING "Build the previous world-only timing experiment instead of the replacement" OFF)
+if(MM3_LEGACY_TIMING)
+    set(MM3_TIMING_SOURCE src/mods/framerate.c)
+else()
+    set(MM3_TIMING_SOURCE src/mods/timing.c)
+endif()
 if(MM3_TRACY)
     set(MM3_TRACY_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tools/bin/tracy-0.14.1" CACHE PATH "Tracy 0.14.1 sources")
     set(TRACY_ENABLE ON CACHE BOOL "Enable Tracy client" FORCE)
@@ -186,7 +192,10 @@ list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001C5935 sub_000C2FA7 sub_00246894
 # The main loop and world update can share a generated chunk. Rename only
 # these definitions so direct and same-chunk calls enter the clocked wrappers.
 set(MM3_SIMULATION_FUNCTIONS sub_00025422 sub_0002545A sub_001E7590 sub_001EC8E6
-    sub_0022DBBF)                # and the race AI's update, kept at 30 Hz
+    sub_0022DBBF)                # AI instrumentation (legacy: cadence gate)
+if(NOT MM3_LEGACY_TIMING)
+    list(APPEND MM3_SIMULATION_FUNCTIONS sub_001E6C87)
+endif()
 list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS ${MM3_SIMULATION_FUNCTIONS})
 # Building diagnostics keep same-chunk calls routed through opt-in wrappers.
 set(MM3_BUILDING_FUNCTIONS sub_00168A77 sub_001C7B15 sub_001A67BA sub_00166E01
@@ -373,6 +382,7 @@ endforeach()
 add_executable(${PROJECT_NAME}
     src/derived_cache.c
     src/fixed_step.c
+    src/mm3_tick_clock.c
     src/feature_switch.c
     src/env_range.c
     src/string_ci.c
@@ -400,7 +410,7 @@ add_executable(${PROJECT_NAME}
     src/mods/widescreen_hud.c
     src/mods/skip_intro.c
     src/mods/dvd_media.c
-    src/mods/framerate.c
+    ${MM3_TIMING_SOURCE}
     src/mods/keyboard_driving.c
  src/mm3_memory_tails.c
  src/mm3_runtime_entries.c
@@ -421,6 +431,9 @@ add_executable(${PROJECT_NAME}
  src/mods/teleport.c
  src/recomp_trace_probe.c
  ${RECOMP_GEN_SOURCES})
+if(MM3_LEGACY_TIMING)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE MM3_LEGACY_TIMING=1)
+endif()
 
 if(WIN32)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3.rc)
