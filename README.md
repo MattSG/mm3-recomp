@@ -144,7 +144,6 @@ build does not install custom cars.
 - [Contributing](CONTRIBUTING.md): changes, bug reports and tests.
 - [Documentation](docs/): implementation notes and developer tools.
 - [Game test harness](tools/game_test/README.md): bounded runtime checks.
-- [SDL3 validation](docs/SDL3_MIGRATION_VALIDATION.md): tested scenarios and limits.
 
 Game-specific changes belong here. Generic runtime fixes belong in the
 [xboxrecomp fork](https://github.com/MattSG/xboxrecomp), included as
