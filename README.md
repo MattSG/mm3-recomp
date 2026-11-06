@@ -96,6 +96,9 @@ are configured under Controls.
 - If audio stutters, try **Settings > Audio > Sound processor > Off**. This
   bypasses DSP effects and mixes the voices directly.
 - Back up your saves before trying a new build.
+- Saves copied from an Xbox load as damaged, because the console signed them with
+  its own key. `python tools/saves/resign_save.py <UDATA folder> <new folder>` makes a
+  copy signed for this port; put its `4d53002a` folder in your saves' `UDATA`.
 
 For a command-line build, `python scripts/play.py --keyboard --profile Balanced`
 skips the settings launcher. It also supports Quality and LowPower profiles.
