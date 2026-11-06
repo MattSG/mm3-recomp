@@ -24,14 +24,23 @@ static void set_driving_probe(int (*driving)(void))
     if (mod_on) mm3_keyboard_driving_init(driving);
 }
 
-/* The production pad merge reads its host pad through host_pad_state; the test supplies it. */
-#define XBOX_INPUT_HOST_PAD 1
-static DWORD host_pad_state(DWORD port, XINPUT_STATE *state)
+/* The raw host pad comes from a provider registered through the toolkit's hook
+ * (xbox_InputSetHostPadProvider); the test supplies one. */
+#include "../tools/xboxrecomp/src/input/xinput_xbox.h"
+static DWORD test_pad_get(DWORD port, XBOX_HOST_PAD *pad)
 {
     if (!host_connected || port != 0) return ERROR_DEVICE_NOT_CONNECTED;
-    *state = host_state;
+    pad->packet = host_state.dwPacketNumber;
+    pad->buttons = host_state.Gamepad.wButtons;
+    pad->left_trigger = host_state.Gamepad.bLeftTrigger;
+    pad->right_trigger = host_state.Gamepad.bRightTrigger;
+    pad->lx = host_state.Gamepad.sThumbLX;
+    pad->ly = host_state.Gamepad.sThumbLY;
+    pad->rx = host_state.Gamepad.sThumbRX;
+    pad->ry = host_state.Gamepad.sThumbRY;
     return ERROR_SUCCESS;
 }
+static const XBOX_HOST_PAD_PROVIDER test_pad_provider = { NULL, test_pad_get, NULL };
 
 #include "../tools/xboxrecomp/src/input/xinput_device.c"
 #include "../tools/xboxrecomp/src/video/fb_present.c"
@@ -489,6 +498,7 @@ static void check_mouse(HWND window)
 
 int main(int argc, char **argv)
 {
+    xbox_InputSetHostPadProvider(&test_pad_provider);
     WNDCLASSA wc = {0};
     HWND window;
     BOOL mm3;
