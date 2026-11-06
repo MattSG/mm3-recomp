@@ -1,196 +1,166 @@
 # Midtown Madness 3 recompilation
 
-A static recompilation of the Xbox game to native Windows x64, using
-[xboxrecomp](https://github.com/MattSG/xboxrecomp) and Direct3D 11 or SDL3 GPU
-(Vulkan / Direct3D 12). No game files are included: you build it from your own disc.
+Build the Xbox game as a native PC executable using
+[xboxrecomp](https://github.com/MattSG/xboxrecomp). No game files are included;
+you need a dump of your own disc.
 
-> **Largely AI-written.** Nearly all of the code was written with AI assistance
-> (Claude Code and OpenAI Codex) and tested in play. It is
-> experimental, so expect bugs. Fixes and reviews are welcome.
+**Experimental and AI-assisted.** Windows x64 gameplay has been checked.
+Linux x64 has a build path, but gameplay has not been rechecked after the SDL3
+migration. The builder does not support macOS.
 
-## Quick start
+## Build and play
 
-You need a dump of your own Midtown Madness 3 disc, Python 3.12, git, CMake,
-and an x86-64 Windows or Linux PC. Windows also needs Visual Studio 2022 or
-newer with **Desktop development with C++** and **C++ CMake tools for
-Windows**. Linux needs a C/C++ compiler, the dependencies listed in the
-[Linux section](#linux-sdl3-gpu--vulkan), and Tkinter (for example,
-`python3-tk` on Ubuntu).
+On Windows, install:
 
-1. Clone the repository and its submodules:
+- Python 3.12 or newer, Git and CMake.
+- Visual Studio 2022 or newer with **Desktop development with C++** and
+  **C++ CMake tools for Windows**.
 
-   ```sh
-   git clone --recurse-submodules https://github.com/MattSG/mm3-recomp.git
-   cd mm3-recomp
-   ```
+Run these commands from a terminal:
 
-2. Download the standalone builder for your OS from the repository releases
-   and run it, or run `python scripts/build_gui.py` on Windows /
-   `python3 scripts/build_gui.py` on Linux. If prompted, select the checkout
-   folder created in step 1. On Linux, make the download executable with
-   `chmod +x mm3-builder-linux` before running it. The standalone app can
-   check a disc without Python; building the game still needs Python and the
-   listed build tools.
-3. Choose your disc image and select **Check SHA** to verify its image SHA-1
-   and game-code SHA-256. The result shows whether the image matches a tested
-   dump; **Show log** has the details.
-4. Choose a graphics API and select **Build**. The disc is checked again before
-   building. Open **Show log** for progress and any errors.
-5. When the build finishes, select **Launch game**. The chosen graphics API is
-   used for that launch.
+```sh
+git clone --recurse-submodules https://github.com/MattSG/mm3-recomp.git
+cd mm3-recomp
+```
 
-The builder reuses existing extracted game files and keeps separate Windows
-and Linux renderer builds under `build/gui-*`. Direct3D 11 and Direct3D 12
-are available on Windows; Vulkan is available on Windows and Linux. macOS game
-builds are not supported yet.
+Download the Windows builder from [Releases](https://github.com/MattSG/mm3-recomp/releases/latest),
+or run `python scripts/build_gui.py` from the checkout.
 
-For command-line setup instead, run:
+1. Choose your disc image. **Check SHA** verifies its game code and reports
+   whether the image matches a tested dump.
+2. Choose **Direct3D 12** or **Vulkan**, then **Build**. If asked, select the
+   checkout folder. Use **Show log** for progress or errors.
+3. Select **Launch game**, configure the game's launcher, then press **Play**.
+
+The standalone builder can check a disc without Python, but building requires
+the tools above. The first build downloads dependencies and translates the game
+code. Both graphics backends use SDL3 and share one build. Vulkan needs a
+compatible GPU driver; no Vulkan SDK is required.
+
+### Command line
+
+From the repository root:
 
 ```powershell
 python scripts/setup.py --iso "<path to your disc image>"
 .\build\RelWithDebInfo\mm3_recomp.exe
 ```
 
-### Windows: SDL3 GPU (Vulkan and Direct3D 12)
+Setup extracts the disc, translates and builds the game, then tries to capture
+its DSP programs for native compilation. Audio can use the DSP interpreter if
+capture is not completed. Later setup runs can omit `--iso` when the game files
+are already extracted.
 
-Include Visual Studio's **C++ CMake tools for Windows** component. From the
-repository root, build once for both backends:
+The GUI builds in `build/gui-windows-sdl3_gpu`; command-line setup uses `build`.
+For a direct launch, `RECOMP_SDL_GPU_DRIVER` selects `vulkan` or `direct3d12`;
+leave it unset for automatic selection.
 
-```powershell
-python scripts/setup.py --iso "<path to your disc image>" --renderer SDL3_GPU
-```
+### Linux
 
-Already set up? Omit `--iso`. CMake downloads SDL3 and the shader compiler;
-no Vulkan SDK is needed. Vulkan requires a compatible GPU driver.
+Use an x86-64 system with Python, a C/C++ compiler, CMake, Ninja, pkg-config,
+OpenSSL, SDL3's platform build dependencies and a Vulkan driver. Install the
+FFmpeg development packages for `libavformat`, `libavcodec`, `libavutil`,
+`libswscale` and `libswresample`. The GUI also needs Tkinter
+(`python3-tk` on Ubuntu).
 
-Select the backend in PowerShell, closing the game before switching:
-
-```powershell
-# Vulkan
-$env:RECOMP_SDL_GPU_DRIVER = "vulkan"
-.\build\RelWithDebInfo\mm3_recomp.exe
-
-# Direct3D 12
-$env:RECOMP_SDL_GPU_DRIVER = "direct3d12"
-.\build\RelWithDebInfo\mm3_recomp.exe
-
-# Restore automatic selection
-Remove-Item Env:RECOMP_SDL_GPU_DRIVER -ErrorAction SilentlyContinue
-```
-
-The startup log confirms `[SDLGPU] device: vulkan` or `direct3d12`.
-For source-only rebuilds, use **Developer PowerShell for Visual Studio**:
-
-```powershell
-cmake --build build --config RelWithDebInfo --target mm3_recomp --parallel
-```
-
-To return to Direct3D 11, run `python scripts/setup.py --renderer D3D11`;
-that build ignores `RECOMP_SDL_GPU_DRIVER`. For a Release build, pass
-`--config Release` to setup and launch `build\Release\mm3_recomp.exe`.
-
-### Linux: SDL3 GPU / Vulkan
-
-On Linux x86-64 (tested on Ubuntu 22.04), install Python, CMake, Ninja, a C/C++
-compiler, OpenSSL, libepoxy, SDL3's build dependencies and a Vulkan GPU driver.
+From the checkout, run `python3 scripts/build_gui.py`, or use:
 
 ```sh
-python3 scripts/setup.py --iso "<path to your disc image>" --renderer SDL3_GPU
+python3 scripts/setup.py --iso "<path to your disc image>"
 RECOMP_SDL_GPU_DRIVER=vulkan ./build/mm3_recomp
 ```
 
-Subsequent builds can omit `--iso`. Direct3D backends require Windows.
+The standalone Linux builder is also available in Releases; make it executable
+with `chmod +x mm3-builder-linux`. GUI builds use `build/gui-linux-sdl3_gpu`.
 
-Setup verifies your disc, extracts it, translates the game code (about six
-minutes) and builds. It then runs the game for about ten seconds, hidden and
-muted, to capture its audio DSP programs, and rebuilds with them compiled in. The game opens a launcher with **Settings**, **Controls**
-and **Mods** tabs; press **Play**.
+### Disc compatibility
 
-### Supported discs
+The tested images are the USA redump ISO and the Europe/Australia multilingual
+XISO. Other dumps are accepted only if their game-code hash matches the expected
+code. The tested image hashes are listed in
+[scripts/extract_disc.py](scripts/extract_disc.py); the builder shows the check
+results before building.
 
-Setup checks the game code's hash, so any retail dump with the same code works.
-These images were tested:
+## Playing and settings
 
-| SHA-1 | Image |
+The game's launcher has **Settings**, **Controls** and **Mods** tabs. Settings
+include resolution, aspect ratio, MSAA, texture filtering, draw distance, field
+of view and a frame limit. Keyboard/mouse input and controller button mappings
+are configured under Controls.
+
+- Enable **Use keyboard and mouse** to drive without a controller. With the
+  Keyboard driving mod enabled, arrows drive and steer, R/F change gear,
+  Space is the handbrake and C changes camera.
+- Enable **Menu keys and mouse** for mouse selection and clicks in game menus.
+- Press **F11** or **Alt+Enter** to switch fullscreen.
+- If audio stutters, try **Settings > Audio > Sound processor > Off**. This
+  bypasses DSP effects and mixes the voices directly.
+- Back up your saves before trying a new build.
+- Saves copied from an Xbox load as damaged, because the console signed them with
+  its own key. `python tools/saves/resign_save.py <UDATA folder> <new folder>` makes a
+  copy signed for this port; put its `4d53002a` folder in your saves' `UDATA`.
+
+For a command-line build, `python scripts/play.py --keyboard --profile Balanced`
+skips the settings launcher. It also supports Quality and LowPower profiles.
+For a GUI build, supply `--exe` with that build's executable path.
+
+### Mods
+
+Most visual and gameplay mods default to on. Developer features default to off.
+The collision guard is required.
+
+| Mod | Purpose |
 |---|---|
-| `52cd998731eb67477b44c49c4152f56c0fc58a56` | Midtown Madness 3 (USA): redump `.iso`, 7.8 GB |
-| `8ed003adaf504883afc980d2888df6125496d044` | Midtown Madness 3 (Europe, Australia) (En,Fr,De,Es,It): XISO, 3.6 GB |
+| Widescreen | Widen the view and move the HUD to the window edges. |
+| Extended draw distance | Draw the world further away, with depth fog. |
+| Smooth skyline | Filter the distant skyline panorama. |
+| Field of view | Adjust the race camera's view. |
+| Console-rate simulation | Keep simulation timing separate from rendering; default 30 updates/second. |
+| Keyboard driving | Add driving keys when keyboard input is enabled. |
+| Menu mouse | Select and confirm menu items with the mouse. |
+| Lamp flare depth | Hide lamp flares behind scene geometry. |
+| Skip intro movies | Skip startup logos and movies; story movies still play. |
+| Collision cell guard | Repair invalid face indices in a Paris collision cell. |
 
-## What's improved
+The Mods tab also has translation corrections and optional developer/debug
+features. [src/mods/mods.c](src/mods/mods.c) lists the switches and defaults.
+The retail developer tools require `tools/debug-features/prepare.py`.
 
-- **Rendering:** Direct3D 11 or SDL3 GPU (Vulkan / Direct3D 12), with render scale,
-  MSAA, anisotropic filtering, any aspect ratio and a frame-rate limit. Performance profiles (Balanced,
-  Quality, LowPower) set these for you.
-- **Audio:** the Xbox's sound DSP (reverb, 3D sound and the game's own mix),
-  captured during setup and compiled to native code.
-- **Input:** keyboard, mouse and controllers, all rebindable.
-- **Multiplayer:** System Link on one PC or a LAN. Xbox Live goes to
-  [Insignia](https://insignia.live), but sign-in is not yet verified.
-- **Extra cars:** nine extra cars, with an editor for their paint, ratings,
-  physics and gearing, in [mm3-car-tools](https://github.com/MattSG/mm3-car-tools).
+### Network status
 
-## Mods
+System Link and Insignia integration are work in progress. Live two-PC System
+Link and Xbox Live sign-in have not been verified.
 
-Each change to how the game plays or looks is a mod, switched in the launcher's
-Mods tab. The mods marked "always" are needed for the game to run.
+## Optional car tools
 
-| Mod | Default | What it does |
-|---|---|---|
-| Widescreen | on | The 3D view fills the window and the HUD moves to its edges. |
-| Extended draw distance | on | Traffic, objects and the city drawn further, with native depth fog. |
-| Smooth skyline | on | The distant skyline is filtered smoothly instead of blocky. |
-| Field of view | on | A wider race camera, set under Graphics. |
-| Console-rate simulation | on | The world updates at the Xbox's rate, so handling and AI match the console at any frame rate. |
-| Keyboard driving | on | Arrows drive, R/F shift gear, Space is the handbrake, C changes the camera. |
-| Menu mouse | on | Point at a menu item to select it and click to confirm. |
-| Lamp flare depth | on | Street-lamp flares stay hidden behind buildings and cars. |
-| Skip intro movies | on | Skips the logo and intro movies at start-up. |
-| Collision cell guard | always | Repairs a broken Paris collision cell that can freeze the game. |
-| Developer tools | off | The retail debug HUD, menu and cameras. |
-| ImGui debug tools | off | An in-game developer interface, with teleport. |
+The editor and model converters are maintained in the separate
+[mm3-car-tools repository](https://github.com/MattSG/mm3-car-tools). A recursive
+clone checks it out as the `tools/car-tools` submodule; it is not part of the
+game launcher or builder.
 
-[src/mods/mods.c](src/mods/mods.c) lists every mod and its environment variable.
+See [the car-tools README](tools/car-tools/README.md) for Car Workshop and model
+conversion instructions. Custom model assets are not included. The game's normal
+build does not install custom cars.
 
-## Playing
+## Documentation and contributions
 
-- **Keyboard:** turn it on under Controls.
-- **Fullscreen:** F11 or Alt+Enter.
-- **Sound stutters:** set Audio > Sound processor to Off.
-- **Skipping the launcher:** run `python scripts/play.py --keyboard --profile Balanced`.
-- **Saves:** back them up before you try a new build.
-- **Saves from an Xbox** load as damaged, because the console signed them with its own key.
-  `python tools/saves/resign_save.py <UDATA folder> <new folder>` makes a copy signed for
-  this port; put its `4d53002a` folder in your saves' `UDATA`.
+- [Contributing](CONTRIBUTING.md): changes, bug reports and tests.
+- [Documentation](docs/): implementation notes and developer tools.
+- [Game test harness](tools/game_test/README.md): bounded runtime checks.
 
-## More documentation
+Game-specific changes belong here. Generic runtime fixes belong in the
+[xboxrecomp fork](https://github.com/MattSG/xboxrecomp), included as
+`tools/xboxrecomp`.
 
-In [docs/](docs/): [debug tools](docs/IMGUI_DEBUG_TOOLS.md), [teleport pipe](docs/DEBUG_TELEPORT.md),
-[custom menus](docs/CUSTOM_MENUS.md), [menu mouse](docs/MENU_MOUSE.md),
-[who owns what between this repo and the xboxrecomp fork](docs/XBOXRECOMP_OWNERSHIP.md), and the
-[XboxXBERecomp comparison](docs/xboxxberecomp-evaluation.md). Old audits are in [docs/history/](docs/history/).
-The runtime test harness is in [tools/game_test/README.md](tools/game_test/README.md).
+## Copyright and contributions
 
-## Contributing
+Do not upload game files, disc images, generated/decompiled game code, DLC,
+BIOS files, keys or saves. Submit only material you have permission to contribute.
 
-PRs are welcome, including AI-assisted ones. Review and understand what you
-submit. Keep each PR to one problem and say which checks you ran; see
-[CONTRIBUTING.md](CONTRIBUTING.md).
-
-Changes to how MM3 plays or looks belong here, as mods. Fixes to the runtime
-belong in our [xboxrecomp fork](https://github.com/MattSG/xboxrecomp): upstream
-[sp00nznet/xboxrecomp](https://github.com/sp00nznet/xboxrecomp) plus small,
-game-agnostic commits, each meant to be offered upstream.
-
-Never commit, upload or link any of these:
-- disc images or game files;
-- generated or decompiled game code;
-- BIOS files, keys or saves.
-
-## Legal
-
-This is an unofficial project with no affiliation with Microsoft, Xbox or DICE.
-It includes car tools and fixes from
+This is an unofficial project, unaffiliated with Microsoft, Xbox or DICE.
+Original project code is [GPL-3.0-only](LICENSE); third-party code retains its
+own licences. Earlier MIT revisions remain available under MIT. See
+[THIRD_PARTY.md](THIRD_PARTY.md) and the submodules' notices for attribution,
+including work from
 [lakshya16157's PC Native fork](https://github.com/lakshya16157/midtown-madness-3-PC-Native).
-Its code is [GPL-3.0-only](LICENSE), and earlier MIT releases stay MIT. See
-also [THIRD_PARTY.md](THIRD_PARTY.md). Midtown Madness 3 and its assets belong
-to their rights holders. Use only your own lawfully obtained copy.
+Midtown Madness 3 and its assets belong to their rights holders.

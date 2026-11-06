@@ -27,11 +27,11 @@ CHECKPOINT = [{"action": "wait_log", "text": "[MOD] skip_intro: intro", "timeout
 
 UNDERCOVER = [{"action": "wait_log", "text": "[MOD] skip_intro: intro", "timeout": 60}, {"action": "wait", "seconds": 40}, {"action": "press", "buttons": "start", "after": 2}, {"action": "press", "buttons": "a", "after": 2}, {"action": "press", "buttons": "a", "after": 4}, {"action": "press", "buttons": "left", "after": 1}, {"action": "press", "buttons": "a", "after": 3}, {"action": "press", "buttons": "a", "after": 15}, {"action": "press", "buttons": "a", "after": 20}, {"action": "press", "buttons": "start", "after": 5}, {"action": "wait_player", "timeout": 45, "advance": "start"}]
 BLITZ = [{"action": "wait_log", "text": "[MOD] skip_intro: intro", "timeout": 60}, {"action": "wait", "seconds": 40}, {"action": "press", "buttons": "start", "after": 2}, {"action": "press", "buttons": "a", "after": 2}, {"action": "press", "buttons": "down", "after": 2}, {"action": "press", "buttons": "a", "after": 2}, {"action": "press", "buttons": "down", "after": 1}, {"action": "press", "buttons": "a", "after": 2}, {"action": "press", "buttons": "right", "after": 2}, {"action": "press", "buttons": "a", "after": 2}, {"action": "press", "buttons": "a", "after": 2}, {"action": "press", "buttons": "a", "after": 2}, {"action": "press", "buttons": "a"}, {"action": "wait_player", "timeout": 30, "advance": "start"}]
-RIGHT = {"action": "press", "buttons": "right", "after": 1}
+LEFT = {"action": "press", "buttons": "left", "after": 1}
 MENUS = {
-    "checkpoint": CHECKPOINT, "undercover": UNDERCOVER, "blitz": BLITZ,
-    "checkpoint-washington": CHECKPOINT[:9] + [RIGHT] + CHECKPOINT[9:],   # the city screen: Right picks Washington
-    "blitz-paris": BLITZ[:8] + BLITZ[9:],                                  # drop the Right that picks Washington
+    "checkpoint": CHECKPOINT[:9] + [LEFT] + CHECKPOINT[9:], "undercover": UNDERCOVER, "blitz": BLITZ,
+    "checkpoint-washington": CHECKPOINT,
+    "blitz-paris": BLITZ[:8] + [LEFT] + BLITZ[9:],
 }
 
 
@@ -70,6 +70,7 @@ def run_zones(g, zones):
 def main(exe, assets, save, mission="checkpoint"):
     with Session(exe, assets, save_template=save, timeout=420, env=ALL_MODS) as g:
         g.run({"steps": MENUS[mission]})
+        print("native route: " + json.dumps(route(g)), flush=True)
         if mission == "undercover":
             time.sleep(8)                       # countdown
             zones = undercover_zones(assets)

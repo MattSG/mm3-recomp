@@ -93,6 +93,9 @@ static const Bind &binding(const char *env, const char *name) {
 int main(int argc, char **argv) {
     const size_t original_options = g_options.size();
     load_settings();
+    for (const Option &o : g_options)
+        require(o.env != "MM3_RENDER_EVERY_FRAME",
+                "replacement launcher excludes the legacy render-queue experiment");
     require(g_options.size() == original_options + MM3_MOD_COUNT - 1,
             "all user-facing mods added once, translation switch excluded");
     for (int i = 0; i < MM3_MOD_COUNT; ++i) {
@@ -157,13 +160,12 @@ def cases():
         ("balanced", {"RECOMP_FPS_LIMIT": "60", "RECOMP_RENDER_SCALE": "2.0", "RECOMP_MSAA": "4",
                        "RECOMP_DRAW_DISTANCE": "4", "RECOMP_VIEW_DISTANCE": "2"},
          None, {"RECOMP_FPS_LIMIT": "60", "RECOMP_RENDER_SCALE": "2", "RECOMP_MSAA": "4",
-                "RECOMP_DRAW_DISTANCE": "4", "RECOMP_VIEW_DISTANCE": "2",
-                "MM3_RENDER_EVERY_FRAME": "0"}, [], False),
+                "RECOMP_DRAW_DISTANCE": "4", "RECOMP_VIEW_DISTANCE": "2"}, [], False),
         ("saved-auto", {"RECOMP_RENDER_SCALE": "2.0", "RECOMP_ASPECT": "16:10", "MM3_FOV": "120",
                          "RECOMP_WINDOW_SIZE": "1920x1080", "RECOMP_FULLSCREEN": "1", "RECOMP_FPS_LIMIT": "30"},
          "RECOMP_RENDER_SCALE=\nRECOMP_ASPECT=\nMM3_FOV=\nRECOMP_WINDOW_SIZE=\nRECOMP_FULLSCREEN=\nRECOMP_FPS_LIMIT=120\nMM3_RENDER_EVERY_FRAME=1\n",
          {"RECOMP_RENDER_SCALE": "", "RECOMP_ASPECT": "", "MM3_FOV": "", "RECOMP_WINDOW_SIZE": "",
-          "RECOMP_FULLSCREEN": "", "RECOMP_FPS_LIMIT": "120", "MM3_RENDER_EVERY_FRAME": "1"}, [], False),
+          "RECOMP_FULLSCREEN": "", "RECOMP_FPS_LIMIT": "120"}, [], False),
         ("invalid-environment", {"RECOMP_FPS_LIMIT": "75", "RECOMP_RENDER_SCALE": "nan", "RECOMP_MSAA": "3",
                                  "RECOMP_ASPECT": "wide", "RECOMP_NET_PEERS": "host\nother"},
          None, {"RECOMP_FPS_LIMIT": "60", "RECOMP_RENDER_SCALE": "", "RECOMP_MSAA": "4",

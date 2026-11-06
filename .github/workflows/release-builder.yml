@@ -3,14 +3,41 @@ on:
   push:
     branches: [main]
     paths:
-      - 'scripts/**'
+      - 'scripts/build_gui.py'
+      - 'scripts/extract_disc.py'
+      - 'scripts/setup.py'
+      - 'scripts/devenv.py'
+      - 'scripts/generate_mm3.py'
+      - 'scripts/builder_release.py'
       - 'tools/xboxrecomp'
       - '.github/workflows/release-builder.yml'
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: release-builder
+  cancel-in-progress: false
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.inputs.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: Compare packaged inputs with the latest release
+        id: inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release view --json tagName --jq .tagName)
+          changed=$(python scripts/builder_release.py "$tag")
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
   package:
+    needs: changes
+    if: needs.changes.outputs.changed == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -33,7 +60,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install pyinstaller==6.22.3
-      - run: python -m unittest discover -s tests -p test_build_gui.py -v
+      - run: python -m unittest discover -s tests -p 'test_build*.py' -v
       - name: Package builder
         run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name ${{ matrix.name }} --paths tools/xboxrecomp --hidden-import tools.xiso.xdvdfs --hidden-import tools.xiso.__main__ scripts/build_gui.py
       - name: Smoke test executable
@@ -60,8 +87,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_NUMBER: ${{ github.run_number }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
           TARGET_SHA: ${{ github.sha }}
         run: |
-          version="$(date -u +%Y.%m.%d).${RUN_NUMBER}.${RUN_ATTEMPT}"
+          version="$(git show -s --format=%cs HEAD | tr - .).${RUN_NUMBER}.1"
+          if gh release view "v${version}" >/dev/null 2>&1; then
+            echo "Release v${version} already exists."
+            exit 0
+          fi
           gh release create "v${version}" packages/mm3-builder-windows/mm3-builder-windows.exe packages/mm3-builder-linux/mm3-builder-linux --target "$TARGET_SHA" --title "Builder ${version}" --notes "Standalone builder for Windows and Linux. Game files are not included."

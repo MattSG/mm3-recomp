@@ -61,6 +61,9 @@ class PlayLauncherTest(unittest.TestCase):
         (self.folder / "game_files/default.xbe").write_bytes(b"fixture marker only")
         self.launcher = self.folder / "scripts/play.py"
         shutil.copyfile(ROOT / "scripts/play.py", self.launcher)
+        shutil.copyfile(ROOT / "scripts/performance_profiles.py", self.folder / "scripts/performance_profiles.py")
+        (self.folder / "src").mkdir()
+        shutil.copyfile(ROOT / "src/mm3_performance_profiles.def", self.folder / "src/mm3_performance_profiles.def")
         support = self.folder / "tools/xboxrecomp/tools/launch"
         support.mkdir(parents=True)
         shutil.copyfile(ROOT / "tools/xboxrecomp/tools/launch/process_support.py", support / "process_support.py")

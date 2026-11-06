@@ -16,7 +16,9 @@ if(WIN32)
 endif()
 include(${XBOXRECOMP_DIR}/cmake/Nv2aSdlgpu.cmake)
 add_subdirectory(${XBOXRECOMP_DIR}/src/platform ${CMAKE_CURRENT_BINARY_DIR}/platform)
-add_executable(mm3_renderer_fog_sdlgpu test_bindings_sdlgpu.c ${XBOXRECOMP_DIR}/src/video/fb_window_sdl.c)
+add_executable(mm3_renderer_fog_sdlgpu test_bindings_sdlgpu.c ${XBOXRECOMP_DIR}/src/video/fb_window_sdl.c
+    ${XBOXRECOMP_DIR}/src/input/keyboard.c ${XBOXRECOMP_DIR}/src/input/keymap_spec.c
+    ${XBOXRECOMP_DIR}/src/input/input_map.c)
 xbr_nv2a_sdlgpu_target(mm3_renderer_fog_sdlgpu)
 mm3_render_fog_shaders(mm3_renderer_fog_sdlgpu SDL3_GPU)
 target_link_libraries(mm3_renderer_fog_sdlgpu PRIVATE platform)

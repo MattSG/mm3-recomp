@@ -56,6 +56,15 @@ class ResignSaveTests(unittest.TestCase):
             self.assertIn('score already signed for the port', report)
             self.assertIn('folder should be 194916D15BE4', report)
 
+    def test_title_folder_source_signs_every_save_folder(self):
+        with tempfile.TemporaryDirectory() as temp:
+            udata = self.make_udata(Path(temp))
+            report = self.run_tool(udata / '4d53002a', Path(temp) / 'fixed', '--key', '')
+            body = (udata / '4d53002a' / '194916D15BE4' / 'profile').read_bytes()[:-20]
+            self.assertEqual((Path(temp) / 'fixed' / '194916D15BE4' / 'profile').read_bytes(),
+                             signed(PORT_KEY, body))
+            self.assertIn('profile re-signed', report)
+
     def test_key_matches_recomp_xbox_sigkey(self):
         key = 'A0' * 16
         with tempfile.TemporaryDirectory() as temp:

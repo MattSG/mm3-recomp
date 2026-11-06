@@ -3,9 +3,10 @@ project(mm3_mod_contracts C)
 set(CMAKE_C_STANDARD 11)
 # Use the project's canonical runtime header; no generated game code or assets.
 configure_file(../../src/mm3_recomp_types.h recomp_types.h COPYONLY)
-add_executable(mm3_collision_contract ../mm3_collision_contract.c)
+configure_file(../../tools/xboxrecomp/templates/runtime/recomp_types.h recomp_base.h COPYONLY)
+add_executable(mm3_collision_contract ../mm3_collision_cell_contract.c)
 target_include_directories(mm3_collision_contract PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
-    ../../tools/xboxrecomp/include)
+    ../../tools/xboxrecomp/include ../../tools/xboxrecomp/src ../../tools/xboxrecomp/src/kernel)
 if(MSVC)
     target_compile_options(mm3_collision_contract PRIVATE /UNDEBUG)
 endif()

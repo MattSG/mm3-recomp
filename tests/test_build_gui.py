@@ -13,7 +13,7 @@ import extract_disc
 class BuilderTests(unittest.TestCase):
     def test_graphics_choices_match_host_and_launch_driver(self):
         windows = build_gui.graphics_options('Windows')
-        self.assertEqual(windows['Direct3D 11'], ('D3D11', None))
+        self.assertNotIn('Direct3D 11', windows)
         self.assertEqual(windows['Direct3D 12'], ('SDL3_GPU', 'direct3d12'))
         self.assertEqual(windows['Vulkan'], ('SDL3_GPU', 'vulkan'))
         self.assertEqual(build_gui.graphics_options('Linux'), {'Vulkan': ('SDL3_GPU', 'vulkan')})

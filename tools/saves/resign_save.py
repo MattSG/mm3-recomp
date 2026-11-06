@@ -90,9 +90,15 @@ def main(argv=None):
     if args.target.exists():
         parser.error(f"{args.target} exists; pick a new output folder")
     shutil.copytree(args.source, args.target)
-    # A UDATA folder, the title folder inside it, or one save folder.
-    title = args.target / TITLE_ID if (args.target / TITLE_ID).is_dir() else args.target
-    folders = [f for f in title.iterdir() if f.is_dir()] if title.name.lower() == TITLE_ID else [args.target]
+    # A UDATA folder, the title folder inside it, or one save folder. Decide from the
+    # source: the copy is named whatever the user chose.
+    if (args.source / TITLE_ID).is_dir():
+        title = args.target / TITLE_ID
+    elif args.source.name.lower() == TITLE_ID:
+        title = args.target
+    else:
+        title = None
+    folders = [f for f in title.iterdir() if f.is_dir()] if title else [args.target]
     for folder in sorted(folders):
         print(resign_folder(folder, key))
 

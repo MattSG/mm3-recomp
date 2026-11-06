@@ -158,10 +158,8 @@ def main():
                     ram=fixture(image,callback,populated);memory=directory/'image.bin';memory.write_bytes(ram)
                     output=directory/'result.bin'
                     result=subprocess.check_output([str(executable),str(memory),hex(callback),str(count),str(output)],text=True)
-                    # The lifter keeps architectural EBP local and publishes
-                    # its latest frame in g_ebp for frameless callees. The
-                    # caller republishes its frame before its next call.
-                    assert tuple(map(int,result.split()))==(0x700014,0x6FFFFC,0x12345678,0x23456789,0x3456789A),(hex(callback),populated,count,result)
+                    # 17.0 publishes restored architectural EBP on return.
+                    assert tuple(map(int,result.split()))==(0x700014,0x456789AB,0x12345678,0x23456789,0x3456789A),(hex(callback),populated,count,result)
                     native=output.read_bytes();original_objects,original_trace=original_result(ram,callback,count)
                     assert native[ARRAY:ARRAY+STRIDE*3]==original_objects,(hex(callback),populated,count)
                     assert native[TRACE:TRACE+0x200]==original_trace,(hex(callback),populated,count)

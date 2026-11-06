@@ -4,7 +4,17 @@
 #include "../tools/xboxrecomp/src/kernel/guest_state.c"
 #include "../src/mods/menu_mouse.c"
 #include <assert.h>
+#include <xinput.h>
+#define XBOX_INPUT_HOST_PAD 1
+static DWORD host_pad_state(DWORD port, XINPUT_STATE *state)
+{ (void)port; (void)state; return ERROR_DEVICE_NOT_CONNECTED; }
 #include "../tools/xboxrecomp/src/input/xinput_device.c"
+/* This fixture supplies mouse state directly; keyboard/raw-pad behavior has
+ * its own input contracts. */
+int xbox_InputKeyboardPoll(XBOX_INPUT_STATE *state) { (void)state; return 0; }
+int xbox_InputKeyboardMenu(void) { return 0; }
+int mkb_enabled(void) { return 0; }
+int mkb_merge(DWORD port, XBOX_INPUT_STATE *state) { (void)port; (void)state; return 0; }
 
 ptrdiff_t g_xbox_mem_offset;
 RECOMP_TLS uint32_t g_eax, g_ecx, g_edx, g_esp, g_ebx, g_esi, g_edi, g_seh_ebp, g_ebp;

@@ -1,12 +1,12 @@
 {
-  "name": "saved-profile-paris-cruise-driving",
+  "name": "saved-profile-cruise-driving",
   "steps": [
     {"action": "wait_log", "text": "[MOD] skip_intro: intro", "timeout": 60},
-    {"action": "wait", "seconds": 1},
-    {"action": "press", "buttons": "start", "after": 2},
-    {"action": "press", "buttons": "a", "after": 2},
-    {"action": "press", "buttons": "down", "after": 2},
-    {"action": "press", "buttons": "a", "after": 2},
+    {"action": "wait", "seconds": 30},
+    {"action": "press", "buttons": "start", "after": 3},
+    {"action": "press", "buttons": "a", "after": 7},
+    {"action": "press", "buttons": "down", "after": 3},
+    {"action": "press", "buttons": "a", "after": 3},
     {"action": "press", "buttons": "a", "after": 2},
     {"action": "press", "buttons": "a", "after": 2},
     {"action": "press", "buttons": "a", "after": 2},

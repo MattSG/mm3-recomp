@@ -186,13 +186,13 @@ def dsp_step(exe, config, cmake, msvc, build_dir="build"):
 
 
 def main(argv=None):
-    default_renderer = "D3D11" if IS_WIN else "SDL3_GPU"
+    default_renderer = "SDL3_GPU"
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--iso", type=Path, help="your Midtown Madness 3 disc image (needed when game_files/ is missing)")
     ap.add_argument("--config", choices=["RelWithDebInfo", "Release"], default="RelWithDebInfo")
     ap.add_argument("--skip-iso-hash", action="store_true", help="skip the (slow) whole-image hash")
     ap.add_argument("--force", action="store_true", help="redo finished steps")
-    ap.add_argument("--renderer", choices=["D3D11", "SDL3_GPU"], default=default_renderer,
+    ap.add_argument("--renderer", choices=["SDL3_GPU"], default=default_renderer,
                     help=f"host renderer (default: {default_renderer})")
     ap.add_argument("--build-dir", default="build", help="CMake build directory (default: build)")
     args = ap.parse_args(argv)

@@ -18,9 +18,9 @@ discuss the approach. Search existing issues and PRs before starting.
 
 For performance changes, include comparable before/after measurements with the
 same scene, settings, and hardware. Documentation-only changes need no game build.
-GitHub Actions builds asset-free contracts and the runtime on Windows and Linux. It cannot build the game without private
-game files; include local validation results in your PR.
-The release workflow packages the standalone builder for Windows and Linux.
+GitHub Actions only runs the standalone builder's unit tests and packages the builder for Windows and Linux. It builds
+and tests nothing else: not the runtime, not the game (that needs private game files), and not the regression tests, so
+run what your change touches locally (see [tests/README.md](tests/README.md)) and include those results in your PR.
 
 AI-assisted contributions are welcome. Review and understand the code you submit,
 check its provenance, and describe your testing. Do not claim tests you did not run.

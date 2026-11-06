@@ -1,6 +1,8 @@
 /* Settings are cached, so run enabled/disabled modes in separate processes. */
 #include <assert.h>
+#include <string.h>
 #include "../src/mods/mods.c"
+#include "../src/mods/mods_runtime.c"
 
 static int driving;
 static int render_commands_initialized;

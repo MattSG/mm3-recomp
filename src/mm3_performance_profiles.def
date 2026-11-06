@@ -1,0 +1,3 @@
+MM3_PROFILE("Balanced", "2.0", "4", "2", "16", "60")
+MM3_PROFILE("Quality", "3.0", "8", "2", "16", "60")
+MM3_PROFILE("LowPower", "1.5", "1", "1", "16", "30")

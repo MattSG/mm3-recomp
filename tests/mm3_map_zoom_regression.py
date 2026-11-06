@@ -59,6 +59,7 @@ def main():
     if not shutil.which("cmake"):
         raise SystemExit("Run `python scripts/devenv.py --shell` first so CMake is available.")
     cmake = (ROOT / "CMakeLists.txt").read_text()
+    cmake += (ROOT / "cmake/MM3GeneratedCode.cmake").read_text()
     # The marker owner also has race-guidance seams; both owner groups can
     # register it before CMake removes duplicates.
     registered = set()

@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+size_t g_xbox_total_ram = 64u * 1024u * 1024u;
 static XINPUT_STATE host_state;
 static BOOL host_connected;
 static BOOL driving_context;
@@ -494,6 +495,9 @@ int main(int argc, char **argv)
     if (argc < 2 || argc > 3) { fprintf(stderr, "Usage: mm3_input_contract mm3|legacy [saved-maps]\n"); return 2; }
     mm3 = mod_on = _stricmp(argv[1], "mm3") == 0;
     _putenv_s("RECOMP_KEYBOARD", "1");
+    /* These cases exercise the legacy layout alongside MM3's aliases, rather
+     * than depending on the generic runtime's newer WASD defaults. */
+    if (argc != 3) _putenv_s("RECOMP_KEYMAP", "X:41,Y:53,LX-:64,LX+:66,LY-:62,LY+:68");
     if (!strcmp(argv[1], "mouse")) _putenv_s("RECOMP_MENU_KEYS", "1");
     _putenv_s("RECOMP_PAD_SCRIPT", ""); _putenv_s("RECOMP_PAD_PRESS", "");
     _putenv_s("RECOMP_PAD_LIVE", ""); _putenv_s("RECOMP_INPUT_DIAG", "");

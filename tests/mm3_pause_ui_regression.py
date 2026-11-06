@@ -54,7 +54,7 @@ def main():
             startup.index("if (!xbox_HostGraphicsInit("))
     assert "src/mods/widescreen.c" in (ROOT / "CMakeLists.txt").read_text()
     assert "mm3_pause_ui_active()" in (ROOT / "src/mods/widescreen_hud.c").read_text()
-    assert "nv2a_d3d_set_overlay_hooks(&mm3_hud_hooks);" in (ROOT / "src/mods/mods.c").read_text()
+    assert "nv2a_d3d_set_overlay_hooks(&mm3_hud_hooks);" in (ROOT / "src/mods/mods_runtime.c").read_text()
     harness = r'''
 #include <assert.h>
 #include <stdio.h>
@@ -80,7 +80,7 @@ int mm3_mod_on(int mod) { (void)mod; return 1; }
 #include "camera_math.c"
 #include "slot_publish.c"
 static uint32_t eax, esi, esp;
-static void native_singleton_return(void) { SINGLETON }
+static void native_singleton_return(void) { uint32_t ebp = g_ebp; SINGLETON }
 static void native_pause_open(uint32_t singleton) {
     esi = singleton;
     OPEN
