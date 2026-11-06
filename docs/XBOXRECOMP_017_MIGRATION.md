@@ -121,3 +121,14 @@ Occupied old local main worktrees were retained on
 Historical experiment, audit, backup and PR branches were retained; they are not
 all assumed completed merely because a branch exists. The existing `sdl3-gpu-linux`
 branch predates the tested host migration and is retained for comparison.
+
+## Depth-texture follow-up
+
+Toolkit `3c2c02a8` independently adapts PR #3's covering-buffer lookup and retains
+the selected source across target rebinding. The original PR remains unmerged.
+New GPU binding regressions fail on the previous implementation and pass with
+the fix; all 21 renderer binding tests pass on Windows D3D11 and SDL GPU/D3D12.
+Evidence: `build/review-depth-bindings/ctest.log`.
+These focused tests do not repeat the earlier full game acceptance suite.
+The upstream sp00nznet tree does not contain either affected renderer, so no
+upstream PR is applicable to this change at present.
