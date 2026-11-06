@@ -29,7 +29,10 @@ mm3_copy_runtime_dlls(${PROJECT_NAME})
 ```
 
 Status: copied unchanged from the fork's `origin/main` (3c2c02a8), plus the pad
-provider split out of `xinput_device.c`. A scratch project wiring this module to
-the toolkit branch builds, links and runs. It has not been built as mm3 itself:
-`CMakeLists.txt` and `tools/xboxrecomp` here still use the fork, and the RmlUi
-and ImGui backends still key off `XBOXRECOMP_RENDERER STREQUAL "SDL3_GPU"`.
+provider split out of `xinput_device.c`. mm3's `CMakeLists.txt` builds the
+toolkit `EXTERNAL` and links this module; `tools/xboxrecomp` is the upstream
+toolkit branch `hooks/host-extension-points`. A scratch project wiring the module
+to the toolkit builds, links and runs. mm3 itself configures through the module,
+the toolkit and the RmlUi/ImGui fetches, and stops at the check for generated
+recompiled sources (`src/recomp/gen`), which need the game files, so the full
+mm3 build and a run still have to be done on a machine with the game.

@@ -49,6 +49,19 @@ endif()
 set(XBOXRECOMP_DSP_PROGRAM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/game_files/dsp")
 # MM3 owns its depth-view compatibility shader; both host renderers use it.
 set(XBOXRECOMP_NV2A_SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/mods/shaders/nv2a")
+# MM3 carries its own SDL3 host stack (src/host_sdl3) and builds the toolkit
+# with its renderer, window, audio device and D3D8 layer left out. MM3_RENDERER
+# is MM3's own choice (setup.py passes it as -DXBOXRECOMP_RENDERER=SDL3_GPU);
+# the toolkit always sees EXTERNAL.
+if(NOT XBOXRECOMP_RENDERER OR XBOXRECOMP_RENDERER STREQUAL "EXTERNAL")
+    set(XBOXRECOMP_RENDERER "SDL3_GPU")
+endif()
+set(MM3_RENDERER "${XBOXRECOMP_RENDERER}")
+unset(XBOXRECOMP_RENDERER)        # a normal variable would shadow the cache value below
+set(XBOXRECOMP_RENDERER EXTERNAL CACHE STRING "" FORCE)
+set(XBOXRECOMP_APU_OUTPUT EXTERNAL CACHE STRING "" FORCE)
+set(XBOXRECOMP_BUILD_D3D8 OFF CACHE BOOL "" FORCE)
+add_subdirectory(src/host_sdl3)     # before the toolkit: it defines xbox_d3d8
 add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)
 # MM3 VP-only playback was measured about 10 dB above GP output (-10.7 vs
 # -20.7 dBFS in a race). Keep its existing calibration outside the runtime.
@@ -89,7 +102,7 @@ FetchContent_Declare(imgui
     URL https://github.com/ocornut/imgui/archive/refs/tags/v1.91.9b.tar.gz
     URL_HASH SHA256=8e1bbc76c71d74fef2fb85db7e7ca8eba13d6a86623c54992b60162db554ffdb)
 FetchContent_MakeAvailable(imgui)
-if(XBOXRECOMP_RENDERER STREQUAL "SDL3_GPU")
+if(MM3_RENDERER STREQUAL "SDL3_GPU")
     # RmlUi's SDL GPU renderer loads textures through SDL3_image; the
     # launcher's images need no external codecs.
     set(SDLIMAGE_VENDORED OFF CACHE BOOL "" FORCE)
@@ -438,7 +451,7 @@ endif()
 if(WIN32)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3.rc)
 endif()
-if(XBOXRECOMP_RENDERER STREQUAL "SDL3_GPU")
+if(MM3_RENDERER STREQUAL "SDL3_GPU")
     set_property(SOURCE ${MM3_RMLUI_BACKEND} src/mm3_launcher.cpp src/ui/rmlui_host.cpp APPEND PROPERTY
         COMPILE_DEFINITIONS RMLUI_SDL_VERSION_MAJOR=3)
 endif()
@@ -469,7 +482,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${XBOXRECOMP_DIR}/include
     ${XBOXRECOMP_DIR}/src/video)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE xboxrecomp mm3_imgui RmlUi::RmlUi
+target_link_libraries(${PROJECT_NAME} PRIVATE xboxrecomp mm3_host_sdl3 mm3_imgui RmlUi::RmlUi
     ${MM3_RMLUI_BACKEND_LIBS} ${MM3_WIN32_LIBS})
 target_include_directories(${PROJECT_NAME} PRIVATE ${rmlui_SOURCE_DIR}/Backends)
 
@@ -491,7 +504,7 @@ endforeach()
 # (the SDL3 build reads SDL events instead, and the SDL3 build's ImGui backend
 # is not linked here), and the input check drives the XInput port ABI, which
 # xinput_device.c uses only on Windows (SDL gamepads elsewhere).
-if(WIN32 AND XBOXRECOMP_RENDERER STREQUAL "D3D11")
+if(WIN32 AND MM3_RENDERER STREQUAL "D3D11")
     add_executable(mm3_overlay_contract EXCLUDE_FROM_ALL tests/mm3_overlay_contract.cpp)
     target_include_directories(mm3_overlay_contract PRIVATE src src/recomp ${RECOMP_GEN_DIR}
         ${XBOXRECOMP_DIR}/include ${XBOXRECOMP_DIR}/src/video)
@@ -523,7 +536,7 @@ target_include_directories(mm3_launcher_settings_contract PRIVATE src
     ${rmlui_SOURCE_DIR}/Backends ${XBOXRECOMP_DIR}/src/video ${XBOXRECOMP_DIR}/src/input)
 target_link_libraries(mm3_launcher_settings_contract PRIVATE platform RmlUi::RmlUi
     ${MM3_RMLUI_BACKEND_LIBS} ${MM3_WIN32_LIBS} ${MM3_LIBM})
-if(XBOXRECOMP_RENDERER STREQUAL "SDL3_GPU")
+if(MM3_RENDERER STREQUAL "SDL3_GPU")
     # The launcher source selects its SDL3 path and RmlUi's SDL3 renderer on
     # these; the contract includes the launcher source, so set them here.
     target_compile_definitions(mm3_launcher_settings_contract PRIVATE
@@ -536,8 +549,6 @@ endif()
 # The distance enhancement belongs to this port, including host shaders.
 target_sources(mm3_recomp PRIVATE src/mods/render_fog.c)
 include(cmake/MM3RenderFog.cmake)
-mm3_render_fog_shaders(mm3_recomp "${XBOXRECOMP_RENDERER}")
+mm3_render_fog_shaders(mm3_recomp "${MM3_RENDERER}")
 
-if(COMMAND xbox_copy_runtime_dlls)
-    xbox_copy_runtime_dlls(mm3_recomp)
-endif()
+mm3_copy_runtime_dlls(mm3_recomp)
