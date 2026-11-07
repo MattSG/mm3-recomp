@@ -2,11 +2,13 @@
 # and prints a pass/fail summary. Usage: pwsh tools/run_regressions.ps1 [-Filter pattern]
 param([string]$Filter = '', [int]$TimeoutSec = 300)
 $root = Split-Path $PSScriptRoot -Parent
-$vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
-$bat = Join-Path $env:TEMP 'mm3_vc.bat'
-Set-Content $bat "@call `"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul`r`n@set"
-& "$env:ComSpec" /c $bat | ForEach-Object {
-    if ($_ -match '^([^=]+)=(.*)$') { Set-Item "env:$($Matches[1])" $Matches[2] }
+if (-not (Get-Command cl -ErrorAction SilentlyContinue)) {
+    $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+    $bat = Join-Path $env:TEMP 'mm3_vc.bat'
+    Set-Content $bat "@call `"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul`r`n@set"
+    & "$env:ComSpec" /c $bat | ForEach-Object {
+        if ($_ -match '^([^=]+)=(.*)$') { Set-Item "env:$($Matches[1])" $Matches[2] }
+    }
 }
 $py = if (Test-Path "$root\.venv-tests\Scripts\python.exe") { "$root\.venv-tests\Scripts\python.exe" } else { 'python' }
 $env:PYTHONPATH = $root

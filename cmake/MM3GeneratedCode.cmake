@@ -40,10 +40,7 @@ function(mm3_prepare_generated_sources out RECOMP_GEN_DIR)
     # The main loop and world update can share a generated chunk. Rename only
     # these definitions so direct and same-chunk calls enter the clocked wrappers.
     set(MM3_SIMULATION_FUNCTIONS sub_00025422 sub_0002545A sub_001E7590 sub_001EC8E6
-        sub_0022DBBF)                # AI instrumentation (legacy: cadence gate)
-    if(NOT MM3_LEGACY_TIMING)
-        list(APPEND MM3_SIMULATION_FUNCTIONS sub_001E6C87)
-    endif()
+        sub_0022DBBF sub_001E6C87)   # AI instrumentation
     list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS ${MM3_SIMULATION_FUNCTIONS})
     # Building diagnostics keep same-chunk calls routed through opt-in wrappers.
     set(MM3_BUILDING_FUNCTIONS sub_00168A77 sub_001C7B15 sub_001A67BA sub_00166E01

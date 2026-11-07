@@ -30,12 +30,7 @@ option(MM3_FRONTEND_WATCH "Trace writes to the RootLevel child pointer" OFF)
 option(MM3_TRACY "Profile the host rendering pipeline with Tracy" OFF)
 option(MM3_NATIVE_FENCE_WAIT "Wait on native GPU notifications in the direct guest fence loop" ON)
 option(MM3_DSP_AUTO_INLINE "Allow automatic inlining in the optimized DSP interpreter" ON)
-option(MM3_LEGACY_TIMING "Build the previous world-only timing experiment instead of the replacement" OFF)
-if(MM3_LEGACY_TIMING)
-    set(MM3_TIMING_SOURCE src/mods/framerate.c)
-else()
-    set(MM3_TIMING_SOURCE src/mods/timing.c)
-endif()
+set(MM3_TIMING_SOURCE src/mods/timing.c)
 if(MM3_TRACY)
     set(MM3_TRACY_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tools/bin/tracy-0.14.1" CACHE PATH "Tracy 0.14.1 sources")
     set(TRACY_ENABLE ON CACHE BOOL "Enable Tracy client" FORCE)
@@ -222,9 +217,6 @@ add_executable(${PROJECT_NAME}
  src/mods/teleport.c
  src/recomp_trace_probe.c
  ${RECOMP_GEN_SOURCES})
-if(MM3_LEGACY_TIMING)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE MM3_LEGACY_TIMING=1)
-endif()
 
 if(WIN32)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3.rc)

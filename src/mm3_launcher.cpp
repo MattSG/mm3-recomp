@@ -217,10 +217,6 @@ Rml::Vector<Option> g_options = {
       {"0", "Unlimited"}}},
     {"", "Tick rate", "Native game ticks a second. 30 is the compatibility target; other rates are experimental.",
      "MM3_SIM_HZ", "30", "", {{"30", "30 (Xbox)"}, {"60", "60"}, {"90", "90"}}},
-#ifdef MM3_LEGACY_TIMING
-    {"", "Draw every frame", "Also draw frames between world updates; they show the last update again.",
-     "MM3_RENDER_EVERY_FRAME", "0", "", {{"0", "Off"}, {"1", "On"}}, 0, true},
-#endif
     {"", "V-Sync", "", "RECOMP_VSYNC", "0", "",
      {{"0", "Off"}, {"1", "On"}}},
     {"", "In the background", "When another window is in front.", "RECOMP_PAUSE_UNFOCUSED", "1", "",
