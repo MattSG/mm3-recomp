@@ -77,7 +77,9 @@ def sheet(images, path, cols=4, tw=320):
 
 def vantages(g):
     route = json.loads(g.request("route"))
-    pts = [tuple(p) for p in route.get("points", [])]
+    # Offset from each checkpoint: driving through one advances the race, and finishing it
+    # pauses the player so later teleports are refused.
+    pts = [(p[0] + 25, p[1] + 25) for p in route.get("points", [])]
     cars = [c for c in json.loads(g.request("cars"))["cars"] if c["player"]]
     if cars:
         pts.insert(0, (cars[0]["x"], cars[0]["z"]))
