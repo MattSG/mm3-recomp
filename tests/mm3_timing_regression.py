@@ -28,8 +28,7 @@ def main():
             "#define MEMD(a) (*(double*)(memory+(a)))\n")
         (folder / "mods.h").write_text("enum {MM3_MOD_FRAMERATE}; int mm3_mod_on(int);\n")
         (folder / "nv2a_d3d11.h").write_text(
-            "void nv2a_d3d_interp_invalidate(void); int nv2a_d3d_interp_schedule(int,int); void nv2a_d3d_manual_present(int); void nv2a_d3d_repeat_frame(void);\n"
-            "void nv2a_d3d_interp_frame_at(float, long); void nv2a_d3d_interp_frame(float, int); void nv2a_d3d_interp_record(int);\n"
+            "void nv2a_d3d_manual_present(int); void nv2a_d3d_repeat_frame(void);\n"
             "long nv2a_d3d_frames_done(void);\n")
         for source in (ROOT / "src/mods/timing.c", ROOT / "tests/mm3_timing_contract.c"):
             shutil.copy2(source, folder / source.name)

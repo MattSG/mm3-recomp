@@ -3413,19 +3413,6 @@ static void request_complete(SDL_AtomicInt *flag)
         SDL_SignalSemaphore(s_request_done);
 }
 
-/* Match D3D11's title-thread request/executor-thread replay handoff. */
-static SDL_AtomicInt s_interp_req;
-static float s_interp_t;
-void nv2a_d3d_interp_frame(float t, int need_new)
-{
-    extern void nv2a_pb_interp_enable(int);
-    (void)need_new; /* Replay the latest completed frame, as D3D11 does. */
-    nv2a_pb_interp_enable(1);
-    s_interp_t = t;
-    request_raise(&s_interp_req);
-    request_wait(&s_interp_req);
-}
-
 /* The last flipped frame shown again, paced like a flip (see nv2a_d3d11.c). */
 static SDL_AtomicInt s_repeat;
 
@@ -3444,13 +3431,6 @@ void nv2a_d3d_tick(void)
     if (s_init_state <= 0 && !nv2a_d3d_init())
         return;
     fbw_sdl_pump();
-    if (SDL_GetAtomicInt(&s_interp_req)) {
-        extern int nv2a_pb_replay(float);
-        if (!nv2a_pb_replay(s_interp_t) && !present_kept_image(NULL))
-            present_surface(s_shown, NULL);
-        request_complete(&s_interp_req);
-        return;
-    }
     if (SDL_GetAtomicInt(&s_repeat)) {
         FlipPacing pacing = { SDL_GetAtomicInt(&s_manual_present) != 0, 0 };
         if (!present_kept_image(&pacing))

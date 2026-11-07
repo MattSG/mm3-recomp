@@ -61,8 +61,6 @@ static void begin_tick(uint32_t game, uint32_t current_state)
             else fprintf(stderr, "[TIMING] cannot open trace %s\n", path);
         }
         fprintf(stderr, "[TIMING] replacement: complete native ticks at %d Hz, presentation %d FPS; higher tick rates experimental\n", hz, fps);
-        if (getenv("MM3_SMOOTH") || getenv("MM3_RENDER_EVERY_FRAME"))
-            fprintf(stderr, "[TIMING] legacy smooth/render-every-frame settings are inactive in the replacement\n");
     }
     if (!initialized || owner != game || state != current_state ||
         scene != current_scene || paused != current_pause) {
