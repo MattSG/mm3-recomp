@@ -1,0 +1,4 @@
+/* SDL3 GPU compile unit (see ../nv2a_bindings.hlsli and src/video/CMakeLists.txt). */
+#include "../nv2a_bindings.hlsli"
+#include "../nv2a_clear.hlsl"
+#include "../nv2a_y16d.hlsl"

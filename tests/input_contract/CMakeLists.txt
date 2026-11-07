@@ -9,7 +9,7 @@ add_executable(mm3_input_contract ../mm3_input_contract.c
     ../../tools/xboxrecomp/src/input/keymap_spec.c
     ../../tools/xboxrecomp/src/input/input_map.c
     ../../tools/xboxrecomp/src/input/mkb_input.c)
-target_include_directories(mm3_input_contract PRIVATE ../../tools/xboxrecomp/src)
+target_include_directories(mm3_input_contract PRIVATE ../../tools/xboxrecomp/src ../../tools/xboxrecomp/src/input)
 target_compile_definitions(mm3_input_contract PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_link_libraries(mm3_input_contract PRIVATE user32)
 enable_testing()
