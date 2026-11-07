@@ -15,3 +15,5 @@ Needs:
 
 The builder's own tests (`tests/test_build_gui.py`) need nothing else and are the only tests CI runs.
 `tools/game_test/` holds the runtime harness (needs the built game and extracted assets).
+
+`tools/run_regressions.ps1` runs every regression and `test_*.py` in the VS environment and prints a summary (`-Filter` narrows it).

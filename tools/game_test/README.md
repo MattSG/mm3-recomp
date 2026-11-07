@@ -204,3 +204,15 @@ exe and 70% in ntdll waits, with no exe address above 1.2%, so translated guest 
 probes). Making the frame-request wait sleep on an event and caching `xbox_GuestMapped` took the process from
 2.72 to 2.20 CPU cores for the same run.
 
+## Graphics sweep
+
+`gfx_sweep.py` loads each mode, teleports to the start and every route checkpoint (offset so the
+race is not finished) at several headings, captures each view and flags blank/black/magenta/blown-out
+frames and isolated black tiles. `--baseline DIR` flags drift from golden frames (`--update-baseline`
+records them). It writes a contact sheet per mode and `report.json`, and scans the log for ICALL/ABI
+markers. Needs Pillow and numpy; look at the contact sheet before filing a finding.
+
+```powershell
+python tools/game_test/gfx_sweep.py --exe build/RelWithDebInfo/mm3_recomp.exe --game-dir game_files --save-template TPL --modes cruise,checkpoint
+```
+
