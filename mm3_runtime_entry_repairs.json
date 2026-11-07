@@ -236,5 +236,10 @@
     "start": "0x002534FF",
     "end": "0x00253512",
     "note": "Camera field-of-view setter (fld [esp+4]; ... call 0x2513B6; ret 4), reached only as the tail jump of the this-adjusting thunk 0x6EC40 (vtable 0x378D44 slot +0x38, called from 0x000FA704). As an unresolved stub it skipped the FOV update and left esp 4 bytes low: 0xFA6DC's pop esi took the float argument, its caller 0xFF714 returned with ebx/esi garbage, and the race path code went on with a code address as its object (null virtual calls at 0x13FF8C and the crash in 0x2D7C9)."
+  },
+  {
+    "start": "0x0009B4E0",
+    "end": "0x0009B4E7",
+    "note": "CRT x87 special-case handler (fstp st0; fstp st0; fldz; ret) reached only through the indirect tail jump at the end of 0x9B443 (control-word dispatch table). Unresolved it failed 50+ times per race ([ICALL] Failed resolve VA 0x0009B4E0 caller=0x0009B8A4), skipping the pops and the zero result and leaving the x87 stack unbalanced."
   }
 ]

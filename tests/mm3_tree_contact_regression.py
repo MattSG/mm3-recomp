@@ -187,7 +187,7 @@ file(READ "{original.as_posix()}" content)
 mm3_add_tree_contacts(content)
 file(WRITE "{transformed.as_posix()}" "${{content}}")
 ''')
-    subprocess.run(['cmake', '-P', str(script)], check=True, capture_output=True, text=True)
+    subprocess.run([cc.cmake_program(), '-P', str(script)], check=True, capture_output=True, text=True)
     return transformed.read_text()
 
 
