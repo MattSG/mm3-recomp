@@ -39,15 +39,13 @@ CONFIG_FILES = [
 ]
 SOURCE_FILES = [
     "CMakeLists.txt", "src/mods/draw_distance.c", "src/mods/widescreen.c",
-    "src/mm3_performance_profile.h", "src/mm3_building_diagnostics.c", "src/main.c",
+    "src/mm3_performance_profile.h", "src/mm3_performance_profiles.def", "src/mm3_building_diagnostics.c", "src/main.c",
     "src/recomp_manual.c", "tools/xboxrecomp/src/kernel/kernel_bridge.c",
     "tools/xboxrecomp/src/video/nv2a_d3d11.c",
 ]
-PROFILE_DEFAULTS = {
-    "quality": {"render_scale": "3.0", "msaa": "8", "draw_distance": "2", "aniso": "16", "fps_limit": "60"},
-    "lowpower": {"render_scale": "1.5", "msaa": "1", "draw_distance": "1", "aniso": "16", "fps_limit": "30"},
-}
-DEFAULT_PROFILE_DEFAULTS = {"render_scale": "2.0", "msaa": "4", "draw_distance": "2", "aniso": "16", "fps_limit": "60"}
+from performance_profiles import load_profiles
+PROFILE_DEFAULTS = {name.lower(): values for name, values in load_profiles().items()}
+DEFAULT_PROFILE_DEFAULTS = PROFILE_DEFAULTS["balanced"]
 
 
 class LaunchError(Exception):

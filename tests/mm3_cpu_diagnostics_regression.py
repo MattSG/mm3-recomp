@@ -103,7 +103,7 @@ static void init_cpu(char**argv){
 int main(int argc,char**argv){
  assert(argc==4);g_xbox_mem_offset=(ptrdiff_t)memory;
  init_cpu(argv);original_generated_probe();
- assert(g_ebp==0x6ffffc && g_seh_ebp==0x6ffffc);
+ assert(g_ebp==0x456789AB && g_seh_ebp==0x456789AB);
  assert(MEM32(0x700000)==0x600000 && MEM32(0x700004)==(uint32_t)strtoul(argv[2],0,0));
  /* EBP remains local in generated code; the saved word is the x86 register. */
  printf("%u %u %u %u %u %u %u %u %u\n",g_eax,g_esp,g_ebx,g_esi,g_edi,MEM32(0x6ffffc),

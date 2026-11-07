@@ -204,6 +204,7 @@ def main():
                 native[name] = match.group()
     assert set(native) == set(OWNERS + MATH + (WORLD,))
     cmake = (ROOT / "CMakeLists.txt").read_text()
+    cmake += (ROOT / "cmake/MM3GeneratedCode.cmake").read_text()
     assert "list(APPEND MM3_SEAM_FUNCTIONS " + " ".join(OWNERS) + ")" in cmake
     assert "mm3_add_race_guidance(distance_content ${race_owner})" in cmake
     assert "src/mm3_race_guidance.c" in cmake

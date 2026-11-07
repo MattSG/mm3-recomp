@@ -116,9 +116,9 @@ static void init_state(int direction){
  MEM32(g_esp)=0x600000;MEM32(g_esp+4)=0x800000;
  memset((void*)XBOX_PTR(0x800000),0xA5,44);
 }
-static void check_other_state(int direction){
+static void check_other_state(int direction, uint32_t seh){
  assert(g_esi==0x23456789&&g_edi==0x3456789A&&g_ebp==0x456789AB);
- assert(g_seh_ebp==0x56789ABC&&g_fs_base==0x6789ABCD&&g_df==direction&&g_eflags==0x202);
+ assert(g_seh_ebp==seh&&g_fs_base==0x6789ABCD&&g_df==direction&&g_eflags==0x202);
  assert(g_fp_top==3&&g_fp_cmp==-1&&g_fp_control_word==0x27F&&g_fp_cc==0x4100);
  assert(memcmp(g_fp_stack,saved_fp,sizeof(saved_fp))==0);
  for(unsigned i=0;i<8;i++){
@@ -132,14 +132,14 @@ int main(int argc,char **argv){
   uint32_t site,leaf;assert(argc==6);
   site=(uint32_t)strtoul(argv[2],0,0);leaf=(uint32_t)strtoul(argv[3],0,0);
   g_eax=leaf;g_ecx=(uint32_t)strtoul(argv[4],0,0);
-  memcpy(saved_memory,memory,sizeof(memory));run_site(site);check_other_state(direction);
+  memcpy(saved_memory,memory,sizeof(memory));run_site(site);check_other_state(direction, 0x56789ABC);
   assert(g_esp==0x700000&&memcmp(saved_memory,memory,sizeof(memory))==0);
   assert(fallback_calls==0); /* Every CPUID site is lowered; none reaches RECOMP_UNIMPL. */
   printf("%u %u %u %u\n",g_eax,g_ebx,g_ecx,g_edx);
  }else{
   assert(argc==3);
   if(strcmp(argv[1],"descriptor")==0)sub_000A4FE0();else sub_000A5060();
-  check_other_state(direction);assert(fallback_calls==0);
+  check_other_state(direction, !strcmp(argv[1],"descriptor") ? 0x56789ABC : 0x456789AB);assert(fallback_calls==0);
   assert(g_ebx==0x12345678&&g_ecx==0x321&&g_edx==0x432&&g_esp==0x700004);
   printf("%u %u %u %u %u %u %u %u %u",g_eax,g_ecx,g_edx,g_esp,g_ebx,g_esi,g_edi,g_ebp,g_df);
   if(strcmp(argv[1],"descriptor")==0){for(unsigned i=0;i<11;i++)printf(" %u",MEM32(0x800000+i*4));}

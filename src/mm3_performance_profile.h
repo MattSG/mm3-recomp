@@ -28,12 +28,14 @@ static inline int mm3_profile_name_equal(const char *value, const char *name)
 
 static inline const MM3PerformanceProfile *mm3_performance_profile(const char *name)
 {
-    static const MM3PerformanceProfile balanced = {"Balanced", "2.0", "4", "2", "16", "60"};
-    static const MM3PerformanceProfile quality = {"Quality", "3.0", "8", "2", "16", "60"};
-    static const MM3PerformanceProfile low_power = {"LowPower", "1.5", "1", "1", "16", "30"};
-    if (mm3_profile_name_equal(name, quality.name)) return &quality;
-    if (mm3_profile_name_equal(name, low_power.name)) return &low_power;
-    return &balanced;
+    static const MM3PerformanceProfile profiles[] = {
+#define MM3_PROFILE(name, scale, msaa, distance, aniso, fps) {name, scale, msaa, distance, aniso, fps},
+#include "mm3_performance_profiles.def"
+#undef MM3_PROFILE
+    };
+    for (size_t i = 1; i < sizeof(profiles) / sizeof(profiles[0]); ++i)
+        if (mm3_profile_name_equal(name, profiles[i].name)) return &profiles[i];
+    return &profiles[0];
 }
 
 static inline int mm3_performance_default(const char *key, const char *value)

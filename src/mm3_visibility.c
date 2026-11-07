@@ -113,6 +113,7 @@ finished:
     POP32(g_esp, g_esi);
     g_esp = frame;
     POP32(g_esp, frame);
+    g_ebp = g_seh_ebp = frame;
     g_esp += 8; /* ret 4 */
     g_fp_stack[(top + 1) & 7u] = f1;
     g_fp_stack[(top + 2) & 7u] = f2;

@@ -30,7 +30,7 @@ def native_source():
     # The generic deleting destructor has unrelated, unreachable lifted tail
     # fragments after its first RET. Test its actual entry through that RET.
     destructor = found["sub_0007CEC3"]
-    end = destructor.index("    esp += 8; return; /* ret 4 */")
+    end = destructor.index("esp += 8; return; /* ret 4 */")
     found["sub_0007CEC3"] = destructor[:end] + "    esp += 8; return;\n}\n"
     for name in names[:3]:
         found[name] = found[name].replace("void " + name, "void " + name + "_original", 1)
@@ -41,6 +41,7 @@ def main():
     cc.skip_unless_windows("the contract includes windows.h")
     cc.require_compiler()
     cmake = (ROOT / "CMakeLists.txt").read_text()
+    cmake += (ROOT / "cmake/MM3GeneratedCode.cmake").read_text()
     assert "list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0011C742 sub_0011CAAC sub_0007CEC3)" in cmake
     with tempfile.TemporaryDirectory(prefix="mm3-map-ui-") as folder:
         folder = Path(folder)

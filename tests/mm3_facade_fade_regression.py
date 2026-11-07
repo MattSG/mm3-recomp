@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     cc.require_compiler()
     cmake = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
+    cmake += (ROOT / "cmake/MM3GeneratedCode.cmake").read_text()
     hooks = re.search(r"set\(MM3_DISTANCE_FUNCTIONS\s+(.*?)\)", cmake, re.S).group(1)
     assert "sub_001630A7" in hooks
     assert "sub_001633B7" not in hooks
