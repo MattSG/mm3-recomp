@@ -18,9 +18,11 @@ discuss the approach. Search existing issues and PRs before starting.
 
 For performance changes, include comparable before/after measurements with the
 same scene, settings, and hardware. Documentation-only changes need no game build.
-GitHub Actions only runs the standalone builder's unit tests and packages the builder for Windows and Linux. It builds
-and tests nothing else: not the runtime, not the game (that needs private game files), and not the regression tests, so
-run what your change touches locally (see [tests/README.md](tests/README.md)) and include those results in your PR.
+GitHub Actions packages the standalone builder, runs its unit tests and runs the asset-free contract tests
+(`tools/run_regressions.ps1 -CI`), plus a guard that no game assets are tracked. It never builds or runs the game
+or anything translated from it: that needs private game files and is copyrighted. Tests that need generated
+code are listed in `tests/needs_generated.txt`; run them locally (see [tests/README.md](tests/README.md)) and
+include those results in your PR.
 
 AI-assisted contributions are welcome. Review and understand the code you submit,
 check its provenance, and describe your testing. Do not claim tests you did not run.

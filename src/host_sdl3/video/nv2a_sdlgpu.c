@@ -103,6 +103,16 @@ static void fail(const char *what)
     fflush(stderr);
 }
 
+/* SDL's own GPU errors (failed buffer maps, device loss) go to the debugger on
+ * a GUI-subsystem build, so route warnings and errors to stderr where the
+ * run's log keeps them. */
+static void SDLCALL sdl_log_to_stderr(void *user, int category, SDL_LogPriority priority, const char *message)
+{
+    (void)user;
+    fprintf(stderr, "[SDL:%d/%d] %s\n", category, (int)priority, message);
+    fflush(stderr);
+}
+
 /* ------------------------------------------------------------- profiling */
 
 /* RECOMP_D3D_PROFILE: per-frame cost of each stage, printed once a second. */
@@ -1072,6 +1082,8 @@ int nv2a_d3d_init(void)
         return s_init_state > 0;
     s_init_state = -1;
     nv2a_d3d_prof_enabled();
+    SDL_SetLogPriorities(SDL_LOG_PRIORITY_WARN);
+    SDL_SetLogOutputFunction(sdl_log_to_stderr, NULL);
 #if defined(_WIN32)
     formats |= SDL_GPU_SHADERFORMAT_DXIL;
 #endif

@@ -12,7 +12,10 @@ if(NOT TARGET SDL3::SDL3)
     FetchContent_Declare(SDL3
         GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
         GIT_TAG release-3.4.18
-        GIT_SHALLOW TRUE)
+        GIT_SHALLOW TRUE
+        # D3D12 GPU descriptor-heap overflow (crashes in CopyDescriptorsSimple).
+        PATCH_COMMAND "${CMAKE_COMMAND}" "-DPATCH=${CMAKE_CURRENT_LIST_DIR}/sdl3-d3d12-descriptors.patch"
+            -P "${CMAKE_CURRENT_LIST_DIR}/ApplySdlPatch.cmake")
     FetchContent_MakeAvailable(SDL3)
 endif()
 

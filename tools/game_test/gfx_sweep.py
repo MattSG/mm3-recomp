@@ -75,11 +75,14 @@ def sheet(images, path, cols=4, tw=320):
     s.save(path)
 
 
+# Offsets from a checkpoint, tried in order: driving through one advances the race, and finishing
+# it pauses the player so later teleports are refused.
+OFFSETS = [(25, 25), (-25, 25), (25, -25), (-25, -25), (40, 0), (-40, 0), (0, 40), (0, -40), (60, 60)]
+
+
 def vantages(g):
     route = json.loads(g.request("route"))
-    # Offset from each checkpoint: driving through one advances the race, and finishing it
-    # pauses the player so later teleports are refused.
-    pts = [(p[0] + 25, p[1] + 25) for p in route.get("points", [])]
+    pts = [tuple(p) for p in route.get("points", [])]
     cars = [c for c in json.loads(g.request("cars"))["cars"] if c["player"]]
     if cars:
         pts.insert(0, (cars[0]["x"], cars[0]["z"]))
@@ -90,7 +93,7 @@ def sweep_mode(mode, a, report):
     out = Path(a.out) / mode
     out.mkdir(parents=True, exist_ok=True)
     frames, entry = [], report.setdefault(mode, {"frames": [], "log": []})
-    env = dict(ALL_MODS)
+    env = dict(ALL_MODS, **dict(e.split("=", 1) for e in a.env))
     with Session(a.exe, a.game_dir, save_template=a.save_template, output_root=str(out), timeout=a.timeout, env=env) as g:
         g.run({"steps": MENUS[mode]})
         time.sleep(8)  # countdown / camera settle
@@ -99,7 +102,15 @@ def sweep_mode(mode, a, report):
                 heading = 2 * math.pi * k / a.headings
                 name = f"v{i:02d}_h{k}"
                 try:
-                    g.teleport(x, z, heading)
+                    for dx, dz in OFFSETS:  # a spot beside the checkpoint may have no ground
+                        try:
+                            g.teleport(x + dx, z + dz, heading)
+                            break
+                        except AssertionError as e:
+                            if "no usable ground" not in str(e):
+                                raise
+                    else:
+                        raise AssertionError("no usable ground near the vantage")
                     time.sleep(a.settle)
                     cap = g.capture()
                 except AssertionError as e:
@@ -144,6 +155,7 @@ def main():
     p.add_argument("--settle", type=float, default=2.5)
     p.add_argument("--drift", type=float, default=12.0)
     p.add_argument("--timeout", type=int, default=600)
+    p.add_argument("--env", action="append", default=[], help="extra KEY=VALUE for the game (repeatable)")
     a = p.parse_args()
     report = {}
     for mode in a.modes.split(","):

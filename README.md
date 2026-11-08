@@ -131,6 +131,15 @@ The retail developer tools require `tools/debug-features/prepare.py`.
 System Link and Insignia integration are work in progress. Live two-PC System
 Link and Xbox Live sign-in have not been verified.
 
+## Known issues
+
+- The game simulates at its native 30 Hz tick; higher frame limits repeat frames rather than interpolate them.
+- Builds made before 2026-11-08 could crash intermittently in the SDL3 Direct3D 12 backend: the descriptor-heap
+  patch in `src/host_sdl3` was not being applied. Rebuild to pick it up. If you still see a crash, attach the newest
+  `CrashDumps` file and `stderr.log` to an issue; `RECOMP_SDL_GPU_DRIVER=vulkan` is a workaround to try.
+- Linux has a build path, but gameplay has not been rechecked since the SDL3 migration.
+- Online play: System Link is work in progress; Xbox Live / Insignia sign-in is untested.
+
 ## Optional car tools
 
 The editor and model converters are maintained in the separate
