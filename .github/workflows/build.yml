@@ -41,3 +41,8 @@ jobs:
       - name: Contracts and unit tests
         shell: pwsh
         run: tools/run_regressions.ps1 -CI
+        env:
+          # The default TEMP is an 8.3 short path (RUNNER~1); path comparisons in the car-tools tests
+          # fail against its resolved long form.
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
