@@ -1,0 +1,23 @@
+# Regressions that compile or read src/recomp/gen (translated from the retail executable).
+# That code is derived from copyrighted game data and is never in CI; run them locally.
+mm3_building_diagnostics_regression.py
+mm3_camera_regression.py
+mm3_cpu_diagnostics_regression.py
+mm3_cpuid_sites_regression.py
+mm3_cruise_copy_regression.py
+mm3_destructor_callback_regression.py
+mm3_facade_fade_regression.py
+mm3_factory_physics_regression.py
+mm3_gearing_regression.py
+mm3_graph_edge_regression.py
+mm3_icall_diagnostics_regression.py
+mm3_map_ui_regression.py
+mm3_map_zoom_regression.py
+mm3_particle_budget_regression.py
+mm3_pause_ui_regression.py
+mm3_race_guidance_regression.py
+mm3_speedometer_regression.py
+mm3_tree_contact_regression.py
+mm3_tree_fall_regression.py
+mm3_visibility_regression.py
+mm3_x87_exp_regression.py

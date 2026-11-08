@@ -1,6 +1,6 @@
 # Runs every tests/*_regression.py (and test_*.py) inside the VS dev environment
 # and prints a pass/fail summary. Usage: pwsh tools/run_regressions.ps1 [-Filter pattern]
-param([string]$Filter = '', [int]$TimeoutSec = 300)
+param([string]$Filter = '', [int]$TimeoutSec = 300, [switch]$CI)  # -CI skips tests that need generated game code
 $root = Split-Path $PSScriptRoot -Parent
 if (-not (Get-Command cl -ErrorAction SilentlyContinue)) {
     $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
@@ -12,8 +12,9 @@ if (-not (Get-Command cl -ErrorAction SilentlyContinue)) {
 }
 $py = if (Test-Path "$root\.venv-tests\Scripts\python.exe") { "$root\.venv-tests\Scripts\python.exe" } else { 'python' }
 $env:PYTHONPATH = $root
+$skip = if ($CI) { Get-Content (Join-Path $root "tests/needs_generated.txt") | ? { $_ -and $_ -notmatch "^#" } } else { @() }
 $fail = @(); $pass = 0
-Get-ChildItem "$root\tests" -File | Where-Object { $_.Name -like "*$Filter*" -and $_.Name -match '(_regression|^test_.*)\.py$' } | ForEach-Object {
+Get-ChildItem "$root\tests" -File | Where-Object { $_.Name -like "*$Filter*" -and $skip -notcontains $_.Name -and $_.Name -match '(_regression|^test_.*)\.py$' } | ForEach-Object {
     $log = Join-Path $env:TEMP "reg_$($_.BaseName).log"
     $unit = $_.Name -like 'test_*'
     $args1 = if ($unit) { @('-m', 'unittest', $_.BaseName) } else { @($_.FullName) }
