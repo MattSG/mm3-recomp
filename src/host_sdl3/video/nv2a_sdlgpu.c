@@ -2395,6 +2395,71 @@ void nv2a_d3d_zpass_clear(void)
     s_zpass = 0;
 }
 
+/* A block of a render target in guest pixels (nearest sampling when the host
+ * target is scaled), B8G8R8A8 with the alpha kept raw: the 2D engine's blits
+ * from a surface the GPU drew into (nv2a_pb_exec.c) read it this way. */
+int nv2a_d3d_surface_read(uint32_t phys, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t *out)
+{
+    Surface *s;
+    SDL_GPUTransferBufferCreateInfo ci;
+    SDL_GPUTransferBuffer *tb;
+    SDL_GPUTextureRegion r;
+    SDL_GPUTextureTransferInfo info;
+    SDL_GPUFence *fence = NULL;
+    const uint8_t *m;
+    uint32_t hx0, hy0, hx1, hy1, bw, bh, i, j;
+    int ok = 0;
+    if (!s_dev || !out || !w || !h) return 0;
+    s = surface_find(phys);
+    if (!s || !s->tex || s->bpp != 4 || !s->w || !s->h || x + w > s->w || y + h > s->h || s->clear) return 0;
+    hx0 = (uint32_t)((uint64_t)x * s->iw / s->w);
+    hy0 = (uint32_t)((uint64_t)y * s->ih / s->h);
+    hx1 = (uint32_t)((uint64_t)(x + w) * s->iw / s->w);
+    hy1 = (uint32_t)((uint64_t)(y + h) * s->ih / s->h);
+    if (hx1 <= hx0) hx1 = hx0 + 1;
+    if (hy1 <= hy0) hy1 = hy0 + 1;
+    if (hx1 > s->iw || hy1 > s->ih) return 0;
+    bw = hx1 - hx0; bh = hy1 - hy0;
+    memset(&ci, 0, sizeof ci);
+    ci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD;
+    ci.size = bw * bh * 4;
+    tb = SDL_CreateGPUTransferBuffer(s_dev, &ci);
+    if (!tb || !copy_begin()) {
+        if (tb) SDL_ReleaseGPUTransferBuffer(s_dev, tb);
+        return 0;
+    }
+    memset(&r, 0, sizeof r);
+    memset(&info, 0, sizeof info);
+    r.texture = s->tex; r.x = hx0; r.y = hy0; r.w = bw; r.h = bh; r.d = 1;
+    info.transfer_buffer = tb;
+    SDL_DownloadFromGPUTexture(s_copy, &r, &info);
+    copy_end();
+    submit(&fence);
+    if (fence) {
+        SDL_WaitForGPUFences(s_dev, true, &fence, 1);
+        SDL_ReleaseGPUFence(s_dev, fence);
+    }
+    if ((m = (const uint8_t *)SDL_MapGPUTransferBuffer(s_dev, tb, false)) != NULL) {
+        for (j = 0; j < h; j++) {
+            uint32_t hy = (uint32_t)(((uint64_t)(y + j) * 2 + 1) * s->ih / ((uint64_t)s->h * 2));
+            const uint32_t *row;
+            hy = hy < hy0 ? 0 : hy - hy0;
+            if (hy >= bh) hy = bh - 1;
+            row = (const uint32_t *)(m + (size_t)hy * bw * 4);
+            for (i = 0; i < w; i++) {
+                uint32_t hx = (uint32_t)(((uint64_t)(x + i) * 2 + 1) * s->iw / ((uint64_t)s->w * 2));
+                hx = hx < hx0 ? 0 : hx - hx0;
+                if (hx >= bw) hx = bw - 1;
+                out[(size_t)j * w + i] = row[hx];
+            }
+        }
+        SDL_UnmapGPUTransferBuffer(s_dev, tb);
+        ok = 1;
+    }
+    SDL_ReleaseGPUTransferBuffer(s_dev, tb);
+    return ok;
+}
+
 uint32_t nv2a_d3d_zpass_read(void)
 {
     double px;
