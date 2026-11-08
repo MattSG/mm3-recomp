@@ -21,7 +21,10 @@ Get-ChildItem "$root\tests" -File | Where-Object { $_.Name -like "*$Filter*" -an
     $wd = if ($unit) { Join-Path $root 'tests' } else { $root }
     $p = Start-Process $py -ArgumentList $args1 -WorkingDirectory $wd -NoNewWindow -PassThru -RedirectStandardOutput $log -RedirectStandardError "$log.err"
     if (-not $p.WaitForExit($TimeoutSec * 1000)) { $p.Kill(); $fail += "$($_.Name) (timeout)"; return }
-    if ($p.ExitCode -eq 0) { $pass++ } else { $fail += $_.Name; Write-Host "FAIL $($_.Name)  -> $log(.err)" }
+    if ($p.ExitCode -eq 0) { $pass++ } else {
+        $fail += $_.Name; Write-Host "FAIL $($_.Name)  -> $log(.err)"
+        foreach ($f in "$log.err", $log) { if (Test-Path $f) { Get-Content $f -Tail 12 | ForEach-Object { Write-Host "    $_" } } }
+    }
 }
 Write-Host "passed=$pass failed=$($fail.Count)"
 exit $fail.Count
