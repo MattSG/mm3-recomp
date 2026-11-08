@@ -97,20 +97,12 @@ extern void sub_00012000(void);
 extern void sub_00012731(void);
 extern void sub_000127A9(void);
 extern void sub_00078D64(void);
-void sub_00021103(void);
-void sub_0007169D(void);
-void sub_00012850(void);
-void sub_00043E62(void);
-void sub_00079CB2(void);
-void sub_00052A60(void);
-void sub_0007A4BD(void);
 void sub_00094FC0(void);
 void sub_00094FFB(void);
 void sub_00094AD9(void);
 void sub_00095D30(void);
 void sub_00094977(void);
 void sub_00094B10(void);
-void sub_0009D34E(void);
 void sub_00083A6C(void);
 extern void sub_00083FBB_gen(void) /* alternate-SEH generated overlay */;
 extern void sub_00097E46(void);
@@ -377,20 +369,6 @@ recomp_func_t recomp_lookup_manual(uint32_t xbox_va)
         return sub_000252AF;
     if (xbox_va == 0x000252DFu)
         return sub_000252DF;
-    if (xbox_va == 0x00021103u)
-        return sub_00021103;
-    if (xbox_va == 0x0007169Du)
-        return sub_0007169D;
-    if (xbox_va == 0x00012850u)
-        return sub_00012850;
-    if (xbox_va == 0x00043E62u)
-        return sub_00043E62;
-    if (xbox_va == 0x00079CB2u)
-        return sub_00079CB2;
-    if (xbox_va == 0x00052A60u)
-        return sub_00052A60;
-    if (xbox_va == 0x0007A4BDu)
-        return sub_0007A4BD;
     if (xbox_va == 0x00094FC0u)
         return sub_00094FC0;
     if (xbox_va == 0x00094FFBu)
@@ -399,8 +377,6 @@ recomp_func_t recomp_lookup_manual(uint32_t xbox_va)
         return sub_0009E85A;
     if (xbox_va == 0x00094AD9u)
         return sub_00094AD9;
-    if (xbox_va == 0x0009D34Eu)
-        return sub_0009D34E;
     if (xbox_va == 0x00083A6Cu)
         return sub_00083A6C;
     if (xbox_va == 0x00093C45u)
@@ -421,209 +397,6 @@ recomp_func_t recomp_lookup_manual(uint32_t xbox_va)
     if (xbox_va == 0x00093B84u)
         return sub_00093B84_gen;
     return (recomp_func_t)0;
-}
-
-/* FPO/SEH frame transition: reload the frame established by __SEH_prolog
- * before restoring the saved registers.  The generated leaf body retains the
- * caller's pre-prolog EBP and otherwise returns with ESP 0x34 bytes early. */
-void sub_00043E62(void)
-{
-    uint32_t ebp = g_ebp;
-
-    g_eax = 0x253A20u;
-    PUSH32(g_esp, 0x00043E6Cu);
-    RECOMP_ABI_CALL(0x00097AA4u, sub_00097AA4);
-    ebp = g_esp + 0x0Cu;
-
-    g_esp -= 0x24;
-    PUSH32(g_esp, g_ebx);
-    PUSH32(g_esp, g_esi);
-    PUSH32(g_esp, g_edi);
-    MEM32(ebp - 16) = g_esp;
-    PUSH32(g_esp, 0x18u);
-    PUSH32(g_esp, 0x00043E7Cu);
-    RECOMP_ABI_CALL(0x00170EEEu, sub_00170EEE);
-    POP32(g_esp, g_ecx);
-
-    MEM32(ebp - 20) = g_eax;
-    g_edx = 0;
-    MEM32(ebp - 4) = g_edx;
-    MEM32(ebp - 24) = g_edx;
-    MEM32(ebp - 28) = g_eax;
-    if (g_eax != g_edx)
-        MEM32(g_eax) = g_edx;
-    MEM32(ebp - 32) = 1;
-    MEM32(ebp - 36) = g_edx;
-    g_ecx = g_eax + 4;
-    MEM32(ebp - 40) = g_ecx;
-    if (g_ecx != g_edx)
-        MEM32(g_ecx) = g_edx;
-    MEM32(ebp - 32) = 2;
-    MEM32(ebp - 44) = g_edx;
-    g_ecx = g_eax + 8;
-    MEM32(ebp - 48) = g_ecx;
-    if (g_ecx != g_edx)
-        MEM32(g_ecx) = g_edx;
-    MEM32(ebp - 4) |= 0xFFFFFFFFu;
-    MEM8(g_eax + 0x14) = 1;
-    MEM8(g_eax + 0x15) = LO8(g_edx);
-    g_ecx = MEM32(ebp - 12);
-    MEM32(XBOX_FS_BASE) = g_ecx;
-    POP32(g_esp, g_edi);
-    POP32(g_esp, g_esi);
-    POP32(g_esp, g_ebx);
-    g_esp = ebp;
-    POP32(g_esp, ebp);
-    g_esp += 8;
-}
-
-/* Same FPO/SEH frame transition as sub_00043E62, for the adjacent list
- * allocator path.  Reloading the post-prolog frame keeps its saved registers
- * and caller stack balanced. */
-void sub_00079CB2(void)
-{
-    uint32_t ebp = g_seh_ebp;
-
-    g_eax = 0x253C0Du;
-    PUSH32(g_esp, 0x00079CBCu);
-    RECOMP_ABI_CALL(0x00097AA4u, sub_00097AA4);
-    ebp = g_esp + 0x0Cu;
-
-    g_esp -= 0x24;
-    PUSH32(g_esp, g_ebx);
-    PUSH32(g_esp, g_esi);
-    PUSH32(g_esp, g_edi);
-    MEM32(ebp - 16) = g_esp;
-    PUSH32(g_esp, 0x38u);
-    PUSH32(g_esp, 0x00079CCCu);
-    RECOMP_ABI_CALL(0x00170EEEu, sub_00170EEE);
-    POP32(g_esp, g_ecx);
-
-    MEM32(ebp - 20) = g_eax;
-    g_edx = 0;
-    MEM32(ebp - 4) = g_edx;
-    MEM32(ebp - 24) = g_edx;
-    MEM32(ebp - 28) = g_eax;
-    if (g_eax != g_edx)
-        MEM32(g_eax) = g_edx;
-    MEM32(ebp - 32) = 1;
-    MEM32(ebp - 36) = g_edx;
-    g_ecx = g_eax + 4;
-    MEM32(ebp - 40) = g_ecx;
-    if (g_ecx != g_edx)
-        MEM32(g_ecx) = g_edx;
-    MEM32(ebp - 32) = 2;
-    MEM32(ebp - 44) = g_edx;
-    g_ecx = g_eax + 8;
-    MEM32(ebp - 48) = g_ecx;
-    if (g_ecx != g_edx)
-        MEM32(g_ecx) = g_edx;
-    MEM32(ebp - 4) |= 0xFFFFFFFFu;
-    MEM8(g_eax + 0x34) = 1;
-    MEM8(g_eax + 0x35) = LO8(g_edx);
-    g_ecx = MEM32(ebp - 12);
-    MEM32(XBOX_FS_BASE) = g_ecx;
-    POP32(g_esp, g_edi);
-    POP32(g_esp, g_esi);
-    POP32(g_esp, g_ebx);
-    g_esp = ebp;
-    POP32(g_esp, ebp);
-    g_esp += 8;
-}
-
-/* Same generated FPO/SEH defect in the third allocator instance. */
-void sub_00052A60(void)
-{
-    uint32_t ebp = g_seh_ebp;
-
-    g_eax = 0x253CADu;
-    PUSH32(g_esp, 0x00052A6Au);
-    RECOMP_ABI_CALL(0x00097AA4u, sub_00097AA4);
-    ebp = g_esp + 0x0Cu;
-
-    g_esp -= 0x24;
-    PUSH32(g_esp, g_ebx);
-    PUSH32(g_esp, g_esi);
-    PUSH32(g_esp, g_edi);
-    MEM32(ebp - 16) = g_esp;
-    PUSH32(g_esp, 0x48u);
-    PUSH32(g_esp, 0x00052A7Au);
-    RECOMP_ABI_CALL(0x00170EEEu, sub_00170EEE);
-    POP32(g_esp, g_ecx);
-
-    MEM32(ebp - 20) = g_eax;
-    g_edx = 0;
-    MEM32(ebp - 4) = g_edx;
-    MEM32(ebp - 24) = g_edx;
-    MEM32(ebp - 28) = g_eax;
-    if (g_eax != g_edx)
-        MEM32(g_eax) = g_edx;
-    MEM32(ebp - 32) = 1;
-    MEM32(ebp - 36) = g_edx;
-    g_ecx = g_eax + 4;
-    MEM32(ebp - 40) = g_ecx;
-    if (g_ecx != g_edx)
-        MEM32(g_ecx) = g_edx;
-    MEM32(ebp - 32) = 2;
-    MEM32(ebp - 44) = g_edx;
-    g_ecx = g_eax + 8;
-    MEM32(ebp - 48) = g_ecx;
-    if (g_ecx != g_edx)
-        MEM32(g_ecx) = g_edx;
-    MEM32(ebp - 4) |= 0xFFFFFFFFu;
-    MEM8(g_eax + 0x44) = 1;
-    MEM8(g_eax + 0x45) = LO8(g_edx);
-    g_ecx = MEM32(ebp - 12);
-    MEM32(XBOX_FS_BASE) = g_ecx;
-    POP32(g_esp, g_edi);
-    POP32(g_esp, g_esi);
-    POP32(g_esp, g_ebx);
-    g_esp = ebp;
-    POP32(g_esp, ebp);
-    g_esp += 8;
-}
-
-/* FPO/SEH correction for the five-argument table fill used by the startup
- * allocator.  Reload the post-prolog frame before register restoration. */
-void sub_0007A4BD(void)
-{
-    uint32_t ebp = g_seh_ebp;
-
-    g_eax = MEM32(ebp + 8);
-    PUSH32(g_esp, 0x253772u);
-    RECOMP_ABI_CALL(0x00097AA4u, sub_00097AA4);
-    ebp = g_esp + 0x0Cu;
-
-    PUSH32(g_esp, g_ecx);
-    PUSH32(g_esp, g_ecx);
-    PUSH32(g_esp, g_ebx);
-    PUSH32(g_esp, g_esi);
-    PUSH32(g_esp, g_edi);
-    MEM32(ebp - 16) = g_esp;
-    g_eax = MEM32(ebp + 8);
-    MEM32(ebp - 4) = 0;
-
-    while (MEM32(ebp + 0x0Cu) > 0) {
-        MEM32(ebp - 20) = g_eax;
-        if (g_eax != 0) {
-            g_ecx = MEM32(ebp + 0x10u);
-            g_ecx = MEM32(g_ecx);
-            MEM32(g_eax) = g_ecx;
-        }
-        MEM32(ebp + 0x0Cu) -= 1;
-        g_eax += 4;
-        MEM32(ebp + 8) = g_eax;
-    }
-
-    MEM32(ebp - 4) |= 0xFFFFFFFFu;
-    g_ecx = MEM32(ebp - 12);
-    MEM32(XBOX_FS_BASE) = g_ecx;
-    POP32(g_esp, g_edi);
-    POP32(g_esp, g_esi);
-    POP32(g_esp, g_ebx);
-    g_esp = ebp;
-    POP32(g_esp, ebp);
-    g_esp += 24;
 }
 
 /* The XBE has a second SEH-prolog body at 0x00094FC0.  The generator's
@@ -711,50 +484,6 @@ void sub_00094AD9(void)
     PUSH32(g_esp, 0x00094B0Fu);
     g_ebp = ebp;
     g_seh_ebp = ebp;
-    RECOMP_ABI_CALL(0x00094FFBu, sub_00094FFB);
-    g_esp += 4;
-}
-
-/* 0x9D34E calls the alternate SEH prolog.  Reload its post-prolog frame
- * before touching locals; the generated FPO body retains the stale caller
- * EBP across that helper call. */
-void sub_0009D34E(void)
-{
-    uint32_t ebp;
-    uint32_t saved_esp;
-    uint32_t target_va;
-    recomp_func_t target;
-
-    saved_esp = g_esp;
-    PUSH32(g_esp, 0x10u);
-    PUSH32(g_esp, 0x368EC8u);
-    PUSH32(g_esp, 0x0009D35Au);
-    RECOMP_ABI_CALL(0x00094FC0u, sub_00094FC0);
-    ebp = g_seh_ebp;
-
-    if (MEM32(0x3C01D8u) == 0)
-        MEM32(0x3C01D8u) = 0x0009D33Eu;
-
-    MEM32(ebp - 4u) = 0;
-    PUSH32(g_esp, MEM32(ebp + 0x0Cu));
-    PUSH32(g_esp, MEM32(ebp + 8u));
-    PUSH32(g_esp, 0x0009D37Du);
-    target_va = MEM32(0x3C01D8u);
-    target = recomp_lookup_manual(target_va);
-    if (!target)
-        target = recomp_lookup(target_va);
-    if (target)
-        RECOMP_ABI_CALL(target_va, target);
-    else {
-        recomp_icall_fail_log(target_va);
-        g_esp = saved_esp;
-        g_eax = 0;
-    }
-
-    MEM32(ebp - 28u) = g_eax;
-    MEM32(ebp - 4u) = 0xFFFFFFFFu;
-    g_seh_ebp = ebp;
-    PUSH32(g_esp, 0x0009D3AEu);
     RECOMP_ABI_CALL(0x00094FFBu, sub_00094FFB);
     g_esp += 4;
 }
@@ -873,74 +602,6 @@ void sub_001E7B8F(void)
     sub_001E7B8F_gen();
 }
 
-/* FPO/SEH frame transition: __SEH_prolog changes the guest frame to
- * g_esp + 0x0C, but the generated body keeps the pre-prolog EBP.  Keep the
- * normal string-reallocation path here and publish the corrected frame before
- * cleanup so ESI/EDI restore from this function's own saved slots. */
-void sub_00012850(void)
-{
-    uint32_t ebp = g_seh_ebp;
-    uint32_t esi;
-    uint32_t edi;
-    uint32_t buffer;
-
-    g_eax = 0x253D2Fu;
-    PUSH32(g_esp, 0x0001285Au);
-    RECOMP_ABI_CALL(0x00097AA4u, sub_00097AA4);
-    ebp = g_esp + 0x0Cu;
-
-    g_esp -= 0x10;
-    PUSH32(g_esp, g_ebx);
-    PUSH32(g_esp, g_esi);
-    PUSH32(g_esp, g_edi);
-
-    esi = g_ecx;
-    edi = MEM32(ebp + 8) | 0xFu;
-    if (edi > 0xFFFFFFFEu)
-        edi = MEM32(ebp + 8);
-
-    g_eax = edi + 1;
-    PUSH32(g_esp, g_eax);
-    PUSH32(g_esp, 0x00012883u);
-    RECOMP_ABI_CALL(0x00170EEEu, sub_00170EEE);
-    POP32(g_esp, g_ecx);
-    buffer = g_eax;
-
-    if (MEM32(ebp + 0x0C) != 0) {
-        uint32_t source = (MEM32(esi + 0x18) >= 0x10u)
-            ? MEM32(esi + 4)
-            : esi + 4;
-
-        PUSH32(g_esp, MEM32(ebp + 0x0C));
-        PUSH32(g_esp, source);
-        PUSH32(g_esp, buffer);
-        PUSH32(g_esp, 0x000128D8u);
-        RECOMP_ABI_CALL(0x00012000u, sub_00012000);
-        g_esp += 0x0C;
-    }
-
-    PUSH32(g_esp, 1);
-    g_ecx = esi;
-    PUSH32(g_esp, 0x000128E4u);
-    RECOMP_ABI_CALL(0x000127A9u, sub_000127A9);
-
-    MEM32(esi + 4) = buffer;
-    MEM32(esi + 0x18) = edi;
-    PUSH32(g_esp, MEM32(ebp + 0x0C));
-    g_ecx = esi;
-    PUSH32(g_esp, 0x000128F7u);
-    RECOMP_ABI_CALL(0x00012731u, sub_00012731);
-
-    g_ecx = MEM32(ebp - 0x0C);
-    MEM32(XBOX_FS_BASE) = g_ecx;
-    POP32(g_esp, g_edi);
-    POP32(g_esp, g_esi);
-    POP32(g_esp, g_ebx);
-    g_esp = ebp;
-    POP32(g_esp, ebp);
-    g_esp += 0x0C;
-}
-
 /* The runtime owns the bounded indirect-call loggers (src/kernel/icall_diagnostics.c).
  * This title adds two caller-specific dumps through the report hook: the XPP USB
  * request behind caller 0x35D048, and the frontend call sites when
@@ -983,110 +644,6 @@ static void mm3_icall_report(const XboxIcallReport *report)
             }
         }
     }
-}
-
-/* Project override for the one startup allocator entry whose generated FPO
- * translation crosses __SEH_prolog.  The prolog changes the guest frame to
- * g_esp + 0x0C, but the generated caller keeps its stale local EBP.  That
- * writes the allocator result into the caller's frame and leaves ESI wrong.
- * Keep this override small and local; generated sources remain untouched. */
-void sub_00021103(void)
-{
-    uint32_t ebp = g_seh_ebp;
-
-    g_eax = 0x253A02u;
-    PUSH32(g_esp, 0x0002110Du);
-    RECOMP_ABI_CALL(0x00097AA4u, sub_00097AA4);
-    ebp = g_esp + 0x0Cu;
-
-    g_esp -= 0x24;
-    PUSH32(g_esp, g_ebx);
-    PUSH32(g_esp, g_esi);
-    PUSH32(g_esp, g_edi);
-    MEM32(ebp - 16) = g_esp;
-    PUSH32(g_esp, 0x30u);
-    PUSH32(g_esp, 0x0002111Du);
-    RECOMP_ABI_CALL(0x00170EEEu, sub_00170EEE);
-    POP32(g_esp, g_ecx);
-
-    MEM32(ebp - 20) = g_eax;
-    g_edx = 0;
-    MEM32(ebp - 4) = g_edx;
-    MEM32(ebp - 24) = g_edx;
-    MEM32(ebp - 28) = g_eax;
-    if (g_eax != g_edx)
-        MEM32(g_eax) = g_edx;
-    MEM32(ebp - 32) = 1;
-    MEM32(ebp - 36) = g_edx;
-    g_ecx = g_eax + 4;
-    MEM32(ebp - 40) = g_ecx;
-    if (g_ecx != g_edx)
-        MEM32(g_ecx) = g_edx;
-    MEM32(ebp - 32) = 2;
-    MEM32(ebp - 44) = g_edx;
-    g_ecx = g_eax + 8;
-    MEM32(ebp - 48) = g_ecx;
-    if (g_ecx != g_edx)
-        MEM32(g_ecx) = g_edx;
-    MEM32(ebp - 4) |= 0xFFFFFFFFu;
-    MEM8(g_eax + 0x2C) = 1;
-    MEM8(g_eax + 0x2D) = LO8(g_edx);
-    g_ecx = MEM32(ebp - 12);
-    MEM32(XBOX_FS_BASE) = g_ecx;
-    POP32(g_esp, g_edi);
-    POP32(g_esp, g_esi);
-    POP32(g_esp, g_ebx);
-    g_esp = ebp;
-    POP32(g_esp, ebp);
-    g_esp += 8;
-}
-
-/* Same FPO/SEH frame transition as sub_00021103, reached by the queue-node
- * producer.  Without the read-back, its cleanup restores the wrong guest
- * frame and corrupts the node link registers used by sub_0005A1FB. */
-void sub_0007169D(void)
-{
-    uint32_t ebp = g_seh_ebp;
-
-    g_eax = 0x25406Bu;
-    PUSH32(g_esp, 0x000716A7u);
-    RECOMP_ABI_CALL(0x00097AA4u, sub_00097AA4);
-    ebp = g_esp + 0x0Cu;
-
-    g_esp -= 0x0Cu;
-    PUSH32(g_esp, g_ebx);
-    PUSH32(g_esp, g_esi);
-    PUSH32(g_esp, g_edi);
-    MEM32(ebp - 16) = g_esp;
-    PUSH32(g_esp, 0x30u);
-    PUSH32(g_esp, 0x000716B7u);
-    RECOMP_ABI_CALL(0x00170EEEu, sub_00170EEE);
-    POP32(g_esp, g_ecx);
-
-    g_esi = g_eax;
-    MEM32(ebp - 20) = g_esi;
-    MEM32(ebp - 4) = 0;
-    MEM32(ebp - 24) = g_esi;
-    if (g_esi != 0) {
-        PUSH32(g_esp, MEM32(ebp + 0x1C));
-        PUSH32(g_esp, MEM32(ebp + 0x14));
-        PUSH32(g_esp, MEM32(ebp + 0x10));
-        g_ebx = MEM32(ebp + 0x18);
-        g_eax = MEM32(ebp + 0x0C);
-        PUSH32(g_esp, 0x000716DCu);
-        RECOMP_ABI_CALL(0x00078D64u, sub_00078D64);
-    }
-
-    MEM32(ebp - 4) |= 0xFFFFFFFFu;
-    g_eax = g_esi;
-    g_ecx = MEM32(ebp - 12);
-    MEM32(XBOX_FS_BASE) = g_ecx;
-    POP32(g_esp, g_edi);
-    POP32(g_esp, g_esi);
-    POP32(g_esp, g_ebx);
-    g_esp = ebp;
-    POP32(g_esp, ebp);
-    g_esp += 28;
 }
 
 /* The WMVDEC section contains an unreachable cc_boundary false positive:
