@@ -99,11 +99,9 @@ extern void sub_000127A9(void);
 extern void sub_00078D64(void);
 void sub_00094FC0(void);
 void sub_00094FFB(void);
-void sub_00094AD9(void);
 void sub_00095D30(void);
 void sub_00094977(void);
 void sub_00094B10(void);
-void sub_00083A6C(void);
 extern void sub_00083FBB_gen(void) /* alternate-SEH generated overlay */;
 extern void sub_00097E46(void);
 extern void sub_00097C9F(void);
@@ -128,43 +126,6 @@ extern void sub_00093B58_gen(void);
 extern void sub_00093B60_gen(void);
 extern void sub_00093B70_gen(void);
 extern void sub_00093B84_gen(void);
-
-/* 0x252AF is a real helper that the generator reports as an unresolved
- * target because it begins inside the surrounding function cluster. */
-void sub_000252AF(void)
-{
-    uint32_t caller_ebp = g_ebp;
-    uint32_t caller_seh_ebp = g_seh_ebp;
-    uint32_t caller_ebx = g_ebx;
-    uint32_t caller_esi = g_esi;
-    uint32_t caller_edi = g_edi;
-    /* Native 0x252AF is PUSH [EAX]: the stream's FILE pointer, not the
-     * containing polymorphic stream object. Passing EAX-4 makes fread
-     * interpret a vtable and path fields as CRT buffering state. */
-    PUSH32(g_esp, MEM32(g_eax));
-    PUSH32(g_esp, 1);
-    PUSH32(g_esp, MEM32(g_esp + 0x10));
-    PUSH32(g_esp, MEM32(g_esp + 0x10));
-    uint32_t args_esp = g_esp;
-    PUSH32(g_esp, 0x000252C0u);
-    RECOMP_ABI_CALL(0x0009492Bu, sub_0009492B);
-    g_esp = args_esp;
-    g_ebp = caller_ebp;
-    g_seh_ebp = caller_seh_ebp;
-    g_ebx = caller_ebx;
-    g_esi = caller_esi;
-    g_edi = caller_edi;
-    g_esp += 0x10;
-    /* ICALL leaves the guest return sentinel for the callee's ret 8. */
-    g_esp += 12;
-}
-
-/* 0x252DF is the one-byte RET tail at the end of the stream constructor.
- * The title also calls that tail through a vtable entry. */
-void sub_000252DF(void)
-{
-    g_esp += 4u;
-}
 
 /* 0x2539A is an FPO helper whose nested calls may overwrite the emulated
  * callee-saved register set. Keep the generated body and repair the ABI at
@@ -365,20 +326,12 @@ recomp_func_t recomp_lookup_manual(uint32_t xbox_va)
 {
     if (xbox_va == 0x00093AFCu)
         return sub_00093AFC;
-    if (xbox_va == 0x000252AFu)
-        return sub_000252AF;
-    if (xbox_va == 0x000252DFu)
-        return sub_000252DF;
     if (xbox_va == 0x00094FC0u)
         return sub_00094FC0;
     if (xbox_va == 0x00094FFBu)
         return sub_00094FFB;
     if (xbox_va == 0x0009E85Au)
         return sub_0009E85A;
-    if (xbox_va == 0x00094AD9u)
-        return sub_00094AD9;
-    if (xbox_va == 0x00083A6Cu)
-        return sub_00083A6C;
     if (xbox_va == 0x00093C45u)
         return sub_00093C45;
     if (xbox_va == 0x0009418Cu)
@@ -444,156 +397,6 @@ void sub_00094FFB(void)
     PUSH32(g_esp, ecx);
     g_seh_ebp = ebp;
     g_esp += 4;
-}
-
-/* 0x94AD9 establishes a local SEH frame before calling the generated helper.
- * Keep this short bridge project-owned so the post-prolog frame is explicit. */
-void sub_00094AD9(void)
-{
-    uint32_t ebp;
-
-    PUSH32(g_esp, 0x0Cu);
-    PUSH32(g_esp, 0x00368458u);
-    PUSH32(g_esp, 0x00094AE5u);
-    RECOMP_ABI_CALL(0x00094FC0u, sub_00094FC0);
-    ebp = g_seh_ebp;
-
-    PUSH32(g_esp, MEM32(ebp + 8u));
-    PUSH32(g_esp, 0x00094AEDu);
-    g_ebp = ebp;
-    g_seh_ebp = ebp;
-    RECOMP_ABI_CALL(0x00095D30u, sub_00095D30);
-    POP32(g_esp, g_ecx);
-
-    MEM32(ebp - 4u) = 0;
-    PUSH32(g_esp, MEM32(ebp + 8u));
-    PUSH32(g_esp, 0x00094AFAu);
-    g_ebp = ebp;
-    g_seh_ebp = ebp;
-    RECOMP_ABI_CALL(0x00094977u, sub_00094977);
-    POP32(g_esp, g_ecx);
-
-    MEM32(ebp - 0x1Cu) = g_eax;
-    MEM32(ebp - 4u) = 0xFFFFFFFFu;
-    PUSH32(g_esp, 0x00094B07u);
-    g_ebp = ebp;
-    g_seh_ebp = ebp;
-    RECOMP_ABI_CALL(0x00094B10u, sub_00094B10);
-
-    g_eax = MEM32(ebp - 0x1Cu);
-    PUSH32(g_esp, 0x00094B0Fu);
-    g_ebp = ebp;
-    g_seh_ebp = ebp;
-    RECOMP_ABI_CALL(0x00094FFBu, sub_00094FFB);
-    g_esp += 4;
-}
-
-/* Bootstrap thread routine: retain generated semantics while explicitly
- * reading back the alternate 0x00094FC0 frame. */
-void sub_00083A6C(void)
-{
-    uint32_t ebp = g_seh_ebp;
-    uint32_t eax;
-    uint32_t edx;
-    uint32_t ecx;
-    uint32_t edi;
-    uint32_t esi;
-    uint32_t ebx;
-
-    PUSH32(g_esp, 0x18u);
-    PUSH32(g_esp, 0x362660u);
-    PUSH32(g_esp, 0x00083A78u);
-    RECOMP_ABI_CALL(0x00094FC0u, sub_00094FC0);
-    ebp = g_seh_ebp;
-
-    /* The kernel owns this worker's TLS block through fs:[0x28]+0x28.
-     * Keep it there: redirecting the context into EBP+0x10 shares mutable
-     * startup state and overwrites caller frames when workers overlap. */
-
-    MEM32(ebp - 4) = MEM32(ebp - 4) & 0;
-    eax = MEM32(XBOX_FS_BASE + 0x28u);
-    MEM32(ebp - 28) = eax;
-    edx = MEM32(eax + 0x28u) + 4;
-    MEM32(ebp - 32) = edx;
-    MEM32(edx - 4) = edx;
-    ebx = MEM32(0x362690u);
-    esi = MEM32(0x36268Cu);
-    ebx -= esi;
-    MEM32(ebp - 36) = ebx;
-    ecx = ebx;
-    edi = edx;
-    eax = ecx;
-    ecx >>= 2;
-    if (!g_df) {
-        uint32_t i;
-        for (i = 0; i < ecx; ++i)
-            MEM32(edi + i * 4) = MEM32(esi + i * 4);
-        esi += ecx * 4;
-        edi += ecx * 4;
-    } else {
-        uint32_t i;
-        for (i = 0; i < ecx; ++i)
-            MEM32(edi - i * 4) = MEM32(esi - i * 4);
-        esi -= ecx * 4;
-        edi -= ecx * 4;
-    }
-    ecx = 0;
-    ecx = eax & 3u;
-    if (!g_df) {
-        uint32_t i;
-        for (i = 0; i < ecx; ++i)
-            MEM8(edi + i) = MEM8(esi + i);
-        esi += ecx;
-        edi += ecx;
-    } else {
-        uint32_t i;
-        for (i = 0; i < ecx; ++i)
-            MEM8(edi - i) = MEM8(esi - i);
-        esi -= ecx;
-        edi -= ecx;
-    }
-    ecx = MEM32(0x36269Cu);
-    if (ecx != 0) {
-        edi = ebx + edx;
-        edx = ecx;
-        ecx >>= 2;
-        for (uint32_t i = 0; i < ecx; ++i)
-            MEM32(edi + i * 4) = 0;
-        edi += ecx * 4;
-        ecx = edx & 3u;
-        for (uint32_t i = 0; i < ecx; ++i)
-            MEM8(edi + i) = 0;
-    }
-
-    /* The guest keeps EDI live across the startup callback. */
-    g_edi = edi;
-
-    PUSH32(g_esp, 1u);
-    PUSH32(g_esp, 0x00083AD8u);
-    RECOMP_ABI_CALL(0x000838C3u, sub_000838C3);
-
-    {
-        uint32_t saved_esp = g_esp;
-        PUSH32(g_esp, MEM32(ebp + 0x0Cu));
-        PUSH32(g_esp, 0x00083ADEu);
-        RECOMP_ICALL_SAFE(MEM32(ebp + 8), saved_esp);
-    }
-
-    MEM32(ebp - 40) = g_eax;
-    PUSH32(g_esp, 0);
-    PUSH32(g_esp, 0x00083AE8u);
-    RECOMP_ABI_CALL(0x000838C3u, sub_000838C3);
-    /* Original normal tail at 0x83AF6 terminates this system thread. */
-    MEM32(ebp - 4) = 0xFFFFFFFFu;
-    {
-        uint32_t saved_esp = g_esp;
-        PUSH32(g_esp, MEM32(ebp - 40));
-        PUSH32(g_esp, 0x00083B03u);
-        RECOMP_ICALL_SAFE(MEM32(0x362030u), saved_esp);
-    }
-    /* The original executes INT3 if PsTerminateSystemThread returns. */
-    fprintf(stderr, "[CRASH] thread termination returned at 0x00083B03\n");
-    abort();
 }
 
 /* The bootstrap supplies the original return-address/argument layout. */

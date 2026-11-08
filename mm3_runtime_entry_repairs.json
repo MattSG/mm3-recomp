@@ -241,5 +241,15 @@
     "start": "0x0009B4E0",
     "end": "0x0009B4E7",
     "note": "CRT x87 special-case handler (fstp st0; fstp st0; fldz; ret) reached only through the indirect tail jump at the end of 0x9B443 (control-word dispatch table). Unresolved it failed 50+ times per race ([ICALL] Failed resolve VA 0x0009B4E0 caller=0x0009B8A4), skipping the pops and the zero result and leaving the x87 stack unbalanced."
+  },
+  {
+    "start": "0x000252AF",
+    "end": "0x000252C6",
+    "note": "Stream read helper (push [eax]; push 1; two arg pushes; call fread-like 0x9492B; ret 8) that begins inside the stream constructor cluster, so the generator reports it as an unresolved target."
+  },
+  {
+    "start": "0x000252DF",
+    "end": "0x000252E0",
+    "note": "One-byte RET tail at the end of the stream constructor, also called through a vtable entry."
   }
 ]

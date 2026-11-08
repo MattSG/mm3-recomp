@@ -60,6 +60,8 @@ function(mm3_prepare_generated_sources out RECOMP_GEN_DIR)
     list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001193A6 sub_00124822)
     # The hot visibility leaf keeps its balanced x87 scratch stack in native locals.
     list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001C793A)
+    # The first XAPI worker's entry: main.c wraps it to register the main worker thread.
+    list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_00083A6C)
     # Factory profiles bind the real constructed controller and leave retail cars
     # on their original torque and gearbox paths, including same-chunk calls.
     list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_0021ED64 sub_001D0E2D sub_001CB7E8 sub_001CB881 sub_001CB9A5 sub_001CF7B4)
