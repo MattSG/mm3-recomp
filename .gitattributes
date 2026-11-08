@@ -1,3 +1,4 @@
 * text=auto
 *.iso binary
 *.xbe binary
+*.patch text eol=lf
