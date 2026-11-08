@@ -3,20 +3,8 @@
 # --no-index matters: the source sits under build/, inside this repository's work
 # tree, where a plain "git apply" silently skips files git does not track.
 find_package(Git REQUIRED)
-# A Windows checkout with core.autocrlf turns the patch into CRLF, which git apply
-# rejects as corrupt: apply an LF copy.
-file(READ "${PATCH}" _text)
-string(REPLACE "\r\n" "\n" _text "${_text}")
-get_filename_component(_name "${PATCH}" NAME)
-set(_tmp "$ENV{TEMP}")
-if(NOT _tmp)
-    set(_tmp "$ENV{TMPDIR}")
-endif()
-if(NOT _tmp)
-    set(_tmp "/tmp")
-endif()
-set(PATCH "${_tmp}/${_name}")
-file(WRITE "${PATCH}" "${_text}")
+# The patch must be LF (.gitattributes: *.patch eol=lf): git apply rejects a CRLF patch as corrupt,
+# and CMake's file(WRITE) cannot produce an LF copy on Windows (it writes CRLF).
 execute_process(COMMAND "${GIT_EXECUTABLE}" apply --no-index --ignore-whitespace --reverse --check "${PATCH}"
     RESULT_VARIABLE _applied OUTPUT_QUIET ERROR_QUIET)
 if(_applied EQUAL 0)
