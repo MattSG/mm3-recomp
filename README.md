@@ -137,6 +137,9 @@ Link and Xbox Live sign-in have not been verified.
 - Builds made before 2026-11-08 could crash intermittently in the SDL3 Direct3D 12 backend: the descriptor-heap
   patch in `src/host_sdl3` was not being applied. Rebuild to pick it up. If you still see a crash, attach the newest
   `CrashDumps` file and `stderr.log` to an issue; `RECOMP_SDL_GPU_DRIVER=vulkan` is a workaround to try.
+- If the build stops with "SDL3 patch ... does not apply: corrupt patch", your checkout has the patch file with CRLF
+  line endings (clones before 2026-11-08). Run `git rm --cached src/host_sdl3/sdl3-d3d12-descriptors.patch`, delete the file,
+  then `git checkout -- src/host_sdl3/sdl3-d3d12-descriptors.patch` and build again.
 - Linux has a build path, but gameplay has not been rechecked since the SDL3 migration.
 - Online play: System Link is work in progress; Xbox Live / Insignia sign-in is untested.
 
