@@ -24,83 +24,70 @@ function(mm3_fix_collision_calls source_variable function_name)
     else()
         string(SUBSTRING "${tail}" 0 ${owner_end} body)
     endif()
-    string(FIND "${content}" "\r\n" crlf_position)
-    set(newline "\n")
-    if(NOT crlf_position LESS 0)
-        set(newline "\r\n")
-    endif()
     set(transformed "${body}")
+    string(REPLACE "\r\n" "\n" normalized "${body}")
     foreach(site IN LISTS sites)
+        # Each site is fingerprinted rather than quoted: the lines around the indirect call
+        # (count before/after, SHA-256 of that window) must be exactly what the generator
+        # produced for the retail code, so any change in owner, arguments or the reused
+        # PUSH3 fails closed without this repository carrying the translated instructions.
         if(site STREQUAL "0013FEB6")
-            set(block [=[    eax = ebp + -28;
-    { uint32_t _icall_esp = g_esp;
-    PUSH32(esp, eax);
-    eax = ebp + -4;
-    edi = ecx;
-    ecx = MEM32(ebp + 0x10);
-    PUSH32(esp, eax);
-    eax = MEM32(ecx);
-    PUSH32(esp, esi);
-    g_ebp = ebp; g_seh_ebp = ebp; { uint32_t _icall_target = MEM32(eax + 0x5C); PUSH32(esp, 0x0013FEB9u); RECOMP_ICALL_SAFE_AT(_icall_target, _icall_esp, 0x0013FEB6u); } /* indirect call */
-    }
-
-loc_0013FEB9: ;
-    edx = MEM32(ebp + 0xC);
-    ebx = eax;
-    g_ebp = ebp; /* frame stays current across calls */
-    g_seh_ebp = ebp;
-    PUSH32(esp, 0x0013FEC3u); RECOMP_ABI_CALL(0x001C7E60u, sub_001C7E60); /* call 0x001C7E60 */]=])
+            set(before 9)
+            set(after 8)
+            set(expected 7a5a4b32dfdffd96dfafbc3cf077b2722c8b9ac059b19a24e226342f209d48f8)
         elseif(site STREQUAL "0013FEE5")
-            set(block [=[loc_0013FED7: ;
-    ecx = MEM32(ebp + 0x14);
-    eax = ebp + -28;
-    { uint32_t _icall_esp = g_esp;
-    PUSH32(esp, eax);
-    eax = ebp + -4;
-    PUSH32(esp, eax);
-    eax = MEM32(ecx);
-    PUSH32(esp, esi);
-    g_ebp = ebp; g_seh_ebp = ebp; { uint32_t _icall_target = MEM32(eax + 0x5C); PUSH32(esp, 0x0013FEE8u); RECOMP_ICALL_SAFE_AT(_icall_target, _icall_esp, 0x0013FEE5u); } /* indirect call */
-    }
-
-loc_0013FEE8: ;
-    edx = MEM32(ebp + 0xC);
-    ebx = eax;
-    g_ebp = ebp; /* frame stays current across calls */
-    g_seh_ebp = ebp;
-    PUSH32(esp, 0x0013FEF2u); RECOMP_ABI_CALL(0x001C7E60u, sub_001C7E60); /* call 0x001C7E60 */]=])
+            set(before 9)
+            set(after 8)
+            set(expected e847c139716690b591f48ebd870ec63d8056e3d96978ee328e9624642c4914d1)
         else()
-            set(block [=[    eax = ebp + -40;
-    { uint32_t _icall_esp = g_esp;
-    PUSH32(esp, eax);
-    eax = ebp + -4;
-    PUSH32(esp, eax);
-    MEM32(ebp + -24) = ecx;
-    ecx = MEM32(esi + 4);
-    eax = ebp + -28;
-    PUSH32(esp, eax);
-    eax = MEM32(ecx);
-    g_ebp = ebp; g_seh_ebp = ebp; { uint32_t _icall_target = MEM32(eax + 0x5C); PUSH32(esp, 0x0014E8B9u); RECOMP_ICALL_SAFE_AT(_icall_target, _icall_esp, 0x0014E8B6u); } /* indirect call */
-    }
-
-loc_0014E8B9: ;
-    edx = ebp + -16;
-    ebx = eax;
-    g_ebp = ebp; /* frame stays current across calls */
-    g_seh_ebp = ebp;
-    PUSH32(esp, 0x0014E8C3u); RECOMP_ABI_CALL(0x001C7E60u, sub_001C7E60); /* call 0x001C7E60 */]=])
+            set(before 10)
+            set(after 8)
+            set(expected 0e086bb1e5f9cdbd01e29b03ec5956050e18625d014a8ed09157f442b50ad63e)
         endif()
-        string(REPLACE "\n" "${newline}" block "${block}")
-        string(REGEX MATCHALL "0x${site}u" matches "${body}")
+        set(call "RECOMP_ICALL_SAFE_AT(_icall_target, _icall_esp, 0x${site}u)")
+        string(REGEX MATCHALL "0x${site}u" matches "${normalized}")
         list(LENGTH matches site_count)
-        string(FIND "${body}" "${block}" block_start)
-        if(NOT site_count EQUAL 1 OR block_start LESS 0)
+        string(FIND "${normalized}" "${call}" call_start)
+        if(NOT site_count EQUAL 1 OR call_start LESS 0)
             message(FATAL_ERROR "MM3 collision argument cleanup: original ${function_name} PUSH3/reuse at 0x${site} is missing, duplicated or changed")
         endif()
-        string(REPLACE "RECOMP_ICALL_SAFE_AT(_icall_target, _icall_esp, 0x${site}u)"
-            "RECOMP_ICALL_SAFE_AT_CC(_icall_target, _icall_esp, 0x${site}u)"
-            fixed_block "${block}")
-        string(REPLACE "${block}" "${fixed_block}" transformed "${transformed}")
+        string(SUBSTRING "${normalized}" 0 ${call_start} head)
+        string(FIND "${head}" "\n" line_start REVERSE)
+        math(EXPR line_start "${line_start} + 1")
+        set(window_start ${line_start})
+        set(ok TRUE)
+        foreach(step RANGE 1 ${before})
+            math(EXPR previous_end "${window_start} - 1")
+            if(previous_end LESS 0)
+                set(ok FALSE)
+                break()
+            endif()
+            string(SUBSTRING "${normalized}" 0 ${previous_end} earlier)
+            string(FIND "${earlier}" "\n" earlier_start REVERSE)
+            math(EXPR window_start "${earlier_start} + 1")
+        endforeach()
+        string(SUBSTRING "${normalized}" ${call_start} -1 rest)
+        set(consumed 0)
+        foreach(step RANGE 0 ${after})
+            string(SUBSTRING "${rest}" ${consumed} -1 remaining)
+            string(FIND "${remaining}" "\n" newline_at)
+            if(newline_at LESS 0)
+                set(ok FALSE)
+                break()
+            endif()
+            math(EXPR consumed "${consumed} + ${newline_at} + 1")
+        endforeach()
+        if(NOT ok)
+            message(FATAL_ERROR "MM3 collision argument cleanup: original ${function_name} PUSH3/reuse at 0x${site} is missing, duplicated or changed")
+        endif()
+        math(EXPR window_end "${call_start} + ${consumed} - 1")
+        math(EXPR window_length "${window_end} - ${window_start}")
+        string(SUBSTRING "${normalized}" ${window_start} ${window_length} window)
+        string(SHA256 actual "${window}")
+        if(NOT actual STREQUAL expected)
+            message(FATAL_ERROR "MM3 collision argument cleanup: original ${function_name} PUSH3/reuse at 0x${site} is missing, duplicated or changed")
+        endif()
+        string(REPLACE "${call}" "RECOMP_ICALL_SAFE_AT_CC(_icall_target, _icall_esp, 0x${site}u)" transformed "${transformed}")
     endforeach()
     string(REPLACE "${body}" "${transformed}" content "${content}")
     set(${source_variable} "${content}" PARENT_SCOPE)
