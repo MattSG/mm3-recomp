@@ -21,3 +21,6 @@ mm3_tree_contact_regression.py
 mm3_tree_fall_regression.py
 mm3_visibility_regression.py
 mm3_x87_exp_regression.py
+mm3_pedestrian_completion_regression.py
+mm3_ped_path_count_regression.py
+mm3_pedestrian_walk_regression.py
