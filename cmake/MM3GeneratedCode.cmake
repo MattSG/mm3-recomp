@@ -60,6 +60,8 @@ function(mm3_prepare_generated_sources out RECOMP_GEN_DIR)
     list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001193A6 sub_00124822)
     # The hot visibility leaf keeps its balanced x87 scratch stack in native locals.
     list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001C793A)
+    # Gameplay mods: timer create and bonus (time limits), race AI update, car damage step.
+    list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001F5F24 sub_001F5A5A sub_0014194C sub_001CDB6C)
     # The first XAPI worker's entry: main.c wraps it to register the main worker thread.
     list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_00083A6C)
     # Factory profiles bind the real constructed controller and leave retail cars

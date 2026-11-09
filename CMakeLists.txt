@@ -186,6 +186,9 @@ add_executable(${PROJECT_NAME}
     src/ui/rmlui_host.cpp
     ${MM3_RMLUI_BACKEND}
     src/mods/mods.c
+    src/mods/time_limits.c
+    src/mods/ai_difficulty.c
+    src/mods/damage.c
     src/mods/mods_runtime.c
     src/mods/render_commands.c
     src/mods/render_policy.c

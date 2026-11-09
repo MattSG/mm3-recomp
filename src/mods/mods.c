@@ -31,6 +31,12 @@ const Mm3Mod mm3_mods[MM3_MOD_COUNT] = {
         "With keyboard controls, the arrows drive and steer in a race, R/F change gear, Space is the handbrake and C the camera; Escape goes back. Off: the arrows are only the d-pad.", 1},
     [MM3_MOD_FLARE_DEPTH] = {"flare_depth", "MM3_MOD_FLARE_DEPTH", "Lamp flare depth",
         "Street-lamp flares are also tested against the scene's depth, so they stay hidden behind buildings and cars. Off: only the game's own visibility test.", 1},
+    [MM3_MOD_TIME_LIMITS] = {"time_limits", "MM3_MOD_TIME_LIMITS", "Time limits",
+        "Blitz and timed career jobs: the time you start with and each time bonus are scaled by the Time limit setting. Off: the Xbox limits.", 0},
+    [MM3_MOD_AI_DIFFICULTY] = {"ai_difficulty", "MM3_MOD_AI_DIFFICULTY", "Opponents' difficulty",
+        "The race opponents drive harder or easier, 0 to 9 as set under Opponents' difficulty; 5 is the Xbox game. Off: the Xbox opponents.", 0},
+    [MM3_MOD_DAMAGE] = {"damage", "MM3_MOD_DAMAGE", "Car damage",
+        "Scales the damage crashes do: Damage dealt for every car but yours, Damage received for your own. Off: the Xbox damage.", 0},
 };
 
 int mm3_mod_on(int mod)

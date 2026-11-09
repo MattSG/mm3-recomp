@@ -121,6 +121,9 @@ The collision guard is required.
 | Lamp flare depth | Hide lamp flares behind scene geometry. |
 | Skip intro movies | Skip startup logos and movies; story movies still play. |
 | Collision cell guard | Repair invalid face indices in a Paris collision cell. |
+| Time limits | Scale the time you start with and each bonus in Blitz and timed jobs (off by default). |
+| Opponents' difficulty | Make race opponents drive harder or easier, 0 to 9; 5 is the Xbox game (off by default). |
+| Car damage | Scale crash damage: dealt to other cars, received by yours (off by default). |
 
 The Mods tab also has translation corrections and optional developer/debug
 features. [src/mods/mods.c](src/mods/mods.c) lists the switches and defaults.

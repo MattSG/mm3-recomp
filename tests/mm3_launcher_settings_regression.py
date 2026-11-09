@@ -96,8 +96,15 @@ int main(int argc, char **argv) {
     for (const Option &o : g_options)
         require(o.env != "MM3_RENDER_EVERY_FRAME",
                 "replacement launcher excludes the legacy render-queue experiment");
-    require(g_options.size() == original_options + MM3_MOD_COUNT - 1,
+    /* One switch per mod but the translation corrections, plus the four numbers the
+     * gameplay mods read (time limit, opponents' difficulty, damage dealt and received). */
+    require(g_options.size() == original_options + MM3_MOD_COUNT - 1 + 4,
             "all user-facing mods added once, translation switch excluded");
+    for (const char *env : {"MM3_TIME_PERCENT", "MM3_AI_LEVEL", "MM3_DAMAGE_PERCENT", "MM3_OWN_DAMAGE_PERCENT"}) {
+        int found = 0;
+        for (const Option &o : g_options) found += o.env == env && o.page == 2;
+        require(found == 1, "each gameplay mod setting appears once on the Mods page");
+    }
     for (int i = 0; i < MM3_MOD_COUNT; ++i) {
         if (!mm3_mods[i].required) continue;
         const Option &o = option(mm3_mods[i].env);

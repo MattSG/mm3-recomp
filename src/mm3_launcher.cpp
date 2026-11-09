@@ -631,6 +631,22 @@ void add_mod_options()
         o.toggle = false;
         g_options.push_back(o);
     }
+    /* The numbers the gameplay mods read (their switches are above). */
+    const Rml::Vector<Choice> percents = {{"0", "0%"}, {"50", "50%"}, {"100", "100% (Xbox)"}, {"150", "150%"},
+                                          {"200", "200%"}, {"300", "300%"}};
+    g_options.push_back({"Gameplay mod settings", "Time limit",
+        "Scales the time you start with and each bonus in Blitz and timed jobs. Needs the Time limits mod.",
+        "MM3_TIME_PERCENT", "100", "",
+        {{"50", "50%"}, {"75", "75%"}, {"100", "100% (Xbox)"}, {"150", "150%"}, {"200", "200%"}, {"300", "300%"}}, 2});
+    g_options.push_back({"", "Opponents' difficulty",
+        "0 is easiest, 9 hardest; 5 is the Xbox game. Needs the Opponents' difficulty mod.",
+        "MM3_AI_LEVEL", "5", "",
+        {{"0", "0 (easiest)"}, {"1", "1"}, {"2", "2"}, {"3", "3"}, {"4", "4"}, {"5", "5 (Xbox)"}, {"6", "6"},
+         {"7", "7"}, {"8", "8"}, {"9", "9 (hardest)"}}, 2});
+    g_options.push_back({"", "Damage dealt", "Damage crashes do to every car but yours. Needs the Car damage mod.",
+        "MM3_DAMAGE_PERCENT", "100", "", percents, 2});
+    g_options.push_back({"", "Damage received", "Damage crashes do to your own car. Needs the Car damage mod.",
+        "MM3_OWN_DAMAGE_PERCENT", "100", "", percents, 2});
 }
 
 /* Profiles and explicit environment settings seed the UI. Saved choices are
