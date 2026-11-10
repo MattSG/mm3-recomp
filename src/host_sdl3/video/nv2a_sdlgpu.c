@@ -2516,6 +2516,14 @@ static int draw_gated(const NvD3DState *st, int program, uint32_t ni)
                 st->depth_func, st->color_mask,
                 st->clip_w, st->clip_h, st->tex[0].addr, st->tex[1].addr, st->tex[2].addr, st->tex[3].addr,
                 st->tex[0].color, st->tex[1].color, st->tex[2].color, st->tex[3].color);
+        if (st->rc_seen) {
+            uint32_t q;
+            fprintf(stderr, "[DRAW %ld] rc control %08X final %08X %08X c0 %08X c1 %08X\n", limit, st->rc.control, st->rc.final0, st->rc.final1,
+                    st->rc.final_c0, st->rc.final_c1);
+            for (q = 0; q < (st->rc.control & 0xFF) && q < 8; q++)
+                fprintf(stderr, "[DRAW %ld]  stage %u color icw %08X ocw %08X alpha icw %08X ocw %08X f0 %08X f1 %08X\n", limit, q,
+                        st->rc.color_icw[q], st->rc.color_ocw[q], st->rc.alpha_icw[q], st->rc.alpha_ocw[q], st->rc.factor0[q], st->rc.factor1[q]);
+        }
         fflush(stderr);
     }
     return limit >= 0 && (long)n++ > limit;
@@ -3478,6 +3486,50 @@ void nv2a_d3d_flip_present(uint32_t surface_addr, uint32_t pitch, int show)
     if (!s && pitch)
         s = scan_surface(surface_addr, pitch);
     s_shown = s;
+    {   /* RECOMP_RT_PROBE=x,y,w,h (guest pixels): the frame's RGBA there, as the flipped surface holds it. */
+        static const char *roi = (const char *)-1;
+        unsigned px0, py0, pw, ph;
+        if (roi == (const char *)-1) roi = getenv("RECOMP_RT_PROBE");
+        {   /* RECOMP_RT_DUMP=<file>: while <file>.req exists, write the flipped surface as raw w,h + BGRA to <file>. */
+            static const char *dump = (const char *)-1;
+            char req[512];
+            if (dump == (const char *)-1) dump = getenv("RECOMP_RT_DUMP");
+            if (dump && s && snprintf(req, sizeof req, "%s.req", dump) > 0) {
+                FILE *rq = fopen(req, "rb");
+                if (rq) {
+                    uint32_t *all = (uint32_t *)malloc((size_t)s->w * s->h * 4);
+                    fclose(rq);
+                    if (all && nv2a_d3d_surface_read(s->phys, 0, 0, s->w, s->h, all)) {
+                        FILE *o = fopen(dump, "wb");
+                        if (o) {
+                            uint32_t hdr[2] = { s->w, s->h };
+                            fwrite(hdr, 4, 2, o);
+                            fwrite(all, 4, (size_t)s->w * s->h, o);
+                            fclose(o);
+                            remove(req);
+                        }
+                    }
+                    free(all);
+                }
+            }
+        }
+        if (roi && s && sscanf(roi, "%u,%u,%u,%u", &px0, &py0, &pw, &ph) == 4 && pw && ph && pw * ph <= 4096) {
+            static uint32_t px[4096];
+            if (nv2a_d3d_surface_read(s->phys, px0, py0, pw, ph, px)) {
+                double sum[4] = {0, 0, 0, 0};
+                unsigned amax = 0, rmax = 0, i;
+                for (i = 0; i < pw * ph; i++) {
+                    unsigned b = px[i] & 255, g = (px[i] >> 8) & 255, r = (px[i] >> 16) & 255, a = px[i] >> 24;
+                    sum[0] += r; sum[1] += g; sum[2] += b; sum[3] += a;
+                    if (a > amax) amax = a;
+                    if (r > rmax) rmax = r;
+                }
+                fprintf(stderr, "[PROBE] rgba mean %.0f %.0f %.0f %.0f max a %u r %u\n", sum[0] / (pw * ph), sum[1] / (pw * ph),
+                        sum[2] / (pw * ph), sum[3] / (pw * ph), amax, rmax);
+                fflush(stderr);
+            }
+        }
+    }
     s_last_flip = SDL_GetTicks();
     if (s_overlay.idle_present) s_overlay.idle_present((uint32_t)s_last_flip, 0, 0);
     {

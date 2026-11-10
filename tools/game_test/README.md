@@ -258,3 +258,9 @@ program, blend, depth, colour mask, textures and their formats). The script bise
 ```
 
 `MM3_LAMP_TRACE=1` logs each car lamp node when its state changes (`src/mods/car_lights.c`, trace only).
+
+`RECOMP_RT_PROBE=x,y,w,h` prints the RGBA statistics of that guest-pixel box of the flipped surface each frame, and
+`RECOMP_RT_DUMP=<file>` writes the whole surface (raw: width, height, then BGRA) while `<file>.req` exists. With the
+draw limit above they show what each draw does to a pixel's alpha, which the night lighting pass reads as a "glow"
+marker (alpha above 0.75 is left unlit; see `Light/LightApply.psh`). `RECOMP_DRAW_INFO` also prints the draw's
+register-combiner words.
