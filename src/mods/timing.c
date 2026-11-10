@@ -38,12 +38,24 @@ static double seconds(void)
     return (double)now.QuadPart / (double)frequency.QuadPart;
 }
 
+/* The hold-the-race mod (pause_hold.c) slows the world to a hundred-thousandth: each tick publishes a
+ * negligible step and the game's clock stands still, then continues from where it stopped. */
+extern int mm3_pause_frozen(void);
+#define HOLD_RATE 100000.0
+
 static void publish_time(uint32_t game)
 {
-    MEMD(game + 0x30) = clock_state.step;
-    MEMD(game + 0x38) = time_origin + (double)clock_state.ticks * clock_state.step;
-    MEMF(game + 0x4C) = (float)clock_state.step;
-    MEMF(game + 0x54) = (float)clock_state.step;
+    static int was_held;
+    static unsigned long long hold_start, held_total;
+    int held = mm3_pause_frozen();
+    double step = held ? clock_state.step / HOLD_RATE : clock_state.step;
+    if (held && !was_held) hold_start = clock_state.ticks;
+    if (!held && was_held) held_total += clock_state.ticks - hold_start;
+    was_held = held;
+    MEMD(game + 0x30) = step;
+    MEMD(game + 0x38) = time_origin + (double)((held ? hold_start : clock_state.ticks) - held_total) * clock_state.step;
+    MEMF(game + 0x4C) = (float)step;
+    MEMF(game + 0x54) = (float)step;
 }
 
 static void begin_tick(uint32_t game, uint32_t current_state)

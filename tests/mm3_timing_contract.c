@@ -21,6 +21,7 @@ void Sleep(unsigned long ms) { host_time += (double)ms / 1000; }
 int mm3_mod_on(int mod) { (void)mod; return enabled; }
 int recomp_frame_limit_from_env(void) { return 144; }
 void nv2a_d3d_manual_present(int on) { manual = on; }
+int mm3_pause_frozen(void) { return 0; }
 void nv2a_d3d_repeat_frame(void) { host_time += 1.0 / 144; }
 int xbox_GuestMapped(uint32_t va, uint32_t bytes) { (void)va; (void)bytes; return 0; }
 void sub_00025422_original(void) { g_esp += 8; }

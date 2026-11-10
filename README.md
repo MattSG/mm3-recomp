@@ -124,6 +124,7 @@ The collision guard is required.
 | Time limits | Scale the time you start with and each bonus in Blitz and timed jobs (off by default). |
 | Opponents' difficulty | Make race opponents drive harder or easier, 0 to 9; 5 is the Xbox game (off by default). |
 | Car damage | Scale crash damage: dealt to other cars, received by yours (off by default). |
+| Hold the race | F2 holds the whole race still without the pause menu and F2 again lets it run (off by default; not with System Link). |
 
 The Mods tab also has translation corrections and optional developer/debug
 features. [src/mods/mods.c](src/mods/mods.c) lists the switches and defaults.

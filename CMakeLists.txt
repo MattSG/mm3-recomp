@@ -189,6 +189,7 @@ add_executable(${PROJECT_NAME}
     src/mods/time_limits.c
     src/mods/ai_difficulty.c
     src/mods/damage.c
+    src/mods/pause_hold.c
     src/mods/mods_runtime.c
     src/mods/render_commands.c
     src/mods/render_policy.c
