@@ -236,6 +236,7 @@ The save template must hold a profile (Player1). All cars are unlocked for the r
 | `conditions` | both cities under each season / time of day / weather (`--conditions diag\|full`) | drive + 4-heading vantage frames |
 | `missions` | Checkpoint, Blitz, Undercover (Paris and Washington) | every checkpoint/zone passed, results screen frame |
 | `gfx` | vantage-point sweep in each mode | black/uniform/magenta/blown-out frames, black holes |
+| `lamps` | per car in Cruise: the driven car's own lamp nodes (`MM3_LAMP_TRACE`) and its rear view | tail and front lamp nodes present and lit, rear lens area red |
 
 Frames are checked by `gfx_sweep.analyse` (unit-tested in `tests/test_pack_frame_checks.py`), the game's stderr is scanned
 for `[ICALL]`, `[CRASH]`, ABI, shader and device-lost markers, and `--baseline DIR` adds drift from golden frames

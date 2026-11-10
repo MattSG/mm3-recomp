@@ -18,13 +18,13 @@ extern void sub_000CF2DA_original(void);
 /* MM3_LAMP_TRACE=1: log each lamp's state when it changes (owner, kind, brightness, colour, mask, time of day). */
 static void trace_lamp(uint32_t node, uint32_t stack)
 {
-    static struct { uint32_t node; float brightness; uint32_t color, mask; } seen[256];
+    static struct { uint32_t node; float brightness; uint32_t color, mask; } seen[4096];
     static unsigned lines;
     uint32_t i, mask = MEM32(stack + 12), color = MEM32(node + 0x64);
     float brightness = MEMF(node + 0x54);
-    if (lines > 600) return;
-    for (i = 0; i < 256 && seen[i].node && seen[i].node != node; ++i) {}
-    if (i == 256) return;
+    if (lines > 20000) return;
+    for (i = 0; i < 4096 && seen[i].node && seen[i].node != node; ++i) {}
+    if (i == 4096) return;
     if (seen[i].node == node && seen[i].brightness == brightness && seen[i].color == color && seen[i].mask == mask) return;
     seen[i].node = node; seen[i].brightness = brightness; seen[i].color = color; seen[i].mask = mask;
     fprintf(stderr, "[LAMP] node %08X owner %08X kind %u brightness %.3f color %08X mask %08X tod %u\n", node,

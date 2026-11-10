@@ -34,7 +34,7 @@ import numpy as np
 BOOT = [{"action": "wait_log", "text": "[MOD] skip_intro: intro", "timeout": 60}, {"action": "wait", "seconds": 30}]
 PAL_FPS = "60"
 PAUSE_FLAG = 0x00429DB2   # the game's own pause singleton (see src/mods/pause_hold.c)
-SUITES = "menus cars paints drive conditions missions gfx".split()
+SUITES = "menus cars paints drive conditions missions gfx lamps".split()
 # Menu tour scripts, from the main menu with the cursor on the first item. Tokens: a button (optionally
 # "button:seconds" to wait), or "!name" to capture and check a screen. "b" goes back.
 TOUR = {
@@ -324,6 +324,42 @@ class Pack:
                         continue
                     time.sleep(self.a.settle)
                     self.frame(g, "gfx", f"{mode}-v{i:02d}h{k}")
+
+    def lamps(self):
+        """Per car in Cruise: the driven car's own lamp nodes (MM3_LAMP_TRACE) and how red its rear view is."""
+        spec = self.a.drive_cars
+        count = self.a.car_count
+        cars = (list(range(count)) if spec == "all" else [0, 8, 16, 24, 32, 40, 48][:3 if self.a.quick else 7]
+                if spec == "sample" else [int(x) for x in spec.split(",")])
+        for car in cars:
+            label = f"car{car:02d}"
+            with self.game("lamps", label, env={"MM3_LAMP_TRACE": "1", "RECOMP_RENDER_SCALE": "2"}) as g:
+                self.to_main(g)
+                self.to_car_select(g)
+                for _ in range(car):
+                    self.press(g, "right", 1.2)
+                self.press(g, "a", 2)
+                self.press(g, "a", 0)
+                g.wait_player(timeout=60, advance="start")
+                time.sleep(6)
+                g.press("rt", 2500, wait_release=False)
+                time.sleep(4)
+                text = (g.run_dir / "stderr.log").read_text(errors="replace")
+                own = {}
+                for m in re.finditer(r"\[LAMP\] node \w+ owner (\w+) kind (\d+) brightness (\S+) color \w+ mask (\w+)", text):
+                    if int(m.group(4), 16) & 0x100:        # the driven car's lamps carry the road-projector bit
+                        own.setdefault(m.group(1), {})[int(m.group(2))] = float(m.group(3))
+                kinds = list(own.values())[-1] if own else {}
+                faults = [f"no {n} lamp node for the driven car" for k, n in ((1, "tail"), (0, "front")) if kinds.get(k, 0) <= 0]
+                img = self.frame(g, "lamps", f"{label}-rear")
+                a = np.asarray(img.convert("RGB"), np.int16)
+                h, w, _ = a.shape
+                reg = a[int(.55 * h):int(.78 * h), int(.35 * w):int(.65 * w)]
+                red = int((reg[..., 0] - np.maximum(reg[..., 1], reg[..., 2])).max())
+                if red < 100:
+                    faults.append(f"rear lens area is not lit (peak red excess {red})")
+                self.record("lamps", f"{label}: lamps", "fail" if faults else "pass", faults,
+                            note=f"nodes {kinds} red {red}")
 
     # --- report ----------------------------------------------------------------------------------
     def finish(self):
