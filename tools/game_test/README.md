@@ -257,4 +257,4 @@ program, blend, depth, colour mask, textures and their formats). The script bise
 .venv-tests\Scripts\python tools/game_test/draw_bisect.py --save-template C:/path/to/tpl --roi 0.43,0.635,0.455,0.665 --eps 0.05
 ```
 
-`MM3_LAMP_TRACE=1` logs each car lamp node when its state changes (`src/mods/car_lights.c`).
+`MM3_LAMP_TRACE=1` logs each car lamp node when its state changes (`src/mods/car_lights.c`, trace only).

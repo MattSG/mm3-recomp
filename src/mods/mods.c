@@ -39,8 +39,6 @@ const Mm3Mod mm3_mods[MM3_MOD_COUNT] = {
         "Scales the damage crashes do: Damage dealt for every car but yours, Damage received for your own. Off: the Xbox damage.", 0},
     [MM3_MOD_PAUSE_HOLD] = {"pause_hold", "MM3_MOD_PAUSE_HOLD", "Hold the race (F2)",
         "F2 holds the whole race still without the pause menu (cars, traffic, police, race clock) and F2 again lets it run; the picture keeps drawing. Another key: MM3_PAUSE_KEY (Win32 virtual key). Not with System Link.", 0},
-    [MM3_MOD_CAR_LIGHTS] = {"car_lights", "MM3_MOD_CAR_LIGHTS", "Lit tail lights",
-        "Tail and brake lamps glow brighter, so the rear of every car reads as lit at night. Off: the Xbox lamp brightness, which is dim (a car's tail lamps are drawn at 0.3 to 0.5).", 1},
 };
 
 int mm3_mod_on(int mod)
