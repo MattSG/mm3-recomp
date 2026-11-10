@@ -2118,6 +2118,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
     wdepth = flare_depth && d && d->depth_mode ? d->depth_mode == 2 : st->z_perspective;
     if (s && write_mask(st, s)) s->gpu_dirty = 1;
 
+    Depth *depth0 = NULL;
     memset(&pc, 0, sizeof pc);
     memset(&pb, 0, sizeof pb);
     for (n = 0; n < 4; n++) {
@@ -2139,6 +2140,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
         if (!s_draw_tex_addr) s_draw_tex_addr = t->addr;
         if (rt && rt->sx > rt->sy * 1.001f) s_draw_reads_wide = 1;
         zt = texture_depth[n];
+        if (n == 0 && zt && zt->y16) depth0 = zt;
         if (zt && zt->y16) {
             view = zt->y16;
             pc.tex_scale[n][0] = 1.0f / (float)(2 * zt->w);
@@ -2230,6 +2232,18 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
     pc.alpha_func = st->alpha_func;
     pc.alpha_ref = st->alpha_ref;
     pc.ps_flags = (st->rc_seen ? 1u : 0u) | (st->alpha_test ? 2u : 0u) | (s_draw_bspline ? 4u : 0u);
+    /* The light volumes' read of scene depth (see ps_flags 0x1000 in the combiner shader): a plain tap of a depth view
+     * for stage 0, then the dot-product stages that turn it into a light direction (Light/LightDraw.psh). */
+    {
+        uint32_t sp = st->rc_seen ? st->rc.stage_program : 0;
+        uint32_t m1 = (sp >> 5) & 31, m2 = (sp >> 10) & 31, m3 = (sp >> 15) & 31;
+        if (depth0 && s && s->iw == depth0->iw && s->ih == depth0->ih && ((sp & 31) == 1 || (sp & 31) == 2) &&
+            (m1 == 10 || m1 == 17) && (m2 == 10 || m2 == 17) && (m3 == 13 || m3 == 14) &&
+            !getenv("RECOMP_LIGHT_TAP_LEGACY")) {
+            pc.ps_flags |= 0x1000u;
+            pc.zp0[2] = s_cur_sx;
+        }
+    }
     pc.clip_plane = st->clip_plane_mode;
     pc.other_input = st->other_stage_input;
     pc.dot_map = st->dot_rgb_mapping;
