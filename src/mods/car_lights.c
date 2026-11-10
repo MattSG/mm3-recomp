@@ -4,7 +4,7 @@
  *
  * The game draws a car's tail lamps at 0.3 to 0.5 and its brake lamps at 0.6 to 0.7; that brightness is the
  * flare's strength, so by night the rear of a car shows only a small dim dot. "Lit tail lights" raises both
- * to a floor (MM3_TAIL_GLOW, default 0.8, and MM3_BRAKE_GLOW, default 1.0, 0..1) for the call and puts the
+ * to a floor (MM3_TAIL_GLOW, default 0.9, and MM3_BRAKE_GLOW, default 1.0, 0..1) for the call and puts the
  * game's value back; a lamp the game has switched off (brightness 0) stays off. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,9 +50,9 @@ void sub_000CF2DA(void)
     uint32_t saved_mask = MEM32(stack + 12);
     if (trace < 0) {
         trace = getenv("MM3_LAMP_TRACE") != NULL;
-        tail = floor_from_env("MM3_TAIL_GLOW", 0.8f);
+        tail = floor_from_env("MM3_TAIL_GLOW", 0.9f);
         brake = floor_from_env("MM3_BRAKE_GLOW", 1.0f);
-        rest = floor_from_env("MM3_REST_GLOW", 0.6f);   /* resting brake lamps, as a share of the tail level */
+        rest = floor_from_env("MM3_REST_GLOW", 1.0f);   /* resting brake lamps, as a share of the tail level */
     }
     if (trace) trace_lamp(node, stack);
     if ((kind == 1 || kind == 2) && saved > 0.0f && mm3_mod_on(MM3_MOD_CAR_LIGHTS)) {
