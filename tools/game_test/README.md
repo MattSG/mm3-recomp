@@ -216,3 +216,30 @@ markers. Needs Pillow and numpy; look at the contact sheet before filing a findi
 python tools/game_test/gfx_sweep.py --exe build/RelWithDebInfo/mm3_recomp.exe --game-dir game_files --save-template TPL --modes cruise,checkpoint
 ```
 
+
+## Full test pack (`pack.py`)
+
+One command runs every suite, one game process at a time (sequential by design, no load spinners):
+
+```powershell
+.venv-tests\Scripts\python tools/game_test/pack.py --save-template C:/path/to/tpl --suites all [--quick]
+```
+
+The save template must hold a profile (Player1). All cars are unlocked for the run (`MM3_UNLOCK_ALL_CARS=1`).
+
+| Suite | Covers | Checks |
+| --- | --- | --- |
+| `menus` | main menu, Work Undercover, Single Race modes, Cruise city and settings rows, Options and each sub-screen, Multiplayer, Profiles | black/uniform frames, input must change the picture |
+| `cars` | car-select screen for each of the 49 cars (`--car-count`) | subject area not empty, car changes between steps |
+| `paints` | every paint colour (`--paint-count`) of every car | each paint changes the picture |
+| `drive` | cruise per car (`--drive-cars all\|sample\|1,5,9`) | motion, frame checks, pause flag set and cleared by Start |
+| `conditions` | both cities under each season / time of day / weather (`--conditions diag\|full`) | drive + 4-heading vantage frames |
+| `missions` | Checkpoint, Blitz, Undercover (Paris and Washington) | every checkpoint/zone passed, results screen frame |
+| `gfx` | vantage-point sweep in each mode | black/uniform/magenta/blown-out frames, black holes |
+
+Frames are checked by `gfx_sweep.analyse` (unit-tested in `tests/test_pack_frame_checks.py`), the game's stderr is scanned
+for `[ICALL]`, `[CRASH]`, ABI, shader and device-lost markers, and `--baseline DIR` adds drift from golden frames
+(`--update-baseline` refreshes them). Output is `report.json` and `report.html` (thumbnails of every frame; failures red,
+warnings yellow) under `--out`. Warnings do not fail the run; a failed case or a crashed session does (exit 1).
+`--quick` takes a few cars, two conditions per city and three missions and finishes in about half an hour.
+Pad commands queue behind a held throttle, so the pack holds it for 9 s only and pauses after it ends.
