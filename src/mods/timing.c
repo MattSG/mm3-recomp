@@ -65,14 +65,14 @@ static void begin_tick(uint32_t game, uint32_t current_state)
     unsigned char current_pause = MEM8(0x429DB2u);
     if (!initialized) {
         const char *path = getenv("MM3_TIMING_CSV");
-        hz = mm3_tick_rate(getenv("MM3_SIM_HZ"));
+        hz = 30;   /* the console rate: other rates are not offered */
         fps = recomp_frame_limit_from_env();
         if (path && *path) {
             trace = fopen(path, "w");
             if (trace) fprintf(trace, "host_seconds,tick,state,scene,paused,dt,dropped_seconds,world_calls,ai_calls,presents\n");
             else fprintf(stderr, "[TIMING] cannot open trace %s\n", path);
         }
-        fprintf(stderr, "[TIMING] replacement: complete native ticks at %d Hz, presentation %d FPS; higher tick rates experimental\n", hz, fps);
+        fprintf(stderr, "[TIMING] replacement: complete native ticks at %d Hz, presentation %d FPS\n", hz, fps);
     }
     if (!initialized || owner != game || state != current_state ||
         scene != current_scene || paused != current_pause) {
