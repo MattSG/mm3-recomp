@@ -243,3 +243,17 @@ for `[ICALL]`, `[CRASH]`, ABI, shader and device-lost markers, and `--baseline D
 warnings yellow) under `--out`. Warnings do not fail the run; a failed case or a crashed session does (exit 1).
 `--quick` takes a few cars, two conditions per city and three missions and finishes in about half an hour.
 Pad commands queue behind a held throttle, so the pack holds it for 9 s only and pauses after it ends.
+
+## Draw bisect (`draw_bisect.py`)
+
+Finds which draw calls paint a screen region (a lamp lens, an outline, a missing glow). The race is held still with the
+hold mod (F2), then re-rendered with only the first K draws of the frame: `RECOMP_DRAW_LIMIT=<file>` (read once a frame,
+in `src/host_sdl3/video/nv2a_sdlgpu.c`) holds K, and `RECOMP_DRAW_INFO=1` prints the K-th draw's state (`[DRAW K] ...`:
+program, blend, depth, colour mask, textures and their formats). The script bisects on a region of the frame
+(`--roi x0,y0,x1,y1`, fractions), prints every draw that changes it and keeps a frame per step:
+
+```powershell
+.venv-tests\Scripts\python tools/game_test/draw_bisect.py --save-template C:/path/to/tpl --roi 0.43,0.635,0.455,0.665 --eps 0.05
+```
+
+`MM3_LAMP_TRACE=1` logs each car lamp node when its state changes (`src/mods/car_lights.c`).

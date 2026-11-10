@@ -62,7 +62,8 @@ function(mm3_prepare_generated_sources out RECOMP_GEN_DIR)
     list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001C793A)
     # Gameplay mods: timer create and bonus (time limits), race AI update, car damage step.
     list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001F5F24 sub_001F5A5A sub_0014194C sub_001CDB6C
-        sub_0016FC89 sub_001EA16C)   # hold the race: engine timer counter, race camera matrix
+        sub_0016FC89 sub_001EA16C   # hold the race: engine timer counter, race camera matrix
+        sub_000CF2DA)               # car lamps: one lamp node of a car
     # The first XAPI worker's entry: main.c wraps it to register the main worker thread.
     list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_00083A6C)
     # Factory profiles bind the real constructed controller and leave retail cars

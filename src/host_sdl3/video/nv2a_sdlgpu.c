@@ -2473,6 +2473,40 @@ uint32_t nv2a_d3d_zpass_read(void)
 
 static uint32_t s_zero_block[4];
 
+/* Draw bisect (diagnostic). RECOMP_DRAW_LIMIT=<file>: the file holds an integer K, read once a frame;
+ * draws numbered above K within the frame are skipped, so a held scene can be re-rendered with fewer
+ * draws to find which one paints a pixel. Without the file (or K < 0) nothing is skipped. With
+ * RECOMP_DRAW_INFO set the K-th draw's state is logged once per frame. */
+static int draw_gated(const NvD3DState *st, int program, uint32_t ni)
+{
+    static const char *path = (const char *)-1;
+    static uint32_t frame, n;
+    static long limit = -1;
+    if (path == (const char *)-1) path = getenv("RECOMP_DRAW_LIMIT");
+    if (!path) return 0;
+    if (frame != s_frame) {
+        FILE *f = fopen(path, "rb");
+        frame = s_frame;
+        n = 0;
+        limit = -1;
+        if (f) {
+            if (fscanf(f, "%ld", &limit) != 1) limit = -1;
+            fclose(f);
+        }
+    }
+    if (limit >= 0 && (long)n == limit && getenv("RECOMP_DRAW_INFO")) {
+        fprintf(stderr, "[DRAW %ld] frame %u prog %d idx %u stage %04X blend %u s=%X d=%X eq=%X z %u/%u func %X "
+                "cmask %08X clip %ux%u tex %08X/%08X/%08X/%08X fmt %X/%X/%X/%X\n",
+                limit, s_frame, program, ni, st->rc_seen ? st->rc.stage_program : 0, st->blend_enable,
+                st->blend_sfactor, st->blend_dfactor, st->blend_equation, st->depth_test, st->depth_mask,
+                st->depth_func, st->color_mask,
+                st->clip_w, st->clip_h, st->tex[0].addr, st->tex[1].addr, st->tex[2].addr, st->tex[3].addr,
+                st->tex[0].color, st->tex[1].color, st->tex[2].color, st->tex[3].color);
+        fflush(stderr);
+    }
+    return limit >= 0 && (long)n++ > limit;
+}
+
 void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr[16],
                       const float def[16][4], int program, const uint32_t *idx, uint32_t ni,
                       uint32_t lo, uint32_t hi, const float (*pos)[4])
@@ -2492,6 +2526,8 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
     int64_t t_draw;
 
     if (!nv2a_d3d_init() || !ni || hi < lo || ib_bytes > IB_BYTES)
+        return;
+    if (draw_gated(st, program, ni))
         return;
     memset(&uc, 0, sizeof uc);
     memcpy(uc.def, def, sizeof uc.def);
