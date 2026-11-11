@@ -152,6 +152,10 @@ class Pack:
             for _ in range(rights):
                 self.press(g, "right", .6)
         self.press(g, "a", 3)                       # settings -> car select
+        # The list opens on the last-used car, in the middle, and does not wrap: go to its first car so that
+        # "car N" means the same car in every session.
+        for _ in range(self.a.car_count - 1):
+            self.press(g, "left", .5)
 
     def script(self, g, suite, tag, script, prev=None):
         for tok in script.split():
