@@ -506,6 +506,10 @@ static void copy_end(void);
 static SDL_AtomicInt s_interp_on;
 static int s_rec_live, s_rec_pause;
 static int rec_on(void) { return s_rec_live && !s_rec_pause; }
+/* Interpolation paused until this time (qpc), the next pause's length in seconds, and the steps and flips
+ * counted towards the decision (rec_end). */
+static int64_t s_interp_off_until;
+static int s_interp_backoff = 5, s_win_steps, s_win_flips;
 static void rec_data(SDL_GPUCopyPass *cp);
 static void rec_pass(void);
 static void rec_copy(SDL_GPUTexture *dst, uint32_t dst_level, SDL_GPUTexture *src,
@@ -3583,7 +3587,7 @@ static int present_kept_image(FlipPacing *pacing)
     }
     frame_csv_init();
     if (pacing && !pace_after_present()) pace_flip(pacing);
-    if (shown && record_frame()) {
+    if ((shown || xbox_FramebufferStartHidden()) && record_frame()) {   /* a hidden test run records too */
         submit(&s_rec_fence[s_recv_k]);
         s_recv_k = (s_recv_k + 1) % RECV_SLOTS;
     } else {
@@ -4013,6 +4017,10 @@ static void rec_begin(void)
     r->valid = r->bad = 0;
     r->vfresh = r->ifresh = 1;
     s_rec_live = SDL_GetAtomicInt(&s_interp_on) != 0;
+    if (s_rec_live && s_interp_off_until && qpc() < s_interp_off_until) {   /* paused: frames repeat */
+        if (s_rec_act >= 0) rec_invalidate();
+        s_rec_live = 0;
+    }
     if (!s_rec_live) return;
     if (r->vbuf && r->vcap != s_rec_vwant) { SDL_ReleaseGPUBuffer(s_dev, r->vbuf); r->vbuf = NULL; }
     if (r->ibuf && r->icap != s_rec_iwant) { SDL_ReleaseGPUBuffer(s_dev, r->ibuf); r->ibuf = NULL; }
@@ -4168,6 +4176,17 @@ static void pair_set(Rec *r, const Rec *p, size_t ci, const float *best, const C
     c->lerp = 1;
 }
 
+/* How far apart two constants are, always finite: registers the title leaves at infinity (or NaN) in both
+ * frames gave inf - inf = NaN, which no distance is less than, so sets holding one never found a partner and
+ * drew where the newer frame has them -- the world stood still between steps and jumped at each new one. */
+static float const_distance(float a, float b)
+{
+    float d;
+    if (a == b) return 0.0f;
+    d = fabsf(a - b);
+    return d <= 1.0e6f ? d : 1.0e6f;   /* NaN and inf too */
+}
+
 /* The partner among p's sets cand[0..n) nearest set c's constants; NULL if none. */
 static const float *nearest_set(const Rec *r, const Rec *p, size_t ci, const uint32_t *cand, size_t n,
                                 const CSet **bs)
@@ -4179,9 +4198,8 @@ static const float *nearest_set(const Rec *r, const Rec *p, size_t ci, const uin
     for (q = 0; q < n; q++) {
         const float *prev = (const float *)(p->arena + p->sets[cand[q]].cur);
         float d = 0;
-        for (e = 0; e < CSET_FLOATS && d < best_d; e += 4)
-            d += fabsf(cur[e] - prev[e]) + fabsf(cur[e + 1] - prev[e + 1]) +
-                 fabsf(cur[e + 2] - prev[e + 2]) + fabsf(cur[e + 3] - prev[e + 3]);
+        for (e = 0; e < CSET_FLOATS && d < best_d; e++)
+            d += const_distance(cur[e], prev[e]);
         if (d < best_d) { best_d = d; best = prev; *bs = &p->sets[cand[q]]; }
     }
     return best;
@@ -4252,6 +4270,8 @@ static void rec_pair(Rec *r, const Rec *p)
  * (nv2a_sdlgpu_tick_started; 0 if the title never says). Frames are placed in time by it: a flip comes
  * when the title finishes drawing, which varies with the work in it. Seconds on the performance counter. */
 static int64_t s_tick_qpc, s_step_qpc;
+/* The spacing of frames in between, in eighths of what one costs (interp_interval): 12 to 64. */
+static int s_interp_room = 12;
 static SDL_SpinLock s_tick_lock;
 static SDL_AtomicInt s_title_busy;    /* in a step: from its start to its next frame request */
 
@@ -4471,6 +4491,28 @@ static void rec_end(const Surface *final)
     if (step > 0 && p) r->period = (int64_t)((double)r->period / (double)step + 0.5) * step;
     if (r->period < freq / 120) r->period = freq / 120;
     if (r->period > freq / 10) r->period = freq / 10;
+    /* Frames in between take GPU time from the title's own: when it missed a step, space
+     * them further apart at once; while it keeps up, closer again, slowly. */
+    if (step) {
+        if (p && r->period > step) s_interp_room += 4;   /* a step missed */
+        else s_interp_room -= s_interp_room > 12;
+        if (s_interp_room > 64) s_interp_room = 64;
+        /* Keeping frames costs too (every target the frame draws copied at each flip: 1.8 GB of them at 4x
+         * scale). If the title still misses steps with frames in between as far apart as they go, it gets the
+         * GPU to itself for a while (frames repeat, as with the mod off), then interpolation tries again. */
+        s_win_steps += (int)(r->period / step);
+        s_win_flips++;
+        if (s_win_steps >= 60) {
+            if (s_interp_room >= 64 && s_win_flips * 10 < s_win_steps * 9) {
+                s_interp_off_until = flip + s_interp_backoff * freq;
+                fprintf(stderr, "[INTERP] the title made %d of %d steps' frames: paused for %d s (graphics settings too "
+                        "heavy for frames in between)\n", s_win_flips, s_win_steps, s_interp_backoff);
+                if (s_interp_backoff < 60) s_interp_backoff *= 2;
+                s_interp_room = 32;
+            }
+            s_win_steps = s_win_flips = 0;
+        }
+    }
     rec_pair(r, p);
     rec_vpair(r, p);
     rec_snapshot(r, s_rec_w);
@@ -4703,7 +4745,8 @@ static int rec_replay(Rec *r, float t)
                     if (k < r->nsets && r->sets[k].op == it->op0 + i && r->sets[k].lerp) {
                         const float *cur = (const float *)data, *from = r->adj + r->sets[k].adj;
                         int e;
-                        for (e = 0; e < CSET_FLOATS; e++) mix[e] = from[e] + (cur[e] - from[e]) * t;
+                        for (e = 0; e < CSET_FLOATS; e++)   /* equal (infinite ones too) stay as they are */
+                            mix[e] = from[e] == cur[e] ? cur[e] : from[e] + (cur[e] - from[e]) * t;
                         data = mix;
                     }
                     SDL_PushGPUVertexUniformData(c, o->slot, data, o->b);
@@ -4786,6 +4829,9 @@ static void interp_trace(const Rec *r, float t, int64_t cost, int shown)
  * instead). The display runs a step plus the usual flip delay behind the newest step, so the frames on both
  * sides of the moment it shows have flipped: a pair (the frame before and the frame) is shown at t of the
  * way between their steps. */
+/* What a frame in between costs, on average: a whole frame drawn again, at the render scale and MSAA. */
+static int64_t s_interp_cost;
+
 static int interp_present(FlipPacing *pacing)
 {
     Rec *r;
@@ -4806,7 +4852,10 @@ static int interp_present(FlipPacing *pacing)
     r = &s_rec[s_rec_act];
     start = r->t_frame - r->period;
     if (moment - r->t_frame > 4 * r->period) { WHY(3); interp_trace(r, 0, 0, 0); return 0; }
-    if (moment > r->t_frame) moment = r->t_frame;        /* the next frame is late: hold */
+    if (moment > r->t_frame) {                             /* the next frame is late: hold, and leave the */
+        moment = r->t_frame;                               /* title more of the GPU */
+        if (s_interp_room < 64) s_interp_room++;
+    }
     if (moment < start) moment = start;
     s_moment = moment;
     t = (float)((double)(moment - start) / (double)r->period);
@@ -4817,6 +4866,7 @@ static int interp_present(FlipPacing *pacing)
     view.tex = scratch_view(r->final.tex);
     if (!keep_surface(&view) || !present_kept_image(pacing)) { WHY(5); interp_trace(r, t, 0, 0); return 0; }
     interp_trace(r, t, qpc() - now, 1);
+    s_interp_cost += (qpc() - now - s_interp_cost) / 8;   /* a running average: interp_interval keeps to it */
     {   /* RECOMP_INTERP_TRACE=2: each frame's present time and the moment it shows, both in ms. Evenly
          * spaced moments that never go back are smooth motion; a repeated moment is a hold (late frame). */
         static int each = -1;
@@ -4995,8 +5045,13 @@ void nv2a_d3d_interp_frame(float t, int need_new)
 static int64_t interp_interval(void)
 {
     static int limit = -2;
+    int64_t base;
     if (limit == -2) limit = recomp_frame_limit_from_env();
-    return qpf() / (limit > 0 ? limit : 240);
+    base = qpf() / (limit > 0 ? limit : 240);
+    /* Never faster than the GPU makes them, with room left for the title's own frames (s_interp_room): asked
+     * for at the frame limit regardless, heavy settings (4x scale, MSAA) queued frames behind each other,
+     * starved the title's steps (20 a second, not 30) and showed them unevenly, with repeats. */
+    return s_interp_cost * s_interp_room / 8 > base ? s_interp_cost * s_interp_room / 8 : base;
 }
 
 static int64_t s_busy_retry;

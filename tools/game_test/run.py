@@ -517,8 +517,12 @@ class Session:
             self.files = [(self.run_dir / name).open("wb") for name in ("stdout.log", "stderr.log")]
             if time.monotonic() >= self.deadline:
                 raise TimeoutError("Preparation exceeded run deadline")
+            # Hidden: checks render and capture without a window over the user's desktop.
+            startup = None
+            if os.name == "nt":
+                startup = subprocess.STARTUPINFO(dwFlags=subprocess.STARTF_USESHOWWINDOW, wShowWindow=subprocess.SW_HIDE)
             self.process = subprocess.Popen([str(self.exe)], cwd=self.run_dir, env=env, stdin=subprocess.DEVNULL,
-                                            stdout=self.files[0], stderr=self.files[1])
+                                            stdout=self.files[0], stderr=self.files[1], startupinfo=startup)
             self.result["pid"] = self.process.pid
             self.emit("launched", pid=self.process.pid)
             return self
