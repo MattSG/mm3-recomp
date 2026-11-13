@@ -37,6 +37,8 @@ const Mm3Mod mm3_mods[MM3_MOD_COUNT] = {
         "The race opponents drive harder or easier, 0 to 9 as set under Opponents' difficulty; 5 is the Xbox game. Off: the Xbox opponents.", 0},
     [MM3_MOD_DAMAGE] = {"damage", "MM3_MOD_DAMAGE", "Car damage",
         "Scales the damage crashes do: Damage dealt for every car but yours, Damage received for your own. Off: the Xbox damage.", 0},
+    [MM3_MOD_INTERP] = {"interp", "MM3_MOD_INTERP", "Frame interpolation",
+        "Frames between the game's 30 updates a second are drawn with everything part way between its last two positions, so motion is smooth at your frame rate. The picture is one update (33 ms) later; the game itself runs exactly as without it. Needs Console-rate simulation.", 0},
     [MM3_MOD_PAUSE_HOLD] = {"pause_hold", "MM3_MOD_PAUSE_HOLD", "Hold the race (F2)",
         "F2 holds the whole race still without the pause menu (cars, traffic, police, race clock) and F2 again lets it run; the picture keeps drawing. Another key: MM3_PAUSE_KEY (Win32 virtual key). Not with System Link.", 0},
 };

@@ -245,6 +245,22 @@ warnings yellow) under `--out`. Warnings do not fail the run; a failed case or a
 `--quick` takes a few cars, two conditions per city and three missions and finishes in about half an hour.
 Pad commands queue behind a held throttle, so the pack holds it for 9 s only and pauses after it ends.
 
+## Frame interpolation trace
+
+With `MM3_MOD_INTERP=1`, `RECOMP_INTERP_TRACE=1` prints an `[INTERP]` line a second: frames made, repeats (and why),
+constant sets paired and moving, and the replay cost. `RECOMP_INTERP_TRACE=2` adds an `[INTERP_T] <present ms> <moment ms>`
+line per frame (then the busy flag, the pair shown and t): moments that step like the present times, never repeat
+and never go back are smooth motion. The `[INTERP]` lines also give the GPU memory the stand-ins and snapshots
+take and how many draws have blended vertices.
+
+## Recording what the window shows (`RECOMP_RECORD`)
+
+`RECOMP_RECORD=<file>` appends every image the window is given, while `<file>.on` exists, as an int64 present time
+(microseconds), uint32 width and height, then BGRA rows (about 2 MB a frame at 960x540). Read-backs go through a
+ring of transfer buffers and a writer thread, so recording barely changes the frame pacing; screen grabbers
+(gdigrab, ddagrab) do not work on this window. A short script turns the file into a video as a display of a given
+refresh rate would show it (`tools/game_test/record_video.py <file> <out.mp4> [refresh_hz] [playback_fps]`).
+
 ## Draw bisect (`draw_bisect.py`)
 
 Finds which draw calls paint a screen region (a lamp lens, an outline, a missing glow). The race is held still with the

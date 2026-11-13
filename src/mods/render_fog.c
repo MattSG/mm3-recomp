@@ -11,7 +11,8 @@ static int mm3_fog_draw(const NvHostTarget *target,const float params[12],int ma
 { (void)target; (void)params; (void)mask; return 0; }
 #endif
 
-typedef struct { float scale,start,end; uint32_t argb,flags; const float *sky; } FogArgs;
+/* Plain data only: frame interpolation keeps a copy and draws the pass again (nv2a_sdlgpu.c). */
+typedef struct { float scale,start,end; uint32_t argb,flags; float sky[4]; } FogArgs;
 static int fog_target(const NvHostTarget *target,void *user)
 {
     const FogArgs *a = user;
@@ -39,6 +40,13 @@ void mm3_render_fog(const NvD3DState *state,float depth_to_world,float far_clip,
         !isfinite(sky[2]) || !isfinite(sky[3]) || sky[3] <= 0)) return;
     if (!isfinite(depth_to_world) || !isfinite(far_clip) || !isfinite(start) || !isfinite(end) ||
         depth_to_world <= 0 || far_clip <= 0 || start < 0 || end <= start || end > far_clip || !state) return;
-    FogArgs args = {depth_to_world,start,end,argb,flags,sky};
+    FogArgs args = {depth_to_world,start,end,argb,flags,{0,0,0,0}};
+    if (sky) memcpy(args.sky,sky,sizeof args.sky);
+#if defined(XBOXRECOMP_SDL3)
+    extern int nv2a_sdlgpu_host_draw_replayable(const NvD3DState *, int (*)(const NvHostTarget *, void *),
+                                                const void *, size_t);
+    nv2a_sdlgpu_host_draw_replayable(state,fog_target,&args,sizeof args);
+#else
     nv2a_d3d_host_draw(state,fog_target,&args);
+#endif
 }

@@ -23,10 +23,12 @@ static unsigned char paused;
 static double time_origin;
 static FILE *trace;
 static unsigned world_calls, ai_calls;
-/* Repeat completed images without advancing the guest simulation. */
+/* Between ticks the completed image is shown again, or with the frame interpolation mod a frame between the
+ * last two is drawn by the renderer. Neither advances or reads the guest simulation. */
 static void present(void)
 {
-    nv2a_d3d_repeat_frame();
+    if (mm3_mod_on(MM3_MOD_INTERP)) nv2a_d3d_interp_frame(0.0f, 0);
+    else nv2a_d3d_repeat_frame();
 }
 
 static double seconds(void)
@@ -94,7 +96,15 @@ static void begin_tick(uint32_t game, uint32_t current_state)
     world_calls = ai_calls = 0;
     for (;;) {
         now = seconds();
-        if (mm3_tick_clock_take(&clock_state, now)) break;
+        if (mm3_tick_clock_take(&clock_state, now)) {
+#if defined(XBOXRECOMP_SDL3)
+            /* The step's scheduled start, on the performance counter's clock (as seconds() is). */
+            extern void nv2a_sdlgpu_tick_started(double start, double step);
+            if (mm3_mod_on(MM3_MOD_INTERP))
+                nv2a_sdlgpu_tick_started(clock_state.next_tick - clock_state.step, clock_state.step);
+#endif
+            break;
+        }
         if (mm3_tick_clock_present(&clock_state, now))
             present();
         else

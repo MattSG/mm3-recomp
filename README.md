@@ -116,6 +116,7 @@ The collision guard is required.
 | Smooth skyline | Filter the distant skyline panorama. |
 | Field of view | Adjust the race camera's view. |
 | Console-rate simulation | Keep simulation timing separate from rendering; default 30 updates/second. |
+| Frame interpolation | Draw frames between the 30 updates a second at the display rate; the picture is about 50 ms behind (off by default, needs Console-rate simulation). |
 | Keyboard driving | Add driving keys when keyboard input is enabled. |
 | Menu mouse | Select and confirm menu items with the mouse. |
 | Lamp flare depth | Hide lamp flares behind scene geometry. |

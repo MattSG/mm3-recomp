@@ -395,8 +395,9 @@ static uint8_t *ring_reserve(SDL_GPUTransferBuffer *tb, uint8_t **map, uint32_t 
 
 typedef enum { OP_PIPE, OP_VUNI, OP_FUNI, OP_SAMPLERS, OP_DRAWI, OP_DRAW } OpKind;
 typedef struct {
-    uint8_t kind, slot;
+    uint8_t kind, slot, pin;   /* pin: a kept frame draws it only as the title did (see draw_ub) */
     uint32_t a, b, c;               /* draw: count, first; uniform: arena offset, size */
+    uint32_t vstart, vlen, vcpu;    /* kept frames: a draw's vertex bytes, in the ring and a CPU copy; c their hash */
     SDL_GPUGraphicsPipeline *pipe;
     SDL_GPUViewport vp;
     SDL_Rect sc;
@@ -500,6 +501,34 @@ static void submit(SDL_GPUFence **fence);
 static void graveyard_empty(void);
 static void copy_end(void);
 
+/* Frame interpolation's record of the frame being drawn (see the end of this
+ * file): every batch, texture copy and mip generation, in order. */
+static SDL_AtomicInt s_interp_on;
+static int s_rec_live, s_rec_pause;
+static int rec_on(void) { return s_rec_live && !s_rec_pause; }
+static void rec_data(SDL_GPUCopyPass *cp);
+static void rec_pass(void);
+static void rec_copy(SDL_GPUTexture *dst, uint32_t dst_level, SDL_GPUTexture *src,
+                     uint32_t src_level, uint32_t w, uint32_t h);
+static void rec_mips(SDL_GPUTexture *tex);
+static void rec_invalidate(void);
+static uint8_t *rec_reserve_vertices(uint32_t bytes, uint32_t *offset);
+static void flush_batch(void);
+
+/* Presenting, write-back and anything else that is not the title's frame goes between these: what the
+ * title has drawn so far is ended (and kept) first, and nothing drawn in between is kept. */
+static void rec_outside_begin(void)
+{
+    if (SDL_GetAtomicInt(&s_interp_on)) { copy_end(); flush_batch(); }
+    s_rec_pause++;
+}
+
+static void rec_outside_end(void)
+{
+    if (SDL_GetAtomicInt(&s_interp_on)) { copy_end(); flush_batch(); }
+    s_rec_pause--;
+}
+
 /* End the open batch: upload its vertex/index data, then replay its draws in
  * one render pass. */
 static void flush_batch(void)
@@ -535,8 +564,10 @@ static void flush_batch(void)
             SDL_GPUBufferRegion to = { s_ibuf, s_b.i0, s_b.i1 - s_b.i0 };
             SDL_UploadToGPUBuffer(cp, &from, &to, s_b.i0 == 0);
         }
+        if (rec_on()) rec_data(cp);
         SDL_EndGPUCopyPass(cp);
     }
+    if (rec_on()) rec_pass();
     memset(&ct, 0, sizeof ct);
     memset(&dt, 0, sizeof dt);
     ct.texture = s_b.color;
@@ -617,6 +648,8 @@ static void target(SDL_GPUTexture *color, int *color_clear, SDL_GPUTexture *dept
         !(color_clear && *color_clear) && !(depth_clear && *depth_clear))
         return;
     flush_batch();
+    /* A kept pass is drawn again in another command buffer: it must push every uniform it uses. */
+    if (rec_on()) memset(s_last_uni_len, 0, sizeof s_last_uni_len);
     s_b.open = 1;
     s_b.color = color;
     s_b.depth = depth;
@@ -739,6 +772,90 @@ static void copy_texture(SDL_GPUTexture *dst, uint32_t dst_level, SDL_GPUTexture
     a.texture = src; a.mip_level = src_level;
     b.texture = dst; b.mip_level = dst_level;
     SDL_CopyGPUTextureToTexture(s_copy, &a, &b, w, h, 1, false);
+    if (rec_on()) rec_copy(dst, dst_level, src, src_level, w, h);
+}
+
+/* ------------------------------------------- frame interpolation: lifetimes */
+
+/* Frame interpolation (nv2a_d3d_interp_frame, at the end of this file) keeps
+ * the last frame's passes and draws them again later, so what they name has
+ * to outlive the frame: with it on, released textures and samplers wait a few
+ * flips before SDL gets them back. Every texture's description is kept so a
+ * stand-in of the same shape can be made for a replayed pass to draw into. */
+static uint32_t s_flips;
+
+typedef struct { SDL_GPUTexture *tex; SDL_GPUTextureCreateInfo ci; } TexDesc;
+static TexDesc *s_texdesc;
+static size_t s_texdesc_n, s_texdesc_cap;
+
+static void texdesc_add(SDL_GPUTexture *t, const SDL_GPUTextureCreateInfo *ci)
+{
+    if (!t) return;
+    if (s_texdesc_n == s_texdesc_cap) {
+        size_t cap = s_texdesc_cap ? s_texdesc_cap * 2 : 1024;
+        TexDesc *d = (TexDesc *)realloc(s_texdesc, cap * sizeof *d);
+        if (!d) return;
+        s_texdesc = d;
+        s_texdesc_cap = cap;
+    }
+    s_texdesc[s_texdesc_n].tex = t;
+    s_texdesc[s_texdesc_n++].ci = *ci;
+}
+
+static const TexDesc *texdesc_find(const SDL_GPUTexture *t)
+{
+    size_t i;
+    for (i = s_texdesc_n; i-- > 0;)
+        if (s_texdesc[i].tex == t) return &s_texdesc[i];
+    return NULL;
+}
+
+typedef struct { void *res; uint32_t flip; int sampler; } Dead;
+static Dead *s_dead;
+static size_t s_dead_n, s_dead_cap;
+
+static void scratch_drop(SDL_GPUTexture *real);
+
+/* A texture's description goes when SDL gets it back: a kept frame may still name it until then. */
+static void dead_free(const Dead *d)
+{
+    size_t i;
+    if (d->sampler) { SDL_ReleaseGPUSampler(s_dev, (SDL_GPUSampler *)d->res); return; }
+    for (i = s_texdesc_n; i-- > 0;)
+        if (s_texdesc[i].tex == d->res) { s_texdesc[i] = s_texdesc[--s_texdesc_n]; break; }
+    scratch_drop((SDL_GPUTexture *)d->res);
+    SDL_ReleaseGPUTexture(s_dev, (SDL_GPUTexture *)d->res);
+}
+
+static void dead_push(void *res, int sampler)
+{
+    Dead d = { res, s_flips, sampler };
+    if (!SDL_GetAtomicInt(&s_interp_on)) { dead_free(&d); return; }
+    if (s_dead_n == s_dead_cap) {
+        size_t cap = s_dead_cap ? s_dead_cap * 2 : 256;
+        Dead *n = (Dead *)realloc(s_dead, cap * sizeof *n);
+        if (!n) { dead_free(&d); return; }   /* ponytail: frees early; a replay may still name it. Only when out of memory. */
+        s_dead = n;
+        s_dead_cap = cap;
+    }
+    s_dead[s_dead_n++] = d;
+}
+
+/* Once a flip: what no kept frame can name any more. The frame shown is at most two flips older than the
+ * newest, and one more is being kept. */
+static void dead_collect(void)
+{
+    size_t i, n = 0;
+    for (i = 0; i < s_dead_n; i++) {
+        if (s_flips - s_dead[i].flip >= 4) dead_free(&s_dead[i]);
+        else s_dead[n++] = s_dead[i];
+    }
+    s_dead_n = n;
+}
+
+static void destroy_texture(SDL_GPUTexture *t)
+{
+    dead_push(t, 0);
 }
 
 /* ----------------------------------------------------------- textures */
@@ -759,6 +876,7 @@ static SDL_GPUTexture *make_texture(uint32_t w, uint32_t h, uint32_t levels, int
     ci.sample_count = SDL_GPU_SAMPLECOUNT_1;
     t = SDL_CreateGPUTexture(s_dev, &ci);
     if (!t) fail("SDL_CreateGPUTexture");
+    texdesc_add(t, &ci);
     return t;
 }
 
@@ -770,7 +888,11 @@ static SDL_GPUTexture *make_volume(uint32_t w, uint32_t h, uint32_t d, uint32_t 
     ci.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
     ci.width = w; ci.height = h; ci.layer_count_or_depth = d;
     ci.num_levels = levels; ci.sample_count = SDL_GPU_SAMPLECOUNT_1;
-    return SDL_CreateGPUTexture(s_dev, &ci);
+    {
+        SDL_GPUTexture *t = SDL_CreateGPUTexture(s_dev, &ci);
+        texdesc_add(t, &ci);
+        return t;
+    }
 }
 
 /* Textures released while a batch may still name them wait for its end. */
@@ -784,13 +906,13 @@ static void release_texture(SDL_GPUTexture **t)
         if (s_graveyard_n == s_graveyard_cap) {
             size_t cap = s_graveyard_cap ? s_graveyard_cap * 2 : 64;
             SDL_GPUTexture **g = (SDL_GPUTexture **)realloc(s_graveyard, cap * sizeof *g);
-            if (!g) { flush_batch(); SDL_ReleaseGPUTexture(s_dev, *t); *t = NULL; return; }
+            if (!g) { flush_batch(); destroy_texture(*t); *t = NULL; return; }
             s_graveyard = g;
             s_graveyard_cap = cap;
         }
         s_graveyard[s_graveyard_n++] = *t;
     } else {
-        SDL_ReleaseGPUTexture(s_dev, *t);
+        destroy_texture(*t);
     }
     *t = NULL;
 }
@@ -804,9 +926,9 @@ static size_t s_samp_graveyard_n, s_samp_graveyard_cap;
 static void graveyard_empty(void)
 {
     size_t i;
-    for (i = 0; i < s_graveyard_n; i++) SDL_ReleaseGPUTexture(s_dev, s_graveyard[i]);
+    for (i = 0; i < s_graveyard_n; i++) destroy_texture(s_graveyard[i]);
     s_graveyard_n = 0;
-    for (i = 0; i < s_samp_graveyard_n; i++) SDL_ReleaseGPUSampler(s_dev, s_samp_graveyard[i]);
+    for (i = 0; i < s_samp_graveyard_n; i++) dead_push(s_samp_graveyard[i], 1);
     s_samp_graveyard_n = 0;
 }
 
@@ -922,6 +1044,7 @@ static SDL_GPUGraphicsPipeline *pipeline(const PipeKey *k)
         /* Full: replace the home slot. A pipeline a recorded draw names stays
          * alive until SDL is done with it (release is deferred by SDL). */
         flush_batch();
+        rec_invalidate();        /* a kept frame may name the pipeline */
         i = (uint32_t)(h & (PIPE_SLOTS - 1));
         SDL_ReleaseGPUGraphicsPipeline(s_dev, s_pipes[i].pipe);
         s_pipes[i].pipe = NULL;
@@ -1894,6 +2017,7 @@ static uint32_t write_mask(const NvD3DState *st, Surface *s)
 static int s_draw_textured, s_draw_reads_wide;
 static uint32_t s_draw_tex_addr;
 static int s_draw_bspline;
+static int s_draw_pin;
 
 extern const uint32_t (*nv2a_vsh_program(uint32_t *start, uint32_t *version))[4];
 extern const float (*nv2a_vsh_constants(uint32_t *version))[4];
@@ -1960,6 +2084,7 @@ static SDL_GPUTexture *surface_mips(Surface *s)
         copy_texture(s->mip, 0, s->tex, 0, s->iw, s->ih);
         copy_end();
         if (cmd()) SDL_GenerateMipmapsForGPUTexture(s_cmd, s->mip);
+        if (rec_on()) rec_mips(s->mip);
         s->mip_gen = s->gen;
     }
     return s->mip;
@@ -2068,6 +2193,7 @@ static int setup_pipeline(const NvD3DState *st, int topology, Surface **out_s,
     SDL_GPUTexture *srv[13] = { 0 };
     void *smp[4] = { 0 };
     int cull = 0, bias = 0, flare_depth = draw_forces_depth(st), wdepth;
+    s_draw_pin = flare_depth;
     float slope = 0, bf[4];
     PipeKey k;
     SDL_GPUGraphicsPipeline *pipe;
@@ -2546,6 +2672,8 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
     float squeeze = 1.0f, shift = 0.0f, yscale = 1.0f;
     int use_dx = 0;
     int64_t t_draw;
+    uint32_t vhash = 0, vcpu = 0;
+    const uint8_t *vbytes = NULL;
 
     if (!nv2a_d3d_init() || !ni || hi < lo || ib_bytes > IB_BYTES)
         return;
@@ -2622,9 +2750,13 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
         return;
     {
         uint32_t goff[16];
+        /* While frames are kept the bytes are put together in the kept copy (ordinary memory) and copied to the
+         * upload ring as one block: the ring is write-combined, too slow to read back. */
+        uint8_t *dst = rec_on() ? rec_reserve_vertices(total + (use_dx ? count * 4 : 0), &vcpu) : NULL;
+        if (!dst) dst = p;
         for (i = 0; i < ngrp; i++) {
             uint32_t bytes = (grp[i].stride ? (count - 1) * grp[i].stride : 0) + grp[i].span;
-            memcpy(p + at, grp[i].base + (size_t)lo * grp[i].stride, bytes);
+            memcpy(dst + at, grp[i].base + (size_t)lo * grp[i].stride, bytes);
             goff[i] = s_vpos + at;
             at += (bytes + 15) & ~15u;
         }
@@ -2634,13 +2766,18 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
         if (s_overlay.sanitize_vertex_upload)
             for (i = 0; i < 16; ++i)
                 if (attr[i].enabled && attr[i].data && uc.at[i][2] != 0xFF)
-                    s_overlay.sanitize_vertex_upload(p + uc.at[i][0] - s_vpos, &attr[i], i, lo, count);
-    }
-    uc.info[2] = 0xFFFFFFFFu;
-    if (use_dx) {
-        memcpy(p + at, dx, count * 4);
-        uc.info[2] = s_vpos + at;
-        at += count * 4;
+                    s_overlay.sanitize_vertex_upload(dst + uc.at[i][0] - s_vpos, &attr[i], i, lo, count);
+        uc.info[2] = 0xFFFFFFFFu;
+        if (use_dx) {
+            memcpy(dst + at, dx, count * 4);
+            uc.info[2] = s_vpos + at;
+            at += count * 4;
+        }
+        if (dst != p) {
+            memcpy(p, dst, at);
+            vbytes = dst;
+            vhash = (uint32_t)hash_mem(dst, at) ^ count;
+        }
     }
     if (!(p = ring_reserve(s_itb, &s_imap, &s_ipos, &s_icmd, IB_BYTES, ib_bytes)))
         return;
@@ -2675,7 +2812,19 @@ void nv2a_d3d_draw_ub(const NvD3DState *st, int topology, const NvD3DAttrib attr
     vertex_alignment(&s_overlay, s ? s->w : 0, s ? s->h : 0, uc.place);
     rec_uniform(0, 0, &uc, sizeof uc);
     rec_uniform(1, 0, s_zero_block, sizeof s_zero_block);
-    draw_op(OP_DRAWI, ni, first_index);
+    {
+        Op *dop = draw_op(OP_DRAWI, ni, first_index);
+        /* Lamp flares find out whether they are visible by sampling a mask the title builds each step with a
+         * copy through guest memory, which a kept frame cannot redo: drawn anywhere but where the title drew
+         * them, they miss it and vanish. Frame interpolation draws them as the title did. */
+        if (dop) dop->pin = (uint8_t)s_draw_pin;
+        if (dop && vbytes) {
+            dop->c = vhash;
+            dop->vstart = s_vpos;
+            dop->vlen = at;
+            dop->vcpu = vcpu;
+        }
+    }
     s_vpos += (at + 255) & ~255u;
     s_ipos += (ib_bytes + 255) & ~255u;
     s_b.v1 = s_vpos;
@@ -2752,21 +2901,22 @@ static void zpass_collect(void)
     SDL_GPUTexture *sum;
     if (!s_zcount_used) return;
     s_zcount_used = 0;
+    rec_outside_begin();         /* the sum texture does not outlive this call */
     /* Sum: mipmaps of the count target average it; the last level times the
      * pixel count is the total. */
     m = s_zcount_w > s_zcount_h ? s_zcount_w : s_zcount_h;
     while (m > 1) { m >>= 1; levels++; }
     sum = make_texture(s_zcount_w, s_zcount_h, levels, 0, SDL_GPU_TEXTUREFORMAT_R32_FLOAT, USAGE_TARGET);
-    if (!sum) return;
+    if (!sum) { rec_outside_end(); return; }
     copy_texture(sum, 0, s_zcount, 0, s_zcount_w, s_zcount_h);
     copy_end();
-    if (!cmd()) { SDL_ReleaseGPUTexture(s_dev, sum); return; }
+    if (!cmd()) { destroy_texture(sum); rec_outside_end(); return; }
     SDL_GenerateMipmapsForGPUTexture(s_cmd, sum);
     {
         SDL_GPUTransferBufferCreateInfo ci = { SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD, 4, 0 };
         tb = SDL_CreateGPUTransferBuffer(s_dev, &ci);
     }
-    if (!tb || !copy_begin()) { SDL_ReleaseGPUTexture(s_dev, sum); return; }
+    if (!tb || !copy_begin()) { destroy_texture(sum); rec_outside_end(); return; }
     memset(&r, 0, sizeof r);
     memset(&info, 0, sizeof info);
     r.texture = sum; r.mip_level = levels - 1; r.w = r.h = r.d = 1;
@@ -2785,7 +2935,8 @@ static void zpass_collect(void)
         s_zpass += (uint64_t)(avg * (double)lw * (double)lh + 0.5);
     }
     SDL_ReleaseGPUTransferBuffer(s_dev, tb);
-    SDL_ReleaseGPUTexture(s_dev, sum);
+    destroy_texture(sum);
+    rec_outside_end();
     s_zcount_clear = 1;          /* counts start again from zero */
 }
 
@@ -2862,6 +3013,8 @@ void nv2a_d3d_clear(const NvD3DState *st, uint32_t flags, uint32_t color,
 
 /* ---------------------------------------------------- native host drawing */
 
+static NvHostTarget s_host_target;
+
 int nv2a_d3d_host_draw(const NvD3DState *st,
                        int (*draw)(const NvHostTarget *, void *), void *user)
 {
@@ -2875,9 +3028,22 @@ int nv2a_d3d_host_draw(const NvD3DState *st,
     NvHostTarget target = {s_dev,s_cmd,s->tex,d->tex,s->iw,s->ih,
                            d->zf == 1 ? 16u : 24u,1};
     int result = draw(&target,user);
+    s_host_target = target;
     memset(s_last_uni_len,0,sizeof s_last_uni_len);
     s_cur_rt = NULL; s_cur_ds = NULL;
     if (result) { s->gpu_dirty = 1; ++s->gen; }
+    return result;
+}
+
+static void rec_host(int (*draw)(const NvHostTarget *, void *), const void *user, size_t bytes);
+
+/* nv2a_d3d_host_draw for a draw that depends only on its target and on `bytes` of plain data at `user`
+ * (no pointers): frame interpolation keeps a copy and calls `draw` again for the frames it makes. */
+int nv2a_sdlgpu_host_draw_replayable(const NvD3DState *st, int (*draw)(const NvHostTarget *, void *),
+                                     const void *user, size_t bytes)
+{
+    int result = nv2a_d3d_host_draw(st, draw, (void *)user);
+    if (result && rec_on()) rec_host(draw, user, bytes);
     return result;
 }
 
@@ -3061,6 +3227,7 @@ static SDL_GPUTexture *s_ovl_tex;
 static uint32_t s_ovl_w, s_ovl_h;
 static uint32_t s_ovl_serial = 0xFFFFFFFFu;
 static uint64_t s_last_present, s_last_flip;
+static int64_t s_last_present_qpc;     /* the last image the window got */
 static Surface *s_shown;
 
 /* Read a texture back and write it as a 24-bit BMP. */
@@ -3272,6 +3439,121 @@ static void pace_flip(FlipPacing *pacing)
     if (s_prof_on > 0) s_prof[PROF_PACE] += pacing->ticks;
 }
 
+/* RECOMP_RECORD=<file> (diagnostic): every image the window is given, as it is given, appended to <file> as
+ * an int64 present time (microseconds), uint32 width and height, then BGRA rows, for as long as <file>.on
+ * exists. Read-backs go through a ring of transfer buffers, so recording does not wait for the GPU. */
+#define RECV_SLOTS 6
+static SDL_GPUTransferBuffer *s_recv_tb[RECV_SLOTS];
+static SDL_GPUFence *s_rec_fence[RECV_SLOTS];
+static int64_t s_recv_t[RECV_SLOTS];
+static uint32_t s_recv_w[RECV_SLOTS], s_recv_h[RECV_SLOTS];
+static int s_recv_k;
+
+/* Frames go to disk on a thread of their own, so the renderer never waits for the disk. */
+typedef struct RecvBuf { struct RecvBuf *next; size_t n; uint8_t data[]; } RecvBuf;
+static RecvBuf *s_wq_head, *s_wq_tail;
+static int s_wq_n;
+static SDL_Mutex *s_wq_lock;
+static SDL_Condition *s_wq_cv;
+static FILE *s_wq_out;
+
+static int SDLCALL rec_writer(void *unused)
+{
+    (void)unused;
+    for (;;) {
+        RecvBuf *b;
+        SDL_LockMutex(s_wq_lock);
+        while (!s_wq_head) SDL_WaitCondition(s_wq_cv, s_wq_lock);
+        b = s_wq_head;
+        if (!(s_wq_head = b->next)) s_wq_tail = NULL;
+        SDL_UnlockMutex(s_wq_lock);
+        fwrite(b->data, 1, b->n, s_wq_out);
+        fflush(s_wq_out);
+        free(b);
+        SDL_LockMutex(s_wq_lock);
+        s_wq_n--;
+        SDL_UnlockMutex(s_wq_lock);
+    }
+    return 0;
+}
+
+static int record_frame(void)
+{
+    static const char *path = (const char *)-1;
+    static FILE *out;
+    static char on[1024];
+    static uint32_t cap;
+    int k = s_recv_k;
+    FILE *f;
+    if (path == (const char *)-1) {
+        path = getenv("RECOMP_RECORD");
+        if (path) snprintf(on, sizeof on, "%s.on", path);
+    }
+    if (!path) return 0;
+    /* This slot's last frame: done several presents ago, handed to the writer thread now. */
+    if (s_rec_fence[k]) {
+        const uint8_t *m;
+        SDL_WaitForGPUFences(s_dev, true, &s_rec_fence[k], 1);
+        SDL_ReleaseGPUFence(s_dev, s_rec_fence[k]);
+        s_rec_fence[k] = NULL;
+        if (!out && (out = fopen(path, "wb")) != NULL) {
+            s_wq_lock = SDL_CreateMutex();
+            s_wq_cv = SDL_CreateCondition();
+            s_wq_out = out;
+            SDL_DetachThread(SDL_CreateThread(rec_writer, "record", NULL));
+        }
+        if (out && (m = (const uint8_t *)SDL_MapGPUTransferBuffer(s_dev, s_recv_tb[k], false)) != NULL) {
+            size_t px = (size_t)s_recv_w[k] * s_recv_h[k] * 4;
+            RecvBuf *b = s_wq_n < 96 ? (RecvBuf *)malloc(sizeof *b + 16 + px) : NULL;   /* else dropped */
+            if (b) {
+                uint32_t hdr[2] = { s_recv_w[k], s_recv_h[k] };
+                b->next = NULL;
+                b->n = 16 + px;
+                memcpy(b->data, &s_recv_t[k], 8);
+                memcpy(b->data + 8, hdr, 8);
+                memcpy(b->data + 16, m, px);
+                SDL_LockMutex(s_wq_lock);
+                if (s_wq_tail) s_wq_tail->next = b; else s_wq_head = b;
+                s_wq_tail = b;
+                s_wq_n++;
+                SDL_SignalCondition(s_wq_cv);
+                SDL_UnlockMutex(s_wq_lock);
+            }
+            SDL_UnmapGPUTransferBuffer(s_dev, s_recv_tb[k]);
+        }
+    }
+    if (!(f = fopen(on, "rb"))) return 0;
+    fclose(f);
+    if (s_kept_w * s_kept_h * 4 > cap) {
+        int i;
+        for (i = 0; i < RECV_SLOTS; i++) {
+            if (s_rec_fence[i]) { SDL_WaitForGPUFences(s_dev, true, &s_rec_fence[i], 1); SDL_ReleaseGPUFence(s_dev, s_rec_fence[i]); s_rec_fence[i] = NULL; }
+            if (s_recv_tb[i]) SDL_ReleaseGPUTransferBuffer(s_dev, s_recv_tb[i]);
+            s_recv_tb[i] = NULL;
+        }
+        cap = s_kept_w * s_kept_h * 4;
+    }
+    if (!s_recv_tb[k]) {
+        SDL_GPUTransferBufferCreateInfo ci = { SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD, cap, 0 };
+        if (!(s_recv_tb[k] = SDL_CreateGPUTransferBuffer(s_dev, &ci))) return 0;
+    }
+    {
+        SDL_GPUCopyPass *cp = SDL_BeginGPUCopyPass(s_cmd);
+        SDL_GPUTextureRegion r;
+        SDL_GPUTextureTransferInfo info;
+        memset(&r, 0, sizeof r);
+        memset(&info, 0, sizeof info);
+        r.texture = s_kept; r.w = s_kept_w; r.h = s_kept_h; r.d = 1;
+        info.transfer_buffer = s_recv_tb[k];
+        SDL_DownloadFromGPUTexture(cp, &r, &info);
+        SDL_EndGPUCopyPass(cp);
+    }
+    s_recv_t[k] = (int64_t)((double)qpc() * 1e6 / (double)qpf());
+    s_recv_w[k] = s_kept_w;
+    s_recv_h[k] = s_kept_h;
+    return 1;
+}
+
 /* The kept image to the window, with the host UI over it; 1 if presented. */
 static int present_kept_image(FlipPacing *pacing)
 {
@@ -3301,11 +3583,20 @@ static int present_kept_image(FlipPacing *pacing)
     }
     frame_csv_init();
     if (pacing && !pace_after_present()) pace_flip(pacing);
-    submit(NULL);
+    if (shown && record_frame()) {
+        submit(&s_rec_fence[s_recv_k]);
+        s_recv_k = (s_recv_k + 1) % RECV_SLOTS;
+    } else {
+        submit(NULL);
+    }
     if (shown && pacing && s_frame_csv_file) frame_csv_present(qpc());
     s_last_present = SDL_GetTicks();
+    if (shown) s_last_present_qpc = qpc();
     return shown;
 }
+
+/* Set while a flip keeps a frame that frame interpolation will not show as it is: not a presented image. */
+static int s_keep_unshown;
 
 static int keep_surface(Surface *s)
 {
@@ -3337,7 +3628,7 @@ static int keep_surface(Surface *s)
         if (!s_kept) return 0;
     }
     composite(s_kept, w, h, s, &pc, 1);
-    if (!getenv("RECOMP_CAPTURE_SURFACE"))
+    if (!getenv("RECOMP_CAPTURE_SURFACE") && !s_keep_unshown)
         capture_image(s_kept, w, h);
     return 1;
 }
@@ -3423,6 +3714,7 @@ static void display_config(int now)
         return;
     if (!now) {
         flush_batch();
+        rec_invalidate();
         for (i = 0; i < MAX_SURFACES; i++)
             if (s_surf[i].tex) surface_release(&s_surf[i]);
         for (i = 0; i < MAX_DEPTHS; i++)
@@ -3467,6 +3759,1075 @@ static Surface *scan_surface(uint32_t va, uint32_t pitch)
     return s;
 }
 
+/* ------------------------------------------------------ frame interpolation */
+
+/* nv2a_d3d_interp_frame shows a frame between the title's last two. While it
+ * is in use every pass of the title's frame is kept as it is submitted (its
+ * ops, uniform data and a GPU copy of its vertices and indices). At the flip,
+ * each set of vertex-program constants is paired with the one that drew the
+ * same thing a frame earlier. A frame in between is the kept passes drawn
+ * again with constants part way between the two, into stand-in targets, so the
+ * title's own surfaces, read-backs and guest memory are never touched: the
+ * game cannot tell. Passes that nothing moving feeds are not drawn again; the
+ * title's own result is used for them. */
+
+enum { R_PASS, R_COPY, R_MIPS, R_HOST };
+typedef struct {
+    uint8_t kind, color_clear, depth_clear;
+    SDL_GPUTexture *color, *depth;      /* COPY: destination, source. MIPS: color */
+    SDL_FColor clear_color;
+    size_t op0, nops;
+    uint32_t a, b, w, h;                /* COPY: destination level, source level, size */
+    int (*draw)(const NvHostTarget *, void *);
+    size_t user;                        /* HOST: its argument, in the arena */
+    NvHostTarget ht;
+} RecItem;
+
+#define CSET_FLOATS (192 * 4)
+/* One push of the 192 vertex-program constants: `op` in ops, `cur` in the
+ * arena; `adj` in adj[] is what to blend from (the paired set of the frame
+ * before, with elements that jumped replaced by this frame's). */
+typedef struct { size_t op, adj; uint32_t cur; uint64_t key, key2; uint8_t keyed, lerp, paired, pin; } CSet;
+/* One draw's vertex bytes: `cur` in vmem (a CPU copy), `gpu` in vbuf, `ubc` its layout in the arena; `prev`
+ * in vmem the same draw's bytes a frame earlier, when they changed and can be blended. */
+typedef struct { uint64_t key; uint32_t cur, gpu, len, hash, ubc, prev; uint8_t blend; } VDraw;
+
+typedef struct {
+    RecItem *items; size_t nitems, items_cap;
+    Op *ops; size_t nops, ops_cap;
+    uint8_t *arena; size_t arena_len, arena_cap;
+    SDL_GPUBuffer *vbuf, *ibuf;
+    uint32_t vcap, icap, vpos, ipos, vserial, iserial;
+    int64_t dv, di;                     /* kept offset - ring offset, this command buffer */
+    int vfresh, ifresh;
+    CSet *sets; size_t nsets, sets_cap;
+    float *adj; size_t adj_cap;
+    Surface final;                      /* the flipped surface, its texture a snapshot */
+    int valid, bad;
+    int64_t t_frame, period;            /* when its step began; time since the frame before */
+    uint32_t stat_lerp, stat_paired, stat_vblend;
+    uint8_t *vmem; size_t vmem_len, vmem_cap;
+    VDraw *vd; size_t nvd, vd_cap;
+} Rec;
+/* Three records: the pair being shown, the next pair (kept once its frame flips, shown once the display
+ * moment reaches it) and the frame being kept now. */
+#define REC_N 3
+static Rec s_rec[REC_N];
+/* Why frames were not made, for RECOMP_INTERP_TRACE: none kept, (unused), movie, too old, replay failed,
+ * present failed; then why a kept frame was dropped: bad record, no surface. */
+static unsigned s_why[8];
+#define WHY(i) (s_why[i]++)
+static int s_rec_w, s_rec_last = -1, s_rec_act = -1, s_rec_pend = -1;
+static int64_t s_flip_lat;              /* how long after its step began a frame flips, peak held */
+static int64_t s_moment;                /* the last moment shown: frames never go back */
+static uint32_t s_rec_vwant = 16u << 20, s_rec_iwant = 8u << 20;
+
+static void *rec_grow(void *p, size_t *cap, size_t need, size_t elem)
+{
+    size_t c = *cap ? *cap : 256;
+    void *n;
+    if (need <= *cap) return p;
+    while (c < need) c *= 2;
+    n = realloc(p, c * elem);
+    if (n) *cap = c;
+    return n;
+}
+
+static void rec_invalidate(void)
+{
+    int i;
+    for (i = 0; i < REC_N; i++) s_rec[i].valid = 0;
+    s_rec[s_rec_w].bad = 1;
+    s_rec_last = s_rec_act = s_rec_pend = -1;
+    s_moment = 0;
+}
+
+/* Room for a draw's vertex bytes in the kept frame's CPU copy; NULL if there is none. */
+static uint8_t *rec_reserve_vertices(uint32_t bytes, uint32_t *offset)
+{
+    Rec *r = &s_rec[s_rec_w];
+    size_t at = (r->vmem_len + 15) & ~(size_t)15;
+    void *n;
+    if (r->bad || !bytes) return NULL;
+    if (!(n = rec_grow(r->vmem, &r->vmem_cap, at + bytes, 1))) { r->bad = 1; return NULL; }
+    r->vmem = (uint8_t *)n;
+    r->vmem_len = at + bytes;
+    *offset = (uint32_t)at;
+    return r->vmem + at;
+}
+
+static RecItem *rec_item(Rec *r, int kind)
+{
+    RecItem *it = (RecItem *)rec_grow(r->items, &r->items_cap, r->nitems + 1, sizeof *it);
+    if (!it) { r->bad = 1; return NULL; }
+    r->items = it;
+    it = &r->items[r->nitems++];
+    memset(it, 0, sizeof *it);
+    it->kind = (uint8_t)kind;
+    return it;
+}
+
+/* The open batch's vertex and index bytes, copied on the GPU beside the kept frame's. */
+static void rec_data(SDL_GPUCopyPass *cp)
+{
+    Rec *r = &s_rec[s_rec_w];
+    if (r->bad) return;
+    if (s_b.v1 > s_b.v0) {
+        SDL_GPUBufferLocation from = { s_vbuf, s_b.v0 }, to = { r->vbuf, 0 };
+        if (r->vserial != s_cmd_serial) { r->vserial = s_cmd_serial; r->dv = (int64_t)r->vpos - (int64_t)s_b.v0; }
+        if ((int64_t)s_b.v1 + r->dv > (int64_t)r->vcap) {
+            if (s_rec_vwant < (256u << 20)) s_rec_vwant *= 2;
+            r->bad = 1;
+            return;
+        }
+        to.offset = (Uint32)((int64_t)s_b.v0 + r->dv);
+        SDL_CopyGPUBufferToBuffer(cp, &from, &to, s_b.v1 - s_b.v0, r->vfresh != 0);
+        r->vfresh = 0;
+        r->vpos = (uint32_t)((int64_t)s_b.v1 + r->dv);
+    }
+    if (s_b.i1 > s_b.i0) {
+        SDL_GPUBufferLocation from = { s_ibuf, s_b.i0 }, to = { r->ibuf, 0 };
+        if (r->iserial != s_cmd_serial) { r->iserial = s_cmd_serial; r->di = (int64_t)r->ipos - (int64_t)s_b.i0; }
+        if ((int64_t)s_b.i1 + r->di > (int64_t)r->icap) {
+            if (s_rec_iwant < (128u << 20)) s_rec_iwant *= 2;
+            r->bad = 1;
+            return;
+        }
+        to.offset = (Uint32)((int64_t)s_b.i0 + r->di);
+        SDL_CopyGPUBufferToBuffer(cp, &from, &to, s_b.i1 - s_b.i0, r->ifresh != 0);
+        r->ifresh = 0;
+        r->ipos = (uint32_t)((int64_t)s_b.i1 + r->di);
+    }
+}
+
+/* The open batch as a kept pass: its ops and uniform data, with the offsets
+ * its draws hold moved to where rec_data put their bytes. */
+static void rec_pass(void)
+{
+    Rec *r = &s_rec[s_rec_w];
+    RecItem *it;
+    size_t i, a0 = (r->arena_len + 15) & ~(size_t)15;
+    int ub = 0;
+    void *n;
+    if (r->bad) return;
+    if (!(n = rec_grow(r->ops, &r->ops_cap, r->nops + s_b.nops + 1, sizeof *r->ops))) { r->bad = 1; return; }
+    r->ops = (Op *)n;
+    if (!(n = rec_grow(r->arena, &r->arena_cap, a0 + s_b.arena_len + 16, 1))) { r->bad = 1; return; }
+    r->arena = (uint8_t *)n;
+    if (!(it = rec_item(r, R_PASS))) return;
+    if (s_b.arena_len) memcpy(r->arena + a0, s_b.arena, s_b.arena_len);
+    if (s_b.nops) memcpy(r->ops + r->nops, s_b.ops, s_b.nops * sizeof *r->ops);
+    for (i = 0; i < s_b.nops; i++) {
+        Op *o = &r->ops[r->nops + i];
+        switch (o->kind) {
+        case OP_PIPE:
+            ub = o->a != 0;
+            break;
+        case OP_VUNI:
+            o->a += (uint32_t)a0;
+            if (ub && o->slot == 0 && o->b == sizeof(UbConsts)) {
+                UbConsts *u = (UbConsts *)(r->arena + o->a);
+                uint32_t k;
+                if (r->vserial != s_cmd_serial) { r->bad = 1; return; }
+                for (k = 0; k < 16; k++)
+                    if (u->at[k][3] && u->at[k][2] != 0xFF) u->at[k][0] = (uint32_t)((int64_t)u->at[k][0] + r->dv);
+                if (u->info[2] != 0xFFFFFFFFu) u->info[2] = (uint32_t)((int64_t)u->info[2] + r->dv);
+            }
+            break;
+        case OP_FUNI:
+        case OP_SAMPLERS:
+            o->a += (uint32_t)a0;
+            break;
+        case OP_DRAWI:
+            if (ub) {
+                if (r->iserial != s_cmd_serial || (o->vlen && r->vserial != s_cmd_serial)) { r->bad = 1; return; }
+                o->b = (uint32_t)((int64_t)o->b + r->di / 4);
+                if (o->vlen) o->vstart = (uint32_t)((int64_t)o->vstart + r->dv);
+            }
+            break;
+        default:
+            break;
+        }
+    }
+    it->color = s_b.color;
+    it->depth = s_b.depth;
+    it->color_clear = (uint8_t)(s_b.color_clear != 0);
+    it->depth_clear = (uint8_t)(s_b.depth_clear != 0);
+    it->clear_color = s_b.clear_color;
+    it->op0 = r->nops;
+    it->nops = s_b.nops;
+    r->nops += s_b.nops;
+    r->arena_len = a0 + s_b.arena_len;
+}
+
+static void rec_copy(SDL_GPUTexture *dst, uint32_t dst_level, SDL_GPUTexture *src,
+                     uint32_t src_level, uint32_t w, uint32_t h)
+{
+    RecItem *it = rec_item(&s_rec[s_rec_w], R_COPY);
+    if (!it) return;
+    it->color = dst; it->depth = src;
+    it->a = dst_level; it->b = src_level; it->w = w; it->h = h;
+}
+
+static void rec_mips(SDL_GPUTexture *tex)
+{
+    RecItem *it = rec_item(&s_rec[s_rec_w], R_MIPS);
+    if (it) it->color = tex;
+}
+
+static void rec_host(int (*draw)(const NvHostTarget *, void *), const void *user, size_t bytes)
+{
+    Rec *r = &s_rec[s_rec_w];
+    size_t a0 = (r->arena_len + 15) & ~(size_t)15;
+    void *n = rec_grow(r->arena, &r->arena_cap, a0 + bytes + 16, 1);
+    RecItem *it;
+    if (!n) { r->bad = 1; return; }
+    r->arena = (uint8_t *)n;
+    if (!(it = rec_item(r, R_HOST))) return;
+    memcpy(r->arena + a0, user, bytes);
+    r->arena_len = a0 + bytes;
+    it->draw = draw;
+    it->user = a0;
+    it->ht = s_host_target;
+}
+
+static SDL_GPUBuffer *rec_buffer(SDL_GPUBufferUsageFlags usage, uint32_t size)
+{
+    SDL_GPUBufferCreateInfo b;
+    memset(&b, 0, sizeof b);
+    b.usage = usage;
+    b.size = size;
+    return SDL_CreateGPUBuffer(s_dev, &b);
+}
+
+/* After a flip: keep the next frame in the record not being shown. */
+static void rec_begin(void)
+{
+    Rec *r;
+    for (s_rec_w = 0; s_rec_w == s_rec_act || s_rec_w == s_rec_pend; s_rec_w++) ;
+    r = &s_rec[s_rec_w];
+    r->nitems = r->nops = r->nsets = r->nvd = 0;
+    r->vmem_len = 0;
+    r->arena_len = 0;
+    r->vpos = r->ipos = r->vserial = r->iserial = 0;
+    r->valid = r->bad = 0;
+    r->vfresh = r->ifresh = 1;
+    s_rec_live = SDL_GetAtomicInt(&s_interp_on) != 0;
+    if (!s_rec_live) return;
+    if (r->vbuf && r->vcap != s_rec_vwant) { SDL_ReleaseGPUBuffer(s_dev, r->vbuf); r->vbuf = NULL; }
+    if (r->ibuf && r->icap != s_rec_iwant) { SDL_ReleaseGPUBuffer(s_dev, r->ibuf); r->ibuf = NULL; }
+    if (!r->vbuf) { r->vbuf = rec_buffer(SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ, s_rec_vwant); r->vcap = s_rec_vwant; }
+    if (!r->ibuf) { r->ibuf = rec_buffer(SDL_GPU_BUFFERUSAGE_INDEX, s_rec_iwant); r->icap = s_rec_iwant; }
+    if (!r->vbuf || !r->ibuf) { fail("interpolation buffers"); s_rec_live = 0; }
+}
+
+static uint64_t fnv(uint64_t h, const void *data, size_t bytes)
+{
+    const uint8_t *p = (const uint8_t *)data;
+    while (bytes--) h = (h ^ *p++) * 0x100000001B3ull;
+    return h;
+}
+
+/* Every push of vertex-program constants in the frame, with a key for what its first draw draws: the
+ * pipeline, the textures, the vertex layout, the index count and the target. Not the program or the
+ * constants themselves: those are what changes. */
+static void rec_sets(Rec *r)
+{
+    size_t n, i;
+    for (n = 0; n < r->nitems; n++) {
+        const RecItem *it = &r->items[n];
+        const Op *samp = NULL, *ubc = NULL, *pipe = NULL;
+        size_t open = (size_t)-1, last = (size_t)-1;   /* last: the set the next draws use */
+        int ub = 0;
+        if (it->kind != R_PASS) continue;
+        for (i = 0; i < it->nops; i++) {
+            const Op *o = &r->ops[it->op0 + i];
+            if (o->kind == OP_PIPE) { ub = o->a != 0; pipe = o; }
+            else if (o->kind == OP_SAMPLERS) samp = o;
+            else if (o->kind == OP_VUNI && ub && o->slot == 0 && o->b == sizeof(UbConsts)) ubc = o;
+            else if (o->kind == OP_VUNI && ub && o->slot == 3 && o->b == CSET_FLOATS * 4) {
+                void *g = rec_grow(r->sets, &r->sets_cap, r->nsets + 1, sizeof *r->sets);
+                if (!g) { r->bad = 1; return; }
+                r->sets = (CSet *)g;
+                open = last = r->nsets++;
+                memset(&r->sets[open], 0, sizeof *r->sets);
+                r->sets[open].op = it->op0 + i;
+                r->sets[open].cur = o->a;
+            }
+            if (o->kind == OP_DRAWI && o->pin && last != (size_t)-1) r->sets[last].pin = 1;
+            if (o->kind == OP_DRAWI && ub && open != (size_t)-1) {
+                uint64_t h = 0xCBF29CE484222325ull;
+                h = fnv(h, &it->color, sizeof it->color);
+                if (pipe) h = fnv(h, &pipe->pipe, sizeof pipe->pipe);
+                if (samp) {
+                    const SDL_GPUTextureSamplerBinding *b = (const SDL_GPUTextureSamplerBinding *)(r->arena + samp->a);
+                    uint32_t k;
+                    for (k = 0; k < samp->b && k < 4; k++) h = fnv(h, &b[k].texture, sizeof b[k].texture);
+                }
+                if (ubc) {
+                    const UbConsts *u = (const UbConsts *)(r->arena + ubc->a);
+                    uint32_t k;
+                    for (k = 0; k < 16; k++) h = fnv(h, &u->at[k][1], 12);
+                }
+                r->sets[open].key2 = h;                 /* without the count: geometry culled differently */
+                r->sets[open].key = fnv(h, &o->a, sizeof o->a);
+                r->sets[open].keyed = 1;
+                open = (size_t)-1;
+            }
+            if (o->kind == OP_DRAWI && ub && o->vlen && ubc && !o->pin) {
+                const UbConsts *u = (const UbConsts *)(r->arena + ubc->a);
+                uint64_t h = 0x84222325CBF29CE4ull;
+                VDraw *v;
+                void *g = rec_grow(r->vd, &r->vd_cap, r->nvd + 1, sizeof *r->vd);
+                uint32_t k;
+                if (!g) { r->bad = 1; return; }
+                r->vd = (VDraw *)g;
+                h = fnv(h, &o->a, sizeof o->a);
+                h = fnv(h, &o->vlen, sizeof o->vlen);
+                h = fnv(h, &it->color, sizeof it->color);
+                if (pipe) h = fnv(h, &pipe->pipe, sizeof pipe->pipe);
+                if (samp) {
+                    const SDL_GPUTextureSamplerBinding *b = (const SDL_GPUTextureSamplerBinding *)(r->arena + samp->a);
+                    for (k = 0; k < samp->b && k < 4; k++) h = fnv(h, &b[k].texture, sizeof b[k].texture);
+                }
+                for (k = 0; k < 16; k++) {
+                    uint32_t rel = u->at[k][0] - o->vstart;
+                    h = fnv(h, &u->at[k][1], 12);
+                    if (u->at[k][3] && u->at[k][2] != 0xFF) h = fnv(h, &rel, 4);
+                }
+                v = &r->vd[r->nvd++];
+                memset(v, 0, sizeof *v);
+                v->key = h;
+                v->cur = o->vcpu;
+                v->gpu = o->vstart;
+                v->len = o->vlen;
+                v->hash = o->c;
+                v->ubc = ubc->a;
+            }
+        }
+    }
+}
+
+static const Rec *s_sort_rec;
+static int set_cmp(const void *a, const void *b)
+{
+    uint32_t x = *(const uint32_t *)a, y = *(const uint32_t *)b;
+    uint64_t kx = s_sort_rec->sets[x].key, ky = s_sort_rec->sets[y].key;
+    return kx < ky ? -1 : kx > ky ? 1 : x < y ? -1 : x > y;
+}
+
+static uint32_t *set_order(const Rec *r, uint32_t **keep, size_t *cap, size_t *count)
+{
+    size_t i, n = 0;
+    void *g = rec_grow(*keep, cap, r->nsets + 1, sizeof **keep);
+    if (!g) return NULL;
+    *keep = (uint32_t *)g;
+    for (i = 0; i < r->nsets; i++)
+        if (r->sets[i].keyed) (*keep)[n++] = (uint32_t)i;
+    s_sort_rec = r;
+    qsort(*keep, n, sizeof **keep, set_cmp);
+    *count = n;
+    return *keep;
+}
+
+/* Blend set c (this frame's constants `cur`) from its partner `best` (set bs of the frame before). */
+static void pair_set(Rec *r, const Rec *p, size_t ci, const float *best, const CSet *bs, size_t *moved, size_t *refused)
+{
+    CSet *c = &r->sets[ci];
+    const float *cur = (const float *)(r->arena + c->cur), *before = NULL;
+    float *adj = r->adj + ci * CSET_FLOATS;
+    int e, jumps = 0, differs = 0;
+    r->stat_paired++;
+    c->paired = 1;
+    /* The same values a step earlier still: what the partner was blended from (or the partner itself when it
+     * did not change). */
+    if (bs->lerp) before = p->adj + bs->adj;
+    else if (bs->paired) before = best;
+    /* By register: one with an element that jumped (a phase that wrapped, a counter, a new object in the slot)
+     * takes this frame's value whole; the rest of the set still moves. A change counts as a jump when it is
+     * large for the value and, where the step before is known, far larger than the change then: geometry
+     * sweeping past the camera changes a lot every step, and is motion. */
+    for (e = 0; e < CSET_FLOATS; e += 4) {
+        int g, jump = 0;
+        for (g = 0; g < 4; g++) {
+            float v = cur[e + g], d = v - best[e + g], lim = fabsf(v) <= 2.0f ? 0.7f : fabsf(v);
+            if (before && fabsf(d) <= 3.0f * fabsf(best[e + g] - before[e + g]) + lim) continue;
+            if (!(fabsf(d) <= lim)) jump = 1;
+        }
+        for (g = 0; g < 4; g++) {
+            adj[e + g] = jump ? cur[e + g] : best[e + g];
+            differs |= !jump && cur[e + g] != best[e + g];
+        }
+        jumps += jump;
+    }
+    if (!differs && !jumps) return;
+    ++*moved;
+    if (jumps > 4) ++*refused;      /* counted for the cut test */
+    if (!differs) return;
+    c->adj = ci * CSET_FLOATS;
+    c->lerp = 1;
+}
+
+/* The partner among p's sets cand[0..n) nearest set c's constants; NULL if none. */
+static const float *nearest_set(const Rec *r, const Rec *p, size_t ci, const uint32_t *cand, size_t n,
+                                const CSet **bs)
+{
+    const float *cur = (const float *)(r->arena + r->sets[ci].cur), *best = NULL;
+    float best_d = 3.0e38f;
+    size_t q;
+    int e;
+    for (q = 0; q < n; q++) {
+        const float *prev = (const float *)(p->arena + p->sets[cand[q]].cur);
+        float d = 0;
+        for (e = 0; e < CSET_FLOATS && d < best_d; e += 4)
+            d += fabsf(cur[e] - prev[e]) + fabsf(cur[e + 1] - prev[e + 1]) +
+                 fabsf(cur[e + 2] - prev[e + 2]) + fabsf(cur[e + 3] - prev[e + 3]);
+        if (d < best_d) { best_d = d; best = prev; *bs = &p->sets[cand[q]]; }
+    }
+    return best;
+}
+
+static int set_cmp2(const void *a, const void *b)
+{
+    uint32_t x = *(const uint32_t *)a, y = *(const uint32_t *)b;
+    uint64_t kx = s_sort_rec->sets[x].key2, ky = s_sort_rec->sets[y].key2;
+    return kx < ky ? -1 : kx > ky ? 1 : x < y ? -1 : x > y;
+}
+
+/* Pair this frame's constant sets with the frame before's: same key, the nearest constants among those near
+ * the same place in the frame. Sets left over (the draw's index count changed: geometry culled differently)
+ * are paired the same way on the key without the count. */
+#define PAIR_WINDOW 24
+static void rec_pair(Rec *r, const Rec *p)
+{
+    static uint32_t *co, *po;
+    static size_t co_cap, po_cap;
+    size_t cn = 0, pn = 0, ci, pi, n, moved = 0, refused = 0;
+    int pass;
+    void *g;
+    r->stat_lerp = r->stat_paired = 0;
+    if (!p || !r->nsets || !p->nsets) return;
+    if (!(g = rec_grow(r->adj, &r->adj_cap, r->nsets * CSET_FLOATS, sizeof *r->adj))) return;
+    r->adj = (float *)g;
+    for (pass = 0; pass < 2; pass++) {
+        if (!set_order(r, &co, &co_cap, &cn) || !set_order(p, &po, &po_cap, &pn)) return;
+        if (pass) {                 /* order both by the loose key */
+            s_sort_rec = r; qsort(co, cn, sizeof *co, set_cmp2);
+            s_sort_rec = p; qsort(po, pn, sizeof *po, set_cmp2);
+        }
+        ci = pi = 0;
+        while (ci < cn && pi < pn) {
+#define SKEY(R, i) (pass ? (R)->sets[i].key2 : (R)->sets[i].key)
+            uint64_t key = SKEY(r, co[ci]);
+            size_t c0 = ci, p0, p1, j, k = 0;
+            while (pi < pn && SKEY(p, po[pi]) < key) pi++;
+            p0 = pi;
+            while (pi < pn && SKEY(p, po[pi]) == key) pi++;
+            p1 = pi;
+            while (ci < cn && SKEY(r, co[ci]) == key) ci++;
+#undef SKEY
+            if (p0 == p1) continue;
+            for (j = c0; j < ci; j++) {
+                const CSet *bs = NULL;
+                const float *best;
+                size_t at, count = p1 - p0, lo, hi;
+                if (r->sets[co[j]].paired || r->sets[co[j]].pin) continue;
+                /* Near the same place among the unpaired ones: count them as they come. */
+                at = pass ? k++ : j - c0;
+                if (at >= count) at = count - 1;
+                lo = at > PAIR_WINDOW ? at - PAIR_WINDOW : 0;
+                hi = at + PAIR_WINDOW + 1 < count ? at + PAIR_WINDOW + 1 : count;
+                if ((best = nearest_set(r, p, co[j], po + p0 + lo, hi - lo, &bs)) != NULL)
+                    pair_set(r, p, co[j], best, bs, &moved, &refused);
+            }
+        }
+    }
+    /* Most of what moved jumped: a cut, not motion. Show the frame as drawn. */
+    if (moved >= 8 && refused * 2 > moved)
+        for (n = 0; n < r->nsets; n++) r->sets[n].lerp = 0;
+    for (n = 0; n < r->nsets; n++) r->stat_lerp += r->sets[n].lerp;
+}
+
+/* When the title's current simulation step was scheduled to begin and how long a step is
+ * (nv2a_sdlgpu_tick_started; 0 if the title never says). Frames are placed in time by it: a flip comes
+ * when the title finishes drawing, which varies with the work in it. Seconds on the performance counter. */
+static int64_t s_tick_qpc, s_step_qpc;
+static SDL_SpinLock s_tick_lock;
+static SDL_AtomicInt s_title_busy;    /* in a step: from its start to its next frame request */
+
+void nv2a_sdlgpu_tick_started(double start, double step)
+{
+    double f = (double)qpf();
+    SDL_LockSpinlock(&s_tick_lock);
+    s_tick_qpc = (int64_t)(start * f);
+    s_step_qpc = (int64_t)(step * f);
+    SDL_UnlockSpinlock(&s_tick_lock);
+    SDL_SetAtomicInt(&s_title_busy, 1);
+}
+
+/* The byte offsets of a draw's float attributes in its vertex bytes (a buffer reused by each call). */
+static uint32_t float_offsets(const Rec *r, const VDraw *v, const uint32_t **out)
+{
+    static uint32_t *buf;
+    static size_t cap;
+    const UbConsts *u = (const UbConsts *)(r->arena + v->ubc);
+    uint32_t k, n, c, count = 0;
+    for (k = 0; k < 16; k++) {
+        uint32_t rel = u->at[k][0] - v->gpu, st = u->at[k][1], sz = u->at[k][3];
+        if (!sz || u->at[k][2] != 2u || sz > 4) continue;
+        for (n = 0; rel + n * st + 4 * sz <= v->len; n++) {
+            void *g = rec_grow(buf, &cap, count + sz, sizeof *buf);
+            if (!g) { *out = buf; return count; }
+            buf = (uint32_t *)g;
+            for (c = 0; c < sz; c++) buf[count++] = rel + n * st + 4 * c;
+            if (!st) break;
+        }
+    }
+    *out = buf;
+    return count;
+}
+
+static int float_jumps(float a, float b)
+{
+    return !(fabsf(b - a) <= (fabsf(b) <= 2.0f ? 0.7f : fabsf(b)));
+}
+
+static const Rec *s_vsort_rec;
+static int vd_cmp(const void *a, const void *b)
+{
+    uint32_t x = *(const uint32_t *)a, y = *(const uint32_t *)b;
+    uint64_t kx = s_vsort_rec->vd[x].key, ky = s_vsort_rec->vd[y].key;
+    return kx < ky ? -1 : kx > ky ? 1 : x < y ? -1 : x > y;
+}
+
+static uint32_t *vd_order(const Rec *r, uint32_t **keep, size_t *cap)
+{
+    size_t i;
+    void *g = rec_grow(*keep, cap, r->nvd + 1, sizeof **keep);
+    if (!g) return NULL;
+    *keep = (uint32_t *)g;
+    for (i = 0; i < r->nvd; i++) (*keep)[i] = (uint32_t)i;
+    s_vsort_rec = r;
+    qsort(*keep, r->nvd, sizeof **keep, vd_cmp);
+    return *keep;
+}
+
+/* Draws whose vertex bytes change between frames (geometry the title rebuilds each step, such as building
+ * fronts) have their motion there, not in the constants. Each is paired with the same draw a frame earlier
+ * (the same key, the nearest vertices close by in the frame), and that frame's bytes are kept beside its own
+ * so a replay can blend their float attributes. A draw whose floats mostly jump is left as drawn. */
+#define VPAIR_WINDOW 8
+static void rec_vpair(Rec *r, const Rec *p)
+{
+    static uint32_t *co, *po;
+    static size_t co_cap, po_cap;
+    size_t ci = 0, pi = 0;
+    r->stat_vblend = 0;
+    if (!p || !r->nvd || !p->nvd || !vd_order(r, &co, &co_cap) || !vd_order(p, &po, &po_cap)) return;
+    while (ci < r->nvd && pi < p->nvd) {
+        uint64_t key = r->vd[co[ci]].key;
+        size_t c0 = ci, p0, p1, j;
+        while (pi < p->nvd && p->vd[po[pi]].key < key) pi++;
+        p0 = pi;
+        while (pi < p->nvd && p->vd[po[pi]].key == key) pi++;
+        p1 = pi;
+        while (ci < r->nvd && r->vd[co[ci]].key == key) ci++;
+        if (p0 == p1) continue;
+        for (j = c0; j < ci; j++) {
+            VDraw *v = &r->vd[co[j]];
+            const VDraw *best = NULL;
+            const float *cur = (const float *)(r->vmem + v->cur);
+            size_t at = j - c0, count = p1 - p0, lo, hi, q;
+            float best_d = 3.0e38f;
+            uint32_t floats = 0, jumps = 0, words = v->len / 4 < 64 ? v->len / 4 : 64, e;
+            void *g;
+            if (at >= count) at = count - 1;
+            lo = at > VPAIR_WINDOW ? at - VPAIR_WINDOW : 0;
+            hi = at + VPAIR_WINDOW + 1 < count ? at + VPAIR_WINDOW + 1 : count;
+            for (q = lo; q < hi; q++) {
+                const VDraw *c = &p->vd[po[p0 + q]];
+                const float *prev = (const float *)(p->vmem + c->cur);
+                float d = 0;
+                if (c->hash == v->hash) { best = NULL; best_d = -1; break; }   /* unchanged: nothing to blend */
+                for (e = 0; e < words && d < best_d; e++) {
+                    float x = fabsf(cur[e] - prev[e]);
+                    d += x == x ? x : 1.0e6f;
+                }
+                if (d < best_d) { best_d = d; best = c; }
+            }
+            if (!best) continue;
+            {
+                const uint8_t *pb = p->vmem + best->cur, *cb = r->vmem + v->cur;
+                const uint32_t *offs;
+                uint32_t f;
+                floats = float_offsets(r, v, &offs);
+                for (f = 0; f < floats; f++)
+                    jumps += (uint32_t)float_jumps(*(const float *)(pb + offs[f]), *(const float *)(cb + offs[f]));
+            }
+            if (!floats || jumps * 8 > floats) continue;
+            /* The frame before's bytes, kept with this frame: that record is reused while this one is shown. */
+            {
+                size_t at2 = (r->vmem_len + 15) & ~(size_t)15;
+                if (!(g = rec_grow(r->vmem, &r->vmem_cap, at2 + v->len, 1))) return;
+                r->vmem = (uint8_t *)g;
+                v = &r->vd[co[j]];
+                memcpy(r->vmem + at2, p->vmem + best->cur, v->len);
+                r->vmem_len = at2 + v->len;
+                v->prev = (uint32_t)at2;
+                v->blend = 1;
+                r->stat_vblend++;
+            }
+        }
+    }
+}
+
+/* Before a replay at t: the blended vertex bytes of every draw that has them, written over its own in vbuf. */
+static int rec_vblend(Rec *r, float t, SDL_GPUCommandBuffer *c)
+{
+    static SDL_GPUTransferBuffer *tb;
+    static uint32_t cap;
+    uint32_t need = 0, at = 0;
+    size_t n;
+    uint8_t *m;
+    SDL_GPUCopyPass *cp;
+    for (n = 0; n < r->nvd; n++) if (r->vd[n].blend) need += (r->vd[n].len + 15) & ~15u;
+    if (!need) return 1;
+    if (need > cap) {
+        SDL_GPUTransferBufferCreateInfo ci = { SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, 0, 0 };
+        if (tb) SDL_ReleaseGPUTransferBuffer(s_dev, tb);
+        cap = need + need / 2;
+        ci.size = cap;
+        if (!(tb = SDL_CreateGPUTransferBuffer(s_dev, &ci))) { cap = 0; return 0; }
+    }
+    if (!(m = (uint8_t *)SDL_MapGPUTransferBuffer(s_dev, tb, true))) return 0;
+    for (n = 0; n < r->nvd; n++) {
+        const VDraw *v = &r->vd[n];
+        const uint8_t *pb, *cb;
+        uint8_t *o;
+        if (!v->blend) continue;
+        pb = r->vmem + v->prev;
+        cb = r->vmem + v->cur;
+        o = m + at;
+        memcpy(o, cb, v->len);
+        {
+            const uint32_t *offs;
+            uint32_t f, floats = float_offsets(r, v, &offs);
+            for (f = 0; f < floats; f++) {
+                float a = *(const float *)(pb + offs[f]), b = *(const float *)(cb + offs[f]);
+                if (!float_jumps(a, b)) *(float *)(o + offs[f]) = a + (b - a) * t;
+            }
+        }
+        at += (v->len + 15) & ~15u;
+    }
+    SDL_UnmapGPUTransferBuffer(s_dev, tb);
+    if (!(cp = SDL_BeginGPUCopyPass(c))) return 0;
+    at = 0;
+    for (n = 0; n < r->nvd; n++) {
+        const VDraw *v = &r->vd[n];
+        SDL_GPUTransferBufferLocation from;
+        SDL_GPUBufferRegion to;
+        if (!v->blend) continue;
+        from.transfer_buffer = tb; from.offset = at;
+        to.buffer = r->vbuf; to.offset = v->gpu; to.size = v->len;
+        SDL_UploadToGPUBuffer(cp, &from, &to, false);
+        at += (v->len + 15) & ~15u;
+    }
+    SDL_EndGPUCopyPass(cp);
+    return 1;
+}
+
+static void rec_snapshot(Rec *r, int slot);
+
+/* At a flip: the frame just drawn is complete. */
+static void rec_end(const Surface *final)
+{
+    Rec *r = &s_rec[s_rec_w];
+    const Rec *p = s_rec_last >= 0 && s_rec[s_rec_last].valid ? &s_rec[s_rec_last] : NULL;
+    int64_t flip = qpc(), now = flip, freq = qpf(), tick, step;
+    SDL_LockSpinlock(&s_tick_lock);
+    tick = s_tick_qpc;
+    step = s_step_qpc;
+    SDL_UnlockSpinlock(&s_tick_lock);
+    /* A step that began after the previous frame's and not in the future: else the flip time. */
+    if (tick && tick <= now && (!p || tick > p->t_frame)) now = tick;
+    else step = 0;
+    if (!s_rec_live) { s_rec_last = -1; return; }
+    copy_end();
+    flush_batch();
+    s_rec_live = 0;
+    if (!r->bad) rec_sets(r);
+    if (r->bad || !final || !final->tex) { WHY(r->bad ? 6 : 7); s_rec_last = -1; return; }
+    r->final = *final;
+    r->t_frame = now;
+    /* The display waits this long after a step begins for its frame; a slow frame raises it at once, and it
+     * comes back down over a few seconds. */
+    if (step) {
+        s_flip_lat -= s_flip_lat / 128;
+        if (flip - now > s_flip_lat) s_flip_lat = flip - now;
+        if (s_flip_lat > step) s_flip_lat = step;
+    }
+    /* The time between the two frames: whole steps when the title says when they began. */
+    r->period = p ? now - p->t_frame : freq / 30;
+    if (step > 0 && p) r->period = (int64_t)((double)r->period / (double)step + 0.5) * step;
+    if (r->period < freq / 120) r->period = freq / 120;
+    if (r->period > freq / 10) r->period = freq / 10;
+    rec_pair(r, p);
+    rec_vpair(r, p);
+    rec_snapshot(r, s_rec_w);
+    if (r->bad) { s_rec_last = -1; return; }
+    r->valid = 1;
+    s_rec_last = s_rec_w;
+    /* A next pair the display never reached is dropped for the newer one. */
+    if (s_rec_act < 0) s_rec_act = s_rec_w;
+    else {
+        if (s_rec_pend >= 0) s_rec_act = s_rec_pend;
+        s_rec_pend = s_rec_w;
+    }
+}
+
+/* For each render target a kept frame touches: a stand-in its replays draw into, and a snapshot of the
+ * title's target as the frame left it. The title starts drawing its next frame into its own targets as soon
+ * as its next step begins, so a replay reads the snapshot, never the target, and frames can be made at any
+ * time. Depth buffers get no snapshot: a replay clears the stand-in where it first uses one. */
+typedef struct { SDL_GPUTexture *real, *tex, *snap[REC_N]; uint32_t written; } Scratch;
+static Scratch s_scratch[128];
+static int s_scratch_n;
+static uint32_t s_replay = 1;
+static int s_view_slot;                 /* the record whose snapshots a replay reads */
+
+static void scratch_drop(SDL_GPUTexture *real)
+{
+    int i;
+    for (i = 0; i < s_scratch_n; i++)
+        if (s_scratch[i].real == real) {
+            int k;
+            dead_push(s_scratch[i].tex, 0);
+            for (k = 0; k < REC_N; k++)
+                if (s_scratch[i].snap[k]) dead_push(s_scratch[i].snap[k], 0);
+            s_scratch[i] = s_scratch[--s_scratch_n];
+            return;
+        }
+}
+
+static int is_depth(const TexDesc *d)
+{
+    return (d->ci.usage & SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET) != 0;
+}
+
+static Scratch *scratch_get(SDL_GPUTexture *real)
+{
+    const TexDesc *d;
+    Scratch *sc;
+    int i;
+    for (i = 0; i < s_scratch_n; i++)
+        if (s_scratch[i].real == real) return &s_scratch[i];
+    if (s_scratch_n == (int)SDL_arraysize(s_scratch) || !(d = texdesc_find(real))) return NULL;
+    sc = &s_scratch[s_scratch_n];
+    memset(sc, 0, sizeof *sc);
+    sc->tex = SDL_CreateGPUTexture(s_dev, &d->ci);
+    if (!sc->tex) { fail("interpolation target"); return NULL; }
+    sc->real = real;
+    s_scratch_n++;
+    return sc;
+}
+
+/* What a replayed pass reads for `real`: this replay's version if it drew one, else the snapshot. */
+static SDL_GPUTexture *scratch_view(SDL_GPUTexture *real)
+{
+    int i;
+    for (i = 0; i < s_scratch_n; i++)
+        if (s_scratch[i].real == real)
+            return s_scratch[i].written == s_replay ? s_scratch[i].tex :
+                   s_scratch[i].snap[s_view_slot] ? s_scratch[i].snap[s_view_slot] : real;
+    return real;
+}
+
+static void copy_levels(SDL_GPUCopyPass *cp, SDL_GPUTexture *from, SDL_GPUTexture *to, const TexDesc *d)
+{
+    uint32_t l, f, faces = d->ci.type == SDL_GPU_TEXTURETYPE_CUBE ? 6 : 1;
+    for (l = 0; l < d->ci.num_levels; l++)
+        for (f = 0; f < faces; f++) {
+            SDL_GPUTextureLocation a, b;
+            uint32_t w = d->ci.width >> l, h = d->ci.height >> l;
+            memset(&a, 0, sizeof a);
+            memset(&b, 0, sizeof b);
+            a.texture = from; a.mip_level = l; a.layer = f;
+            b.texture = to; b.mip_level = l; b.layer = f;
+            SDL_CopyGPUTextureToTexture(cp, &a, &b, w ? w : 1, h ? h : 1, 1, false);
+        }
+}
+
+/* A stand-in about to be drawn over without a clear starts as the frame left the title's target. */
+static void scratch_seed(SDL_GPUCommandBuffer *c, Scratch *sc)
+{
+    const TexDesc *d = texdesc_find(sc->real);
+    SDL_GPUCopyPass *cp;
+    if (!d || !sc->snap[s_view_slot]) return;
+    cp = SDL_BeginGPUCopyPass(c);
+    copy_levels(cp, sc->snap[s_view_slot], sc->tex, d);
+    SDL_EndGPUCopyPass(cp);
+}
+
+static int snap_one(SDL_GPUCopyPass *cp, SDL_GPUTexture *real, int slot)
+{
+    const TexDesc *d;
+    Scratch *sc;
+    if (!real || !(d = texdesc_find(real)) || !(d->ci.usage & SDL_GPU_TEXTUREUSAGE_COLOR_TARGET))
+        return 1;                   /* not a render target: the title does not draw into it */
+    if (!(sc = scratch_get(real))) return 0;
+    if (sc->written == 0xFFFFFFFFu) return 1;
+    if (!sc->snap[slot] && !(sc->snap[slot] = SDL_CreateGPUTexture(s_dev, &d->ci))) {
+        fail("interpolation snapshot");
+        return 0;
+    }
+    copy_levels(cp, real, sc->snap[slot], d);
+    sc->written = 0xFFFFFFFFu;      /* this flip's snapshot is taken */
+    return 1;
+}
+
+/* At a flip, after the title's frame: every render target the frame draws into or reads, as it is now. */
+static void rec_snapshot(Rec *r, int slot)
+{
+    SDL_GPUCopyPass *cp;
+    size_t n, i;
+    int ok = 1;
+    copy_end();
+    if (!cmd() || !(cp = SDL_BeginGPUCopyPass(s_cmd))) { r->bad = 1; return; }
+    for (i = 0; i < (size_t)s_scratch_n; i++) s_scratch[i].written = 0;
+    for (n = 0; n < r->nitems && ok; n++) {
+        const RecItem *it = &r->items[n];
+        ok &= snap_one(cp, it->kind == R_HOST ? (SDL_GPUTexture *)it->ht.colour : it->color, slot);
+        if (it->kind == R_COPY) ok &= snap_one(cp, it->depth, slot);
+        if (it->kind != R_PASS) continue;
+        for (i = 0; i < it->nops && ok; i++) {
+            const Op *o = &r->ops[it->op0 + i];
+            if (o->kind == OP_SAMPLERS) {
+                const SDL_GPUTextureSamplerBinding *b = (const SDL_GPUTextureSamplerBinding *)(r->arena + o->a);
+                uint32_t q;
+                for (q = 0; q < o->b && ok; q++) ok &= snap_one(cp, b[q].texture, slot);
+            }
+        }
+    }
+    /* The flipped surface too: the window is shown its snapshot. */
+    if (ok) ok &= snap_one(cp, r->final.tex, slot);
+    SDL_EndGPUCopyPass(cp);
+    for (i = 0; i < (size_t)s_scratch_n; i++) s_scratch[i].written = 0;
+    if (!ok) r->bad = 1;
+}
+
+/* The kept frame again, its paired constants at t between the frame before (0) and itself (1). */
+#define REPLAY_FAIL(what) do { static unsigned n_; if (n_++ < 3) { \
+    fprintf(stderr, "[INTERP] replay stopped: %s (%s, %u textures known, %d stand-ins)\n", what, SDL_GetError(), \
+            (unsigned)s_texdesc_n, s_scratch_n); fflush(stderr); } } while (0)
+static int rec_replay(Rec *r, float t)
+{
+    static float mix[CSET_FLOATS];
+    SDL_GPUCommandBuffer *c = cmd();
+    size_t n, i, k = 0;
+    if (!c) { REPLAY_FAIL("cmd"); return 0; }
+    if (!rec_vblend(r, t, c)) { REPLAY_FAIL("vertex blend"); return 0; }
+    s_replay++;
+    for (n = 0; n < r->nitems; n++) {
+        RecItem *it = &r->items[n];
+        if (it->kind == R_COPY) {
+            Scratch *d = scratch_get(it->color);
+            SDL_GPUTextureLocation a, b;
+            SDL_GPUCopyPass *cp;
+            if (!d) { REPLAY_FAIL("copy-dst"); return 0; }
+            if (d->written != s_replay) { scratch_seed(c, d); d->written = s_replay; }
+            memset(&a, 0, sizeof a);
+            memset(&b, 0, sizeof b);
+            a.texture = scratch_view(it->depth); a.mip_level = it->b;
+            b.texture = d->tex; b.mip_level = it->a;
+            cp = SDL_BeginGPUCopyPass(c);
+            SDL_CopyGPUTextureToTexture(cp, &a, &b, it->w, it->h, 1, false);
+            SDL_EndGPUCopyPass(cp);
+        } else if (it->kind == R_MIPS) {
+            Scratch *m = scratch_get(it->color);
+            if (m && m->written == s_replay) SDL_GenerateMipmapsForGPUTexture(c, m->tex);
+        } else if (it->kind == R_HOST) {
+            Scratch *col = scratch_get((SDL_GPUTexture *)it->ht.colour);
+            NvHostTarget ht = it->ht;
+            if (!col) { REPLAY_FAIL("host-dst"); return 0; }
+            if (col->written != s_replay) { scratch_seed(c, col); col->written = s_replay; }
+            ht.context = c;
+            ht.colour = col->tex;
+            ht.depth = scratch_view((SDL_GPUTexture *)it->ht.depth);
+            it->draw(&ht, r->arena + it->user);
+        } else {
+            Scratch *sc = it->color ? scratch_get(it->color) : NULL;
+            Scratch *sd = it->depth ? scratch_get(it->depth) : NULL;
+            SDL_GPUColorTargetInfo ct;
+            SDL_GPUDepthStencilTargetInfo dt;
+            SDL_GPURenderPass *rp;
+            SDL_GPUGraphicsPipeline *pipe = NULL;
+            SDL_GPUViewport vp;
+            SDL_Rect scs;
+            SDL_FColor blend;
+            int vp_set = 0, sc_set = 0, blend_set = 0, ref_set = -1, ub = 0;
+            int cclear = it->color_clear, dclear = it->depth_clear;
+            if ((it->color && !sc) || (it->depth && !sd)) { REPLAY_FAIL("pass-target"); return 0; }
+            if (sc && sc->written != s_replay) {
+                if (!cclear) scratch_seed(c, sc);
+                sc->written = s_replay;
+            }
+            /* Depth is not copied: a frame's first pass on a depth buffer clears it. */
+            if (sd && sd->written != s_replay) { dclear = 1; sd->written = s_replay; }
+            memset(&ct, 0, sizeof ct);
+            memset(&dt, 0, sizeof dt);
+            ct.texture = sc ? sc->tex : NULL;
+            ct.load_op = cclear ? SDL_GPU_LOADOP_CLEAR : SDL_GPU_LOADOP_LOAD;
+            ct.clear_color = it->clear_color;
+            ct.store_op = SDL_GPU_STOREOP_STORE;
+            dt.texture = sd ? sd->tex : NULL;
+            dt.load_op = dt.stencil_load_op = dclear ? SDL_GPU_LOADOP_CLEAR : SDL_GPU_LOADOP_LOAD;
+            dt.store_op = dt.stencil_store_op = SDL_GPU_STOREOP_STORE;
+            dt.clear_depth = 1.0f;
+            rp = SDL_BeginGPURenderPass(c, sc ? &ct : NULL, sc ? 1 : 0, sd ? &dt : NULL);
+            if (!rp) { REPLAY_FAIL("render-pass"); return 0; }
+            for (i = 0; i < it->nops; i++) {
+                const Op *o = &r->ops[it->op0 + i];
+                switch (o->kind) {
+                case OP_PIPE:
+                    if (o->pipe != pipe) { SDL_BindGPUGraphicsPipeline(rp, o->pipe); pipe = o->pipe; }
+                    ub = o->a != 0;
+                    if (ub) {
+                        SDL_GPUBufferBinding ib = { r->ibuf, 0 };
+                        SDL_BindGPUVertexStorageBuffers(rp, 0, &r->vbuf, 1);
+                        SDL_BindGPUIndexBuffer(rp, &ib, SDL_GPU_INDEXELEMENTSIZE_32BIT);
+                    }
+                    break;
+                case OP_VUNI: {
+                    const void *data = r->arena + o->a;
+                    while (k < r->nsets && r->sets[k].op < it->op0 + i) k++;
+                    if (k < r->nsets && r->sets[k].op == it->op0 + i && r->sets[k].lerp) {
+                        const float *cur = (const float *)data, *from = r->adj + r->sets[k].adj;
+                        int e;
+                        for (e = 0; e < CSET_FLOATS; e++) mix[e] = from[e] + (cur[e] - from[e]) * t;
+                        data = mix;
+                    }
+                    SDL_PushGPUVertexUniformData(c, o->slot, data, o->b);
+                    break;
+                }
+                case OP_FUNI:
+                    SDL_PushGPUFragmentUniformData(c, o->slot, r->arena + o->a, o->b);
+                    break;
+                case OP_SAMPLERS: {
+                    SDL_GPUTextureSamplerBinding b[16];
+                    uint32_t q, nb = o->b < 16 ? o->b : 16;
+                    memcpy(b, r->arena + o->a, nb * sizeof *b);
+                    for (q = 0; q < nb; q++) b[q].texture = scratch_view(b[q].texture);
+                    SDL_BindGPUFragmentSamplers(rp, 0, b, nb);
+                    break;
+                }
+                case OP_DRAWI:
+                case OP_DRAW:
+                    if (!vp_set || memcmp(&vp, &o->vp, sizeof vp)) { vp = o->vp; vp_set = 1; SDL_SetGPUViewport(rp, &vp); }
+                    if (!sc_set || memcmp(&scs, &o->sc, sizeof scs)) { scs = o->sc; sc_set = 1; SDL_SetGPUScissor(rp, &scs); }
+                    if (!blend_set || memcmp(&blend, &o->blend, sizeof blend)) {
+                        blend = o->blend; blend_set = 1;
+                        SDL_SetGPUBlendConstants(rp, blend);
+                    }
+                    if (ref_set != o->stencil_ref) { ref_set = o->stencil_ref; SDL_SetGPUStencilReference(rp, o->stencil_ref); }
+                    if (o->kind == OP_DRAWI) SDL_DrawGPUIndexedPrimitives(rp, o->a, 1, o->b, 0, 0);
+                    else SDL_DrawGPUPrimitives(rp, o->a, 1, o->b, 0);
+                    break;
+                }
+            }
+            SDL_EndGPURenderPass(rp);
+        }
+    }
+    return 1;
+}
+
+/* RECOMP_INTERP_TRACE: once a second, what the interpolation is doing. */
+static void interp_trace(const Rec *r, float t, int64_t cost, int shown)
+{
+    static int on = -1;
+    static int64_t last, sum;
+    static unsigned frames, fallbacks;
+    int64_t now;
+    if (on < 0) on = getenv("RECOMP_INTERP_TRACE") != NULL;
+    if (!on) return;
+    now = qpc();
+    if (shown) { frames++; sum += cost; } else fallbacks++;
+    if (!last) last = now;
+    if (now - last < qpf()) return;
+    {   /* What the stand-ins and snapshots hold, roughly (largest formats used here: 8 bytes a texel). */
+        double mb = 0;
+        int i, k;
+        for (i = 0; i < s_scratch_n; i++) {
+            const TexDesc *d = texdesc_find(s_scratch[i].real);
+            double one;
+            if (!d) continue;
+            one = (double)d->ci.width * d->ci.height * d->ci.layer_count_or_depth *
+                  (d->ci.format == SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UNORM ? 8 : 4) * 1.34 / 1048576.0;
+            mb += one;
+            for (k = 0; k < REC_N; k++) if (s_scratch[i].snap[k]) mb += one;
+        }
+        fprintf(stderr, "[INTERP] stand-ins and snapshots about %.0f MB; draws with blended vertices %u of %u\n", mb,
+                r ? r->stat_vblend : 0, r ? (unsigned)r->nvd : 0);
+    }
+    fprintf(stderr, "[INTERP] %u frames (%u repeats) %.2f ms each | sets %u paired %u moving %u | items %u targets %d | "
+            "vertex %.1f MB index %.1f MB | t %.2f | why %u %u %u %u %u %u bad %u nosurf %u flips %u\n",
+            frames, fallbacks, frames ? sum * 1000.0 / (double)qpf() / frames : 0.0,
+            r ? (unsigned)r->nsets : 0, r ? r->stat_paired : 0, r ? r->stat_lerp : 0,
+            r ? (unsigned)r->nitems : 0, s_scratch_n,
+            r ? r->vpos / 1048576.0 : 0.0, r ? r->ipos / 1048576.0 : 0.0, t,
+            s_why[0], s_why[1], s_why[2], s_why[3], s_why[4], s_why[5], s_why[6], s_why[7], s_flips);
+    memset(s_why, 0, sizeof s_why);
+    fflush(stderr);
+    last = now;
+    sum = 0;
+    frames = fallbacks = 0;
+}
+
+/* The frame for this moment, to the window; 0 when there is none to show (the caller repeats the last image
+ * instead). The display runs a step plus the usual flip delay behind the newest step, so the frames on both
+ * sides of the moment it shows have flipped: a pair (the frame before and the frame) is shown at t of the
+ * way between their steps. */
+static int interp_present(FlipPacing *pacing)
+{
+    Rec *r;
+    XboxOverlay ovl;
+    Surface view;
+    int64_t now = qpc(), moment, start;
+    float t;
+    if (s_rec_act < 0 || !s_rec[s_rec_act].valid) { WHY(0); interp_trace(NULL, 0, 0, 0); return 0; }
+    if (xbox_FramebufferOverlay(&ovl)) { WHY(2); interp_trace(NULL, 0, 0, 0); return 0; }
+    r = &s_rec[s_rec_pend >= 0 ? s_rec_pend : s_rec_act];
+    moment = now - r->period - s_flip_lat - qpf() / 1000;
+    if (moment < s_moment) moment = s_moment;
+    /* The next pair once the moment reaches its first frame. */
+    if (s_rec_pend >= 0 && moment >= s_rec[s_rec_pend].t_frame - s_rec[s_rec_pend].period) {
+        s_rec_act = s_rec_pend;
+        s_rec_pend = -1;
+    }
+    r = &s_rec[s_rec_act];
+    start = r->t_frame - r->period;
+    if (moment - r->t_frame > 4 * r->period) { WHY(3); interp_trace(r, 0, 0, 0); return 0; }
+    if (moment > r->t_frame) moment = r->t_frame;        /* the next frame is late: hold */
+    if (moment < start) moment = start;
+    s_moment = moment;
+    t = (float)((double)(moment - start) / (double)r->period);
+    s_view_slot = s_rec_act;
+    /* Nothing moving: the frame as the title left it. */
+    if ((r->stat_lerp || r->stat_vblend) && !rec_replay(r, t)) { WHY(4); rec_invalidate(); interp_trace(r, t, 0, 0); return 0; }
+    view = r->final;
+    view.tex = scratch_view(r->final.tex);
+    if (!keep_surface(&view) || !present_kept_image(pacing)) { WHY(5); interp_trace(r, t, 0, 0); return 0; }
+    interp_trace(r, t, qpc() - now, 1);
+    {   /* RECOMP_INTERP_TRACE=2: each frame's present time and the moment it shows, both in ms. Evenly
+         * spaced moments that never go back are smooth motion; a repeated moment is a hold (late frame). */
+        static int each = -1;
+        if (each < 0) each = getenv("RECOMP_INTERP_TRACE") && atoi(getenv("RECOMP_INTERP_TRACE")) >= 2;
+        if (each)
+            fprintf(stderr, "[INTERP_T] %.3f %.3f %d %d %.3f\n", now * 1000.0 / (double)qpf(), moment * 1000.0 / (double)qpf(),
+                    SDL_GetAtomicInt(&s_title_busy), s_rec_act, t);
+    }
+    return 1;
+}
+
 static SDL_AtomicInt s_manual_present;
 void nv2a_d3d_manual_present(int enabled)
 {
@@ -3486,6 +4847,10 @@ void nv2a_d3d_flip_present(uint32_t surface_addr, uint32_t pitch, int show)
     if (!s && pitch)
         s = scan_surface(surface_addr, pitch);
     s_shown = s;
+    rec_end(s);
+    rec_outside_begin();
+    s_flips++;
+    dead_collect();
     {   /* RECOMP_RT_PROBE=x,y,w,h (guest pixels): the frame's RGBA there, as the flipped surface holds it. */
         static const char *roi = (const char *)-1;
         unsigned px0, py0, pw, ph;
@@ -3537,10 +4902,13 @@ void nv2a_d3d_flip_present(uint32_t surface_addr, uint32_t pitch, int show)
         writeback_surfaces();
         t1 = s_prof_on > 0 ? qpc() : 0;
         if (show) present_surface(s, &pacing);
-        else if (SDL_GetAtomicInt(&s_manual_present) && keep_surface(s)) {
+        else if (SDL_GetAtomicInt(&s_manual_present)) {
+            int kept;
+            s_keep_unshown = SDL_GetAtomicInt(&s_interp_on);
+            kept = keep_surface(s);
+            s_keep_unshown = 0;
             /* Freeze this completed frame before the guest reuses its target. */
-            flush_batch();
-            submit(NULL);
+            if (kept) { flush_batch(); submit(NULL); }
         }
         if (s_prof_on > 0) {
             s_prof[PROF_WRITEBACK] += t1 - t0;
@@ -3555,6 +4923,8 @@ void nv2a_d3d_flip_present(uint32_t surface_addr, uint32_t pitch, int show)
     prof_report();
     display_config(0);
     s_frame++;
+    rec_outside_end();
+    rec_begin();
 }
 
 void nv2a_d3d_flip(uint32_t surface_addr, uint32_t pitch)
@@ -3603,26 +4973,86 @@ void nv2a_d3d_repeat_frame(void)
     request_wait(&s_repeat);
 }
 
+/* A frame between the title's last two (see "frame interpolation" above), shown like a repeated frame. The
+ * renderer places it by the time since the last flip; t and need_new are not used. The first call turns the
+ * keeping of frames on, and frames are repeated until two have been kept. */
+static SDL_AtomicInt s_interp_req;
+
+void nv2a_d3d_interp_frame(float t, int need_new)
+{
+    (void)t; (void)need_new;
+    if (!s_shown)
+        return;
+    SDL_SetAtomicInt(&s_interp_on, 1);
+    SDL_SetAtomicInt(&s_title_busy, 0);
+    request_raise(&s_interp_req);
+    request_wait(&s_interp_req);
+}
+
+/* While the title runs a simulation step it asks for no frames, for as long as the step takes. Frames are
+ * made from snapshots, not from the targets the title is drawing into now, so the window gets them from
+ * here at the usual rate. */
+static int64_t interp_interval(void)
+{
+    static int limit = -2;
+    if (limit == -2) limit = recomp_frame_limit_from_env();
+    return qpf() / (limit > 0 ? limit : 240);
+}
+
+static int64_t s_busy_retry;
+
+static int interp_while_busy(void)
+{
+    int64_t now;
+    if (!SDL_GetAtomicInt(&s_title_busy) || !SDL_GetAtomicInt(&s_manual_present) || s_rec_act < 0)
+        return 0;
+    now = qpc();
+    return now >= s_busy_retry && now - s_last_present_qpc >= interp_interval();
+}
+
 void nv2a_d3d_tick(void)
 {
     uint64_t now;
     uint32_t va, pitch;
+    int interp;
     if (s_init_state <= 0 && !nv2a_d3d_init())
         return;
     fbw_sdl_pump();
-    if (SDL_GetAtomicInt(&s_repeat)) {
+    interp = SDL_GetAtomicInt(&s_interp_req);
+    if (interp || SDL_GetAtomicInt(&s_repeat)) {
         FlipPacing pacing = { SDL_GetAtomicInt(&s_manual_present) != 0, 0 };
-        if (!present_kept_image(&pacing))
+        rec_outside_begin();
+        /* A frame made while the title was busy may have just gone out: keep to the frame rate. */
+        int too_soon = interp && s_rec_act >= 0 && qpc() - s_last_present_qpc < interp_interval() * 3 / 4;
+        if (!too_soon && !(interp && interp_present(&pacing)) && !present_kept_image(&pacing))
             present_surface(s_shown, &pacing);
         pace_flip(&pacing);
         frame_csv(pacing.ticks);
         s_frame++;
-        request_complete(&s_repeat);
+        rec_outside_end();
+        if (interp) request_complete(&s_interp_req);
+        else request_complete(&s_repeat);
         return;
+    }
+    if (interp_while_busy()) {
+        FlipPacing pacing = { 1, 0 };
+        int shown;
+        rec_outside_begin();
+        shown = interp_present(&pacing);
+        rec_outside_end();
+        if (shown) return;
+        /* None to make (a movie is showing, the frames are stale): what the window shows comes from below, and
+         * the next try waits a frame. */
+        s_busy_retry = qpc() + interp_interval();
     }
     now = SDL_GetTicks();
     if (now - s_last_present < 16)
         return;
+    /* Frame interpolation shows the title's frames, a step behind: showing what is scanned out now would put
+     * the newest frame between them. Loading screens, which do not flip, still get here. */
+    if (SDL_GetAtomicInt(&s_interp_on) && s_rec_act >= 0 && now - s_last_flip < 250)
+        return;
+    rec_outside_begin();
     XboxOverlay ovl;
     int movie = xbox_FramebufferOverlay(&ovl);
     int redraw = s_overlay.idle_present && s_overlay.idle_present(
@@ -3631,6 +5061,7 @@ void nv2a_d3d_tick(void)
         Surface *s = scan_surface(va, pitch);
         present_surface(s, NULL);
         s_frame++;
+        rec_outside_end();
         return;
     }
     if (s_shown && now - s_last_flip > 50) {
@@ -3645,4 +5076,5 @@ void nv2a_d3d_tick(void)
         else
             s_last_present = now;
     }
+    rec_outside_end();
 }
