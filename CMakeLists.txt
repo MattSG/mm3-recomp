@@ -116,7 +116,7 @@ if(MM3_RENDERER STREQUAL "SDL3_GPU")
     set(MM3_RMLUI_BACKEND
         ${rmlui_SOURCE_DIR}/Backends/RmlUi_Platform_SDL.cpp
         ${rmlui_SOURCE_DIR}/Backends/RmlUi_Renderer_SDL_GPU.cpp
-        ${rmlui_SOURCE_DIR}/Backends/RmlUi_Backend_SDL_GPU.cpp)
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/rmlui_backend_sdlgpu.cpp)   # RmlUi's, able to hand its window over
     set(MM3_RMLUI_BACKEND_LIBS SDL3::SDL3 SDL3_image::SDL3_image)
     set(MM3_IMGUI_BACKEND
         ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp

@@ -463,7 +463,21 @@ int main(void)
     xbe_entry_point();
     if (!g_mm3_inline_threads) {
         WaitForSingleObject(g_mm3_main_worker_ready, INFINITE);
+#if defined(_WIN32)
+        /* The launcher hands its window to the game, and a Win32 window's messages
+         * reach only the thread that made it: this one. The renderer retitles and
+         * resizes it from its own thread, which waits for them here. */
+        while (MsgWaitForMultipleObjects(1, &g_mm3_main_worker, FALSE, INFINITE, QS_ALLINPUT) ==
+               WAIT_OBJECT_0 + 1) {
+            MSG msg;
+            while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
+                TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+#else
         WaitForSingleObject(g_mm3_main_worker, INFINITE);
+#endif
         CloseHandle(g_mm3_main_worker);
     }
     CloseHandle(g_mm3_main_worker_ready);

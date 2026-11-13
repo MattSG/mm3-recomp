@@ -6,6 +6,10 @@
 #include <SDL3/SDL.h>
 extern "C" int xbox_FramebufferStartHidden(void);
 extern "C" void xbox_FramebufferSdlHints(void);
+extern "C" void fbw_sdl_adopt(SDL_Window *window, void (*release)(void));
+SDL_Window *rmlui_backend_hand_over();
+extern bool rmlui_backend_fullscreen;
+void rmlui_backend_release_window();
 #else
 #include <RmlUi_Renderer_DX11.h>
 #include <windows.h>
@@ -76,7 +80,9 @@ void rmlui_host_set_fullscreen(int on)
     if (!on == !rmlui_host_fullscreen())
         return;
 #if defined(XBOXRECOMP_SDL3)
-    if (SDL_Window *window = host_window())
+    SDL_Window *window = host_window();
+    if (window && !(SDL_GetWindowFlags(window) & SDL_WINDOW_HIDDEN) &&   /* a hidden start stays hidden, */
+        !SDL_getenv("MM3_LAUNCHER_OFFSCREEN"))                           /* an off-screen one off screen */
         SDL_SetWindowFullscreen(window, on != 0);   /* no mode set: the desktop's */
 #else
     HWND hwnd = host_window();
@@ -132,6 +138,7 @@ int rmlui_host_run(const RmlUiHostOptions *options, const RmlUiHostClient *clien
         SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &work);
     width = Rml::Math::Min(options->max_width, work.w * 9 / 10);
     height = Rml::Math::Min(options->max_height, work.h * 9 / 10);
+    rmlui_backend_fullscreen = options->fullscreen && !xbox_FramebufferStartHidden();
     /* The SDL GPU backend ships SPIR-V shaders only, which only Vulkan takes on Windows. */
     SDL_SetHint(SDL_HINT_GPU_DRIVER, "vulkan");
 #else
@@ -221,6 +228,12 @@ int rmlui_host_run(const RmlUiHostOptions *options, const RmlUiHostClient *clien
         }
     }
     Rml::Shutdown();
+#if defined(XBOXRECOMP_SDL3)
+    if (client->hand_over && client->hand_over(client->user)) {
+        fbw_sdl_adopt(rmlui_backend_hand_over(), rmlui_backend_release_window);
+        return 1;
+    }
+#endif
     Backend::Shutdown();
     return 1;
 }
@@ -228,17 +241,23 @@ int rmlui_host_run(const RmlUiHostOptions *options, const RmlUiHostClient *clien
 /* Candidate sans-serif pairs, regular then bold, in the order a host tries them. */
 int rmlui_host_load_sans_fonts(const char *family)
 {
-    static const char *const faces[][2] = {
-        {"C:/Windows/Fonts/segoeui.ttf", "C:/Windows/Fonts/segoeuib.ttf"},
+    /* Regular, bold, bold italic (the bold italic is optional: a wordmark, no other text). */
+    static const char *const faces[][3] = {
+        {"C:/Windows/Fonts/segoeui.ttf", "C:/Windows/Fonts/segoeuib.ttf", "C:/Windows/Fonts/segoeuiz.ttf"},
         {"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"},
-        {"/usr/share/fonts/TTF/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf"},
+         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+         "/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf"},
+        {"/usr/share/fonts/TTF/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+         "/usr/share/fonts/TTF/DejaVuSans-BoldOblique.ttf"},
         {"/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"},
+         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+         "/usr/share/fonts/truetype/liberation/LiberationSans-BoldItalic.ttf"},
         {"/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-         "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"},
+         "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
+         "/usr/share/fonts/truetype/noto/NotoSans-BoldItalic.ttf"},
         {"/System/Library/Fonts/Supplemental/Arial.ttf",
-         "/System/Library/Fonts/Supplemental/Arial Bold.ttf"},
+         "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+         "/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf"},
     };
     for (const auto &pair : faces) {
         FILE *regular = fopen(pair[0], "rb");
@@ -252,6 +271,11 @@ int rmlui_host_load_sans_fonts(const char *family)
         if (bold) {
             fclose(bold);
             Rml::LoadFontFace(pair[1], family, Rml::Style::FontStyle::Normal,
+                              Rml::Style::FontWeight::Bold);
+        }
+        if ((bold = fopen(pair[2], "rb")) != NULL) {
+            fclose(bold);
+            Rml::LoadFontFace(pair[2], family, Rml::Style::FontStyle::Italic,
                               Rml::Style::FontWeight::Bold);
         }
         return 1;

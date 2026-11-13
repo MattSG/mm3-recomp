@@ -19,6 +19,7 @@ struct RmlUiHostOptions {
     int dark_title_bar;          /* Win32 only: dark caption; 0 keeps the light default */
     int icon_resource;           /* Win32 only: icon resource id for the window; 0 keeps the class icon */
     const char *log_tag;         /* prefix for the host's own diagnostics */
+    int fullscreen;              /* SDL3: the window opens as borderless fullscreen */
 };
 
 struct RmlUiHostClient {
@@ -33,6 +34,7 @@ struct RmlUiHostClient {
     void (*after_update)(Rml::Context *ctx, void *user);  /* after the first ctx->Update() */
     int (*frame_ok)(void *user);      /* 0 while the client has logged errors; suppresses the first-frame line */
     void (*unavailable)(void *user);  /* the backend could not start */
+    int (*hand_over)(void *user);     /* SDL3: 1 = the game takes the window as it is, not closed */
 };
 
 /* Returns 1 when the backend started and the loop ran, 0 when it could not start. */

@@ -213,13 +213,18 @@ static HRESULT gpu_create_device(D3D8DeviceState *state, D3DPRESENT_PARAMETERS *
     UINT h = pp->BackBufferHeight ? pp->BackBufferHeight : 480;
     const char *hide;
 
-    /* RECOMP_HIDE_WINDOW=1 renders without showing a window (tests, CI). */
+    /* RECOMP_HIDE_WINDOW=1 renders without showing a window (tests, CI). With the
+     * pushbuffer executor (RECOMP_PB_EXEC) the game is shown in the framebuffer
+     * window, so this one stays hidden too: shown, it opened on top of the game
+     * and took its focus. */
     hide = getenv("RECOMP_HIDE_WINDOW");
+    if (!hide || !*hide || *hide == '0')
+        hide = getenv("RECOMP_PB_EXEC");
     if (!xgpu_init(&state->gpu, "xboxrecomp", (int)w, (int)h, hide && *hide && *hide != '0')) {
         fprintf(stderr, "D3D8: Failed to create SDL_GPU device\n");
         return E_FAIL;
     }
-    if (!pp->Windowed)
+    if (!pp->Windowed && !(SDL_GetWindowFlags(state->gpu.window) & SDL_WINDOW_HIDDEN))
         SDL_SetWindowFullscreen(state->gpu.window, true);
 
     state->width = w;

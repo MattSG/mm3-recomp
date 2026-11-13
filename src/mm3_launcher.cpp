@@ -206,7 +206,7 @@ struct Bind {
 };
 
 Rml::Vector<Option> g_options = {
-    {"Display", "Mode", "F11 or Alt+Enter switches in game.", "RECOMP_FULLSCREEN", "", "",
+    {"Display", "Mode", "The launcher's too. F11 or Alt+Enter switches, here and in game.", "RECOMP_FULLSCREEN", "1", "",
      {{"", "Windowed"}, {"1", "Fullscreen"}}},
     {"", "Window size", "Starting size of the game window.", "RECOMP_WINDOW_SIZE", "", "",
      {{"", "Auto"}, {"1280x720", "720p"}, {"1600x900", "900p"}, {"1920x1080", "1080p"}, {"2560x1440", "1440p"}}},
@@ -310,9 +310,8 @@ Rml::Vector<Section> g_sections = {
 enum { SECTION_CONTROLS = 4, SECTION_MODS = 5 };
 
 const char *const kSettingsFile = "mm3_settings.ini";
-const char *const kFullscreenKey = "MM3_LAUNCHER_FULLSCREEN"; /* the launcher's own window, not the game's */
-bool g_full;       /* the launcher is fullscreen */
-bool g_full_saved; /* it was when Play was last pressed */
+bool g_full;   /* the Mode setting: the launcher's window follows it */
+double g_play_at = -1; /* Play pressed: the loading screen shows, then the game takes the window */
 bool g_missing;
 int g_result = -1; /* -1 running, 0 quit, 1 play */
 int g_tab;
@@ -339,12 +338,21 @@ div, h1, h2 { display: block; }
 /* Sidebar: brand, sections, a skyline, then Play. */
 #side { flex: 0 0 272dp; width: 272dp; display: flex; flex-direction: column; background-color: #0c0e11;
         border-right: 1dp #ffffff0d; }
-#brand { padding: 30dp 26dp 22dp 28dp; }
-.word { font-size: 27dp; line-height: 27dp; font-weight: bold; letter-spacing: 2dp; color: #ffffff;
-        transform: skewX(-12deg); }
-.word.hot { color: #e8a33d; }
-.word .three { display: inline-block; margin-left: 8dp; padding: 0dp 9dp; border-radius: 3dp;
-               background-color: #e8a33d; color: #0c0e11; }
+/* The wordmark: one left edge for both lines (a bold italic face, not skewed lines), the 3 as a slanted
+   badge on the second line's cap height, speed stripes filling the first line out to the badge's end.
+   Sizes are in em, so the splash scales the whole lockup with one font-size. */
+#brand { padding: 30dp 24dp 24dp 30dp; }
+.logo { display: inline-block; font-size: 27dp; }
+.logo .line { display: block; height: 1em; line-height: 1em; white-space: nowrap; font-weight: bold;
+              font-style: italic; letter-spacing: 0.06em; color: #ffffff; }
+.logo .hot { margin-top: 0.12em; color: #e8a33d; }
+.logo .three { display: inline-block; height: 1em; line-height: 1em; margin-left: 0.3em; padding: 0em 0.26em;
+               border-radius: 0.1em; background-color: #e8a33d; color: #0c0e11; font-style: normal;
+               letter-spacing: 0em; transform: skewX(-12deg); }
+.logo .speed { display: inline-block; width: 1.6em; height: 0.6em; margin-left: 0.28em; }
+.logo .speed div { height: 0.1em; background-color: #e8a33d; transform: skewX(-12deg); }
+.logo .speed div:nth-child(2) { margin: 0.15em 0em 0em 0.3em; opacity: 0.75; }
+.logo .speed div:nth-child(3) { margin: 0.15em 0em 0em 0.6em; opacity: 0.5; }
 .tag { margin-top: 10dp; font-size: 11dp; letter-spacing: 3dp; color: #6c717c; text-transform: uppercase; }
 #nav { padding: 6dp 14dp; }
 .nav { display: flex; align-items: center; height: 40dp; padding: 0dp 14dp; margin-bottom: 2dp; border-radius: 7dp;
@@ -428,21 +436,17 @@ scrollbarvertical sliderbar { background-color: #2f333c; border-radius: 3dp; }
           display: flex; flex-direction: column; align-items: center; justify-content: center;
           background-color: #0c0e11; opacity: 1; transition: opacity 0.35s cubic-in-out; }
 #splash.fade { opacity: 0; }
-#splash .word { font-size: 46dp; line-height: 46dp; letter-spacing: 3dp; }
-#splash .tag { margin-top: 16dp; }
-#splash .bar { position: relative; margin-top: 30dp; width: 220dp; height: 3dp; border-radius: 2dp;
-               background-color: #22252c; overflow: hidden; }
-#splash .fill { position: absolute; left: 0dp; top: 0dp; width: 40%; height: 100%; border-radius: 2dp;
-                background-color: #e8a33d; animation: 1.1s cubic-in-out infinite sweep; }
-@keyframes sweep { from { left: -40%; } to { left: 100%; } }
+#splash .logo { font-size: 52dp; }
+#splash .tag { margin-top: 20dp; text-align: center; }
+#splash .bar { margin-top: 26dp; width: 260dp; height: 2dp; border-radius: 1dp; background-color: #1d2026; }
+/* Back and forth inside the track: this renderer has no clip masks, so nothing may leave it. */
+#splash .fill { width: 78dp; height: 100%; border-radius: 1dp; background-color: #e8a33d; margin-left: 0dp;
+                animation: 1.4s sine-in-out infinite alternate sweep; }
+@keyframes sweep { from { margin-left: 0dp; } to { margin-left: 182dp; } }
 </style></head>
 <body data-model="launcher">
   <div id="side">
-    <div id="brand">
-      <div class="word">MIDTOWN</div>
-      <div class="word hot">MADNESS<span class="three">3</span></div>
-      <div class="tag">Recompiled for PC</div>
-    </div>
+    <div id="brand">@LOGO@<div class="tag">Recompiled for PC</div></div>
     <div id="nav"><div data-for="s, i : sections">
       <div class="nav" data-if="dev || !s.dev" data-class-on="tab == i" data-event-click="tab = i"><div class="mark"/><span>{{ s.label }}</span></div>
     </div></div>
@@ -491,10 +495,7 @@ scrollbarvertical sliderbar { background-color: #2f333c; border-radius: 3dp; }
     </div>
   </div>
   <div id="splash" data-if="splash" data-class-fade="splash == 2" data-event-click="splash = 0">
-    <div class="word">MIDTOWN</div>
-    <div class="word hot">MADNESS<span class="three">3</span></div>
-    <div class="tag">Recompiled for PC</div>
-    <div class="bar"><div class="fill"/></div>
+    <div class="logo">@LOGO_BODY@</div><div class="tag">Recompiled for PC</div><div class="bar"><div class="fill"/></div>
   </div>
   <div id="capture" data-if="capturing"><div id="card">
     <div class="hint">{{ capture_label }}</div>
@@ -783,8 +784,6 @@ void load_settings()
         *eq = 0;
         if (!strcmp(line, "RECOMP_KEYMAP") || !strcmp(line, "MM3_DEV_HOTKEYS") || !strcmp(line, "RECOMP_PADMAP"))
             parse_keymap(line, eq + 1);
-        if (!strcmp(line, kFullscreenKey))
-            g_full_saved = !strcmp(eq + 1, "1");
         for (Option &o : g_options)
             if (o.env == line && valid(o, eq + 1))
                 o.value = eq + 1;
@@ -818,8 +817,8 @@ void save_and_export()
     const Rml::String keys = keymap("RECOMP_KEYMAP"), hotkeys = keymap("MM3_DEV_HOTKEYS"),
                       pad = keymap("RECOMP_PADMAP");
     if (f) {
-        fprintf(f, "RECOMP_KEYMAP=%s\nMM3_DEV_HOTKEYS=%s\nRECOMP_PADMAP=%s\n%s=%d\n", keys.c_str(),
-                hotkeys.c_str(), pad.c_str(), kFullscreenKey, g_full ? 1 : 0);
+        fprintf(f, "RECOMP_KEYMAP=%s\nMM3_DEV_HOTKEYS=%s\nRECOMP_PADMAP=%s\n", keys.c_str(), hotkeys.c_str(),
+                pad.c_str());
         fclose(f);
     }
     set_env("RECOMP_KEYMAP", keys.c_str());
@@ -874,9 +873,21 @@ bool find_game_dir()
 }
 #endif
 
+Option *mode_option()
+{
+    for (Option &o : g_options)
+        if (o.env == "RECOMP_FULLSCREEN")
+            return &o;
+    return nullptr;
+}
+
+/* F11, Alt+Enter and the Fullscreen button change the Mode setting itself. */
 void toggle_fullscreen()
 {
-    rmlui_host_set_fullscreen(!rmlui_host_fullscreen());
+    if (Option *o = mode_option()) {
+        o->value = o->value.empty() ? "1" : "";
+        options_changed();
+    }
 }
 
 /* The sidebar's skyline: two rows of blocks, a few windows lit, and a road. */
@@ -915,8 +926,12 @@ Rml::String city_markup()
 
 void play()
 {
-    if (!g_missing)
-        g_result = 1;
+    if (!g_missing && g_play_at < 0) {
+        g_play_at = Rml::GetSystemInterface() ? Rml::GetSystemInterface()->GetElapsedTime() : 0;
+        g_splash = 2;   /* the splash again, faded in, as the loading screen the game replaces */
+        if (g_model)
+            g_model.DirtyVariable("splash");
+    }
 }
 
 void end_capture()
@@ -1167,6 +1182,8 @@ bool on_key(Rml::Context *ctx, Rml::Input::KeyIdentifier key, int mods, float, b
 {
     if (!priority)
         return true;
+    if (g_play_at >= 0)   /* starting the game */
+        return false;
     /* A text field being typed in keeps its keys; Enter, Esc and up/down
      * leave it. */
     Rml::Element *typing = ctx->GetFocusElement();
@@ -1338,10 +1355,12 @@ static int launcher_load(Rml::Context *ctx, void *)
         return 0;
     Rml::String rml = kDocument;
     rml.replace(rml.find("@CITY@"), 6, city_markup());
+    const Rml::String logo = "<div class=\"line\"><span>MIDTOWN</span><span class=\"speed\"><div/><div/><div/></span></div>"
+                             "<div class=\"line hot\"><span>MADNESS</span><span class=\"three\">3</span></div>";
+    rml.replace(rml.find("@LOGO@"), 6, "<div class=\"logo\">" + logo + "</div>");
+    rml.replace(rml.find("@LOGO_BODY@"), 11, logo);
     if (Rml::ElementDocument *doc = ctx->LoadDocumentFromMemory(rml))
         doc->Show();
-    if (g_full_saved)
-        rmlui_host_set_fullscreen(1);
     return 1;
 }
 
@@ -1352,11 +1371,25 @@ static int launcher_keep_running(void *)
 
 static void launcher_before_update(Rml::Context *, double now, void *)
 {
-    tick_splash(now);
-    if (g_full != (rmlui_host_fullscreen() != 0)) {
-        g_full = !g_full;
+    if (g_play_at >= 0) {   /* fade the loading screen in, then hand over */
+        if (g_splash != 1 && now - g_play_at > 0.03) {
+            g_splash = 1;
+            g_model.DirtyVariable("splash");
+        }
+        if (now - g_play_at > 0.45)
+            g_result = 1;
+        return;   /* no input while it does */
+    } else {
+        tick_splash(now);
+    }
+    const Option *mode = mode_option();
+    const bool full = mode && !mode->value.empty();
+    if (full != g_full) {
+        g_full = full;
         g_model.DirtyVariable("full");
     }
+    if (full != (rmlui_host_fullscreen() != 0))
+        rmlui_host_set_fullscreen(full);
     poll_capture();
     poll_pad(now);
     poll_mouse();
@@ -1407,6 +1440,11 @@ static int launcher_frame_ok(void *)
     return !g_system.errors;
 }
 
+static int launcher_hand_over(void *)
+{
+    return g_result == 1;
+}
+
 static void launcher_unavailable(void *)
 {
     save_and_export(); /* no launcher: play with the saved settings */
@@ -1430,7 +1468,9 @@ extern "C" int mm3_launcher(void)
         g_tab = n >= 0 && n < (int)g_sections.size() && (g_dev || !g_sections[n].dev) ? n : 0;
     }
 
-    RmlUiHostOptions options = {"Midtown Madness 3", 1080, 720, 1, 1, "launcher"};
+    const Option *mode = mode_option();
+    g_full = mode && !mode->value.empty();
+    RmlUiHostOptions options = {"Midtown Madness 3", 1080, 720, 1, 1, "launcher", g_full};
     RmlUiHostClient client = {};
     client.bind_system = launcher_bind_system;
     client.system = &g_system;
@@ -1442,6 +1482,7 @@ extern "C" int mm3_launcher(void)
     client.after_update = launcher_after_update;
     client.frame_ok = launcher_frame_ok;
     client.unavailable = launcher_unavailable;
+    client.hand_over = launcher_hand_over;
     if (!rmlui_host_run(&options, &client))
         return 1;
     if (g_result != 1)

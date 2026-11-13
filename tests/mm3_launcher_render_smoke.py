@@ -69,9 +69,13 @@ def run_windows(exe, root, output_dir, visible=False):
             assert window is not None, f'Launcher did not render a frame within 15 s:\n{log}'
             hwnd, width, height = window
             style = user32.GetWindowLongW(hwnd, -16) & 0xffffffff  # GWL_STYLE
-            assert style & 0x00c00000 == 0x00c00000, f'Launcher needs a native caption: {style:#010x}'
-            assert style & 0x00080000, f'Launcher needs a native system menu: {style:#010x}'
-            assert not style & 0x80000000, f'Launcher must not use a popup frame: {style:#010x}'
+            if style & 0x80000000:  # WS_POPUP: the launcher follows a Fullscreen Mode setting
+                screen = (user32.GetSystemMetrics(0), user32.GetSystemMetrics(1))
+                assert visible and (width, height) == screen, \
+                    f'A popup launcher must be a visible fullscreen one: {width}x{height}, screen {screen}'
+            else:
+                assert style & 0x00c00000 == 0x00c00000, f'Launcher needs a native caption: {style:#010x}'
+                assert style & 0x00080000, f'Launcher needs a native system menu: {style:#010x}'
             assert bool(user32.IsWindowVisible(hwnd)) == visible, 'Launcher visibility differs from requested startup state.'
             assert user32.PostMessageW(hwnd, 0x0010, 0, 0), 'Could not send WM_CLOSE to the owned launcher.'
             assert process.wait(timeout=5) == 0, 'Normal launcher close must exit successfully.'

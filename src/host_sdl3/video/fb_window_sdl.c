@@ -166,6 +166,17 @@ int xbox_FramebufferStartHidden(void)
 #endif
 }
 
+/* A window the launcher hands over, still showing its last frame; release frees it
+ * from the launcher's GPU device just before the renderer claims it. */
+static SDL_Window *s_adopt;
+static void (*s_adopt_release)(void);
+
+void fbw_sdl_adopt(SDL_Window *window, void (*release)(void))
+{
+    s_adopt = window;
+    s_adopt_release = release;
+}
+
 SDL_Window *fbw_sdl_open(SDL_WindowFlags extra_flags)
 {
     SDL_Rect usable;
@@ -180,6 +191,24 @@ SDL_Window *fbw_sdl_open(SDL_WindowFlags extra_flags)
     memset(&usable, 0, sizeof usable);
     SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable);
     fbw_initial_size(usable.w, usable.h, &cw, &ch);
+    if (s_adopt) {
+        /* The same window, so no close and reopen: only its mode or size changes. */
+        const bool full = getenv("RECOMP_FULLSCREEN") != NULL;
+        s_window = s_adopt;
+        s_adopt = NULL;
+        if (s_adopt_release)
+            s_adopt_release();
+        if (full != ((SDL_GetWindowFlags(s_window) & SDL_WINDOW_FULLSCREEN) != 0))
+            SDL_SetWindowFullscreen(s_window, full);
+        if (!full) {
+            SDL_SetWindowSize(s_window, cw, ch);
+            SDL_SetWindowPosition(s_window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+        }
+        s_running = 1;
+        fprintf(stderr, "  [FBWIN] framebuffer window taken over from the launcher (%s)\n",
+                full ? "fullscreen" : "windowed");
+        return s_window;
+    }
     s_window = SDL_CreateWindow("Xbox Recomp - Framebuffer", cw, ch,
                                 SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY |
                                 (xbox_FramebufferStartHidden() ? SDL_WINDOW_HIDDEN : 0) |

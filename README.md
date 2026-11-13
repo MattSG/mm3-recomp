@@ -87,8 +87,9 @@ The game's launcher has **Display**, **Graphics**, **Audio**, **Network**,
 **Controls** and **Mods** sections. They cover resolution, aspect ratio, MSAA,
 texture filtering, draw distance, field of view and a frame limit. Keyboard/mouse
 input and controller button mappings are configured under Controls. The
-launcher's window can be resized, and **F11**, **Alt+Enter** or its
-**Fullscreen** button makes it fullscreen; it reopens that way after Play.
+launcher opens in the Display **Mode** (Fullscreen by default) and Play hands
+its window to the game, so nothing closes or reopens. **F11**, **Alt+Enter** or
+its **Fullscreen** button switches mode.
 
 - Enable **Use keyboard and mouse** to drive without a controller. With the
   Keyboard driving mod enabled, arrows drive and steer, R/F change gear,

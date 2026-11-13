@@ -9,6 +9,8 @@
 int fbw_sdl_wanted(void);
 /* The window, created on the first call; NULL if none is wanted or it failed. */
 SDL_Window *fbw_sdl_open(SDL_WindowFlags extra_flags);
+/* fbw_sdl_open takes this window instead of creating one, calling release first. */
+void fbw_sdl_adopt(SDL_Window *window, void (*release)(void));
 /* Handle pending events: keys, pointer, focus, close, fullscreen; and the
  * cursor and title-bar statistics. */
 void fbw_sdl_pump(void);
