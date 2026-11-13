@@ -13,8 +13,8 @@ extern "C" void xbox_FramebufferSdlHints(void);
 #endif
 
 #if !defined(XBOXRECOMP_SDL3)
-/* A dark caption in the client's colour instead of the light default. */
-static void dark_title_bar(int icon_resource)
+/* The backend's window: the thread's visible top-level window, NULL while hidden. */
+static HWND host_window(void)
 {
     HWND hwnd = NULL;
     EnumThreadWindows(GetCurrentThreadId(), [](HWND h, LPARAM p) -> BOOL {
@@ -23,6 +23,13 @@ static void dark_title_bar(int icon_resource)
         *(HWND *)p = h;
         return FALSE;
     }, (LPARAM)&hwnd);
+    return hwnd;
+}
+
+/* A dark caption in the client's colour instead of the light default. */
+static void dark_title_bar(int icon_resource)
+{
+    HWND hwnd = host_window();
     if (!hwnd)
         return;
     const BOOL dark = TRUE;
@@ -37,6 +44,82 @@ static void dark_title_bar(int icon_resource)
     }
 }
 #endif
+
+#if defined(XBOXRECOMP_SDL3)
+static SDL_Window *host_window(void)
+{
+    int count = 0;
+    SDL_Window **windows = SDL_GetWindows(&count);
+    SDL_Window *window = count > 0 ? windows[0] : NULL;
+    SDL_free(windows);
+    return window;
+}
+#else
+static bool s_fullscreen;
+static LONG s_windowed_style;
+static RECT s_windowed_rect;
+#endif
+
+int rmlui_host_fullscreen(void)
+{
+#if defined(XBOXRECOMP_SDL3)
+    SDL_Window *window = host_window();
+    return window && (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) != 0;
+#else
+    return s_fullscreen;
+#endif
+}
+
+/* Borderless fullscreen on the window's display, and back to the window it was. */
+void rmlui_host_set_fullscreen(int on)
+{
+    if (!on == !rmlui_host_fullscreen())
+        return;
+#if defined(XBOXRECOMP_SDL3)
+    if (SDL_Window *window = host_window())
+        SDL_SetWindowFullscreen(window, on != 0);   /* no mode set: the desktop's */
+#else
+    HWND hwnd = host_window();
+    if (!hwnd)
+        return;
+    if (on) {
+        MONITORINFO monitor = {sizeof monitor};
+        GetMonitorInfoA(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitor);
+        s_windowed_style = GetWindowLongA(hwnd, GWL_STYLE);
+        GetWindowRect(hwnd, &s_windowed_rect);
+        SetWindowLongA(hwnd, GWL_STYLE, (s_windowed_style & ~WS_OVERLAPPEDWINDOW) | WS_POPUP);
+        const RECT &r = monitor.rcMonitor;
+        SetWindowPos(hwnd, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top,
+                     SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
+    } else {
+        SetWindowLongA(hwnd, GWL_STYLE, s_windowed_style);
+        const RECT &r = s_windowed_rect;
+        SetWindowPos(hwnd, NULL, r.left, r.top, r.right - r.left, r.bottom - r.top,
+                     SWP_FRAMECHANGED | SWP_NOOWNERZORDER | SWP_NOZORDER);
+    }
+    s_fullscreen = on != 0;
+#endif
+}
+
+/* The document is laid out for max_width x max_height dp. A larger window (or
+ * fullscreen) scales it up to fit; a smaller one keeps the display's own scale
+ * and scrolls or reflows instead of shrinking the text. */
+static void fit_to_window(Rml::Context *ctx, const RmlUiHostOptions *options)
+{
+#if defined(XBOXRECOMP_SDL3)
+    SDL_Window *window = host_window();
+    const float native = window ? SDL_GetWindowDisplayScale(window) : 1.0f;
+#else
+    HWND hwnd = host_window();
+    const float native = hwnd ? (float)GetDpiForWindow(hwnd) / 96.0f : 1.0f;
+#endif
+    const Rml::Vector2i size = ctx->GetDimensions();
+    const float fit = Rml::Math::Min((float)size.x / (float)options->max_width,
+                                     (float)size.y / (float)options->max_height);
+    const float ratio = Rml::Math::Max(native > 0 ? native : 1.0f, fit);
+    if (Rml::Math::Absolute(ctx->GetDensityIndependentPixelRatio() - ratio) > 0.001f)
+        ctx->SetDensityIndependentPixelRatio(ratio);
+}
 
 int rmlui_host_run(const RmlUiHostOptions *options, const RmlUiHostClient *client)
 {
@@ -58,7 +141,7 @@ int rmlui_host_run(const RmlUiHostOptions *options, const RmlUiHostClient *clien
     width = Rml::Math::Min(options->max_width, (int)(work.right - work.left) * 9 / 10);
     height = Rml::Math::Min(options->max_height, (int)(work.bottom - work.top) * 9 / 10);
 #endif
-    if (!Backend::Initialize(options->title, width, height, false)) {
+    if (!Backend::Initialize(options->title, width, height, true)) {
         if (client->unavailable)
             client->unavailable(client->user);
         return 0;
@@ -99,6 +182,7 @@ int rmlui_host_run(const RmlUiHostOptions *options, const RmlUiHostClient *clien
                )) {
             const double now = Rml::GetSystemInterface()->GetElapsedTime();
             client->before_update(ctx, now, client->user);
+            fit_to_window(ctx, options);
             ctx->Update();
             client->after_update(ctx, client->user);
             /* The first WM_SIZE can precede creation of the backend renderer.

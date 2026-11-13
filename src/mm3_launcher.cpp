@@ -187,7 +187,7 @@ struct Choice {
 struct Option {
     Rml::String header, label, hint, env, def, value;
     Rml::Vector<Choice> choices;
-    int page; /* 0 Settings, 1 Controls, 2 Mods */
+    int page; /* written 0 Settings, 1 Controls, 2 Mods; load_settings makes it a g_sections index */
     bool toggle; /* Off/On: drawn as a switch */
     bool fixed;  /* one choice: shown, not changeable */
     bool dev;    /* a developer tool: shown while that mod is on */
@@ -293,7 +293,26 @@ Rml::Vector<Bind> g_binds = {
     {"", "Extended cameras", "CAMERAS", VK_F3, 0, "", "MM3_DEV_HOTKEYS"},
 };
 
+/* The sidebar's sections; the Settings page splits into the first four by its headers. */
+struct Section {
+    Rml::String label, sub;
+    bool dev; /* shown while the developer tools mod is on */
+};
+Rml::Vector<Section> g_sections = {
+    {"Display", "The game window, frame rate and what happens in the background.", false},
+    {"Graphics", "Resolution, anti-aliasing and how far the city is drawn.", false},
+    {"Audio", "How the Xbox's sound is reproduced.", false},
+    {"Network", "System link and online play. Work in progress.", false},
+    {"Controls", "Keyboard, mouse and controller, and the debug overlay.", false},
+    {"Mods", "Optional changes to the original game. Off is the Xbox game.", false},
+    {"Developer", "The shipped game's own developer features.", true},
+};
+enum { SECTION_CONTROLS = 4, SECTION_MODS = 5 };
+
 const char *const kSettingsFile = "mm3_settings.ini";
+const char *const kFullscreenKey = "MM3_LAUNCHER_FULLSCREEN"; /* the launcher's own window, not the game's */
+bool g_full;       /* the launcher is fullscreen */
+bool g_full_saved; /* it was when Play was last pressed */
 bool g_missing;
 int g_result = -1; /* -1 running, 0 quit, 1 play */
 int g_tab;
@@ -314,113 +333,167 @@ int g_type = -1; /* a text option whose field takes the keyboard next update */
 const char kDocument[] = R"RML(
 <rml><head><title>Midtown Madness 3</title><style>
 body { width: 100%; height: 100%; font-family: Segoe UI; font-size: 14dp; color: #e6e7ea;
-       background-color: #121418; display: flex; flex-direction: column; }
+       background-color: #14171c; display: flex; flex-direction: row; }
 div, h1, h2 { display: block; }
-#head { display: flex; align-items: flex-end; padding: 22dp 28dp 0dp 28dp; border-bottom: 1dp #ffffff12; }
-#title { flex: 1; padding-bottom: 14dp; }
-.tab { margin-left: 20dp; padding: 0dp 0dp 12dp 0dp; color: #80848f; cursor: pointer;
-       border-bottom: 2dp transparent; }
-.tab:hover { color: #e6e7ea; }
-.tab.on { color: #ffffff; border-bottom-color: #e8a33d; }
-h1 { font-size: 20dp; font-weight: bold; color: #ffffff; }
-#sub { margin-top: 2dp; font-size: 12dp; color: #80848f; }
-#list { flex: 1; min-height: 0; padding: 0dp 18dp 8dp 18dp; overflow-y: auto; }
-h2 { margin: 18dp 10dp 4dp 10dp; font-size: 11dp; font-weight: bold; letter-spacing: 1dp; color: #e8a33d; text-transform: uppercase; }
-.opt { display: flex; align-items: center; padding: 10dp 10dp 10dp 8dp; border-bottom: 1dp #ffffff0f;
-       border-left: 2dp transparent; }
-.opt.focus { background-color: #191c21; border-left-color: #e8a33d; }
-.opt.focus .seg .btn.on { background-color: #e8a33d; color: #17120a; }
-.opt.focus .key { background-color: #2a2e36; color: #ffffff; }
+
+/* Sidebar: brand, sections, a skyline, then Play. */
+#side { flex: 0 0 272dp; width: 272dp; display: flex; flex-direction: column; background-color: #0c0e11;
+        border-right: 1dp #ffffff0d; }
+#brand { padding: 30dp 26dp 22dp 28dp; }
+.word { font-size: 27dp; line-height: 27dp; font-weight: bold; letter-spacing: 2dp; color: #ffffff;
+        transform: skewX(-12deg); }
+.word.hot { color: #e8a33d; }
+.word .three { display: inline-block; margin-left: 8dp; padding: 0dp 9dp; border-radius: 3dp;
+               background-color: #e8a33d; color: #0c0e11; }
+.tag { margin-top: 10dp; font-size: 11dp; letter-spacing: 3dp; color: #6c717c; text-transform: uppercase; }
+#nav { padding: 6dp 14dp; }
+.nav { display: flex; align-items: center; height: 40dp; padding: 0dp 14dp; margin-bottom: 2dp; border-radius: 7dp;
+       color: #8a8f9a; font-size: 15dp; cursor: pointer; transition: background-color color 0.12s cubic-out; }
+.nav:hover { color: #ffffff; background-color: #15181d; }
+.nav .mark { width: 3dp; height: 0dp; margin-right: 12dp; border-radius: 2dp; background-color: #e8a33d;
+             transition: height 0.18s cubic-out; }
+.nav.on { color: #ffffff; background-color: #191c22; }
+.nav.on .mark { height: 18dp; }
+#city { position: relative; flex: 1 1 0; min-height: 0; overflow: hidden; }
+.bld { position: absolute; bottom: 10dp; background-color: #15181e; }
+.bld.far { background-color: #111317; }
+.lit { position: absolute; width: 3dp; height: 4dp; background-color: #e8a33d99; }
+.road { position: absolute; left: 0dp; right: 0dp; bottom: 0dp; height: 10dp; background-color: #101216; }
+.dash { position: absolute; bottom: 4dp; width: 18dp; height: 2dp; background-color: #e8a33d55; }
+#actions { padding: 16dp 22dp 20dp 22dp; background-color: #0c0e11; }
+#play { padding: 13dp 0dp; border-radius: 6dp; text-align: center; font-size: 17dp; font-weight: bold;
+        letter-spacing: 3dp; color: #17120a; background-color: #e8a33d; cursor: pointer;
+        transform: skewX(-8deg); transition: background-color 0.12s cubic-out; }
+#play:hover { background-color: #f4b95c; }
+#play.off { background-color: #24272e; color: #5d616b; cursor: arrow; }
+.small { display: flex; margin-top: 10dp; }
+.ghost { flex: 1 1 0; padding: 7dp 0dp; border-radius: 6dp; text-align: center; font-size: 13dp; color: #8a8f9a;
+         cursor: pointer; transition: background-color color 0.12s cubic-out; }
+.ghost:hover { color: #ffffff; background-color: #191c22; }
+
+/* Main: the section's title, its rows, then hints. */
+#main { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+#head { padding: 30dp 36dp 14dp 36dp; }
+h1 { font-size: 28dp; font-weight: bold; color: #ffffff; }
+#sub { margin-top: 4dp; font-size: 13dp; color: #80848f; }
+#list { flex: 1 1 0; min-height: 0; padding: 4dp 30dp 18dp 36dp; overflow-y: auto; }
+h2 { margin: 20dp 2dp 8dp 2dp; font-size: 11dp; font-weight: bold; letter-spacing: 2dp; color: #e8a33d;
+     text-transform: uppercase; }
+.opt { display: flex; align-items: center; min-height: 34dp; padding: 12dp 16dp; margin-bottom: 6dp; border-radius: 8dp;
+       background-color: #191c22; border: 1dp #00000000; transition: background-color 0.12s cubic-out; }
+.opt:hover { background-color: #1d2027; }
+.opt.focus { background-color: #20242c; border-color: #e8a33d88; }
+.opt.compact { min-height: 24dp; padding-top: 7dp; padding-bottom: 7dp; margin-bottom: 4dp; }
+.text { flex: 1 1 0; min-width: 0; padding-right: 18dp; }
+.label { font-size: 14dp; color: #f0f1f3; }
+.hint { margin-top: 3dp; font-size: 12dp; color: #80848f; }
 .fixed { font-size: 13dp; color: #80848f; }
-input.field { flex: 0 0 200dp; width: 200dp; padding: 5dp 10dp; border-radius: 6dp; background-color: #1d2026; color: #e6e7ea;
-              font-size: 13dp; cursor: text; }
-input.field:focus { background-color: #2a2e36; }
-.opt.focus input.field { background-color: #2a2e36; }
-.text { flex: 1 1 0; min-width: 0; padding-right: 16dp; }
-.hint { margin-top: 1dp; font-size: 12dp; color: #80848f; }
-.seg { flex: 0 1 auto; padding: 2dp; border-radius: 6dp; background-color: #1d2026; text-align: right; }
-.seg .btn { display: inline-block; padding: 4dp 10dp; border-radius: 4dp; font-size: 13dp; color: #9a9ea8;
-            cursor: pointer; }
-.seg .btn:hover { color: #ffffff; }
-.seg .btn.on { background-color: #3a3f4a; color: #ffffff; }
-.switch { position: relative; width: 38dp; height: 22dp; border-radius: 11dp; background-color: #2a2e36;
+input.field { flex: 0 0 220dp; width: 220dp; padding: 6dp 10dp; border-radius: 6dp; background-color: #111317;
+              border: 1dp #ffffff14; color: #e6e7ea; font-size: 13dp; cursor: text; }
+input.field:focus { border-color: #e8a33d; }
+.opt.focus input.field { border-color: #e8a33d88; }
+.seg { flex: 0 1 auto; padding: 3dp; border-radius: 7dp; background-color: #111317; text-align: right; }
+.seg .btn { display: inline-block; padding: 5dp 11dp; border-radius: 5dp; font-size: 13dp; color: #8a8f9a;
+            cursor: pointer; transition: background-color color 0.12s cubic-out; }
+.seg .btn:hover { color: #ffffff; background-color: #20242c; }
+.seg .btn.on { background-color: #2d323c; color: #ffffff; }
+.opt.focus .seg .btn.on, .seg .btn.on:hover { background-color: #e8a33d; color: #17120a; }
+.switch { position: relative; flex: 0 0 42dp; width: 42dp; height: 24dp; border-radius: 12dp; background-color: #2a2e36;
           cursor: pointer; transition: background-color 0.15s cubic-out; }
-.switch .knob { position: absolute; left: 3dp; top: 3dp; width: 16dp; height: 16dp; border-radius: 8dp;
+.switch .knob { position: absolute; left: 3dp; top: 3dp; width: 18dp; height: 18dp; border-radius: 9dp;
                 background-color: #9a9ea8; transition: left background-color 0.15s cubic-out; }
 .switch.on { background-color: #e8a33d; }
-.switch.on .knob { left: 19dp; background-color: #ffffff; }
-.opt.compact { padding-top: 5dp; padding-bottom: 5dp; }
-.key { min-width: 120dp; padding: 4dp 12dp; border-radius: 6dp; text-align: center; font-size: 13dp;
-       background-color: #1d2026; cursor: pointer; }
-.key:hover { background-color: #2a2e36; }
+.switch.on .knob { left: 21dp; background-color: #ffffff; }
+.key { min-width: 130dp; padding: 5dp 12dp; border-radius: 6dp; text-align: center; font-size: 13dp;
+       background-color: #111317; border: 1dp #ffffff14; cursor: pointer; }
+.key:hover, .opt.focus .key { border-color: #e8a33d; color: #ffffff; }
 .key.none { color: #5d616b; }
+#foot { display: flex; align-items: center; min-height: 22dp; padding: 12dp 36dp; border-top: 1dp #ffffff0d;
+        background-color: #111317; }
+.hints { flex: 1 1 auto; font-size: 12dp; color: #8a8f9a; }
+.glyph { display: inline-block; min-width: 12dp; padding: 1dp 6dp; margin: 0dp 5dp 0dp 14dp; border-radius: 4dp;
+         background-color: #262a32; color: #e6e7ea; font-size: 11dp; font-weight: bold; text-align: center; }
+.glyph.first { margin-left: 0dp; }
+.glyph.pair { margin-left: 2dp; }
+#status { flex: 0 1 auto; font-size: 12dp; color: #e8a33d; text-align: right; }
+scrollbarvertical { width: 5dp; }
+scrollbarvertical sliderbar { background-color: #2f333c; border-radius: 3dp; }
+
+/* Key prompt and the start-up splash. */
 #capture { position: absolute; left: 0dp; top: 0dp; width: 100%; height: 100%; z-index: 10;
-           display: flex; align-items: center; justify-content: center; background-color: #000000b8; }
-#card { padding: 22dp 30dp; border-radius: 10dp; background-color: #1d2026; text-align: center; }
-#card .big { font-size: 16dp; color: #ffffff; margin: 4dp 0dp; }
+           display: flex; align-items: center; justify-content: center; background-color: #000000c0; }
+#card { padding: 26dp 40dp; border-radius: 12dp; background-color: #191c22; border: 1dp #e8a33d66; text-align: center; }
+#card .big { font-size: 18dp; color: #ffffff; margin: 6dp 0dp; }
 #splash { position: absolute; left: 0dp; top: 0dp; width: 100%; height: 100%; z-index: 20;
           display: flex; flex-direction: column; align-items: center; justify-content: center;
-          background-color: #121418; opacity: 1; transition: opacity 0.35s cubic-in-out; }
+          background-color: #0c0e11; opacity: 1; transition: opacity 0.35s cubic-in-out; }
 #splash.fade { opacity: 0; }
-#splash .name { font-size: 30dp; font-weight: bold; color: #ffffff; }
-#splash .sub { margin-top: 4dp; font-size: 13dp; color: #80848f; }
-#splash .bar { position: relative; margin-top: 28dp; width: 180dp; height: 3dp; border-radius: 2dp;
-               background-color: #2a2d34; overflow: hidden; }
+#splash .word { font-size: 46dp; line-height: 46dp; letter-spacing: 3dp; }
+#splash .tag { margin-top: 16dp; }
+#splash .bar { position: relative; margin-top: 30dp; width: 220dp; height: 3dp; border-radius: 2dp;
+               background-color: #22252c; overflow: hidden; }
 #splash .fill { position: absolute; left: 0dp; top: 0dp; width: 40%; height: 100%; border-radius: 2dp;
                 background-color: #e8a33d; animation: 1.1s cubic-in-out infinite sweep; }
 @keyframes sweep { from { left: -40%; } to { left: 100%; } }
-#foot { display: flex; align-items: center; padding: 14dp 28dp 14dp 16dp; border-top: 1dp #ffffff12;
-        background-color: #0e1013; }
-.ghost { padding: 7dp 12dp; margin-right: 4dp; border-radius: 6dp; color: #9a9ea8; cursor: pointer; }
-.ghost:hover { color: #ffffff; background-color: #1d2026; }
-#hints { flex: 0 0 auto; white-space: nowrap; font-size: 12dp; color: #9a9ea8; padding-left: 4dp; }
-.glyph { display: inline-block; min-width: 12dp; padding: 1dp 5dp; margin: 0dp 4dp 0dp 12dp; border-radius: 4dp;
-         background-color: #2a2e36; color: #e6e7ea; font-size: 11dp; font-weight: bold; text-align: center; }
-.glyph.pair { margin-left: 2dp; }
-.glyph.start { vertical-align: 2dp; margin: 0dp 8dp 0dp 0dp; background-color: #00000026; color: #17120a; }
-#status { flex: 1; font-size: 12dp; color: #e8a33d; text-align: right; padding-right: 12dp; }
-#play { padding: 8dp 28dp; border-radius: 6dp; font-weight: bold; color: #17120a;
-        background-color: #e8a33d; cursor: pointer; }
-#play:hover { background-color: #f2b456; }
-#play.off { background-color: #2a2d34; color: #5d616b; cursor: arrow; }
-scrollbarvertical { width: 4dp; }
-scrollbarvertical sliderbar { background-color: #2f333c; border-radius: 2dp; }
 </style></head>
 <body data-model="launcher">
-  <div id="head">
-    <div id="title">
-      <h1>Midtown Madness 3</h1>
-      <div id="sub">Saved when you press Play.</div>
+  <div id="side">
+    <div id="brand">
+      <div class="word">MIDTOWN</div>
+      <div class="word hot">MADNESS<span class="three">3</span></div>
+      <div class="tag">Recompiled for PC</div>
     </div>
-    <div class="tab" data-class-on="tab == 0" data-event-click="tab = 0">Settings</div>
-    <div class="tab" data-class-on="tab == 1" data-event-click="tab = 1">Controls</div>
-    <div class="tab" data-class-on="tab == 2" data-event-click="tab = 2">Mods</div>
-  </div>
-  <div id="list">
-    <div data-for="o, i : options"><div data-if="o.page == tab && (dev || !o.dev)" data-attr-id="'o' + i">
-      <h2 data-if="o.header != ''">{{ o.header }}</h2>
-      <div class="opt" data-class-focus="fo == i">
-        <div class="text"><div>{{ o.label }}</div><div class="hint" data-if="o.hint != ''">{{ o.hint }}</div></div>
-        <div class="fixed" data-if="o.fixed">{{ o.choices[0].label }}</div>
-        <input class="field" type="text" data-if="o.text" data-value="o.value"/>
-        <div class="seg" data-if="!o.toggle && !o.fixed && !o.text"><div class="btn" data-for="c : o.choices" data-class-on="c.value == o.value"
-             data-event-click="set(i, c.value)">{{ c.label }}</div></div>
-        <div class="switch" data-if="o.toggle" data-class-on="o.value != o.choices[0].value" data-event-click="toggle(i)"><div class="knob"/></div>
-      </div>
+    <div id="nav"><div data-for="s, i : sections">
+      <div class="nav" data-if="dev || !s.dev" data-class-on="tab == i" data-event-click="tab = i"><div class="mark"/><span>{{ s.label }}</span></div>
     </div></div>
-    <div data-if="tab == 1">
-      <div data-for="b, i : binds"><div data-if="dev || !b.dev" data-attr-id="'b' + i">
-        <h2 data-if="b.header != ''">{{ b.header }}</h2>
-        <div class="opt compact" data-class-focus="fb == i">
-          <div class="text">{{ b.label }}</div>
-          <div class="key" data-class-none="b.vk == 0" data-event-click="rebind(i)">{{ b.key }}</div>
+    <div id="city">@CITY@</div>
+    <div id="actions">
+      <div id="play" data-class-off="missing" data-event-click="play()">PLAY</div>
+      <div class="small">
+        <div class="ghost" data-event-click="reset()">Defaults</div>
+        <div class="ghost" data-event-click="fullscreen()">{{ full ? 'Windowed' : 'Fullscreen' }}</div>
+        <div class="ghost" data-event-click="quit()">Quit</div>
+      </div>
+    </div>
+  </div>
+  <div id="main">
+    <div id="head"><h1>{{ title }}</h1><div id="sub">{{ subtitle }}</div></div>
+    <div id="list">
+      <div data-for="o, i : options"><div data-if="o.page == tab && (dev || !o.dev)" data-attr-id="'o' + i">
+        <h2 data-if="o.header != ''">{{ o.header }}</h2>
+        <div class="opt" data-class-focus="fo == i">
+          <div class="text"><div class="label">{{ o.label }}</div><div class="hint" data-if="o.hint != ''">{{ o.hint }}</div></div>
+          <div class="fixed" data-if="o.fixed">{{ o.choices[0].label }}</div>
+          <input class="field" type="text" data-if="o.text" data-value="o.value"/>
+          <div class="seg" data-if="!o.toggle && !o.fixed && !o.text"><div class="btn" data-for="c : o.choices" data-class-on="c.value == o.value"
+               data-event-click="set(i, c.value)">{{ c.label }}</div></div>
+          <div class="switch" data-if="o.toggle" data-class-on="o.value != o.choices[0].value" data-event-click="toggle(i)"><div class="knob"/></div>
         </div>
       </div></div>
+      <div data-if="tab == 4">
+        <div data-for="b, i : binds"><div data-if="dev || !b.dev" data-attr-id="'b' + i">
+          <h2 data-if="b.header != ''">{{ b.header }}</h2>
+          <div class="opt compact" data-class-focus="fb == i">
+            <div class="text label">{{ b.label }}</div>
+            <div class="key" data-class-none="b.vk == 0" data-event-click="rebind(i)">{{ b.key }}</div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+    <div id="foot">
+      <div class="hints" data-if="!pad"><span class="glyph first">Up</span><span class="glyph pair">Down</span>Move<span
+        class="glyph">Left</span><span class="glyph pair">Right</span>Change<span class="glyph">Tab</span>Section<span
+        class="glyph">F11</span>Fullscreen<span class="glyph">Enter</span>Play<span class="glyph">Esc</span>Quit</div>
+      <div class="hints" data-if="pad"><span class="glyph first">LB</span><span class="glyph pair">RB</span>Section<span
+        class="glyph">A</span>Change<span class="glyph">Y</span>Defaults<span class="glyph">Back</span>Quit<span
+        class="glyph">Start</span>Play</div>
+      <div id="status"><span data-if="missing">game_files/default.xbe not found. Run python scripts/setup.py --iso &lt;disc image&gt;.</span></div>
     </div>
   </div>
   <div id="splash" data-if="splash" data-class-fade="splash == 2" data-event-click="splash = 0">
-    <div class="name">Midtown Madness 3</div>
-    <div class="sub">Recompiled for PC</div>
+    <div class="word">MIDTOWN</div>
+    <div class="word hot">MADNESS<span class="three">3</span></div>
+    <div class="tag">Recompiled for PC</div>
     <div class="bar"><div class="fill"/></div>
   </div>
   <div id="capture" data-if="capturing"><div id="card">
@@ -428,14 +501,6 @@ scrollbarvertical sliderbar { background-color: #2f333c; border-radius: 2dp; }
     <div class="big">{{ capture_pad ? 'Press a controller button' : 'Press a key or mouse button' }}</div>
     <div class="hint">{{ pad ? 'Esc or B to cancel' : 'Esc to cancel' }}</div>
   </div></div>
-  <div id="foot">
-    <div class="ghost" data-if="!pad" data-event-click="reset()">Defaults</div>
-    <div class="ghost" data-if="!pad" data-event-click="quit()">Quit</div>
-    <div id="hints" data-if="pad"><span class="glyph">LB</span><span class="glyph pair">RB</span>Tabs<span
-      class="glyph">A</span>Change<span class="glyph">Y</span>Defaults<span class="glyph">Back</span>Quit</div>
-    <div id="status"><span data-if="missing">game_files/default.xbe not found. Run python scripts/setup.py --iso &lt;disc image&gt;.</span></div>
-    <div id="play" data-class-off="missing" data-event-click="play()"><span class="glyph start" data-if="pad">Start</span>Play</div>
-  </div>
 </body></rml>
 )RML";
 
@@ -602,7 +667,10 @@ void options_changed()
     for (const Option &o : g_options)
         if (o.env == mm3_mods[MM3_MOD_DEV_TOOLS].env)
             g_dev = o.value == "1";
+    if (!g_dev && g_sections[g_tab].dev)
+        g_tab = 0;
     if (g_model) {
+        g_model.DirtyVariable("tab");
         g_model.DirtyVariable("options");
         g_model.DirtyVariable("dev");
     }
@@ -687,6 +755,19 @@ void load_settings()
         o.dev = o.env == "MM3_DEV_HUD" || o.env == "MM3_DEBUG_MENU" || o.env == "MM3_EXTENDED_CAMERAS" ||
                 o.env == "MM3_E3_PRESET" || o.env == "MM3_DEV_HOTKEYS_ON";
     }
+    int section = 0;
+    for (Option &o : g_options) {
+        if (o.page == 1 || o.page == 2) {
+            o.page = o.page == 1 ? SECTION_CONTROLS : SECTION_MODS;
+        } else {
+            for (int k = 0; k < (int)g_sections.size(); k++)
+                if (o.header == g_sections[k].label)
+                    section = k;
+            o.page = section;
+        }
+        if (o.header == g_sections[o.page].label) /* the page's title says it */
+            o.header = "";
+    }
     for (Bind &b : g_binds)
         b.dev = b.env == "MM3_DEV_HOTKEYS";
     load_environment_settings();
@@ -702,6 +783,8 @@ void load_settings()
         *eq = 0;
         if (!strcmp(line, "RECOMP_KEYMAP") || !strcmp(line, "MM3_DEV_HOTKEYS") || !strcmp(line, "RECOMP_PADMAP"))
             parse_keymap(line, eq + 1);
+        if (!strcmp(line, kFullscreenKey))
+            g_full_saved = !strcmp(eq + 1, "1");
         for (Option &o : g_options)
             if (o.env == line && valid(o, eq + 1))
                 o.value = eq + 1;
@@ -735,8 +818,8 @@ void save_and_export()
     const Rml::String keys = keymap("RECOMP_KEYMAP"), hotkeys = keymap("MM3_DEV_HOTKEYS"),
                       pad = keymap("RECOMP_PADMAP");
     if (f) {
-        fprintf(f, "RECOMP_KEYMAP=%s\nMM3_DEV_HOTKEYS=%s\nRECOMP_PADMAP=%s\n", keys.c_str(), hotkeys.c_str(),
-                pad.c_str());
+        fprintf(f, "RECOMP_KEYMAP=%s\nMM3_DEV_HOTKEYS=%s\nRECOMP_PADMAP=%s\n%s=%d\n", keys.c_str(),
+                hotkeys.c_str(), pad.c_str(), kFullscreenKey, g_full ? 1 : 0);
         fclose(f);
     }
     set_env("RECOMP_KEYMAP", keys.c_str());
@@ -790,6 +873,45 @@ bool find_game_dir()
     return false;
 }
 #endif
+
+void toggle_fullscreen()
+{
+    rmlui_host_set_fullscreen(!rmlui_host_fullscreen());
+}
+
+/* The sidebar's skyline: two rows of blocks, a few windows lit, and a road. */
+Rml::String city_markup()
+{
+    Rml::String out;
+    uint32_t seed = 3;
+    auto rnd = [&seed](int n) {
+        seed = seed * 1103515245u + 12345u;
+        return (int)((seed >> 16) % (uint32_t)n);
+    };
+    char tag[160];
+    for (int layer = 0; layer < 2; layer++) {
+        for (int x = -6; x < 272;) {
+            const int w = 18 + rnd(22), h = layer ? 34 + rnd(70) : 80 + rnd(90);
+            snprintf(tag, sizeof tag, "<div class=\"bld%s\" style=\"left: %ddp; width: %ddp; height: %ddp;\">",
+                     layer ? "" : " far", x, w, h);
+            out += tag;
+            for (int wy = 8; wy + 10 < h; wy += 9)
+                for (int wx = 5; wx + 6 < w; wx += 7)
+                    if (rnd(layer ? 7 : 16) == 0) {
+                        snprintf(tag, sizeof tag, "<div class=\"lit\" style=\"left: %ddp; top: %ddp;\"/>", wx, wy);
+                        out += tag;
+                    }
+            out += "</div>";
+            x += w + (layer ? rnd(5) : 2 + rnd(12));
+        }
+    }
+    out += "<div class=\"road\">";
+    for (int x = 6; x < 272; x += 34) {
+        snprintf(tag, sizeof tag, "<div class=\"dash\" style=\"left: %ddp;\"/>", x);
+        out += tag;
+    }
+    return out + "</div>";
+}
 
 void play()
 {
@@ -862,7 +984,7 @@ Rml::Vector<Row> rows()
     for (int i = 0; i < (int)g_options.size(); i++)
         if (g_options[i].page == g_tab && (g_dev || !g_options[i].dev))
             r.push_back({false, i});
-    if (g_tab == 1)
+    if (g_tab == SECTION_CONTROLS)
         for (int i = 0; i < (int)g_binds.size(); i++)
             if (g_dev || !g_binds[i].dev)
                 r.push_back({true, i});
@@ -897,7 +1019,10 @@ enum Nav { UP, DOWN, LEFT, RIGHT, ACCEPT, PREV_TAB, NEXT_TAB };
 void navigate(Nav act)
 {
     if (act == PREV_TAB || act == NEXT_TAB) {
-        g_tab = (g_tab + (act == NEXT_TAB ? 1 : 2)) % 3;
+        const int n = (int)g_sections.size();
+        do
+            g_tab = (g_tab + (act == NEXT_TAB ? 1 : n - 1)) % n;
+        while (g_sections[g_tab].dev && !g_dev);
         g_model.DirtyVariable("tab");
         return; /* the loop resets the row for the new tab */
     }
@@ -1054,6 +1179,11 @@ bool on_key(Rml::Context *ctx, Rml::Input::KeyIdentifier key, int mods, float, b
             navigate(key == Rml::Input::KI_UP ? UP : DOWN);
         return false;
     }
+    if (g_capture < 0 && (key == Rml::Input::KI_F11 ||
+                          (key == Rml::Input::KI_RETURN && (mods & Rml::Input::KM_ALT)))) {
+        toggle_fullscreen();
+        return false;
+    }
     if (g_splash) {   /* any key skips the splash */
         g_splash = 0;
         g_model.DirtyVariable("splash");
@@ -1149,6 +1279,15 @@ bool bind_model(Rml::Context *ctx)
     m.Bind("fb", &g_fb);
     m.Bind("pad", &g_pad);
     m.Bind("dev", &g_dev);
+    m.Bind("full", &g_full);
+    if (auto sec = m.RegisterStruct<Section>()) {
+        sec.RegisterMember("label", &Section::label);
+        sec.RegisterMember("dev", &Section::dev);
+    }
+    m.RegisterArray<Rml::Vector<Section>>();
+    m.Bind("sections", &g_sections);
+    m.BindFunc("title", [](Rml::Variant &v) { v = g_sections[g_tab].label; });
+    m.BindFunc("subtitle", [](Rml::Variant &v) { v = g_sections[g_tab].sub; });
     m.BindFunc("capturing", [](Rml::Variant &v) { v = g_capture >= 0; });
     m.BindFunc("capture_pad", [](Rml::Variant &v) { v = g_capture >= 0 && pad_bind(g_binds[g_capture]); });
     m.BindEventCallback("toggle", [](Rml::DataModelHandle h, Rml::Event &, const Rml::VariantList &args) {
@@ -1172,6 +1311,9 @@ bool bind_model(Rml::Context *ctx)
     m.BindEventCallback("reset", [](Rml::DataModelHandle, Rml::Event &, const Rml::VariantList &) { reset(); });
     m.BindEventCallback("play", [](Rml::DataModelHandle, Rml::Event &, const Rml::VariantList &) { play(); });
     m.BindEventCallback("quit", [](Rml::DataModelHandle, Rml::Event &, const Rml::VariantList &) { g_result = 0; });
+    m.BindEventCallback("fullscreen", [](Rml::DataModelHandle, Rml::Event &, const Rml::VariantList &) {
+        toggle_fullscreen();
+    });
     g_model = m.GetModelHandle();
     return true;
 }
@@ -1194,8 +1336,12 @@ static int launcher_load(Rml::Context *ctx, void *)
 {
     if (!bind_model(ctx))
         return 0;
-    if (Rml::ElementDocument *doc = ctx->LoadDocumentFromMemory(kDocument))
+    Rml::String rml = kDocument;
+    rml.replace(rml.find("@CITY@"), 6, city_markup());
+    if (Rml::ElementDocument *doc = ctx->LoadDocumentFromMemory(rml))
         doc->Show();
+    if (g_full_saved)
+        rmlui_host_set_fullscreen(1);
     return 1;
 }
 
@@ -1207,6 +1353,10 @@ static int launcher_keep_running(void *)
 static void launcher_before_update(Rml::Context *, double now, void *)
 {
     tick_splash(now);
+    if (g_full != (rmlui_host_fullscreen() != 0)) {
+        g_full = !g_full;
+        g_model.DirtyVariable("full");
+    }
     poll_capture();
     poll_pad(now);
     poll_mouse();
@@ -1223,6 +1373,8 @@ static void launcher_after_update(Rml::Context *ctx, void *)
         shown_tab = g_tab;
         g_row = 0;
         show_focus();
+        g_model.DirtyVariable("title");
+        g_model.DirtyVariable("subtitle");
         if (Rml::Element *list = doc->GetElementById("list"))
             list->SetScrollTop(0);
         ctx->Update();
@@ -1272,11 +1424,13 @@ extern "C" int mm3_launcher(void)
     g_missing = !find_game_dir();
     load_settings();
     options_changed();
-    /* MM3_LAUNCHER_TAB=0/1/2 opens on Settings, Controls or Mods (screenshots, tests). */
-    if (const char *tab = getenv("MM3_LAUNCHER_TAB"))
-        g_tab = atoi(tab) >= 0 && atoi(tab) <= 2 ? atoi(tab) : 0;
+    /* MM3_LAUNCHER_TAB=<n> opens on the nth sidebar section (screenshots, tests). */
+    if (const char *tab = getenv("MM3_LAUNCHER_TAB")) {
+        const int n = atoi(tab);
+        g_tab = n >= 0 && n < (int)g_sections.size() && (g_dev || !g_sections[n].dev) ? n : 0;
+    }
 
-    RmlUiHostOptions options = {"Midtown Madness 3", 760, 720, 1, 1, "launcher"};
+    RmlUiHostOptions options = {"Midtown Madness 3", 1080, 720, 1, 1, "launcher"};
     RmlUiHostClient client = {};
     client.bind_system = launcher_bind_system;
     client.system = &g_system;

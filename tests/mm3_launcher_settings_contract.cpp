@@ -5,6 +5,8 @@ extern "C" {
 #include <assert.h>
 int rmlui_host_run(const RmlUiHostOptions *, const RmlUiHostClient *) { assert(false); return 0; }
 int rmlui_host_load_sans_fonts(const char *) { assert(false); return 0; }
+void rmlui_host_set_fullscreen(int) { assert(false); }
+int rmlui_host_fullscreen(void) { assert(false); return 0; }
 extern "C" {
 uint32_t xbox_InputHostPad(uint32_t, uint16_t *, uint8_t *, uint8_t *, int16_t *, int16_t *, int16_t *, int16_t *)
 { assert(false); return ERROR_DEVICE_NOT_CONNECTED; }

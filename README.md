@@ -83,17 +83,19 @@ results before building.
 
 ## Playing and settings
 
-The game's launcher has **Settings**, **Controls** and **Mods** tabs. Settings
-include resolution, aspect ratio, MSAA, texture filtering, draw distance, field
-of view and a frame limit. Keyboard/mouse input and controller button mappings
-are configured under Controls.
+The game's launcher has **Display**, **Graphics**, **Audio**, **Network**,
+**Controls** and **Mods** sections. They cover resolution, aspect ratio, MSAA,
+texture filtering, draw distance, field of view and a frame limit. Keyboard/mouse
+input and controller button mappings are configured under Controls. The
+launcher's window can be resized, and **F11**, **Alt+Enter** or its
+**Fullscreen** button makes it fullscreen; it reopens that way after Play.
 
 - Enable **Use keyboard and mouse** to drive without a controller. With the
   Keyboard driving mod enabled, arrows drive and steer, R/F change gear,
   Space is the handbrake and C changes camera.
 - Enable **Menu keys and mouse** for mouse selection and clicks in game menus.
 - Press **F11** or **Alt+Enter** to switch fullscreen.
-- If audio stutters, try **Settings > Audio > Sound processor > Off**. This
+- If audio stutters, try **Audio > Sound processor > Off**. This
   bypasses DSP effects and mixes the voices directly.
 - Back up your saves before trying a new build.
 - Saves copied from an Xbox load as damaged, because the console signed them with
@@ -127,7 +129,7 @@ The collision guard is required.
 | Car damage | Scale crash damage: dealt to other cars, received by yours (off by default). |
 | Hold the race | F2 holds the whole race still without the pause menu and F2 again lets it run (off by default; not with System Link). |
 
-The Mods tab also has translation corrections and optional developer/debug
+The Mods section also has translation corrections and optional developer/debug
 features. [src/mods/mods.c](src/mods/mods.c) lists the switches and defaults.
 The retail developer tools require `tools/debug-features/prepare.py`.
 

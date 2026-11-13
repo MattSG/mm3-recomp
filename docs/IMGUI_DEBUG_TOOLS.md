@@ -1,6 +1,6 @@
 # ImGui debug tools
 
-Enable **ImGui debug tools** under the launcher's Mods tab. Controls contains the
+Enable **ImGui debug tools** under the launcher's Mods section. Controls contains the
 show/hide keyboard, controller-combination and optional mouse bindings. They save
 with the launcher's other settings when Play is pressed.
 

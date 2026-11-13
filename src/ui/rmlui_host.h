@@ -14,7 +14,8 @@
 
 struct RmlUiHostOptions {
     const char *title;
-    int max_width, max_height;   /* the window is at most this, and within 90% of the work area */
+    int max_width, max_height;   /* the window is at most this, and within 90% of the work area; the
+                                    window is resizable and the document scales up to fit it */
     int dark_title_bar;          /* Win32 only: dark caption; 0 keeps the light default */
     int icon_resource;           /* Win32 only: icon resource id for the window; 0 keeps the class icon */
     const char *log_tag;         /* prefix for the host's own diagnostics */
@@ -36,6 +37,10 @@ struct RmlUiHostClient {
 
 /* Returns 1 when the backend started and the loop ran, 0 when it could not start. */
 int rmlui_host_run(const RmlUiHostOptions *options, const RmlUiHostClient *client);
+
+/* The window as borderless fullscreen on its display (1) or back as it was (0). */
+void rmlui_host_set_fullscreen(int on);
+int rmlui_host_fullscreen(void);
 
 /* Registers the first installed sans-serif pair (regular, then bold) under family, and as the
  * fallback face for glyphs the family lacks. Returns 0 when no candidate is installed. */
