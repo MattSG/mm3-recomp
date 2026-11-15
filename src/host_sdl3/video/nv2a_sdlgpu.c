@@ -3832,7 +3832,7 @@ typedef struct {
     CSet *sets; size_t nsets, sets_cap;
     float *adj; size_t adj_cap;
     Surface final;                      /* the flipped surface, its texture a snapshot */
-    int valid, bad;
+    int valid, bad, cut;                /* cut: the camera cut to it (rec_pair): nothing blends */
     int64_t t_frame, period;            /* when its step began; time since the frame before */
     uint32_t stat_lerp, stat_paired, stat_vblend;
     uint8_t *vmem; size_t vmem_len, vmem_cap;
@@ -4319,6 +4319,7 @@ static void rec_pair(Rec *r, const Rec *p)
     void *g;
     uint8_t camera[CSET_FLOATS / 4];
     r->stat_lerp = r->stat_paired = 0;
+    r->cut = 0;
     memset(s_reg_jumps, 0, sizeof s_reg_jumps);
     if (!p || !r->nsets || !p->nsets) return;
     if (!(g = rec_grow(r->adj, &r->adj_cap, r->nsets * CSET_FLOATS, sizeof *r->adj))) return;
@@ -4398,6 +4399,7 @@ static void rec_pair(Rec *r, const Rec *p)
         for (n = 0; n < CSET_FLOATS / 4 && !cut && moved >= 8; n++) cut = s_reg_jumps[n] * 2 > moved;
         if (cut)
             for (n = 0; n < r->nsets; n++) r->sets[n].lerp = 0;
+        r->cut = cut;
     }
     for (n = 0; n < r->nsets; n++) r->stat_lerp += r->sets[n].lerp;
 }
@@ -4528,7 +4530,9 @@ static void rec_vpair(Rec *r, const Rec *p)
     static size_t co_cap, po_cap;
     size_t ci = 0, pi = 0;
     r->stat_vblend = 0;
-    if (!p || !r->nvd || !p->nvd || !vd_order(r, &co, &co_cap) || !vd_order(p, &po, &po_cap)) return;
+    /* Across a cut (rec_pair) vertices do not blend either: geometry rebuilt in screen space for the new view
+     * (sprites, glare) would be drawn part way from where the old camera saw it. */
+    if (!p || r->cut || !r->nvd || !p->nvd || !vd_order(r, &co, &co_cap) || !vd_order(p, &po, &po_cap)) return;
     while (ci < r->nvd && pi < p->nvd) {
         uint64_t key = r->vd[co[ci]].key;
         size_t c0 = ci, p0, p1, j;
