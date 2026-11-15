@@ -4207,6 +4207,8 @@ static uint32_t *set_order(const Rec *r, uint32_t **keep, size_t *cap, size_t *c
 
 /* How many sets each register jumped in this frame (rec_pair's cut test). */
 static uint32_t s_reg_jumps[CSET_FLOATS / 4];
+static float s_cut_prev[CSET_FLOATS / 4][4], s_cut_cur[CSET_FLOATS / 4][4];   /* diagnostic: a jump's values */
+static uint8_t s_cut_part[CSET_FLOATS / 4];
 
 /* Blend set c (this frame's constants `cur`) from its partner `best` (set bs of the frame before). */
 static void pair_set(Rec *r, const Rec *p, size_t ci, const float *best, const CSet *bs, size_t *moved, size_t *refused)
@@ -4241,9 +4243,24 @@ static void pair_set(Rec *r, const Rec *p, size_t ci, const float *best, const C
             changed |= cur[e + g] != best[e + g];
         }
         if (whole && changed) jump[0] = jump[1] = 1;
+        /* A long row (a projection's, scaled to the screen: 27000 and more) turning moves an element near zero
+         * by more than its own size (-300 to 200) without being anything but a turn; every set shares the
+         * camera's, so a fast turn was taken for a cut and the whole pair shown without blending (a full step's
+         * judder in crash spins and sharp turns). Its xyz jumps only if the row as a whole moved by half its
+         * length. Unit rows (wheels, bones) are judged by element as before. */
+        float row_d = 0, row_l = 0;
+        for (g = 0; g < 3; g++) {
+            float d = cur[e + g] - best[e + g];
+            row_d += d * d;
+            row_l += cur[e + g] * cur[e + g] > best[e + g] * best[e + g] ? cur[e + g] * cur[e + g] : best[e + g] * best[e + g];
+        }
+        int long_turn = row_l > 4.0f && row_d <= 0.25f * row_l;
         for (g = 0; g < 4; g++) {
             float v = cur[e + g], d = v - best[e + g], lim = fabsf(v) <= 2.0f ? 0.7f : fabsf(v);
-            if (jump[g == 3]) continue;
+            if (jump[g == 3] || (g < 3 && long_turn)) continue;
+            /* Its w is a plane's offset in the row's own units: w / length is a distance in the world. Moving the
+             * camera a third of a unit took the projection's w from 16349 to 951, ten times its new size. */
+            if (g == 3 && long_turn && fabsf(d) <= 10.0f * sqrtf(row_l)) continue;
             if (before && fabsf(d) <= 3.0f * fabsf(best[e + g] - before[e + g]) + lim) continue;
             if (!(fabsf(d) <= lim)) jump[g == 3] = 1;
         }
@@ -4262,6 +4279,10 @@ static void pair_set(Rec *r, const Rec *p, size_t ci, const float *best, const C
             if (!spin) {
                 jumps += jump[0] || jump[1];
                 s_reg_jumps[e / 4] += jump[0] || jump[1];
+                if (jump[0] || jump[1]) {
+                    memcpy(s_cut_prev[e / 4], best + e, 16); memcpy(s_cut_cur[e / 4], cur + e, 16);
+                    s_cut_part[e / 4] = (uint8_t)(jump[0] | jump[1] << 1);
+                }
             }
         }
     }
@@ -4455,6 +4476,14 @@ static void rec_pair(Rec *r, const Rec *p)
         if (cut)
             for (n = 0; n < r->nsets; n++) r->sets[n].lerp = 0;
         r->cut = cut;
+        if (cut && getenv("RECOMP_INTERP_TRACE") && atoi(getenv("RECOMP_INTERP_TRACE")) >= 3) {
+            size_t worst = 0;
+            for (n = 1; n < CSET_FLOATS / 4; n++) if (s_reg_jumps[n] > s_reg_jumps[worst]) worst = n;
+            fprintf(stderr, "[CUT] moved %zu refused %zu reg %zu jumped in %u part %d prev %g %g %g %g cur %g %g %g %g\n",
+                    moved, refused, worst, s_reg_jumps[worst], s_cut_part[worst],
+                    s_cut_prev[worst][0], s_cut_prev[worst][1], s_cut_prev[worst][2], s_cut_prev[worst][3],
+                    s_cut_cur[worst][0], s_cut_cur[worst][1], s_cut_cur[worst][2], s_cut_cur[worst][3]);
+        }
     }
     for (n = 0; n < r->nsets; n++) r->stat_lerp += r->sets[n].lerp;
 }
@@ -5278,6 +5307,29 @@ static int interp_present(FlipPacing *pacing)
     s_moment = moment;
     t = (float)((double)(moment - start) / (double)r->period);
     s_view_slot = s_rec_act;
+    {   /* RECOMP_INTERP_SELFCHECK (diagnostic): per pair, its real last frame, then the pair replayed at t=0, then
+         * nothing. Replayed at 0, a pair must look like the pair before's last frame ([REC] t 1.0 then 0.0): any
+         * difference is a wrong pairing or jump. Ignores the budget; for recordings only. */
+        static int check = -1;
+        static int64_t shown_end, shown_zero;
+        if (check < 0) check = getenv("RECOMP_INTERP_SELFCHECK") != NULL;
+        if (check) {
+            if (shown_end != r->t_frame) {
+                shown_end = r->t_frame;
+                s_replay++;
+                view = r->final;
+                view.tex = scratch_view(r->final.tex);
+                s_rec_kind = 1; s_rec_t = 1.0f; s_rec_moment = r->t_frame;
+                if (!keep_surface(&view) || !present_kept_image(pacing)) return 0;
+                return 1;
+            }
+            if (shown_zero == r->t_frame) return 1;
+            shown_zero = r->t_frame;
+            t = 0.0f;
+            moment = r->t_frame;
+            goto replay;
+        }
+    }
     /* Over this step's budget with nothing shown in it: the pair's own last frame, once, then held, as with the mod
      * off. Not the scanout: that is the title's newest frame, ahead of the pair, and the next frame in between would
      * go back. Behind (-1) or with a frame in between up already (-2): nothing. */
@@ -5288,6 +5340,7 @@ static int interp_present(FlipPacing *pacing)
         if (held == r->t_frame) return 1;
         held = r->t_frame;
         s_moment = r->t_frame;
+        s_replay++;            /* the snapshot, not the stand-ins the last frame in between was drawn into */
         view = r->final;
         view.tex = scratch_view(r->final.tex);
         s_rec_kind = 1; s_rec_t = 1.0f; s_rec_moment = r->t_frame;
@@ -5300,8 +5353,10 @@ static int interp_present(FlipPacing *pacing)
         if (ft == -2) { const char *e = getenv("RECOMP_INTERP_FORCET"); ft = e ? (float)atof(e) : -1; }
         if (ft >= 0) t = ft;
     }
-    /* Nothing moving: the frame as the title left it. */
-    if ((r->stat_lerp || r->stat_vblend) && !rec_replay(r, t)) { WHY(4); rec_invalidate(); interp_trace(r, t, 0, 0); return 0; }
+replay:
+    /* Nothing moving: the frame as the title left it (its snapshot, not the stand-ins of the last replay). */
+    if (!r->stat_lerp && !r->stat_vblend) s_replay++;
+    else if (!rec_replay(r, t)) { WHY(4); rec_invalidate(); interp_trace(r, t, 0, 0); return 0; }
     view = r->final;
     view.tex = scratch_view(r->final.tex);
     s_rec_kind = 1; s_rec_t = t; s_rec_moment = moment;
