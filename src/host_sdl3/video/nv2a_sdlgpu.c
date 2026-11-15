@@ -4307,21 +4307,32 @@ static float const_distance(float a, float b)
 
 static uint8_t *s_taken;     /* while set: the frame before's sets already someone's partner, not candidates */
 
-/* The partner among p's sets cand[0..n) nearest set c's constants; NULL if none. */
+/* The partner among p's sets cand[0..n) for set c; NULL if none. The one at the same place in the draw order
+ * (cand[rank]; given only when both frames draw the key as often, nothing culled) unless another's constants are
+ * less than half as far: the game draws the same objects in the same order, and nearness alone mistook a car's
+ * wheels for each other (one draw each, same mesh: a wheel's spin outweighs a wheelbase), so a tyre was blended
+ * toward the next wheel's place, inside the body. Nearness still wins for objects that swapped places in the
+ * order (people of one model). */
 static const float *nearest_set(const Rec *r, const Rec *p, size_t ci, const uint32_t *cand, size_t n,
-                                const CSet **bs)
+                                size_t rank, const CSet **bs)
 {
     const float *cur = (const float *)(r->arena + r->sets[ci].cur), *best = NULL;
-    float best_d = 3.0e38f;
+    float beat = 3.0e38f;
     size_t q;
     int e;
+    if (rank < n && !(s_taken && s_taken[cand[rank]])) {
+        const float *prev = (const float *)(p->arena + p->sets[cand[rank]].cur);
+        float d = 0;
+        for (e = 0; e < CSET_FLOATS; e++) d += const_distance(cur[e], prev[e]);
+        best = prev; beat = 0.5f * d; *bs = &p->sets[cand[rank]];
+    }
     for (q = 0; q < n; q++) {
         const float *prev = (const float *)(p->arena + p->sets[cand[q]].cur);
         float d = 0;
-        if (s_taken && s_taken[cand[q]]) continue;
-        for (e = 0; e < CSET_FLOATS && d < best_d; e++)
+        if (q == rank || (s_taken && s_taken[cand[q]])) continue;
+        for (e = 0; e < CSET_FLOATS && d < beat; e++)
             d += const_distance(cur[e], prev[e]);
-        if (d < best_d) { best_d = d; best = prev; *bs = &p->sets[cand[q]]; }
+        if (d < beat) { beat = d; best = prev; *bs = &p->sets[cand[q]]; }
     }
     return best;
 }
@@ -4402,7 +4413,7 @@ static void rec_pair(Rec *r, const Rec *p)
                 if (at >= count) at = count - 1;
                 lo = at > PAIR_WINDOW ? at - PAIR_WINDOW : 0;
                 hi = at + PAIR_WINDOW + 1 < count ? at + PAIR_WINDOW + 1 : count;
-                if ((best = nearest_set(r, p, co[j], po + p0 + lo, hi - lo, &bs)) != NULL)
+                if ((best = nearest_set(r, p, co[j], po + p0 + lo, hi - lo, !pass && count == ci - c0 ? at - lo : (size_t)-1, &bs)) != NULL)
                 {
                     pair_set(r, p, co[j], best, bs, &moved, &refused);
                     if (s_taken) s_taken[bs - p->sets] = 1;
@@ -4805,11 +4816,11 @@ static void rec_end(const Surface *final)
     if (step > 0 && p) r->period = (int64_t)((double)r->period / (double)step + 0.5) * step;
     if (r->period < freq / 120) r->period = freq / 120;
     if (r->period > freq / 10) r->period = freq / 10;
-    {   /* RECOMP_INTERP_ONLY=c|v (diagnostic): blend only constants, or only vertex bytes. */
+    {   /* RECOMP_INTERP_ONLY=c|v (diagnostic): blend only constants, only vertex bytes, or nothing (n). */
         static const char *only = (const char *)-1;
         if (only == (const char *)-1) only = getenv("RECOMP_INTERP_ONLY");
-        rec_pair(r, only && *only == 'v' ? NULL : p);
-        rec_vpair(r, only && *only == 'c' ? NULL : p);
+        rec_pair(r, only && (*only == 'v' || *only == 'n') ? NULL : p);
+        rec_vpair(r, only && (*only == 'c' || *only == 'n') ? NULL : p);
     }
     rec_dump(r, p);
     rec_snapshot(r, s_rec_w);
@@ -5282,6 +5293,12 @@ static int interp_present(FlipPacing *pacing)
         s_rec_kind = 1; s_rec_t = 1.0f; s_rec_moment = r->t_frame;
         if (!keep_surface(&view) || !present_kept_image(pacing)) { WHY(5); return 0; }
         return 1;
+    }
+    {   /* RECOMP_INTERP_FORCET=0|1 (diagnostic): every frame at one end of its pair. At 0 it must look like the
+         * frame before, at 1 like the newest; anything else is a wrong pairing. */
+        static float ft = -2;
+        if (ft == -2) { const char *e = getenv("RECOMP_INTERP_FORCET"); ft = e ? (float)atof(e) : -1; }
+        if (ft >= 0) t = ft;
     }
     /* Nothing moving: the frame as the title left it. */
     if ((r->stat_lerp || r->stat_vblend) && !rec_replay(r, t)) { WHY(4); rec_invalidate(); interp_trace(r, t, 0, 0); return 0; }

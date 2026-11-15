@@ -3,8 +3,10 @@
 Drives a hidden Cruise run (driving.json up to the start, then weaving with the throttle held), records every presented
 image (RECOMP_RECORD), and looks in the box around the player's car for frames that are darker than both the frame
 before and the frame after while those two agree: a tyre or body part that is missing or replaced for one frame.
-Darkening only, so sparks and lights (brighter for a frame) do not count. Run it with interp on and off: off is the
-noise floor (real one-step effects), on must not exceed it.
+Darkening only, so sparks and lights (brighter for a frame) do not count. Also counts frames where the rear tyres are
+not drawn (the dark band below the bumper's corners is road-coloured): blended toward the wrong wheel, a tyre sat
+inside the body. Run it with interp on and off: off is the noise floor (real one-step effects, the car off-centre in
+turns and crashes: tyres "missing" ~15%), on must not exceed it. Always look at the saved crops too.
 
   py tools/game_test/interp_car_check.py --exe build/RelWithDebInfo/mm3_recomp.exe --game game_files \
       --save <copied save template> --out <dir> [--interp 0|1] [--secs 10] [KEY=VALUE env ...]
@@ -24,7 +26,7 @@ POP_PX = 1000                    # odd pixels (at 960x540) that make a frame a p
 
 def analyse(raw, out=None, report=8):
     """Returns (frames compared, pops, worst list). Saves A|B|C|mask crops of the worst into out."""
-    f = open(raw, 'rb'); t0 = None; win = []; rows = []
+    f = open(raw, 'rb'); t0 = None; win = []; rows = []; tyres_missing = 0
     while True:
         h = f.read(16)
         if len(h) < 16: break
@@ -34,6 +36,10 @@ def analyse(raw, out=None, report=8):
         d = np.frombuffer(px, np.uint8).reshape(hh, w, 4)
         d = d[int(hh * BOX[1]):int(hh * BOX[3]), int(w * BOX[0]):int(w * BOX[2]), 2::-1].astype(np.int16)
         if win and np.array_equal(win[-1][1], d): continue          # a held frame
+        full = np.frombuffer(px, np.uint8).reshape(hh, w, 4)[:, :, :3].astype(int).sum(2)
+        sy, sx = hh / 540, w / 960                                  # tyre bands measured at 960x540
+        band = lambda x0: full[int(404 * sy):int(411 * sy), int(x0 * sx):int((x0 + 30) * sx)].mean()
+        tyres_missing += band(388) > 60 and band(538) > 60
         win = (win + [((t - t0) / 1e6, d)])[-3:]
         if len(win) < 3: continue
         A, B, C = (x[1] for x in win)
@@ -46,6 +52,8 @@ def analyse(raw, out=None, report=8):
     print(f'{raw}: frames {len(rows)}  pops (>{POP_PX} px) {pops}  over 300 px {(n > 300).sum()}  max {n.max()}')
     for k, s, *_ in rows[:report]:
         print(f'  {s:7.3f} s  {k} px')
+    print(f'tyres missing (both rear corners road-coloured): {tyres_missing} of {len(rows)} frames '
+          f'({100 * tyres_missing // max(len(rows), 1)}%)')
     if out:
         from PIL import Image
         os.makedirs(out, exist_ok=True)
