@@ -3849,6 +3849,8 @@ static unsigned s_why[8];
 static int s_rec_w, s_rec_last = -1, s_rec_act = -1, s_rec_pend = -1;
 static int64_t s_flip_lat;              /* how long after its step began a frame flips, peak held */
 static int64_t s_flip_avg;              /* the same, a running average (interp_budget) */
+/* What a frame in between costs, on average: a whole frame drawn again, at the render scale and MSAA. */
+static int64_t s_interp_cost;
 static int64_t s_moment;                /* the last moment shown: frames never go back */
 static uint32_t s_rec_vwant = 16u << 20, s_rec_iwant = 8u << 20;
 
@@ -4438,8 +4440,9 @@ void nv2a_sdlgpu_tick_started(double start, double step)
         s_win_late += late;
         if (++s_win_flips >= 30) {                /* a second of steps */
             if (getenv("RECOMP_INTERP_TRACE"))
-                fprintf(stderr, "[INTERP] window: %d of %d steps late, room %d\n", s_win_late, s_win_flips,
-                        s_interp_room);
+                fprintf(stderr, "[INTERP] window: %d of %d steps late, room %d, flip %.2f ms after its step began, "
+                        "frame %.2f ms\n", s_win_late, s_win_flips, s_interp_room,
+                        (double)s_flip_avg * 1000.0 / (double)qpf(), (double)s_interp_cost * 1000.0 / (double)qpf());
             if (s_interp_room >= 64 && s_win_late * 2 > s_win_flips && now >= s_interp_off_until) {
                 s_interp_off_until = now + s_interp_backoff * qpf();
                 fprintf(stderr, "[INTERP] %d of %d steps late: paused for %d s (graphics settings too heavy for "
@@ -4452,7 +4455,21 @@ void nv2a_sdlgpu_tick_started(double start, double step)
     }
 }
 
-/* The byte offsets of a draw's float attributes in its vertex bytes (a buffer reused by each call). */
+/* The byte offsets of a draw's blendable attribute elements in its vertex bytes (a buffer reused by each call):
+ * floats, and shorts (offset | ELEM_S16; HUD sprites and compressed meshes carry their positions as shorts). */
+#define ELEM_S16 0x80000000u
+static float elem_get(const uint8_t *b, uint32_t off)
+{
+    return off & ELEM_S16 ? (float)*(const int16_t *)(b + (off & ~ELEM_S16)) : *(const float *)(b + off);
+}
+
+static void elem_set(uint8_t *b, uint32_t off, float x)
+{
+    if (!(off & ELEM_S16)) { *(float *)(b + off) = x; return; }
+    x = floorf(x + 0.5f);
+    *(int16_t *)(b + (off & ~ELEM_S16)) = (int16_t)(x < -32768.0f ? -32768.0f : x > 32767.0f ? 32767.0f : x);
+}
+
 static uint32_t float_offsets(const Rec *r, const VDraw *v, const uint32_t **out)
 {
     static uint32_t *buf;
@@ -4460,13 +4477,14 @@ static uint32_t float_offsets(const Rec *r, const VDraw *v, const uint32_t **out
     const UbConsts *u = (const UbConsts *)(r->arena + v->ubc);
     uint32_t k, n, c, count = 0;
     for (k = 0; k < 16; k++) {
-        uint32_t rel = u->at[k][0] - v->gpu, st = u->at[k][1], sz = u->at[k][3];
-        if (!sz || u->at[k][2] != 2u || sz > 4) continue;
-        for (n = 0; rel + n * st + 4 * sz <= v->len; n++) {
+        uint32_t rel = u->at[k][0] - v->gpu, st = u->at[k][1], sz = u->at[k][3], fmt = u->at[k][2];
+        uint32_t eb = fmt == 2u ? 4 : 2, tag = fmt == 2u ? 0 : ELEM_S16;
+        if (!sz || (fmt != 2u && fmt != 1u && fmt != 5u) || sz > 4) continue;
+        for (n = 0; rel + n * st + eb * sz <= v->len; n++) {
             void *g = rec_grow(buf, &cap, count + sz, sizeof *buf);
             if (!g) { *out = buf; return count; }
             buf = (uint32_t *)g;
-            for (c = 0; c < sz; c++) buf[count++] = rel + n * st + 4 * c;
+            for (c = 0; c < sz; c++) buf[count++] = (rel + n * st + eb * c) | tag;
             if (!st) break;
         }
     }
@@ -4549,7 +4567,7 @@ static void rec_vpair(Rec *r, const Rec *p)
                 uint32_t f;
                 floats = float_offsets(r, v, &offs);
                 for (f = 0; f < floats; f++)
-                    jumps += (uint32_t)float_jumps(*(const float *)(pb + offs[f]), *(const float *)(cb + offs[f]));
+                    jumps += (uint32_t)float_jumps(elem_get(pb, offs[f]), elem_get(cb, offs[f]));
             }
             if (!floats || jumps * 8 > floats) continue;
             {   /* Its other bytes (packed colours, normals) changed too: not the same geometry moved but new
@@ -4564,7 +4582,7 @@ static void rec_vpair(Rec *r, const Rec *p)
                 if (!gc) continue;
                 cover = (uint8_t *)gc;
                 memset(cover, 0, v->len);
-                for (f = 0; f < nf; f++) memset(cover + offs[f], 1, 4);
+                for (f = 0; f < nf; f++) memset(cover + (offs[f] & ~ELEM_S16), 1, offs[f] & ELEM_S16 ? 2 : 4);
                 for (b = 0; b < v->len && same; b++) same = cover[b] || pb[b] == cb[b];
                 if (!same) continue;
             }
@@ -4573,13 +4591,14 @@ static void rec_vpair(Rec *r, const Rec *p)
                  * places, paired by mistake (a car's body pieces in a crash), and blended it tore. */
                 const UbConsts *u = (const UbConsts *)(r->arena + v->ubc);
                 const uint8_t *pb = p->vmem + best->cur, *cb = r->vmem + v->cur;
-                uint32_t rel = u->at[0][0] - v->gpu, st = u->at[0][1], n, c;
+                uint32_t rel = u->at[0][0] - v->gpu, st = u->at[0][1], n, c, fmt = u->at[0][2], tag = fmt == 2u ? 0 : ELEM_S16;
+                uint32_t eb = fmt == 2u ? 4 : 2, dims = u->at[0][3] < 3 ? u->at[0][3] : 3;
                 float lo[3] = { 3e38f, 3e38f, 3e38f }, hi[3] = { -3e38f, -3e38f, -3e38f }, d0[3] = { 0, 0, 0 };
                 float size = 0, worst = 0;
-                if (u->at[0][2] == 2u && u->at[0][3] >= 3 && st) {
-                    for (n = 0; rel + n * st + 12 <= v->len; n++)
-                        for (c = 0; c < 3; c++) {
-                            float a = *(const float *)(pb + rel + n * st + 4 * c), x = *(const float *)(cb + rel + n * st + 4 * c);
+                if ((fmt == 2u || fmt == 1u || fmt == 5u) && dims >= 2 && st) {
+                    for (n = 0; rel + n * st + eb * dims <= v->len; n++)
+                        for (c = 0; c < dims; c++) {
+                            float a = elem_get(pb, (rel + n * st + eb * c) | tag), x = elem_get(cb, (rel + n * st + eb * c) | tag);
                             float e;
                             if (!n) d0[c] = x - a;
                             e = fabsf(x - a - d0[c]);
@@ -4639,8 +4658,8 @@ static int rec_vblend(Rec *r, float t, SDL_GPUCommandBuffer *c)
             const uint32_t *offs;
             uint32_t f, floats = float_offsets(r, v, &offs);
             for (f = 0; f < floats; f++) {
-                float a = *(const float *)(pb + offs[f]), b = *(const float *)(cb + offs[f]);
-                if (!float_jumps(a, b)) *(float *)(o + offs[f]) = a + (b - a) * t;
+                float a = elem_get(pb, offs[f]), b = elem_get(cb, offs[f]);
+                if (!float_jumps(a, b)) elem_set(o, offs[f], a + (b - a) * t);
             }
         }
         at += (v->len + 15) & ~15u;
@@ -5138,15 +5157,14 @@ static void interp_trace(const Rec *r, float t, int64_t cost, int shown)
  * instead). The display runs a step plus the usual flip delay behind the newest step, so the frames on both
  * sides of the moment it shows have flipped: a pair (the frame before and the frame) is shown at t of the
  * way between their steps. */
-/* What a frame in between costs, on average: a whole frame drawn again, at the render scale and MSAA. */
-static int64_t s_interp_cost;
 
 /* Frames in between may only use time the title does not: game behaviour must not change with the mod (the step
  * clock catches up for 133 ms and then drops time, and input is read at each step's start). The title's frame
  * flips s_flip_avg after its step begins, on average (measured with frames in between being made, so they raise it when they
  * get in its way); what is left of the step, less a quarter, buys frames at twice their measured cost (their GPU
  * time is not measured). At 4x scale and MSAA, frames made regardless slowed the race to 24 steps a second, the
- * car reaching 20 m/s a second late. */
+ * car reaching 20 m/s a second late. 1: a frame may be made; 0: over budget, none made this step; -1: behind;
+ * -2: over budget after some. */
 static int interp_budget(int64_t now)
 {
     static int64_t step_of;
@@ -5164,7 +5182,10 @@ static int interp_budget(int64_t now)
     if (tick != step_of) { step_of = tick; used = 0; }
     cost = s_interp_cost > qpf() / 2000 ? s_interp_cost : qpf() / 2000;
     spare = step - s_flip_avg - step / 4;
-    if (spare < 2 * cost * (used + 1)) return 0;
+    /* Over budget after frames in between this step: the last one stays up (-2). Presenting the pair's end frame
+     * here moved the shown moment to the pair's end, and at a high frame cap (the budget spent every step) every
+     * later frame was held at t = 1: about 30 images a second at 240 FPS. */
+    if (spare < 2 * cost * (used + 1)) return used ? -2 : 0;
     used++;
     return 1;
 }
@@ -5198,8 +5219,9 @@ static int interp_present(FlipPacing *pacing)
     s_moment = moment;
     t = (float)((double)(moment - start) / (double)r->period);
     s_view_slot = s_rec_act;
-    /* Over this step's budget: the pair's own last frame, once, then held, as with the mod off. Not the scanout:
-     * that is the title's newest frame, ahead of the pair, and the next frame in between would go back. */
+    /* Over this step's budget with nothing shown in it: the pair's own last frame, once, then held, as with the mod
+     * off. Not the scanout: that is the title's newest frame, ahead of the pair, and the next frame in between would
+     * go back. Behind (-1) or with a frame in between up already (-2): nothing. */
     if ((ok = interp_budget(now)) <= 0) {
         static int64_t held;
         WHY(1);
