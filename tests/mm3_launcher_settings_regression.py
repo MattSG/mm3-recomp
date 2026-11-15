@@ -55,15 +55,19 @@ def fixture_source():
         '#include "' + (ROOT / "tools/xboxrecomp/src/input/keymap_spec.c").as_posix() + '"\n'
         "namespace Rml { using String = std::string; template<class T> using Vector = std::vector<T>; }\n",
     ]
-    for name in ("Choice", "Option", "Bind"):
+    for name in ("Choice", "Option", "Bind", "Section"):
         parts.append(declaration(source, r"struct " + name + r"\s*{"))
-    for kind, name in (("Option", "g_options"), ("Bind", "g_binds")):
+    for kind, name in (("Option", "g_options"), ("Bind", "g_binds"), ("Section", "g_sections")):
         parts.append(declaration(source, r"Rml::Vector<" + kind + "> " + name + r"\s*="))
     for name in ("kPadSources", "kPadSourceNames"):
         match = re.search(r"const char \*const " + name + r"\[16\].*?;", source, re.S)
         if not match:
             raise AssertionError(f"Launcher array missing: {name}")
         parts.append(match.group(0))
+    match = re.search(r"enum \{ SECTION_CONTROLS = \d+, SECTION_MODS = \d+ \};", source)
+    if not match:
+        raise AssertionError("Launcher section indices missing")
+    parts.append(match.group(0))
     match = re.search(r"const char \*const kSettingsFile\s*=.*?;", source)
     if not match:
         raise AssertionError("Launcher settings filename missing")
@@ -102,7 +106,7 @@ int main(int argc, char **argv) {
             "all user-facing mods added once, translation switch excluded");
     for (const char *env : {"MM3_TIME_PERCENT", "MM3_AI_LEVEL", "MM3_DAMAGE_PERCENT", "MM3_OWN_DAMAGE_PERCENT"}) {
         int found = 0;
-        for (const Option &o : g_options) found += o.env == env && o.page == 2;
+        for (const Option &o : g_options) found += o.env == env && o.page == SECTION_MODS;
         require(found == 1, "each gameplay mod setting appears once on the Mods page");
     }
     for (int i = 0; i < MM3_MOD_COUNT; ++i) {

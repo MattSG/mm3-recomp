@@ -18,7 +18,9 @@ static int enabled = 1, manual, native_states, native_worlds, native_ai;
 int QueryPerformanceCounter(LARGE_INTEGER *v) { v->QuadPart = (long long)(host_time * 1000000); return 1; }
 int QueryPerformanceFrequency(LARGE_INTEGER *v) { v->QuadPart = 1000000; return 1; }
 void Sleep(unsigned long ms) { host_time += (double)ms / 1000; }
-int mm3_mod_on(int mod) { (void)mod; return enabled; }
+int mm3_mod_on(int mod) { return mod == MM3_MOD_FRAMERATE && enabled; }   /* interpolation stays off */
+void nv2a_d3d_interp_frame(float t, int need_new) { (void)t; (void)need_new; }
+void nv2a_sdlgpu_tick_started(double start, double step) { (void)start; (void)step; }
 int recomp_frame_limit_from_env(void) { return 144; }
 void nv2a_d3d_manual_present(int on) { manual = on; }
 int mm3_pause_frozen(void) { return 0; }

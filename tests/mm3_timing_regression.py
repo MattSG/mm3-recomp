@@ -26,10 +26,10 @@ def main():
             "#define MEM8(a) memory[(a)]\n"
             "#define MEMF(a) (*(float*)(memory+(a)))\n"
             "#define MEMD(a) (*(double*)(memory+(a)))\n")
-        (folder / "mods.h").write_text("enum {MM3_MOD_FRAMERATE}; int mm3_mod_on(int);\n")
+        (folder / "mods.h").write_text("enum {MM3_MOD_FRAMERATE, MM3_MOD_INTERP}; int mm3_mod_on(int);\n")
         (folder / "nv2a_d3d11.h").write_text(
             "void nv2a_d3d_manual_present(int); void nv2a_d3d_repeat_frame(void);\n"
-            "long nv2a_d3d_frames_done(void);\n")
+            "long nv2a_d3d_frames_done(void); void nv2a_d3d_interp_frame(float, int);\n")
         for source in (ROOT / "src/mods/timing.c", ROOT / "tests/mm3_timing_contract.c"):
             shutil.copy2(source, folder / source.name)
         exe = folder / f"contract{cc.exe_suffix()}"
