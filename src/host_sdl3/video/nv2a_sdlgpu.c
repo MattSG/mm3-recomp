@@ -3834,7 +3834,7 @@ typedef struct {
     Surface final;                      /* the flipped surface, its texture a snapshot */
     int valid, bad, cut;                /* cut: the camera cut to it (rec_pair): nothing blends */
     int64_t t_frame, period;            /* when its step began; time since the frame before */
-    uint32_t stat_lerp, stat_paired, stat_vblend;
+    uint32_t stat_lerp, stat_paired, stat_vblend, vwhy[5];   /* vwhy: s_vwhy of this frame (diagnostic) */
     uint8_t *vmem; size_t vmem_len, vmem_cap;
     VDraw *vd; size_t nvd, vd_cap;
 } Rec;
@@ -4608,12 +4608,16 @@ static uint32_t *vd_order(const Rec *r, uint32_t **keep, size_t *cap)
  * (the same key, the nearest vertices close by in the frame), and that frame's bytes are kept beside its own
  * so a replay can blend their float attributes. A draw whose floats mostly jump is left as drawn. */
 #define VPAIR_WINDOW 8
+/* Diagnostic (RECOMP_INTERP_SELFCHECK): draws with changed vertices this frame by fate: no partner, unchanged,
+ * floats jumped, other bytes changed, positions incoherent. */
+static uint32_t s_vwhy[5];
 static void rec_vpair(Rec *r, const Rec *p)
 {
     static uint32_t *co, *po;
     static size_t co_cap, po_cap;
     size_t ci = 0, pi = 0;
     r->stat_vblend = 0;
+    memset(s_vwhy, 0, sizeof s_vwhy);
     /* Across a cut (rec_pair) vertices do not blend either: geometry rebuilt in screen space for the new view
      * (sprites, glare) would be drawn part way from where the old camera saw it. */
     if (!p || r->cut || !r->nvd || !p->nvd || !vd_order(r, &co, &co_cap) || !vd_order(p, &po, &po_cap)) return;
@@ -4625,7 +4629,7 @@ static void rec_vpair(Rec *r, const Rec *p)
         while (pi < p->nvd && p->vd[po[pi]].key == key) pi++;
         p1 = pi;
         while (ci < r->nvd && r->vd[co[ci]].key == key) ci++;
-        if (p0 == p1) continue;
+        if (p0 == p1) { s_vwhy[0] += (uint32_t)(ci - c0); continue; }
         for (j = c0; j < ci; j++) {
             VDraw *v = &r->vd[co[j]];
             const VDraw *best = NULL;
@@ -4648,7 +4652,7 @@ static void rec_vpair(Rec *r, const Rec *p)
                 }
                 if (d < best_d) { best_d = d; best = c; }
             }
-            if (!best) continue;
+            if (!best) { s_vwhy[best_d < 0 ? 1 : 0]++; continue; }
             {
                 const uint8_t *pb = p->vmem + best->cur, *cb = r->vmem + v->cur;
                 const uint32_t *offs;
@@ -4657,7 +4661,7 @@ static void rec_vpair(Rec *r, const Rec *p)
                 for (f = 0; f < floats; f++)
                     jumps += (uint32_t)float_jumps(elem_get(pb, offs[f]), elem_get(cb, offs[f]));
             }
-            if (!floats || jumps * 8 > floats) continue;
+            if (!floats || jumps * 8 > floats) { s_vwhy[2]++; continue; }
             {   /* Its other bytes (packed colours, normals) changed too: not the same geometry moved but new
                  * content in the same places, such as a particle system's sprites (fading, respawned). Blended,
                  * a bright patch flashed beside a car pushing against a truck at the start of every pair. */
@@ -4672,7 +4676,7 @@ static void rec_vpair(Rec *r, const Rec *p)
                 memset(cover, 0, v->len);
                 for (f = 0; f < nf; f++) memset(cover + (offs[f] & ~ELEM_S16), 1, offs[f] & ELEM_S16 ? 2 : 4);
                 for (b = 0; b < v->len && same; b++) same = cover[b] || pb[b] == cb[b];
-                if (!same) continue;
+                if (!same) { s_vwhy[3]++; continue; }
             }
             {   /* Its positions did not move together: each vertex's move must be within a tenth of the draw's
                  * size of the first's (a rigid move, a turn, a dent). Else it is other geometry in the same
@@ -4695,7 +4699,7 @@ static void rec_vpair(Rec *r, const Rec *p)
                             if (x > hi[c]) hi[c] = x;
                         }
                     for (c = 0; c < 3; c++) size += hi[c] > lo[c] ? hi[c] - lo[c] : 0;
-                    if (worst > 0.1f * size + 1e-3f) continue;
+                    if (worst > 0.1f * size + 1e-3f) { s_vwhy[4]++; continue; }
                 }
             }
             /* The frame before's bytes, kept with this frame: that record is reused while this one is shown. */
@@ -4712,6 +4716,7 @@ static void rec_vpair(Rec *r, const Rec *p)
             }
         }
     }
+    memcpy(r->vwhy, s_vwhy, sizeof s_vwhy);
 }
 
 /* Before a replay at t: the blended vertex bytes of every draw that has them, written over its own in vbuf. */
@@ -5325,6 +5330,9 @@ static int interp_present(FlipPacing *pacing)
             }
             if (shown_zero == r->t_frame) return 1;
             shown_zero = r->t_frame;
+            fprintf(stderr, "[SC] %.3f sets %zu paired %u lerp %u cut %d | vdraws %zu nopartner %u same %u jumped %u "
+                    "bytes %u incoherent %u blended %u\n", r->t_frame * 1000.0 / (double)qpf(), r->nsets, r->stat_paired,
+                    r->stat_lerp, r->cut, r->nvd, r->vwhy[0], r->vwhy[1], r->vwhy[2], r->vwhy[3], r->vwhy[4], r->stat_vblend);
             t = 0.0f;
             moment = r->t_frame;
             goto replay;
