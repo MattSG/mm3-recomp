@@ -4411,18 +4411,24 @@ static void rec_pair(Rec *r, const Rec *p)
                      * for a few frames (likely its shadow: blending two flattenings onto different ground is
                      * not flat). */
                     if (pass && r->sets[co[j]].lerp) {
-                        /* ... or little else: the player's car changes its index count from step to step, and
-                         * held to the camera rule its moving parts were drawn a step ahead (the wheels bounced
-                         * against the body). Small changes in the rest (a turn of some degrees, a move of up to a fifth;
-                         * wheel spins already taken whole) still blend. */
+                        /* ... or the rest moved on as it moved the step before: the player's car changes its index
+                         * count from step to step, and held to the camera rule its moving parts were drawn a step
+                         * ahead (the wheels bounced against the body). Allowing a change of a fifth of the value
+                         * instead paired one part of the car with another (positions are in the thousands): the
+                         * car's front was drawn over its back for a frame. Motion repeats from step to step; the
+                         * distance between two parts does not. Wheel spins are already taken whole (from == a). */
                         const float *a = (const float *)(r->arena + r->sets[co[j]].cur);
-                        const float *from = r->adj + r->sets[co[j]].adj;
+                        const float *from = r->adj + r->sets[co[j]].adj, *pb = NULL;
                         int e;
-                        for (e = 0; e < CSET_FLOATS; e++)
-                            if (!camera[e / 4] && !(fabsf(a[e] - from[e]) <= 0.2f * fabsf(a[e]) + 0.2f)) {
+                        if (bs->lerp) pb = p->adj + bs->adj;
+                        else if (bs->paired) pb = best;
+                        for (e = 0; e < CSET_FLOATS; e++) {
+                            float v = pb && from[e] == best[e] ? best[e] - pb[e] : 0.0f, d = a[e] - from[e];
+                            if (!camera[e / 4] && d != 0.0f && !(fabsf(d - v) <= 0.05f + 0.1f * fabsf(v))) {
                                 r->sets[co[j]].lerp = 0;
                                 break;
                             }
+                        }
                     }
                 }
             }
