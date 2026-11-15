@@ -4251,9 +4251,19 @@ static void pair_set(Rec *r, const Rec *p, size_t ci, const float *best, const C
             adj[e + g] = jump[g == 3] ? cur[e + g] : best[e + g];
             differs |= !jump[g == 3] && cur[e + g] != best[e + g];
         }
-        jumps += jump[0] || jump[1];
-        s_reg_jumps[e / 4] += jump[0] || jump[1];
         snap[e / 4] = (uint8_t)jump[0];
+        {   /* A rotation row (unit xyz in both frames) that turned with its position kept: a wheel spinning, not
+             * another object. Counted, the four wheels of a car at speed refused its whole set: drawn a step
+             * ahead of the frame shown, the wheels bounced. */
+            const float *a = best + e, *b = cur + e;
+            int spin = jump[0] && !jump[1] &&
+                       fabsf(a[0] * a[0] + a[1] * a[1] + a[2] * a[2] - 1.0f) < 0.1f &&
+                       fabsf(b[0] * b[0] + b[1] * b[1] + b[2] * b[2] - 1.0f) < 0.1f;
+            if (!spin) {
+                jumps += jump[0] || jump[1];
+                s_reg_jumps[e / 4] += jump[0] || jump[1];
+            }
+        }
     }
     /* Rotation rows (xyz a unit vector in both frames: a wheel's or bone's matrix) are taken whole from one frame:
      * one that turned more than ~35 degrees snaps (blended, a wheel spinning 110 degrees a step shrank to half
@@ -4401,10 +4411,18 @@ static void rec_pair(Rec *r, const Rec *p)
                      * for a few frames (likely its shadow: blending two flattenings onto different ground is
                      * not flat). */
                     if (pass && r->sets[co[j]].lerp) {
+                        /* ... or little else: the player's car changes its index count from step to step, and
+                         * held to the camera rule its moving parts were drawn a step ahead (the wheels bounced
+                         * against the body). Small changes in the rest (a turn of some degrees, a move of up to a fifth;
+                         * wheel spins already taken whole) still blend. */
                         const float *a = (const float *)(r->arena + r->sets[co[j]].cur);
+                        const float *from = r->adj + r->sets[co[j]].adj;
                         int e;
-                        for (e = 0; e < CSET_FLOATS; e += 4)
-                            if (!camera[e / 4] && memcmp(a + e, best + e, 16)) { r->sets[co[j]].lerp = 0; break; }
+                        for (e = 0; e < CSET_FLOATS; e++)
+                            if (!camera[e / 4] && !(fabsf(a[e] - from[e]) <= 0.2f * fabsf(a[e]) + 0.2f)) {
+                                r->sets[co[j]].lerp = 0;
+                                break;
+                            }
                     }
                 }
             }
