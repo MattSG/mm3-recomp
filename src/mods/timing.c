@@ -23,6 +23,7 @@ static unsigned char paused;
 static double time_origin;
 static FILE *trace;
 static unsigned world_calls, ai_calls;
+static double late_seconds;   /* how long after it was due the last tick began (MM3_TIMING_CSV) */
 /* Between ticks the completed image is shown again, or with the frame interpolation mod a frame between the
  * last two is drawn by the renderer. Neither advances or reads the guest simulation. */
 static void present(void)
@@ -71,7 +72,7 @@ static void begin_tick(uint32_t game, uint32_t current_state)
         fps = recomp_frame_limit_from_env();
         if (path && *path) {
             trace = fopen(path, "w");
-            if (trace) fprintf(trace, "host_seconds,tick,state,scene,paused,dt,dropped_seconds,world_calls,ai_calls,presents\n");
+            if (trace) fprintf(trace, "host_seconds,tick,state,scene,paused,dt,dropped_seconds,world_calls,ai_calls,presents,late_ms\n");
             else fprintf(stderr, "[TIMING] cannot open trace %s\n", path);
         }
         fprintf(stderr, "[TIMING] replacement: complete native ticks at %d Hz, presentation %d FPS\n", hz, fps);
@@ -87,16 +88,17 @@ static void begin_tick(uint32_t game, uint32_t current_state)
         nv2a_d3d_manual_present(1);
     }
     if (trace && clock_state.ticks) {
-        fprintf(trace, "%.9f,%llu,%08X,%08X,%u,%.9f,%.9f,%u,%u,%llu\n",
+        fprintf(trace, "%.9f,%llu,%08X,%08X,%u,%.9f,%.9f,%u,%u,%llu,%.3f\n",
                 now, (unsigned long long)clock_state.ticks, state, scene, paused,
                 clock_state.step, clock_state.dropped_seconds, world_calls, ai_calls,
-                (unsigned long long)clock_state.presents);
+                (unsigned long long)clock_state.presents, late_seconds * 1000.0);
         if (clock_state.ticks % (unsigned)hz == 0) fflush(trace);
     }
     world_calls = ai_calls = 0;
     for (;;) {
         now = seconds();
         if (mm3_tick_clock_take(&clock_state, now)) {
+            late_seconds = now - (clock_state.next_tick - clock_state.step);
 #if defined(XBOXRECOMP_SDL3)
             /* The step's scheduled start, on the performance counter's clock (as seconds() is). */
             extern void nv2a_sdlgpu_tick_started(double start, double step);

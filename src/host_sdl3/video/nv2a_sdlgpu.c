@@ -505,11 +505,17 @@ static void copy_end(void);
  * file): every batch, texture copy and mip generation, in order. */
 static SDL_AtomicInt s_interp_on;
 static int s_rec_live, s_rec_pause;
+static int64_t s_rec_begun;     /* when the frame being kept began (rec_begin) */
+/* RECOMP_INTERP_TRACE: textures and buffers the mod makes during play, with the time (ms) and what for. */
+#define INTERP_ALLOC(what) do { if (getenv("RECOMP_INTERP_TRACE")) fprintf(stderr, "[INTERP_ALLOC] %.1f %s\n", \
+    (double)SDL_GetTicksNS() / 1e6, what); } while (0)
 static int rec_on(void) { return s_rec_live && !s_rec_pause; }
 /* Interpolation paused until this time (qpc), the next pause's length in seconds, and the steps and flips
  * counted towards the decision (rec_end). */
 static int64_t s_interp_off_until;
-static int s_interp_backoff = 5, s_win_steps, s_win_flips;
+static int64_t s_tick_qpc, s_step_qpc;  /* the title's step clock (nv2a_sdlgpu_tick_started) */
+static SDL_SpinLock s_tick_lock;
+static int s_interp_backoff = 5, s_win_late, s_win_flips;
 static void rec_data(SDL_GPUCopyPass *cp);
 static void rec_pass(void);
 static void rec_copy(SDL_GPUTexture *dst, uint32_t dst_level, SDL_GPUTexture *src,
@@ -825,9 +831,9 @@ static void dead_free(const Dead *d)
 {
     size_t i;
     if (d->sampler) { SDL_ReleaseGPUSampler(s_dev, (SDL_GPUSampler *)d->res); return; }
+    scratch_drop((SDL_GPUTexture *)d->res);    /* first: its stand-ins are kept by its description */
     for (i = s_texdesc_n; i-- > 0;)
         if (s_texdesc[i].tex == d->res) { s_texdesc[i] = s_texdesc[--s_texdesc_n]; break; }
-    scratch_drop((SDL_GPUTexture *)d->res);
     SDL_ReleaseGPUTexture(s_dev, (SDL_GPUTexture *)d->res);
 }
 
@@ -1366,6 +1372,9 @@ static Depth *s_cur_ds;
 static uint32_t s_aa_x = 1, s_aa_y = 1;
 
 #define USAGE_TARGET (SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER)
+static void interp_prewarm(SDL_GPUTexture *t);
+static int interp_prewarm_step(int calm);
+static int s_prewarm_n;   /* render targets whose stand-ins are still to make (interp_prewarm) */
 
 /* Draw columns [u0, u1) of src into columns [x0, x1) of dst (fractions of
  * each width), full height; with a mask, only where the mask is set. */
@@ -1653,6 +1662,7 @@ static Surface *surface_get(uint32_t va, uint32_t pitch, uint32_t fmt,
     s->iw = (uint32_t)(w * s->sx + 0.5f);
     s->ih = (uint32_t)(h * s->sy + 0.5f);
     s->tex = make_texture(s->iw, s->ih, 1, 0, SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM, USAGE_TARGET);
+    interp_prewarm(s->tex);
     if (!s->tex) { memset(s, 0, sizeof *s); return NULL; }
     s->clear = 1;                   /* cleared to zero by its first pass */
     s->used_frame = s_frame;
@@ -2081,6 +2091,7 @@ static SDL_GPUTexture *surface_mips(Surface *s)
         uint32_t levels = 1, m = s->iw > s->ih ? s->iw : s->ih;
         while (m > 1) { m >>= 1; levels++; }
         s->mip = make_texture(s->iw, s->ih, levels, 0, SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM, USAGE_TARGET);
+        interp_prewarm(s->mip);
         if (!s->mip) return NULL;
         s->mip_gen = s->gen - 1;
     }
@@ -2121,6 +2132,7 @@ static SDL_GPUTexture *surface_y16(Surface *s)
 {
     if (!s->y16) {
         s->y16 = make_texture(2 * s->iw, s->ih, 1, 0, SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UNORM, USAGE_TARGET);
+        interp_prewarm(s->y16);
         if (!s->y16) return NULL;
         s->y16_clear = 1;
         s->y16_gen = s->gen - 1;
@@ -2142,6 +2154,7 @@ static SDL_GPUTexture *depth_y16(Depth *d)
 #else
     if (!d->y16) {
         d->y16 = make_texture(2 * d->iw, d->ih, 1, 0, SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UNORM, USAGE_TARGET);
+        interp_prewarm(d->y16);
         if (!d->y16) return NULL;
         d->y16_clear = 1;
         d->y16_gen = d->gen - 1;
@@ -3452,6 +3465,11 @@ static SDL_GPUFence *s_rec_fence[RECV_SLOTS];
 static int64_t s_recv_t[RECV_SLOTS];
 static uint32_t s_recv_w[RECV_SLOTS], s_recv_h[RECV_SLOTS];
 static int s_recv_k;
+/* RECOMP_INTERP_TRACE=3: what made each recorded image ([REC] time us, kind, t, moment ms). Kind 1: a frame
+ * in between, 0: anything else. */
+static int s_rec_kind;
+static float s_rec_t;
+static int64_t s_rec_moment;
 
 /* Frames go to disk on a thread of their own, so the renderer never waits for the disk. */
 typedef struct RecvBuf { struct RecvBuf *next; size_t n; uint8_t data[]; } RecvBuf;
@@ -3553,6 +3571,13 @@ static int record_frame(void)
         SDL_EndGPUCopyPass(cp);
     }
     s_recv_t[k] = (int64_t)((double)qpc() * 1e6 / (double)qpf());
+    {
+        static int tr = -1;
+        if (tr < 0) tr = getenv("RECOMP_INTERP_TRACE") && atoi(getenv("RECOMP_INTERP_TRACE")) >= 3;
+        if (tr) fprintf(stderr, "[REC] %lld %d %.4f %.3f\n", (long long)s_recv_t[k], s_rec_kind, s_rec_t,
+                        s_rec_moment * 1000.0 / (double)qpf());
+        s_rec_kind = 0;
+    }
     s_recv_w[k] = s_kept_w;
     s_recv_h[k] = s_kept_h;
     return 1;
@@ -3791,7 +3816,7 @@ typedef struct {
 /* One push of the 192 vertex-program constants: `op` in ops, `cur` in the
  * arena; `adj` in adj[] is what to blend from (the paired set of the frame
  * before, with elements that jumped replaced by this frame's). */
-typedef struct { size_t op, adj; uint32_t cur; uint64_t key, key2; uint8_t keyed, lerp, paired, pin; } CSet;
+typedef struct { size_t op, adj; uint32_t cur; uint64_t key, key2; int32_t partner; uint8_t keyed, lerp, paired, pin; } CSet;
 /* One draw's vertex bytes: `cur` in vmem (a CPU copy), `gpu` in vbuf, `ubc` its layout in the arena; `prev`
  * in vmem the same draw's bytes a frame earlier, when they changed and can be blended. */
 typedef struct { uint64_t key; uint32_t cur, gpu, len, hash, ubc, prev; uint8_t blend; } VDraw;
@@ -3823,6 +3848,7 @@ static unsigned s_why[8];
 #define WHY(i) (s_why[i]++)
 static int s_rec_w, s_rec_last = -1, s_rec_act = -1, s_rec_pend = -1;
 static int64_t s_flip_lat;              /* how long after its step began a frame flips, peak held */
+static int64_t s_flip_avg;              /* the same, a running average (interp_budget) */
 static int64_t s_moment;                /* the last moment shown: frames never go back */
 static uint32_t s_rec_vwant = 16u << 20, s_rec_iwant = 8u << 20;
 
@@ -4021,10 +4047,49 @@ static void rec_begin(void)
         if (s_rec_act >= 0) rec_invalidate();
         s_rec_live = 0;
     }
+    {   /* Behind (the next step is due already: catching up after a load): the frame is not kept. Nothing is
+         * shown until the title catches up (interp_budget), and keeping one (every target copied, its draws
+         * paired) slowed the catch-up steps: a race start dropped more time and played out differently. */
+        int64_t tick, step;
+        SDL_LockSpinlock(&s_tick_lock);
+        tick = s_tick_qpc;
+        step = s_step_qpc;
+        SDL_UnlockSpinlock(&s_tick_lock);
+        if (s_rec_live && step && qpc() >= tick + step) s_rec_live = 0;
+    }
+    {   /* Nor for a second after a hitch (a flip more than 133 ms after the one before: a load). The title is
+         * about to catch up, and keeping the first frames of a new scene (every target copied, its draws
+         * paired) held its first catch-up step to 73-90 ms instead of 28: the clock dropped more and a race
+         * start played out differently from the mod off. */
+        static int64_t prev;
+        static int settle;
+        int64_t now = qpc(), tick, step;
+        if (prev && now - prev > qpf() * 2 / 15) settle = 30;
+        prev = now;
+        if (settle) { settle--; s_rec_live = 0; }
+        /* Stand-ins still to make: one now if the title is well within its step, and no frame kept until all
+         * are made (a kept frame would make them all at its flip). */
+        SDL_LockSpinlock(&s_tick_lock);
+        tick = s_tick_qpc;
+        step = s_step_qpc;
+        SDL_UnlockSpinlock(&s_tick_lock);
+        {   /* calm: a quarter of a step or more before the next is due; after 60 flips without one, regardless */
+            static int waited;
+            int calm = !settle && (!step || now + step / 4 <= tick + step);
+            if (s_prewarm_n && !calm && ++waited >= 60) calm = 1;
+            if (calm) waited = 0;
+            if (interp_prewarm_step(calm)) s_rec_live = 0;
+        }
+    }
+    /* Not keeping this frame: the frames kept before go too. Held while none were kept (a load, catching up),
+     * they were replayed later naming textures the title had released by then: a replay stopped half way and
+     * the renderer crashed. */
+    if (!s_rec_live && SDL_GetAtomicInt(&s_interp_on) && s_rec_act >= 0) rec_invalidate();
     if (!s_rec_live) return;
+    s_rec_begun = qpc();
     if (r->vbuf && r->vcap != s_rec_vwant) { SDL_ReleaseGPUBuffer(s_dev, r->vbuf); r->vbuf = NULL; }
     if (r->ibuf && r->icap != s_rec_iwant) { SDL_ReleaseGPUBuffer(s_dev, r->ibuf); r->ibuf = NULL; }
-    if (!r->vbuf) { r->vbuf = rec_buffer(SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ, s_rec_vwant); r->vcap = s_rec_vwant; }
+    if (!r->vbuf) { r->vbuf = rec_buffer(SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ, s_rec_vwant); r->vcap = s_rec_vwant; INTERP_ALLOC("vertex buffer"); }
     if (!r->ibuf) { r->ibuf = rec_buffer(SDL_GPU_BUFFERUSAGE_INDEX, s_rec_iwant); r->icap = s_rec_iwant; }
     if (!r->vbuf || !r->ibuf) { fail("interpolation buffers"); s_rec_live = 0; }
 }
@@ -4138,6 +4203,9 @@ static uint32_t *set_order(const Rec *r, uint32_t **keep, size_t *cap, size_t *c
     return *keep;
 }
 
+/* How many sets each register jumped in this frame (rec_pair's cut test). */
+static uint32_t s_reg_jumps[CSET_FLOATS / 4];
+
 /* Blend set c (this frame's constants `cur`) from its partner `best` (set bs of the frame before). */
 static void pair_set(Rec *r, const Rec *p, size_t ci, const float *best, const CSet *bs, size_t *moved, size_t *refused)
 {
@@ -4147,6 +4215,7 @@ static void pair_set(Rec *r, const Rec *p, size_t ci, const float *best, const C
     int e, jumps = 0, differs = 0;
     r->stat_paired++;
     c->paired = 1;
+    c->partner = (int32_t)(bs - p->sets);
     /* The same values a step earlier still: what the partner was blended from (or the partner itself when it
      * did not change). */
     if (bs->lerp) before = p->adj + bs->adj;
@@ -4156,21 +4225,38 @@ static void pair_set(Rec *r, const Rec *p, size_t ci, const float *best, const C
      * large for the value and, where the step before is known, far larger than the change then: geometry
      * sweeping past the camera changes a lot every step, and is motion. */
     for (e = 0; e < CSET_FLOATS; e += 4) {
-        int g, jump = 0;
+        /* xyz and w decide apart: a matrix row is a direction in xyz and a position in w. A wheel spinning 110
+         * degrees a step jumps in xyz; taking its w with it put the wheel where the car will be while the body
+         * was still on its way, and the wheels bounced against the body every step. */
+        int g, jump[2] = { 0, 0 };
+        /* A register of whole 64ths in both frames that changed holds a choice, not a place: a particle's cell
+         * in its texture atlas (0, 0.125, 0.375...). Blended, the sprite swept across the cells between. */
+        int whole = 1, changed = 0;
+        for (g = 0; g < 4; g++) {
+            float a = cur[e + g] * 64.0f, b = best[e + g] * 64.0f;
+            whole &= fabsf(a) <= 4096.0f && fabsf(b) <= 4096.0f && a == floorf(a) && b == floorf(b);
+            changed |= cur[e + g] != best[e + g];
+        }
+        if (whole && changed) jump[0] = jump[1] = 1;
         for (g = 0; g < 4; g++) {
             float v = cur[e + g], d = v - best[e + g], lim = fabsf(v) <= 2.0f ? 0.7f : fabsf(v);
+            if (jump[g == 3]) continue;
             if (before && fabsf(d) <= 3.0f * fabsf(best[e + g] - before[e + g]) + lim) continue;
-            if (!(fabsf(d) <= lim)) jump = 1;
+            if (!(fabsf(d) <= lim)) jump[g == 3] = 1;
         }
         for (g = 0; g < 4; g++) {
-            adj[e + g] = jump ? cur[e + g] : best[e + g];
-            differs |= !jump && cur[e + g] != best[e + g];
+            adj[e + g] = jump[g == 3] ? cur[e + g] : best[e + g];
+            differs |= !jump[g == 3] && cur[e + g] != best[e + g];
         }
-        jumps += jump;
+        jumps += jump[0] || jump[1];
+        s_reg_jumps[e / 4] += jump[0] || jump[1];
     }
     if (!differs && !jumps) return;
     ++*moved;
-    if (jumps > 4) ++*refused;      /* counted for the cut test */
+    /* Many registers jumped: the partner is another object (a pedestrian's bones paired with another's), and
+     * blending the rest drew something neither frame has. The set is drawn as this frame has it. A few (a
+     * wheel's spin wrapping) are still motion. */
+    if (jumps > 4) { ++*refused; return; }
     if (!differs) return;
     c->adj = ci * CSET_FLOATS;
     c->lerp = 1;
@@ -4187,6 +4273,8 @@ static float const_distance(float a, float b)
     return d <= 1.0e6f ? d : 1.0e6f;   /* NaN and inf too */
 }
 
+static uint8_t *s_taken;     /* while set: the frame before's sets already someone's partner, not candidates */
+
 /* The partner among p's sets cand[0..n) nearest set c's constants; NULL if none. */
 static const float *nearest_set(const Rec *r, const Rec *p, size_t ci, const uint32_t *cand, size_t n,
                                 const CSet **bs)
@@ -4198,6 +4286,7 @@ static const float *nearest_set(const Rec *r, const Rec *p, size_t ci, const uin
     for (q = 0; q < n; q++) {
         const float *prev = (const float *)(p->arena + p->sets[cand[q]].cur);
         float d = 0;
+        if (s_taken && s_taken[cand[q]]) continue;
         for (e = 0; e < CSET_FLOATS && d < best_d; e++)
             d += const_distance(cur[e], prev[e]);
         if (d < best_d) { best_d = d; best = prev; *bs = &p->sets[cand[q]]; }
@@ -4214,22 +4303,47 @@ static int set_cmp2(const void *a, const void *b)
 
 /* Pair this frame's constant sets with the frame before's: same key, the nearest constants among those near
  * the same place in the frame. Sets left over (the draw's index count changed: geometry culled differently)
- * are paired the same way on the key without the count. */
+ * are paired the same way on the key without the count, but only with sets of the frame before left over too:
+ * taking one already paired gave a car's changed part another part's place, and the car flashed a black slab
+ * across itself at the start of a pair. */
 #define PAIR_WINDOW 24
 static void rec_pair(Rec *r, const Rec *p)
 {
     static uint32_t *co, *po;
-    static size_t co_cap, po_cap;
+    static size_t co_cap, po_cap, taken_cap;
+    static uint8_t *taken;
     size_t cn = 0, pn = 0, ci, pi, n, moved = 0, refused = 0;
     int pass;
     void *g;
+    uint8_t camera[CSET_FLOATS / 4];
     r->stat_lerp = r->stat_paired = 0;
+    memset(s_reg_jumps, 0, sizeof s_reg_jumps);
     if (!p || !r->nsets || !p->nsets) return;
     if (!(g = rec_grow(r->adj, &r->adj_cap, r->nsets * CSET_FLOATS, sizeof *r->adj))) return;
     r->adj = (float *)g;
     for (pass = 0; pass < 2; pass++) {
         if (!set_order(r, &co, &co_cap, &cn) || !set_order(p, &po, &po_cap, &pn)) return;
-        if (pass) {                 /* order both by the loose key */
+        if (pass) {                 /* order both by the loose key; the frame before's partners are taken */
+            if (!(g = rec_grow(taken, &taken_cap, p->nsets, 1))) return;
+            s_taken = taken = (uint8_t *)g;
+            memset(s_taken, 0, p->nsets);
+            for (n = 0; n < r->nsets; n++)
+                if (r->sets[n].paired) s_taken[r->sets[n].partner] = 1;
+            /* The registers most pairs so far changed in: the camera's, shared by everything drawn. */
+            {
+                uint32_t cnt[CSET_FLOATS / 4] = { 0 }, paired = 0;
+                int e;
+                for (n = 0; n < r->nsets; n++) {
+                    const float *a, *b;
+                    if (!r->sets[n].paired) continue;
+                    a = (const float *)(r->arena + r->sets[n].cur);
+                    b = (const float *)(p->arena + p->sets[r->sets[n].partner].cur);
+                    paired++;
+                    for (e = 0; e < CSET_FLOATS; e += 4)
+                        cnt[e / 4] += memcmp(a + e, b + e, 16) != 0;
+                }
+                for (e = 0; e < CSET_FLOATS / 4; e++) camera[e] = cnt[e] * 2 > paired;
+            }
             s_sort_rec = r; qsort(co, cn, sizeof *co, set_cmp2);
             s_sort_rec = p; qsort(po, pn, sizeof *po, set_cmp2);
         }
@@ -4256,13 +4370,33 @@ static void rec_pair(Rec *r, const Rec *p)
                 lo = at > PAIR_WINDOW ? at - PAIR_WINDOW : 0;
                 hi = at + PAIR_WINDOW + 1 < count ? at + PAIR_WINDOW + 1 : count;
                 if ((best = nearest_set(r, p, co[j], po + p0 + lo, hi - lo, &bs)) != NULL)
+                {
                     pair_set(r, p, co[j], best, bs, &moved, &refused);
+                    if (s_taken) s_taken[bs - p->sets] = 1;
+                    /* Paired across a change of geometry, it is blended only if nothing but the camera moved
+                     * (a building culled differently). Else a black car-shaped slab rose over the player's car
+                     * for a few frames (likely its shadow: blending two flattenings onto different ground is
+                     * not flat). */
+                    if (pass && r->sets[co[j]].lerp) {
+                        const float *a = (const float *)(r->arena + r->sets[co[j]].cur);
+                        int e;
+                        for (e = 0; e < CSET_FLOATS; e += 4)
+                            if (!camera[e / 4] && memcmp(a + e, best + e, 16)) { r->sets[co[j]].lerp = 0; break; }
+                    }
+                }
             }
         }
     }
-    /* Most of what moved jumped: a cut, not motion. Show the frame as drawn. */
-    if (moved >= 8 && refused * 2 > moved)
-        for (n = 0; n < r->nsets; n++) r->sets[n].lerp = 0;
+    s_taken = NULL;
+    /* Most of what moved jumped, or a register most of it shares (the camera's) jumped: a cut, not motion. Show
+     * the frame as drawn. A crash camera cutting to a new angle jumped only the camera's four registers in every
+     * set, under the count above, and the frame in between showed the road from behind the camera: black. */
+    {
+        int cut = moved >= 8 && refused * 2 > moved;
+        for (n = 0; n < CSET_FLOATS / 4 && !cut && moved >= 8; n++) cut = s_reg_jumps[n] * 2 > moved;
+        if (cut)
+            for (n = 0; n < r->nsets; n++) r->sets[n].lerp = 0;
+    }
     for (n = 0; n < r->nsets; n++) r->stat_lerp += r->sets[n].lerp;
 }
 
@@ -4278,11 +4412,44 @@ static SDL_AtomicInt s_title_busy;    /* in a step: from its start to its next f
 void nv2a_sdlgpu_tick_started(double start, double step)
 {
     double f = (double)qpf();
+    int64_t now = qpc(), st = (int64_t)(start * f), sp = (int64_t)(step * f);
     SDL_LockSpinlock(&s_tick_lock);
-    s_tick_qpc = (int64_t)(start * f);
-    s_step_qpc = (int64_t)(step * f);
+    s_tick_qpc = st;
+    s_step_qpc = sp;
     SDL_UnlockSpinlock(&s_tick_lock);
     SDL_SetAtomicInt(&s_title_busy, 1);
+    /* Frames in between take GPU time from the title's own. A step that begins more than a step after it was
+     * due is late; the title's clock catches up for at most 133 ms and then drops the time (at 4x scale and
+     * MSAA a race made 20-25 steps a second, not 30, and a car took 0.6 s longer to reach 20 m/s). Late for
+     * more than 8 steps running counts: catching up after a hitch (a race starting) is late for at most 4.
+     * While steps are late, frames in between are spaced further apart at once; while not, closer again,
+     * slowly. Measured here, at every step: the flips the renderer keeps miss some, and by the gaps between
+     * flips or the step clock's own periods a title that has fallen behind looks on time. */
+    if (SDL_GetAtomicInt(&s_interp_on) && sp > 0) {
+        static int streak;
+        int late;
+        streak = now - st > sp ? streak + 1 : 0;
+        late = streak > 8;
+        if (late) s_interp_room = s_interp_room + 4 > 64 ? 64 : s_interp_room + 4;
+        else s_interp_room -= s_interp_room > 12;
+        /* Keeping frames costs too (every target the frame draws copied at each flip: 1.8 GB of them at 4x
+         * scale). If steps are still late with frames in between as far apart as they go, the title gets the
+         * GPU to itself for a while (frames repeat, as with the mod off), then interpolation tries again. */
+        s_win_late += late;
+        if (++s_win_flips >= 30) {                /* a second of steps */
+            if (getenv("RECOMP_INTERP_TRACE"))
+                fprintf(stderr, "[INTERP] window: %d of %d steps late, room %d\n", s_win_late, s_win_flips,
+                        s_interp_room);
+            if (s_interp_room >= 64 && s_win_late * 2 > s_win_flips && now >= s_interp_off_until) {
+                s_interp_off_until = now + s_interp_backoff * qpf();
+                fprintf(stderr, "[INTERP] %d of %d steps late: paused for %d s (graphics settings too heavy for "
+                        "frames in between)\n", s_win_late, s_win_flips, s_interp_backoff);
+                if (s_interp_backoff < 60) s_interp_backoff *= 2;
+                s_interp_room = 32;
+            }
+            s_win_late = s_win_flips = 0;
+        }
+    }
 }
 
 /* The byte offsets of a draw's float attributes in its vertex bytes (a buffer reused by each call). */
@@ -4385,6 +4552,45 @@ static void rec_vpair(Rec *r, const Rec *p)
                     jumps += (uint32_t)float_jumps(*(const float *)(pb + offs[f]), *(const float *)(cb + offs[f]));
             }
             if (!floats || jumps * 8 > floats) continue;
+            {   /* Its other bytes (packed colours, normals) changed too: not the same geometry moved but new
+                 * content in the same places, such as a particle system's sprites (fading, respawned). Blended,
+                 * a bright patch flashed beside a car pushing against a truck at the start of every pair. */
+                static uint8_t *cover;
+                static size_t cover_cap;
+                const uint8_t *pb = p->vmem + best->cur, *cb = r->vmem + v->cur;
+                const uint32_t *offs;
+                uint32_t f, nf = float_offsets(r, v, &offs), b, same = 1;
+                void *gc = rec_grow(cover, &cover_cap, v->len, 1);
+                if (!gc) continue;
+                cover = (uint8_t *)gc;
+                memset(cover, 0, v->len);
+                for (f = 0; f < nf; f++) memset(cover + offs[f], 1, 4);
+                for (b = 0; b < v->len && same; b++) same = cover[b] || pb[b] == cb[b];
+                if (!same) continue;
+            }
+            {   /* Its positions did not move together: each vertex's move must be within a tenth of the draw's
+                 * size of the first's (a rigid move, a turn, a dent). Else it is other geometry in the same
+                 * places, paired by mistake (a car's body pieces in a crash), and blended it tore. */
+                const UbConsts *u = (const UbConsts *)(r->arena + v->ubc);
+                const uint8_t *pb = p->vmem + best->cur, *cb = r->vmem + v->cur;
+                uint32_t rel = u->at[0][0] - v->gpu, st = u->at[0][1], n, c;
+                float lo[3] = { 3e38f, 3e38f, 3e38f }, hi[3] = { -3e38f, -3e38f, -3e38f }, d0[3] = { 0, 0, 0 };
+                float size = 0, worst = 0;
+                if (u->at[0][2] == 2u && u->at[0][3] >= 3 && st) {
+                    for (n = 0; rel + n * st + 12 <= v->len; n++)
+                        for (c = 0; c < 3; c++) {
+                            float a = *(const float *)(pb + rel + n * st + 4 * c), x = *(const float *)(cb + rel + n * st + 4 * c);
+                            float e;
+                            if (!n) d0[c] = x - a;
+                            e = fabsf(x - a - d0[c]);
+                            if (e > worst || e != e) worst = e == e ? e : 3e38f;
+                            if (x < lo[c]) lo[c] = x;
+                            if (x > hi[c]) hi[c] = x;
+                        }
+                    for (c = 0; c < 3; c++) size += hi[c] > lo[c] ? hi[c] - lo[c] : 0;
+                    if (worst > 0.1f * size + 1e-3f) continue;
+                }
+            }
             /* The frame before's bytes, kept with this frame: that record is reused while this one is shown. */
             {
                 size_t at2 = (r->vmem_len + 15) & ~(size_t)15;
@@ -4458,6 +4664,43 @@ static int rec_vblend(Rec *r, float t, SDL_GPUCommandBuffer *c)
 
 static void rec_snapshot(Rec *r, int slot);
 
+/* RECOMP_INTERP_DUMP=<file> (diagnostic): at every flip while <file>.req exists, the flip's constant sets and the
+ * frame before's go to <file>.NNN: per frame int32 count, then per set u64 key, key2, int32 partner (-1: none),
+ * u8 keyed, lerp, paired, pin, then the 768 floats and the 768 it blends from. */
+static void rec_dump(const Rec *r, const Rec *p)
+{
+    static const char *path = (const char *)-1;
+    char req[512];
+    FILE *f;
+    int k;
+    if (path == (const char *)-1) path = getenv("RECOMP_INTERP_DUMP");
+    if (!path || !p || snprintf(req, sizeof req, "%s.req", path) <= 0 || !(f = fopen(req, "rb"))) return;
+    fclose(f);
+    {   /* <file>.NNN, one a flip for as long as <file>.req exists */
+        static unsigned seq;
+        char name[600];
+        snprintf(name, sizeof name, "%s.%03u", path, seq);
+        if (!(f = fopen(name, "wb"))) return;
+        fprintf(stderr, "[DUMP] %u %lld\n", seq++, (long long)((double)qpc() * 1e6 / (double)qpf()));
+    }
+    for (k = 0; k < 2; k++) {
+        const Rec *x = k ? r : p;
+        int32_t n = (int32_t)x->nsets;
+        size_t i;
+        fwrite(&n, 4, 1, f);
+        for (i = 0; i < x->nsets; i++) {
+            const CSet *c = &x->sets[i];
+            int32_t partner = c->paired ? c->partner : -1;
+            fwrite(&c->key, 8, 1, f); fwrite(&c->key2, 8, 1, f); fwrite(&partner, 4, 1, f);
+            fwrite(&c->keyed, 1, 1, f); fwrite(&c->lerp, 1, 1, f); fwrite(&c->paired, 1, 1, f); fwrite(&c->pin, 1, 1, f);
+            fwrite(x->arena + c->cur, 4, CSET_FLOATS, f);
+            if (c->lerp) fwrite(x->adj + c->adj, 4, CSET_FLOATS, f);
+            else fwrite(x->arena + c->cur, 4, CSET_FLOATS, f);
+        }
+    }
+    fclose(f);
+}
+
 /* At a flip: the frame just drawn is complete. */
 static void rec_end(const Surface *final)
 {
@@ -4471,6 +4714,9 @@ static void rec_end(const Surface *final)
     /* A step that began after the previous frame's and not in the future: else the flip time. */
     if (tick && tick <= now && (!p || tick > p->t_frame)) now = tick;
     else step = 0;
+    /* A frame that took more than 133 ms (a load in the middle of it) is not kept: its targets are a new
+     * scene's, and keeping it here, as the title starts to catch up, slowed the catch-up. */
+    if (s_rec_live && flip - s_rec_begun > freq * 2 / 15) { s_rec_live = 0; rec_invalidate(); }
     if (!s_rec_live) { s_rec_last = -1; return; }
     copy_end();
     flush_batch();
@@ -4485,36 +4731,20 @@ static void rec_end(const Surface *final)
         s_flip_lat -= s_flip_lat / 128;
         if (flip - now > s_flip_lat) s_flip_lat = flip - now;
         if (s_flip_lat > step) s_flip_lat = step;
+        s_flip_avg += ((flip - now < step ? flip - now : step) - s_flip_avg) / 8;
     }
     /* The time between the two frames: whole steps when the title says when they began. */
     r->period = p ? now - p->t_frame : freq / 30;
     if (step > 0 && p) r->period = (int64_t)((double)r->period / (double)step + 0.5) * step;
     if (r->period < freq / 120) r->period = freq / 120;
     if (r->period > freq / 10) r->period = freq / 10;
-    /* Frames in between take GPU time from the title's own: when it missed a step, space
-     * them further apart at once; while it keeps up, closer again, slowly. */
-    if (step) {
-        if (p && r->period > step) s_interp_room += 4;   /* a step missed */
-        else s_interp_room -= s_interp_room > 12;
-        if (s_interp_room > 64) s_interp_room = 64;
-        /* Keeping frames costs too (every target the frame draws copied at each flip: 1.8 GB of them at 4x
-         * scale). If the title still misses steps with frames in between as far apart as they go, it gets the
-         * GPU to itself for a while (frames repeat, as with the mod off), then interpolation tries again. */
-        s_win_steps += (int)(r->period / step);
-        s_win_flips++;
-        if (s_win_steps >= 60) {
-            if (s_interp_room >= 64 && s_win_flips * 10 < s_win_steps * 9) {
-                s_interp_off_until = flip + s_interp_backoff * freq;
-                fprintf(stderr, "[INTERP] the title made %d of %d steps' frames: paused for %d s (graphics settings too "
-                        "heavy for frames in between)\n", s_win_flips, s_win_steps, s_interp_backoff);
-                if (s_interp_backoff < 60) s_interp_backoff *= 2;
-                s_interp_room = 32;
-            }
-            s_win_steps = s_win_flips = 0;
-        }
+    {   /* RECOMP_INTERP_ONLY=c|v (diagnostic): blend only constants, or only vertex bytes. */
+        static const char *only = (const char *)-1;
+        if (only == (const char *)-1) only = getenv("RECOMP_INTERP_ONLY");
+        rec_pair(r, only && *only == 'v' ? NULL : p);
+        rec_vpair(r, only && *only == 'c' ? NULL : p);
     }
-    rec_pair(r, p);
-    rec_vpair(r, p);
+    rec_dump(r, p);
     rec_snapshot(r, s_rec_w);
     if (r->bad) { s_rec_last = -1; return; }
     r->valid = 1;
@@ -4537,15 +4767,43 @@ static int s_scratch_n;
 static uint32_t s_replay = 1;
 static int s_view_slot;                 /* the record whose snapshots a replay reads */
 
+/* Stand-ins and snapshots of textures that went, kept for the next of the same shape: the title remakes some
+ * every step (the lamp flares' visibility mask, a copy of the screen), and making a stand-in for each was two
+ * GPU allocations a step during play. The texture they stood in for has waited its flips (dead_free), so
+ * nothing in flight still names them. */
+typedef struct { SDL_GPUTexture *tex; SDL_GPUTextureCreateInfo ci; } Spare;
+static Spare s_spare[32];
+static int s_spare_n;
+
+static void spare_put(SDL_GPUTexture *t, const SDL_GPUTextureCreateInfo *ci)
+{
+    if (!t) return;
+    if (!ci || s_spare_n == (int)SDL_arraysize(s_spare)) { dead_push(t, 0); return; }
+    s_spare[s_spare_n].tex = t;
+    s_spare[s_spare_n++].ci = *ci;
+}
+
+static SDL_GPUTexture *spare_take(const SDL_GPUTextureCreateInfo *ci)
+{
+    int i;
+    for (i = 0; i < s_spare_n; i++)
+        if (!memcmp(&s_spare[i].ci, ci, sizeof *ci)) {
+            SDL_GPUTexture *t = s_spare[i].tex;
+            s_spare[i] = s_spare[--s_spare_n];
+            return t;
+        }
+    return NULL;
+}
+
 static void scratch_drop(SDL_GPUTexture *real)
 {
     int i;
     for (i = 0; i < s_scratch_n; i++)
         if (s_scratch[i].real == real) {
+            const TexDesc *d = texdesc_find(real);
             int k;
-            dead_push(s_scratch[i].tex, 0);
-            for (k = 0; k < REC_N; k++)
-                if (s_scratch[i].snap[k]) dead_push(s_scratch[i].snap[k], 0);
+            spare_put(s_scratch[i].tex, d ? &d->ci : NULL);
+            for (k = 0; k < REC_N; k++) spare_put(s_scratch[i].snap[k], d ? &d->ci : NULL);
             s_scratch[i] = s_scratch[--s_scratch_n];
             return;
         }
@@ -4566,11 +4824,58 @@ static Scratch *scratch_get(SDL_GPUTexture *real)
     if (s_scratch_n == (int)SDL_arraysize(s_scratch) || !(d = texdesc_find(real))) return NULL;
     sc = &s_scratch[s_scratch_n];
     memset(sc, 0, sizeof *sc);
+    if ((sc->tex = spare_take(&d->ci)) != NULL) {
+        int k;
+        for (k = 0; k < REC_N; k++) sc->snap[k] = spare_take(&d->ci);
+        sc->real = real;
+        s_scratch_n++;
+        return sc;
+    }
     sc->tex = SDL_CreateGPUTexture(s_dev, &d->ci);
+    if (getenv("RECOMP_INTERP_TRACE")) {
+        char what[96];
+        snprintf(what, sizeof what, "stand-in %ux%u levels %u format %d", d->ci.width, d->ci.height, d->ci.num_levels,
+                 (int)d->ci.format);
+        INTERP_ALLOC(what);
+    }
     if (!sc->tex) { fail("interpolation target"); return NULL; }
     sc->real = real;
     s_scratch_n++;
     return sc;
+}
+
+/* A guest render target's stand-in and snapshots, made ahead of the first frame kept that draws into it, one
+ * texture a flip and only while the title has time to spare (interp_prewarm_step). Made by that frame's flip
+ * (several targets of a new scene at once) or as the title made its targets (a race's first frames), they held
+ * the title's first catch-up steps after a load to 60-90 ms instead of 28: the clock dropped more and a race
+ * start played out differently from the mod off. No frame is kept while some are still to make. */
+static SDL_GPUTexture *s_prewarm[64];
+
+static void interp_prewarm(SDL_GPUTexture *t)
+{
+    if (t && SDL_GetAtomicInt(&s_interp_on) && s_prewarm_n < (int)SDL_arraysize(s_prewarm))
+        s_prewarm[s_prewarm_n++] = t;
+}
+
+/* One texture, if there is one to make and time for it; 1 while some are still to make. */
+static int interp_prewarm_step(int calm)
+{
+    while (s_prewarm_n) {
+        SDL_GPUTexture *t = s_prewarm[0];
+        const TexDesc *d = texdesc_find(t);
+        Scratch *sc;
+        int k;
+        if (!d || s_scratch_n >= (int)SDL_arraysize(s_scratch) - 16 || !(sc = scratch_get(t))) {
+            memmove(s_prewarm, s_prewarm + 1, --s_prewarm_n * sizeof *s_prewarm);     /* gone, or no room */
+            continue;
+        }
+        for (k = 0; k < REC_N && sc->snap[k]; k++) ;
+        if (k == REC_N) { memmove(s_prewarm, s_prewarm + 1, --s_prewarm_n * sizeof *s_prewarm); continue; }
+        if (calm && !(sc->snap[k] = SDL_CreateGPUTexture(s_dev, &d->ci)))
+            memmove(s_prewarm, s_prewarm + 1, --s_prewarm_n * sizeof *s_prewarm);
+        return 1;
+    }
+    return 0;
 }
 
 /* What a replayed pass reads for `real`: this replay's version if it drew one, else the snapshot. */
@@ -4618,9 +4923,12 @@ static int snap_one(SDL_GPUCopyPass *cp, SDL_GPUTexture *real, int slot)
         return 1;                   /* not a render target: the title does not draw into it */
     if (!(sc = scratch_get(real))) return 0;
     if (sc->written == 0xFFFFFFFFu) return 1;
-    if (!sc->snap[slot] && !(sc->snap[slot] = SDL_CreateGPUTexture(s_dev, &d->ci))) {
-        fail("interpolation snapshot");
-        return 0;
+    if (!sc->snap[slot]) {
+        if (!(sc->snap[slot] = SDL_CreateGPUTexture(s_dev, &d->ci))) {
+            fail("interpolation snapshot");
+            return 0;
+        }
+        INTERP_ALLOC("snapshot");
     }
     copy_levels(cp, real, sc->snap[slot], d);
     sc->written = 0xFFFFFFFFu;      /* this flip's snapshot is taken */
@@ -4808,8 +5116,9 @@ static void interp_trace(const Rec *r, float t, int64_t cost, int shown)
             mb += one;
             for (k = 0; k < REC_N; k++) if (s_scratch[i].snap[k]) mb += one;
         }
-        fprintf(stderr, "[INTERP] stand-ins and snapshots about %.0f MB; draws with blended vertices %u of %u\n", mb,
-                r ? r->stat_vblend : 0, r ? (unsigned)r->nvd : 0);
+        fprintf(stderr, "[INTERP] stand-ins and snapshots about %.0f MB; draws with blended vertices %u of %u | room %d "
+                "| %d of %d steps late\n", mb, r ? r->stat_vblend : 0, r ? (unsigned)r->nvd : 0, s_interp_room, s_win_late,
+                s_win_flips);
     }
     fprintf(stderr, "[INTERP] %u frames (%u repeats) %.2f ms each | sets %u paired %u moving %u | items %u targets %d | "
             "vertex %.1f MB index %.1f MB | t %.2f | why %u %u %u %u %u %u bad %u nosurf %u flips %u\n",
@@ -4832,6 +5141,34 @@ static void interp_trace(const Rec *r, float t, int64_t cost, int shown)
 /* What a frame in between costs, on average: a whole frame drawn again, at the render scale and MSAA. */
 static int64_t s_interp_cost;
 
+/* Frames in between may only use time the title does not: game behaviour must not change with the mod (the step
+ * clock catches up for 133 ms and then drops time, and input is read at each step's start). The title's frame
+ * flips s_flip_avg after its step begins, on average (measured with frames in between being made, so they raise it when they
+ * get in its way); what is left of the step, less a quarter, buys frames at twice their measured cost (their GPU
+ * time is not measured). At 4x scale and MSAA, frames made regardless slowed the race to 24 steps a second, the
+ * car reaching 20 m/s a second late. */
+static int interp_budget(int64_t now)
+{
+    static int64_t step_of;
+    static int used;
+    int64_t tick, step, cost, spare;
+    SDL_LockSpinlock(&s_tick_lock);
+    tick = s_tick_qpc;
+    step = s_step_qpc;
+    SDL_UnlockSpinlock(&s_tick_lock);
+    if (!step) return 1;                    /* no step clock (menus): nothing to keep pace with */
+    /* Behind: the next step is due already (catching up after a load). Nothing is presented, as with the mod
+     * off: presenting here (a swapchain wait each) held the title's catch-up steps to 45 ms instead of 16, the
+     * clock dropped 0.9 s instead of 0.5 at a race start, and the race came out differently. */
+    if (now >= tick + step) return -1;
+    if (tick != step_of) { step_of = tick; used = 0; }
+    cost = s_interp_cost > qpf() / 2000 ? s_interp_cost : qpf() / 2000;
+    spare = step - s_flip_avg - step / 4;
+    if (spare < 2 * cost * (used + 1)) return 0;
+    used++;
+    return 1;
+}
+
 static int interp_present(FlipPacing *pacing)
 {
     Rec *r;
@@ -4839,6 +5176,7 @@ static int interp_present(FlipPacing *pacing)
     Surface view;
     int64_t now = qpc(), moment, start;
     float t;
+    int ok;
     if (s_rec_act < 0 || !s_rec[s_rec_act].valid) { WHY(0); interp_trace(NULL, 0, 0, 0); return 0; }
     if (xbox_FramebufferOverlay(&ovl)) { WHY(2); interp_trace(NULL, 0, 0, 0); return 0; }
     r = &s_rec[s_rec_pend >= 0 ? s_rec_pend : s_rec_act];
@@ -4860,10 +5198,26 @@ static int interp_present(FlipPacing *pacing)
     s_moment = moment;
     t = (float)((double)(moment - start) / (double)r->period);
     s_view_slot = s_rec_act;
+    /* Over this step's budget: the pair's own last frame, once, then held, as with the mod off. Not the scanout:
+     * that is the title's newest frame, ahead of the pair, and the next frame in between would go back. */
+    if ((ok = interp_budget(now)) <= 0) {
+        static int64_t held;
+        WHY(1);
+        if (ok < 0) return 1;
+        if (held == r->t_frame) return 1;
+        held = r->t_frame;
+        s_moment = r->t_frame;
+        view = r->final;
+        view.tex = scratch_view(r->final.tex);
+        s_rec_kind = 1; s_rec_t = 1.0f; s_rec_moment = r->t_frame;
+        if (!keep_surface(&view) || !present_kept_image(pacing)) { WHY(5); return 0; }
+        return 1;
+    }
     /* Nothing moving: the frame as the title left it. */
     if ((r->stat_lerp || r->stat_vblend) && !rec_replay(r, t)) { WHY(4); rec_invalidate(); interp_trace(r, t, 0, 0); return 0; }
     view = r->final;
     view.tex = scratch_view(r->final.tex);
+    s_rec_kind = 1; s_rec_t = t; s_rec_moment = moment;
     if (!keep_surface(&view) || !present_kept_image(pacing)) { WHY(5); interp_trace(r, t, 0, 0); return 0; }
     interp_trace(r, t, qpc() - now, 1);
     s_interp_cost += (qpc() - now - s_interp_cost) / 8;   /* a running average: interp_interval keeps to it */
@@ -5092,9 +5446,14 @@ void nv2a_d3d_tick(void)
     if (interp_while_busy()) {
         FlipPacing pacing = { 1, 0 };
         int shown;
+        int64_t before = s_last_present_qpc;
         rec_outside_begin();
         shown = interp_present(&pacing);
         rec_outside_end();
+        /* Handled without presenting (over budget, or the title behind): the next try waits a frame too. Retried
+         * at once, this thread asked tens of thousands of times a second, and the title's catch-up steps after a
+         * load took 90 ms instead of 27. */
+        if (shown && s_last_present_qpc == before) s_busy_retry = qpc() + interp_interval();
         if (shown) return;
         /* None to make (a movie is showing, the frames are stale): what the window shows comes from below, and
          * the next try waits a frame. */
