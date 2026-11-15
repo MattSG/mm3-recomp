@@ -4214,7 +4214,8 @@ static void pair_set(Rec *r, const Rec *p, size_t ci, const float *best, const C
     CSet *c = &r->sets[ci];
     const float *cur = (const float *)(r->arena + c->cur), *before = NULL;
     float *adj = r->adj + ci * CSET_FLOATS;
-    int e, jumps = 0, differs = 0;
+    int e, k, jumps = 0, differs = 0;
+    uint8_t snap[CSET_FLOATS / 4], turn[CSET_FLOATS / 4];
     r->stat_paired++;
     c->paired = 1;
     c->partner = (int32_t)(bs - p->sets);
@@ -4252,6 +4253,25 @@ static void pair_set(Rec *r, const Rec *p, size_t ci, const float *best, const C
         }
         jumps += jump[0] || jump[1];
         s_reg_jumps[e / 4] += jump[0] || jump[1];
+        snap[e / 4] = (uint8_t)jump[0];
+    }
+    /* Rotation rows (xyz a unit vector in both frames: a wheel's or bone's matrix) are taken whole from one frame:
+     * one that turned more than ~35 degrees snaps (blended, a wheel spinning 110 degrees a step shrank to half
+     * its size), and a snap spreads to the rows beside it. Snapped alone, one row of a wheel's matrix came from
+     * the new step and the others from the old: the wheel squashed or vanished at the start of every pair. w
+     * (the position) still blends, so the wheels stay with the body. Not counted as jumps. */
+    for (k = 0; k < CSET_FLOATS / 4; k++) {
+        const float *a = best + 4 * k, *b = cur + 4 * k;
+        float la = a[0] * a[0] + a[1] * a[1] + a[2] * a[2], lb = b[0] * b[0] + b[1] * b[1] + b[2] * b[2];
+        turn[k] = (a[0] != b[0] || a[1] != b[1] || a[2] != b[2]) && fabsf(la - 1.0f) < 0.1f && fabsf(lb - 1.0f) < 0.1f;
+        if (turn[k] && a[0] * b[0] + a[1] * b[1] + a[2] * b[2] < 0.82f) snap[k] = 1;
+    }
+    for (k = 1; k < CSET_FLOATS / 4; k++) if (snap[k - 1] && turn[k - 1] && turn[k]) snap[k] = 1;
+    for (k = CSET_FLOATS / 4 - 2; k >= 0; k--) if (snap[k + 1] && turn[k + 1] && turn[k]) snap[k] = 1;
+    differs = 0;
+    for (e = 0; e < CSET_FLOATS; e++) {
+        if (e % 4 != 3 && snap[e / 4]) adj[e] = cur[e];
+        differs |= adj[e] != cur[e];
     }
     if (!differs && !jumps) return;
     ++*moved;
