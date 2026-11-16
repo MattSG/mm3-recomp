@@ -236,11 +236,11 @@ Rml::Vector<Option> g_options = {
     {"Audio", "Sound processor", "The Xbox's audio DSP, run as on the console: reverb, 3D sound and the game's "
      "own mix. Heavy on the CPU: if sound stutters, turn it off to hear the voices mixed directly, without those effects.",
      "RECOMP_APU_DSP", "1", "", {{"1", "On (accurate, CPU heavy)"}, {"0", "Off (faster, no effects)"}}},
-    {"Network", "Network", "Work in progress. System link works between copies on one PC or a LAN; "
-     "Xbox Live is untested.", "RECOMP_NET", "", "", {{"", "Off"}, {"nat", "On"}}},
-    {"", "Xbox Live", "Work in progress: reaches Insignia's servers, but signing in needs an account "
-     "made on xemu (scripts/import_xemu_accounts.py) and is unverified.", "", "", "", {{"", "Insignia (WIP)"}}},
-    {"", "Direct play", "Work in progress, untested between separate PCs. Other players to link with, "
+    {"Network", "Network (experimental)", "EXPERIMENTAL: expect rough edges. System link works between copies "
+     "on one PC, a LAN or (with Direct play) the internet; Xbox Live is untested.", "RECOMP_NET", "", "", {{"", "Off"}, {"nat", "On"}}},
+    {"", "Xbox Live (experimental)", "EXPERIMENTAL, untested sign-in. Signs in to Insignia as your xemu console: make an Insignia account in xemu, then "
+     "run python tools/xbl/import_xemu_console.py once. Needs Network on.", "", "", "", {{"", "Insignia"}}},
+    {"", "Direct play (experimental)", "EXPERIMENTAL: internet System Link, tested only between copies on one PC. Other players to link with, "
      "as address:port, comma separated. One side is enough: the other is found when it first hears "
      "from you.", "RECOMP_NET_PEERS", "", "", {{"", ""}}},
     {"", "Your port", "UDP port other players reach you on. Forward it on your router to be found.",
@@ -302,7 +302,7 @@ Rml::Vector<Section> g_sections = {
     {"Display", "The game window, frame rate and what happens in the background.", false},
     {"Graphics", "Resolution, anti-aliasing and how far the city is drawn.", false},
     {"Audio", "How the Xbox's sound is reproduced.", false},
-    {"Network", "System link and online play. Work in progress.", false},
+    {"Network", "System link and online play. Experimental.", false},
     {"Controls", "Keyboard, mouse and controller, and the debug overlay.", false},
     {"Mods", "Optional changes to the original game. Off is the Xbox game.", false},
     {"Developer", "The shipped game's own developer features.", true},

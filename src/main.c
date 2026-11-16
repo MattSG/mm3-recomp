@@ -37,28 +37,99 @@ static void mm3_configure_kernel_identity(void)
     xbox_HalDiskModelNumber=(XBOX_ANSI_STRING){sizeof(disk_model)-1,sizeof(disk_model),disk_model};
     xbox_HalDiskSerialNumber=(XBOX_ANSI_STRING){sizeof(disk_serial)-1,sizeof(disk_serial),disk_serial};
     xbox_XeImageFileName=(XBOX_ANSI_STRING){sizeof(image_path)-1,sizeof(image_path),image_path};
+    memset(&xbox_HardwareInfo,0,sizeof(xbox_HardwareInfo));
+    xbox_HardwareInfo.GpuRevision=0xA1;
+    xbox_HardwareInfo.McpRevision=0xB1;
+    xbox_kernel_set_version(1,0,5849,0);
+}
+
+static FILE *mm3_open_save_file(const char *name)
+{
+    xbox_host_char dir[MAX_PATH], path[MAX_PATH];
+    if (!xbox_get_save_directory(dir,MAX_PATH)) return NULL;
+#ifdef _WIN32
+    if (swprintf_s(path,MAX_PATH,L"%ls\\%hs",dir,name)<0) return NULL;
+    return _wfopen(path,L"rb");
+#else
+    if (snprintf(path,sizeof path,"%s/%s",dir,name)>=(int)sizeof path) return NULL;
+    return fopen(path,"rb");
+#endif
+}
+
+static unsigned mm3_parse_key(const char *name, const char *text, UCHAR *bytes)
+{
+    if (strlen(text)!=32 || strspn(text,"0123456789abcdefABCDEF")!=32) {
+        fprintf(stderr,"ignoring invalid %s (expected 32 hex digits)\n",name);
+        return 0;
+    }
+    for (unsigned n=0;n<16;n++) {
+        unsigned byte;
+        if (sscanf(text+2*n,"%2x",&byte)==1) bytes[n]=(UCHAR)byte;
+    }
+    return 1;
+}
+
+/* Sign In with no Xbox Live account offers the dashboard's new-account
+ * sign-up (launch data reason 7), which the recomp cannot run: it would just
+ * quit. Say how accounts get here. MM3_NO_DIALOGS (hidden test runs) logs only. */
+static void mm3_explain_dashboard_exit(uint32_t routine, uint32_t page)
+{
+    static const char text[]=
+        "Midtown Madness 3 has no Xbox Live account to sign in with, and the recomp has no "
+        "Xbox Dashboard to create one.\n\nCreate an Insignia account in xemu, then run\n"
+        "    python tools/xbl/import_xemu_console.py\nand start the game again.";
+    (void)routine;
+    if (!page || MEM32(page+1024)!=7) return;
+    fprintf(stderr,"[MM3_XBL] account sign-up requested: %s\n",text);
+    fflush(stderr);
+    if (!getenv("MM3_NO_DIALOGS"))
+        MessageBoxA(NULL,text,"Xbox Live",0x30 /* MB_ICONWARNING */);
+}
+
+/* The console Xbox Live signs in as, imported into the save dir by
+ * tools/xbl/import_xemu_console.py: eeprom.bin (factory serial, MAC, online
+ * key) and console_keys.txt (NAME=hex lines). RECOMP_XBOX_* variables override
+ * the file. Runs after xbox_path_init, before the bridge copies the keys. */
+static void mm3_load_console_identity(void)
+{
     static const struct { const char *name; UCHAR *bytes; } keys[] = {
         {"RECOMP_XBOX_HDKEY", xbox_HDKey},
         {"RECOMP_XBOX_SIGKEY", xbox_SignatureKey},
         {"RECOMP_XBOX_LANKEY", xbox_LANKey}
     };
-    memset(&xbox_HardwareInfo,0,sizeof(xbox_HardwareInfo));
-    xbox_HardwareInfo.GpuRevision=0xA1;
-    xbox_HardwareInfo.McpRevision=0xB1;
-    xbox_kernel_set_version(1,0,5849,0);
-    for (unsigned i=0;i<sizeof(keys)/sizeof(keys[0]);i++) {
-        const char *text=getenv(keys[i].name);
-        memset(keys[i].bytes,0,16);
-        if (!text || !*text) continue;
-        if (strlen(text)!=32 || strspn(text,"0123456789abcdefABCDEF")!=32) {
-            fprintf(stderr,"ignoring invalid %s (expected 32 hex digits)\n",keys[i].name);
-            continue;
+    char line[128];
+    FILE *file;
+    unsigned i, loaded=0;
+    for (i=0;i<sizeof keys/sizeof keys[0];i++) memset(keys[i].bytes,0,16);
+    if ((file=mm3_open_save_file("console_keys.txt"))) {
+        while (fgets(line,sizeof line,file)) {
+            char *value=strchr(line,'=');
+            if (!value) continue;
+            *value++=0;
+            value[strcspn(value,"\r\n")]=0;
+            for (i=0;i<sizeof keys/sizeof keys[0];i++)
+                if (!strcmp(line,keys[i].name) && !getenv(keys[i].name))
+                    loaded+=mm3_parse_key(line,value,keys[i].bytes);
         }
-        for (unsigned n=0;n<16;n++) {
-            unsigned byte;
-            if (sscanf(text+2*n,"%2x",&byte)==1) keys[i].bytes[n]=(UCHAR)byte;
-        }
+        fclose(file);
     }
+    for (i=0;i<sizeof keys/sizeof keys[0];i++) {
+        const char *text=getenv(keys[i].name);
+        if (text && *text) loaded+=mm3_parse_key(keys[i].name,text,keys[i].bytes);
+    }
+    memset(xbox_EEPROM,0,sizeof xbox_EEPROM);
+    if ((file=mm3_open_save_file("eeprom.bin"))) {
+        UCHAR image[sizeof xbox_EEPROM];
+        if (fread(image,1,sizeof image,file)==sizeof image && fgetc(file)==EOF)
+            memcpy(xbox_EEPROM,image,sizeof image);
+        else
+            fprintf(stderr,"[MM3_XBL] ignoring eeprom.bin: not a 256-byte EEPROM image\n");
+        fclose(file);
+    }
+    xbox_firmware_return_hook=mm3_explain_dashboard_exit;
+    if (loaded || xbox_EEPROM[0x34])
+        fprintf(stderr,"[MM3_XBL] console identity: %u key(s), serial %.12s\n",loaded,
+                xbox_EEPROM[0x34]?(const char *)xbox_EEPROM+0x34:"(none)");
 }
 
 /* Inherited port compatibility: references expose one finished thread object,
@@ -376,6 +447,7 @@ int main(void)
     mm3_configure_launch_data(xbe_data, xbe_size);
     xbox_kernel_init();
     xbox_path_init(MM3_GAME_DIR, getenv("MM3_SAVE_DIR"));
+    mm3_load_console_identity();
     mm3_asset_cache_refresh();
     mm3_finished_thread_object=0;
     if (xbox_kernel_set_bridge_override(246,mm3_reference_object_bridge)!=0) {
