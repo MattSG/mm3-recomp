@@ -2,6 +2,20 @@
 #include "feature_switch.h"
 
 const Mm3Mod mm3_mods[MM3_MOD_COUNT] = {
+    [MM3_MOD_AUTO_EASTER_EGG] = {"auto_easter_egg", "MM3_MOD_AUTO_EASTER_EGG", "Auto-activate Easter egg",
+        "Keep the selected original film or sketch effect active during single-player gameplay, without visiting its landmark. Choose the effect below.", 0},
+    [MM3_MOD_UNLOCK_ALL] = {"unlock_all", "MM3_UNLOCK_ALL", "Unlock all installed content",
+        "Enable all three unlock cheats below for this run. Does not mark races completed or collect paint cans in your profile.", 0},
+    [MM3_MOD_UNLOCK_CARS] = {"unlock_cars", "MM3_UNLOCK_ALL_CARS", "Unlock all cars",
+        "Make every installed car available, including hidden bonus cars. Off: normal career unlocks. Does not install missing cars or DLC.", 0},
+    [MM3_MOD_UNLOCK_PAINTS] = {"unlock_paints", "MM3_UNLOCK_ALL_PAINTS", "Unlock all paints",
+        "Make every installed car's paint choices available for this run. Paint-can collection and profile keys are unchanged.", 0},
+    [MM3_MOD_UNLOCK_RACES] = {"unlock_races", "MM3_UNLOCK_ALL_RACES", "Unlock all races and jobs",
+        "Open installed Blitz and Checkpoint races and all career jobs in both cities. Completed races, best times and career progress are unchanged.", 0},
+    [MM3_MOD_RENTAL_FIX] = {"rental_fix", "MM3_MOD_RENTAL_FIX", "Rental mission fix",
+        "Prevents an already stopped rival from changing cars and gaining progress twice in Washington's The rental route.", 1},
+    [MM3_MOD_EASTER_EGG_FIX] = {"easter_egg_fix", "MM3_MOD_EASTER_EGG_FIX", "Old-film Easter egg fix",
+        "Restores normal speed when the old-film filter resets. Preserves its intended speed-up with Console-rate simulation enabled.", 1},
     [MM3_MOD_DEBUG_OVERLAY] = {"debug_overlay", "MM3_DEBUG_OVERLAY", "ImGui debug tools",
         "In-game interface for developer commands and native teleport. Configure its toggle under Controls.", 0},
     [MM3_MOD_WIDESCREEN] = {"widescreen", "MM3_MOD_WIDESCREEN", "Widescreen",

@@ -8,7 +8,7 @@
 static unsigned char memory[0x440000];
 uint32_t g_esp, g_eax, g_edi;
 static double host_time;
-static int enabled = 1, manual, native_states, native_worlds, native_ai;
+static int enabled = 1, egg_enabled = 1, auto_egg, hold_active, manual, native_states, native_worlds, native_ai;
 
 #define QueryPerformanceCounter test_counter
 #define QueryPerformanceFrequency test_frequency
@@ -18,12 +18,13 @@ static int enabled = 1, manual, native_states, native_worlds, native_ai;
 int QueryPerformanceCounter(LARGE_INTEGER *v) { v->QuadPart = (long long)(host_time * 1000000); return 1; }
 int QueryPerformanceFrequency(LARGE_INTEGER *v) { v->QuadPart = 1000000; return 1; }
 void Sleep(unsigned long ms) { host_time += (double)ms / 1000; }
-int mm3_mod_on(int mod) { return mod == MM3_MOD_FRAMERATE && enabled; }   /* interpolation stays off */
+int mm3_mod_on(int mod) { return mod == MM3_MOD_AUTO_EASTER_EGG ? auto_egg : mod == MM3_MOD_EASTER_EGG_FIX ? egg_enabled : mod == MM3_MOD_FRAMERATE && enabled; }
 void nv2a_d3d_interp_frame(float t, int need_new) { (void)t; (void)need_new; }
 void nv2a_sdlgpu_tick_started(double start, double step) { (void)start; (void)step; }
 int recomp_frame_limit_from_env(void) { return 144; }
 void nv2a_d3d_manual_present(int on) { manual = on; }
-int mm3_pause_frozen(void) { return 0; }
+int mm3_pause_frozen(void) { return hold_active; }
+int mm3_old_film_active(void) { return MEM32(0x4314C8) == 6; }
 void nv2a_d3d_repeat_frame(void) { host_time += 1.0 / 144; }
 int xbox_GuestMapped(uint32_t va, uint32_t bytes) { (void)va; (void)bytes; return 0; }
 void sub_00025422_original(void) { g_esp += 8; }
@@ -71,6 +72,22 @@ int main(void)
     }
     assert(native_states == 300 && native_worlds == 300 && native_ai == 300);
     assert(host_time > 9.96 && host_time < 10.01);
+    MEM32(0x4314C8) = 6; MEMF(game + 0x70) = 100;
+    state_step(game);
+    g_edi = game; g_esp = 0x10000; MEM32(g_esp) = 0x001E788Au;
+    sub_001E6C87();
+    assert(fabs(MEMF(game + 0x54) - .1) < 1e-7);
+    assert(fabs(MEMF(game + 0x4C) - 1.0 / 30) < 1e-7);
+    hold_active = 1; state_step(game);
+    assert(fabs(MEMF(game + 0x54) - .000001) < 1e-12);
+    hold_active = 0; egg_enabled = 0; state_step(game);
+    assert(fabs(MEMF(game + 0x54) - 1.0 / 30) < 1e-7);
+    auto_egg = 1; state_step(game);
+    assert(fabs(MEMF(game + 0x54) - .1) < 1e-7);
+    auto_egg = 0;
+    egg_enabled = 1; MEM32(0x4314C8) = 0; state_step(game);
+    assert(fabs(MEMF(game + 0x54) - 1.0 / 30) < 1e-7);
+    MEMF(game + 0x70) = 0;
     host_time += 5;
     MEM8(0x429DB2) = 1; /* pause boundary drops suspension debt */
     state_step(game);

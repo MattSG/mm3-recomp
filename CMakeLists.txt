@@ -187,6 +187,9 @@ add_executable(${PROJECT_NAME}
     ${MM3_RMLUI_BACKEND}
     src/mods/mods.c
     src/mods/time_limits.c
+    src/mods/gameplay_fixes.c
+    src/mods/unlocks.c
+    src/mods/easter_eggs.c
     src/mods/ai_difficulty.c
     src/mods/damage.c
     src/mods/pause_hold.c

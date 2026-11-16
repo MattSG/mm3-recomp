@@ -97,8 +97,10 @@ static void check_vehicle(int enabled, unsigned char before_locked,
 static int run_mode(const char *mode)
 {
     const char *setting = getenv("MM3_UNLOCK_ALL_CARS");
-    int enabled = !strcmp(mode, "1");
-    if (!strcmp(mode, "default"))
+    int enabled = !strcmp(mode, "1") || !strcmp(mode, "master");
+    if (!strcmp(mode, "master"))
+        assert(setting != NULL && !strcmp(setting, "0") && !strcmp(getenv("MM3_UNLOCK_ALL"), "1"));
+    else if (!strcmp(mode, "default"))
         assert(setting == NULL);
     else
         assert(setting != NULL && !strcmp(setting, mode));
@@ -114,14 +116,15 @@ static int run_mode(const char *mode)
 
 int main(int argc, char **argv)
 {
-    static const char *modes[] = {"default", "0", "1", "invalid", "true", "01"};
+    static const char *modes[] = {"default", "0", "1", "invalid", "true", "01", "master"};
     size_t i;
     _set_error_mode(_OUT_TO_STDERR);
     if (argc == 3 && !strcmp(argv[1], "--case"))
         return run_mode(argv[2]);
     assert(argc == 1);
     for (i = 0; i < sizeof modes / sizeof modes[0]; ++i) {
-        const char *value = !strcmp(modes[i], "default") ? "" : modes[i];
+        const char *value = !strcmp(modes[i], "default") ? "" : !strcmp(modes[i], "master") ? "0" : modes[i];
+        assert(_putenv_s("MM3_UNLOCK_ALL", !strcmp(modes[i], "master") ? "1" : "") == 0);
         assert(_putenv_s("MM3_UNLOCK_ALL_CARS", value) == 0);
         assert(_spawnl(_P_WAIT, argv[0], argv[0], "--case", modes[i],
                        (char *)NULL) == 0);

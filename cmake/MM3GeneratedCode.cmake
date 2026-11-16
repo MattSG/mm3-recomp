@@ -32,6 +32,11 @@ function(mm3_prepare_generated_sources out RECOMP_GEN_DIR)
     set(MM3_DISTANCE_FUNCTIONS sub_000D9E2E sub_000E2D5B sub_000F4AC3 sub_000FE71E
         sub_001630A7 sub_001661D0 sub_002256C7 sub_00248518 sub_002203E5 sub_0022F298 sub_0015A929 sub_000F8DCE sub_000F8750)
     set(MM3_DEFINITION_ONLY_FUNCTIONS ${MM3_DISTANCE_FUNCTIONS})
+    # In-memory mission script correction and old-film filter lifecycle reset.
+    list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_00088A6E sub_00235D1C sub_00237392)
+    # Availability queries and career menu state; never alter profile unlock keys.
+    list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001E50A9 sub_001E5E9D sub_0012530C sub_001218F7 sub_001238B7)
+    list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_00235F5B sub_00235EB6)
     # Native menu layout, focus, activation and composite control geometry.
     list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_001C5935 sub_000C2FA7 sub_00246894
         sub_001118C7 sub_00111CBF sub_001C1585 sub_00103E41 sub_00103FBD sub_001038D0

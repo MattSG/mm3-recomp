@@ -126,6 +126,11 @@ The collision guard is required.
 | Skip intro movies | Skip startup logos and movies; story movies still play. |
 | Collision cell guard | Repair invalid face indices in a Paris collision cell. |
 | Time limits | Scale the time you start with and each bonus in Blitz and timed jobs (off by default). |
+| Rental mission fix | Prevent the rival gaining progress twice at one stop in The rental route. |
+| Old-film Easter egg fix | Restore normal speed when the filter resets; preserve the active effect's speed-up with Console-rate simulation. |
+| Unlock all installed content | Enable the cars, paints and races/jobs unlocks together (off by default). |
+| Unlock all cars / paints / races and jobs | Separate cheats for each category, without marking races completed or collecting paint cans (off by default). |
+| Auto-activate Easter egg | Keep the original old-film/speed-up or sketch effect active in single player; choose the effect under Mods (off by default). |
 | Opponents' difficulty | Make race opponents drive harder or easier, 0 to 9; 5 is the Xbox game (off by default). |
 | Car damage | Scale crash damage: dealt to other cars, received by yours (off by default). |
 | Hold the race | F2 holds the whole race still without the pause menu and F2 again lets it run (off by default; not with System Link). |

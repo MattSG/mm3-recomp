@@ -5,6 +5,7 @@
 #include "recomp_types.h"
 #include "nv2a_d3d11.h"
 #include "mods.h"
+#include "easter_eggs.h"
 #include "mm3_tick_clock.h"
 
 extern void sub_00025422_original(void);
@@ -59,6 +60,12 @@ static void publish_time(uint32_t game)
     MEMD(game + 0x38) = time_origin + (double)((held ? hold_start : clock_state.ticks) - held_total) * clock_state.step;
     MEMF(game + 0x4C) = (float)step;
     MEMF(game + 0x54) = (float)step;
+    /* Old-film mode intentionally advances simulation by 100 ms per tick;
+     * the race clock and raw step stay at the console rate, as on Xbox. */
+    if ((mm3_mod_on(MM3_MOD_EASTER_EGG_FIX) || mm3_mod_on(MM3_MOD_AUTO_EASTER_EGG)) &&
+        mm3_old_film_active() &&
+        MEMF(game + 0x70) == 100.0f)
+        MEMF(game + 0x54) = held ? 0.1f / (float)HOLD_RATE : 0.1f;
 }
 
 static void begin_tick(uint32_t game, uint32_t current_state)

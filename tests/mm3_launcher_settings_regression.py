@@ -100,9 +100,8 @@ int main(int argc, char **argv) {
     for (const Option &o : g_options)
         require(o.env != "MM3_RENDER_EVERY_FRAME",
                 "replacement launcher excludes the legacy render-queue experiment");
-    /* One switch per mod but the translation corrections, plus the four numbers the
-     * gameplay mods read (time limit, opponents' difficulty, damage dealt and received). */
-    require(g_options.size() == original_options + MM3_MOD_COUNT - 1 + 4,
+    /* One switch per mod but translation, four gameplay numbers and the effect selector. */
+    require(g_options.size() == original_options + MM3_MOD_COUNT - 1 + 5,
             "all user-facing mods added once, translation switch excluded");
     for (const char *env : {"MM3_TIME_PERCENT", "MM3_AI_LEVEL", "MM3_DAMAGE_PERCENT", "MM3_OWN_DAMAGE_PERCENT"}) {
         int found = 0;
@@ -164,6 +163,24 @@ int main(int argc, char **argv) {
 def cases():
     # Expected values describe profile/INI behavior, independently of the loader.
     return [
+        ("easter-egg-default", {}, None,
+         {"MM3_MOD_AUTO_EASTER_EGG": "0", "MM3_EASTER_EGG_EFFECT": "6"}, [], False),
+        ("easter-egg-sketch", {}, "MM3_MOD_AUTO_EASTER_EGG=1\nMM3_EASTER_EGG_EFFECT=8\n",
+         {"MM3_MOD_AUTO_EASTER_EGG": "1", "MM3_EASTER_EGG_EFFECT": "8"}, [], False),
+        ("unlock-defaults", {}, None,
+         {"MM3_UNLOCK_ALL": "0", "MM3_UNLOCK_ALL_CARS": "0", "MM3_UNLOCK_ALL_PAINTS": "0", "MM3_UNLOCK_ALL_RACES": "0"}, [], False),
+        ("unlock-master", {}, "MM3_UNLOCK_ALL=1\n",
+         {"MM3_UNLOCK_ALL": "1", "MM3_UNLOCK_ALL_CARS": "0", "MM3_UNLOCK_ALL_PAINTS": "0", "MM3_UNLOCK_ALL_RACES": "0"}, [], False),
+        ("unlock-independent", {}, "MM3_UNLOCK_ALL_CARS=1\nMM3_UNLOCK_ALL_PAINTS=0\nMM3_UNLOCK_ALL_RACES=1\n",
+         {"MM3_UNLOCK_ALL": "0", "MM3_UNLOCK_ALL_CARS": "1", "MM3_UNLOCK_ALL_PAINTS": "0", "MM3_UNLOCK_ALL_RACES": "1"}, [], False),
+        ("gameplay-fixes-default", {}, None,
+         {"MM3_MOD_RENTAL_FIX": "1", "MM3_MOD_EASTER_EGG_FIX": "1"}, [], False),
+        ("gameplay-fixes-saved", {},
+         "MM3_MOD_RENTAL_FIX=0\nMM3_MOD_EASTER_EGG_FIX=0\n",
+         {"MM3_MOD_RENTAL_FIX": "0", "MM3_MOD_EASTER_EGG_FIX": "0"}, [], False),
+        ("gameplay-fixes-independent", {},
+         "MM3_MOD_RENTAL_FIX=1\nMM3_MOD_EASTER_EGG_FIX=0\n",
+         {"MM3_MOD_RENTAL_FIX": "1", "MM3_MOD_EASTER_EGG_FIX": "0"}, [], False),
         ("low-power", {"RECOMP_FPS_LIMIT": "30", "RECOMP_MSAA": "1", "RECOMP_ANISO": "4",
                         "RECOMP_DRAW_DISTANCE": "1", "RECOMP_VIEW_DISTANCE": "1", "RECOMP_RENDER_SCALE": "1.5"},
          None, {"RECOMP_FPS_LIMIT": "30", "RECOMP_MSAA": "1", "RECOMP_ANISO": "4",
@@ -243,7 +260,7 @@ def main():
                 print(result.stderr, end="")
                 raise subprocess.CalledProcessError(result.returncode, command)
             print(f"{name}: {result.stdout.strip()}")
-    print("PASS: 9 isolated production launcher settings cases; profiles, numeric scale, saved Auto/invalid values, map precedence, fixed mods and reset")
+    print(f"PASS: {len(cases())} isolated production launcher settings cases; profiles, gameplay toggles, saved values and reset")
 
 
 if __name__ == "__main__":

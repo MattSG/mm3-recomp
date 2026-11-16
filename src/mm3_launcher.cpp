@@ -699,6 +699,9 @@ void add_mod_options()
         g_options.push_back(o);
     }
     /* The numbers the gameplay mods read (their switches are above). */
+    g_options.push_back({"Cheats and Easter eggs", "Easter egg effect",
+        "Needs Auto-activate Easter egg. The original game supports one effect at a time; film also speeds up gameplay.",
+        "MM3_EASTER_EGG_EFFECT", "6", "", {{"6", "Old film + faster gameplay"}, {"8", "Sketched graphics"}}, 2});
     const Rml::Vector<Choice> percents = {{"0", "0%"}, {"50", "50%"}, {"100", "100% (Xbox)"}, {"150", "150%"},
                                           {"200", "200%"}, {"300", "300%"}};
     g_options.push_back({"Gameplay mod settings", "Time limit",
