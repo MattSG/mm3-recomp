@@ -30,7 +30,7 @@ copy_save = _util.copy_save
 ROOT = Path(__file__).resolve().parents[2]
 BUTTONS = set("up down left right start back lthumb rthumb a b x y black white lt rt "
               "lleft lright lup ldown rleft rright rup rdown".split())
-MANAGED = {"MM3_SAVE_DIR", "RECOMP_PAD_LIVE", "RECOMP_PAD_SCRIPT", "RECOMP_PAD_PRESS",
+MANAGED = {"MM3_SAVE_DIR", "RECOMP_SAVE_DIR", "RECOMP_PAD_LIVE", "RECOMP_PAD_SCRIPT", "RECOMP_PAD_PRESS",
            "MM3_DEBUG_TELEPORT", "RECOMP_PRESENT_CAPTURE", "RECOMP_FRAME_CSV", "RECOMP_PB_EXEC"}
 
 
@@ -507,9 +507,11 @@ class Session:
             settings = {"RECOMP_FB_WINDOW": "1", "RECOMP_USB": "1",
                         "RECOMP_FPS_LIMIT": "60", "RECOMP_VSYNC": "0", "RECOMP_RENDER_SCALE": "1",
                         "RECOMP_ASPECT": "16:9", "RECOMP_WINDOW_SIZE": "960x540", "RECOMP_MSAA": "1",
-                        "MM3_MOD_SKIP_INTRO": "1", "MM3_LOG_UNBUFFERED": "1", "RECOMP_PAUSE_UNFOCUSED": "0"}
+                        "MM3_MOD_SKIP_INTRO": "1", "MM3_LOG_UNBUFFERED": "1", "MM3_NO_DIALOGS": "1", "RECOMP_PAUSE_UNFOCUSED": "0"}
             settings.update(self.overrides)
-            settings.update(MM3_SAVE_DIR=str(self.run_dir / "save"), RECOMP_PAD_LIVE=str(self.run_dir / "pad.txt"),
+            # RECOMP_SAVE_DIR too: without it, a template with no UDATA falls back to
+            # the game dir's UDATA, through the asset junction to the real saves.
+            settings.update(MM3_SAVE_DIR=str(self.run_dir / "save"), RECOMP_SAVE_DIR=str(self.run_dir / "save"), RECOMP_PAD_LIVE=str(self.run_dir / "pad.txt"),
                             MM3_DEBUG_TELEPORT="1", RECOMP_PB_EXEC="1", RECOMP_FRAME_CSV=str(self.run_dir / "frames.csv"),
                             RECOMP_PRESENT_CAPTURE=str(self.run_dir / "capture"))
             env.update(settings)

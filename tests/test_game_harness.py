@@ -71,7 +71,7 @@ class OracleTests(unittest.TestCase):
         self.assertEqual(harness.pad_line("p2-rt+lleft", 1000), "p2-rt+lleft:1000\n")
 
     def test_reject_template_links_and_managed_overrides(self):
-        for key in ("MM3_SAVE_DIR", "RECOMP_PAD_LIVE", "PATH"):
+        for key in ("MM3_SAVE_DIR", "RECOMP_SAVE_DIR", "RECOMP_PAD_LIVE", "PATH"):
             with self.assertRaises(ValueError):
                 harness.Session("missing", ".", env={key: "elsewhere"})
         with tempfile.TemporaryDirectory() as directory:
