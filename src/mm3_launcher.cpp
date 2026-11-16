@@ -338,21 +338,26 @@ div, h1, h2 { display: block; }
 /* Sidebar: brand, sections, a skyline, then Play. */
 #side { flex: 0 0 272dp; width: 272dp; display: flex; flex-direction: column; background-color: #0c0e11;
         border-right: 1dp #ffffff0d; }
-/* The wordmark: one left edge for both lines (a bold italic face, not skewed lines), the 3 as a slanted
-   badge on the second line's cap height, speed stripes filling the first line out to the badge's end.
-   Sizes are in em, so the splash scales the whole lockup with one font-size. */
+/* The wordmark: MIDTOWN tracked out to sit exactly over a larger MADNESS, a tall slanted 3 badge spanning
+   both lines, and speed stripes under the words. Sizes are in em, so the splash scales the whole lockup with
+   one font-size. */
 #brand { padding: 30dp 24dp 24dp 30dp; }
 .logo { display: inline-block; font-size: 27dp; }
-.logo .line { display: block; height: 1em; line-height: 1em; white-space: nowrap; font-weight: bold;
-              font-style: italic; letter-spacing: 0.06em; color: #ffffff; }
-.logo .hot { margin-top: 0.12em; color: #e8a33d; }
-.logo .three { display: inline-block; height: 1em; line-height: 1em; margin-left: 0.3em; padding: 0em 0.26em;
-               border-radius: 0.1em; background-color: #e8a33d; color: #0c0e11; font-style: normal;
-               letter-spacing: 0em; transform: skewX(-12deg); }
-.logo .speed { display: inline-block; width: 1.6em; height: 0.6em; margin-left: 0.28em; }
-.logo .speed div { height: 0.1em; background-color: #e8a33d; transform: skewX(-12deg); }
-.logo .speed div:nth-child(2) { margin: 0.15em 0em 0em 0.3em; opacity: 0.75; }
-.logo .speed div:nth-child(3) { margin: 0.15em 0em 0em 0.6em; opacity: 0.5; }
+.logo .lock { display: flex; flex-direction: row; align-items: stretch; }
+.logo .words { display: block; font-weight: bold; font-style: italic; white-space: nowrap; }
+.logo .mid { display: block; height: 0.62em; font-size: 0.62em; line-height: 1em; letter-spacing: 0.57em;
+             color: #ffffff; margin-left: 0.06em; margin-right: -0.57em; }
+.logo .mad { display: block; height: 1em; font-size: 1.12em; line-height: 1em; margin-top: 0.08em;
+             color: #e8a33d; }
+.logo .three { display: flex; align-items: center; justify-content: center; width: 1.05em; margin-left: 0.28em;
+               border-radius: 0.1em; background-color: #e8a33d; color: #0c0e11; font-weight: bold;
+               transform: skewX(-12deg); }
+.logo .three span { font-size: 1.6em; line-height: 1em; }
+.logo .stripes { margin-top: 0.34em; }
+.logo .stripes div { height: 0.08em; margin-bottom: 0.1em; background-color: #e8a33d; transform: skewX(-12deg); }
+.logo .stripes div:nth-child(1) { width: 100%; }
+.logo .stripes div:nth-child(2) { width: 70%; margin-left: 0.25em; opacity: 0.6; }
+.logo .stripes div:nth-child(3) { width: 40%; margin-left: 0.5em; opacity: 0.3; }
 .tag { margin-top: 10dp; font-size: 11dp; letter-spacing: 3dp; color: #6c717c; text-transform: uppercase; }
 #nav { padding: 6dp 14dp; }
 .nav { display: flex; align-items: center; height: 40dp; padding: 0dp 14dp; margin-bottom: 2dp; border-radius: 7dp;
@@ -1358,8 +1363,9 @@ static int launcher_load(Rml::Context *ctx, void *)
         return 0;
     Rml::String rml = kDocument;
     rml.replace(rml.find("@CITY@"), 6, city_markup());
-    const Rml::String logo = "<div class=\"line\"><span>MIDTOWN</span><span class=\"speed\"><div/><div/><div/></span></div>"
-                             "<div class=\"line hot\"><span>MADNESS</span><span class=\"three\">3</span></div>";
+    const Rml::String logo = "<div class=\"lock\"><div class=\"words\"><div class=\"mid\">MIDTOWN</div>"
+                             "<div class=\"mad\">MADNESS</div></div><div class=\"three\"><span>3</span></div></div>"
+                             "<div class=\"stripes\"><div/><div/><div/></div>";
     rml.replace(rml.find("@LOGO@"), 6, "<div class=\"logo\">" + logo + "</div>");
     rml.replace(rml.find("@LOGO_BODY@"), 11, logo);
     if (Rml::ElementDocument *doc = ctx->LoadDocumentFromMemory(rml))
