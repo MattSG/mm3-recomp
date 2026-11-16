@@ -190,6 +190,25 @@ Limits: the zone parser only fits delivery-style career scripts. Measured over t
 `ZN` zones as their `total_targets`; the rest use passengers, pursuits or `CP`/`WP` checkpoint races, and none of
 them is reachable on a save that has not unlocked it (the Work Undercover menu lists them locked).
 
+## Completing a career (`campaign_win.py`)
+
+`python tools/game_test/campaign_win.py --city Paris|Washington [--jobs N] --save <copied save>` plays a city's
+whole Work Undercover career in one hidden session. Every job is won with the race scripts' own debug
+`forceWin()` (`logic_general.lua`: `career_result = 1`, `raceFinish` for every human and AI), which the
+`forcewin` debug-pipe command runs on the game thread (`forcelose` likewise); the game then takes its normal path
+(debrief, unlocks, career progress). Per job the harness:
+
+- checks the player spawned at one of the job's `spawn_location` entries (parsed from
+  `Scripts/<City>/Career/NN/MMLogic.lua`; a few jobs share one, the order decides);
+- waits until the car moves (a win during the countdown does not count), forces the win and captures the result;
+- dismisses unlock notices ("Press A to continue", recognised by their blue box) and takes NEXT RACE, or after a
+  chapter's last job (NEXT RACE greyed) EXIT TO MENU and the next occupation on the Work Undercover menu.
+
+It tests progression, unlocks, cut-scenes and saves, not driving. Verified 2026-11-16: both careers complete in one
+session each, Paris 27/27 (ends with the Audi TT unlock) and Washington 27/27, about 35 minutes per city. Cut-scenes
+between chapters are skipped with Start, the dashboard briefing call with A; in "The younger brother" the player
+starts at the job's second spawn location.
+
 ## Profiling the game thread (`profile_thread.py`)
 
 `MM3_SAVE_TEMPLATE=<copied save> python tools/game_test/profile_thread.py [seconds] [fps_limit]` samples the

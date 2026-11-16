@@ -160,6 +160,31 @@ static int teleport(uint32_t player, uint32_t vehicle, uint32_t car,
     return applied;
 }
 
+/* The race scripts' debug win/loss: logic_general.lua's forceWin() / forceLose() end the race as the game
+ * does (career_result, raceFinish for every human and AI, the results screen and the career save). The native
+ * Lua bindings gameForceWin / gameForceLoss (1FA9D1 / 1FA995) run exactly these strings; they are rebuilt here
+ * without the Lua call frame the bindings expect: game string ctor 125EA, script run 214F74 on the script
+ * manager at 3C0320, string dtor 127A9. Game thread only (the player update hook). */
+extern void sub_000125EA(void);
+extern void sub_00214F74(void);
+extern void sub_000127A9(void);
+static volatile LONG force_request, force_done;   /* 1 win, 2 lose; done counts runs */
+
+static void run_force(LONG which)
+{
+    xbox_guest_state guest;
+    uint32_t text = which == 1 ? 0x3B2D0Cu : 0x3B2D18u;   /* "forceWin()" / "forceLose()" in the XBE */
+    uint32_t buf, frame;
+    if (!mapped(0x3C0320, 4) || !mapped(MEM32(0x3C0320), 4) || !mapped(g_esp - 0x200, 0x200)) return;
+    xbox_guest_state_save(&guest);
+    buf = (g_esp - 0x100u) & ~15u;
+    frame = buf - 16;
+    g_esp = frame; g_ecx = buf; PUSH32(g_esp, text); PUSH32(g_esp, 0); sub_000125EA();
+    g_esp = frame; g_ecx = MEM32(0x3C0320); g_eax = buf; PUSH32(g_esp, 0); sub_00214F74();
+    g_esp = frame; g_ecx = buf; PUSH32(g_esp, 1); PUSH32(g_esp, 0); sub_000127A9();
+    xbox_guest_state_restore(&guest, guest.eax);
+}
+
 static void sample_car(uint32_t player)
 {
     /* body_for without its player-vehicle vtable check: AI opponents may
@@ -274,6 +299,10 @@ void sub_002203E5(void)
         InterlockedExchange(&keyboard_active, active);
     }
     if (enabled) sample_car(g_ecx);
+    if (enabled && g_ecx == primary) {
+        LONG which = InterlockedExchange(&force_request, 0);
+        if (which) { run_force(which); InterlockedIncrement(&force_done); }
+    }
     if (enabled && g_ecx == primary) {
         uint32_t car = 0, vehicle = 0, player = g_ecx;
         uint32_t body = body_for(player, &car, &vehicle);
@@ -442,6 +471,12 @@ static void teleport_answer(const char *command, char *reply, size_t size)
             for (unsigned i = 0; i < peek_len && n + 3 < size; i++)
                 n += (size_t)snprintf(reply + n, size - n, "%02X", MEM8(peek_at + i));
         reply[n] = 0;
+    } else if (strcmp(command, "forcewin") == 0 || strcmp(command, "forcelose") == 0) {
+        LONG before = force_done;
+        DWORD until = GetTickCount() + 2000;
+        InterlockedExchange(&force_request, command[5] == 'w' ? 1 : 2);
+        while (force_done == before && (LONG)(GetTickCount() - until) < 0) Sleep(5);
+        snprintf(reply, size, "{\"result\":\"%s\"}", force_done != before ? "ran" : "no player update (not in a race?)");
     } else if (strcmp(command, "position") == 0) {
         AcquireSRWLockShared(&lock);
         snprintf(reply, size, "{\"available\":%s,\"x\":%.9g,\"y\":%.9g,\"z\":%.9g}",
