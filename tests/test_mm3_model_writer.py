@@ -1,5 +1,4 @@
 """Packed CMP compatibility and geometry-preservation tests (no game process)."""
-import importlib.util
 from collections import Counter
 from pathlib import Path
 import struct

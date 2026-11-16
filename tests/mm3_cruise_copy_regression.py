@@ -6,7 +6,6 @@ one host program, reads the 63-entry jump table from the XBE, and sweeps every
 count up to 0x2FFF. Each run checks the copied bytes, the stream cursor, the
 return registers, ESP after ret 8, and the callee-saved registers. The global
 g_ebp is not checked: it is the frame published for frameless callees."""
-import re
 import subprocess
 import sys
 import tempfile

@@ -42,20 +42,15 @@ def expected(machine, state, cursor):
              common.x86.UC_X86_REG_ESP, *(reg for reg, _ in REGISTERS))]
 
 
-def source(old):
-    if old:
-        # Generated chunks are renumbered between translator versions: search them all.
-        for chunk in sorted((ROOT / 'src/recomp/gen').glob('recomp_*.c')):
-            generated = chunk.read_text()
-            body = re.search(r'void sub_001466D9\(void\)\n\{.*?\n\}', generated, re.S)
-            if body:
-                body = body.group()
-                break
-        else:
-            raise AssertionError('sub_001466D9 not found in generated code')
-        body = 'void sub_001466FF(void){ SET_LO8(g_eax,1);g_esp+=4; }\n' + body
+def source():
+    # Generated chunks are renumbered between translator versions: search them all.
+    for chunk in sorted((ROOT / 'src/recomp/gen').glob('recomp_*.c')):
+        body = re.search(r'void sub_001466D9\(void\)\n\{.*?\n\}', chunk.read_text(), re.S)
+        if body:
+            break
     else:
-        body = (ROOT / 'src/mm3_pedestrian_compat.c').read_text()
+        raise AssertionError('sub_001466D9 not found in generated code')
+    body = 'void sub_001466FF(void){ SET_LO8(g_eax,1);g_esp+=4; }\n' + body.group()
     return r'''
 #include <stdio.h>
 #include <stdlib.h>
@@ -98,7 +93,7 @@ def main():
         inputs = folder / 'cases.bin'
         inputs.write_bytes(b''.join(struct.pack('<II', *case) for case in cases))
         path, exe = folder / 'generated.c', folder / 'generated.exe'
-        path.write_text(source(True))
+        path.write_text(source())
         subprocess.run(['cl', '/nologo', '/O2', '/W3', '/wd4102', '/std:c11',
                         '/I' + str(folder), '/I' + str(ROOT / 'tools/xboxrecomp/include'),
                         '/Fo' + str(folder / 'generated.obj'), '/Fe' + str(exe), str(path)],

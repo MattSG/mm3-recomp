@@ -115,7 +115,7 @@ static const IDirect3DDevice8Vtbl g_device_vtbl;
 static void up_ring_shutdown(void);
 
 /* Window events: the game's internal loop drives rendering, so nothing else
- * pumps the window. Called from every present. The pump (src/video/sdl_events.c)
+ * pumps the window. Called from every present. The pump (gfx/sdl_events.c)
  * is shared with the framebuffer window so the two never steal each other's
  * events, and it keeps the held-key state for the RECOMP_KEYBOARD pad stand-in. */
 void xbox_PumpEvents(void);

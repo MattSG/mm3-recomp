@@ -2,6 +2,7 @@
 
 CI must never carry copyrighted game data. This fails if a tracked file looks like one.
 """
+import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -10,6 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 FORBIDDEN_SUFFIXES = {".xbe", ".iso", ".xiso", ".xbx", ".xpr", ".xmv", ".xwb", ".xsb", ".bik", ".cmp", ".omb", ".cdds"}
 FORBIDDEN_DIRS = ("game_files/", "game_files_dlc/", "src/recomp/gen/", "games/", "TDATA/", "UDATA/")
 MAX_BYTES = 8 * 1024 * 1024
+# Seam anchors quote a handful of translated labels; a lifted function body has dozens.
+TRANSLATED_LABEL = re.compile(rb"^loc_[0-9A-F]{8}:", re.M)
+MAX_LABELS = 10
 
 
 def tracked():
@@ -26,6 +30,8 @@ class NoGameAssets(unittest.TestCase):
                 bad.append(rel)
             elif path.is_file() and path.stat().st_size > MAX_BYTES:
                 bad.append(f"{rel} ({path.stat().st_size} bytes)")
+            elif path.is_file() and len(TRANSLATED_LABEL.findall(path.read_bytes())) > MAX_LABELS:
+                bad.append(f"{rel} (translated game code)")
         self.assertEqual(bad, [], "game assets or oversized files are tracked")
 
     def test_ignored_locations(self):

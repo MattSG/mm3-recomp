@@ -115,7 +115,7 @@ def main():
         time.sleep(1)
         b = Bisect(g, flag, [float(x) for x in o.roi.split(",")], out)
         b.eps = o.eps
-        full, empty = o.max_draws, -0
+        full = o.max_draws
         b.render(full)
         b.render(-1)
         base = float(np.abs(b.render(full) - b.render(0)).mean())

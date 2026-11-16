@@ -4,6 +4,7 @@
  */
 #include <SDL3/SDL.h>
 #include "../input/keyboard.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 

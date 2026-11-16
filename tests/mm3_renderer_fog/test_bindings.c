@@ -1,6 +1,6 @@
 /* Actual production MM3 fog over the generic renderer's GPU fixture. */
 #define main generic_bindings_main
-#include "../../tools/xboxrecomp/tests/nv2a_bindings/test_bindings.c"
+#include "nv2a_bindings_fixture.c"
 #undef main
 #include "../../src/mods/render_fog.c"
 static uint32_t native_fog_pixel(NvD3DState *st, float depth, float start)

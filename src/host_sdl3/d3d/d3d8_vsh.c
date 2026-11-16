@@ -202,11 +202,9 @@ static inline uint32_t vsh_extract(const DWORD *insn, int start, int count)
 
 /* Stored shader programs */
 static NV2AVshSlot g_vsh_slots[NV2A_VS_MAX_SLOTS];
-static int g_vsh_slot_count = 0;
 
 /* Constant registers (192 float4) */
 static NV2AVSConstants g_vsh_constants;
-static BOOL g_vsh_constants_dirty = TRUE;
 
 /* Shader cache: maps microcode hash to compiled shader + input layout */
 typedef struct {
@@ -1225,8 +1223,6 @@ HRESULT d3d8_vsh_init(void)
     memset(g_vsh_slots, 0, sizeof(g_vsh_slots));
     memset(g_vsh_cache, 0, sizeof(g_vsh_cache));
     memset(&g_vsh_constants, 0, sizeof(g_vsh_constants));
-    g_vsh_slot_count = 0;
-    g_vsh_constants_dirty = TRUE;
 
     fprintf(stderr, "D3D8 VSH: Vertex shader translator initialized\n");
     return S_OK;
@@ -1245,7 +1241,6 @@ void d3d8_vsh_shutdown(void)
     memset(g_vsh_cache, 0, sizeof(g_vsh_cache));
 
     memset(g_vsh_slots, 0, sizeof(g_vsh_slots));
-    g_vsh_slot_count = 0;
 }
 
 HRESULT d3d8_vsh_create_shader(const DWORD *microcode, int num_insns,
@@ -1278,7 +1273,6 @@ HRESULT d3d8_vsh_create_shader(const DWORD *microcode, int num_insns,
            (size_t)num_insns * 4 * sizeof(DWORD));
     g_vsh_slots[slot].length = num_insns;
     g_vsh_slots[slot].in_use = 1;
-    g_vsh_slot_count++;
 
     /* Generate handle: slot index + 0x10000 to distinguish from FVF codes.
      * Xbox D3D8 uses handles with the high bit set (> 0xFFFF). */
@@ -1301,10 +1295,7 @@ HRESULT d3d8_vsh_delete_shader(DWORD handle)
     if (slot < 0 || slot >= NV2A_VS_MAX_SLOTS)
         return E_INVALIDARG;
 
-    if (g_vsh_slots[slot].in_use) {
-        g_vsh_slots[slot].in_use = 0;
-        g_vsh_slot_count--;
-    }
+    g_vsh_slots[slot].in_use = 0;
 
     return S_OK;
 }
@@ -1327,8 +1318,6 @@ void d3d8_vsh_set_constant(int start_reg, const float *data, int count)
         g_vsh_constants.c[i][2] = data[src_offset + 2];
         g_vsh_constants.c[i][3] = data[src_offset + 3];
     }
-
-    g_vsh_constants_dirty = TRUE;
 }
 
 BOOL d3d8_vsh_is_programmable(DWORD handle)
@@ -1376,10 +1365,8 @@ BOOL d3d8_vsh_prepare_draw(DWORD handle)
     if (layout)
         d3d8_pipe_set_layout(layout);
 
-    /* The constants are pushed with every draw (SDL_GPU push constants live in
-     * the command buffer), so the dirty flag only records that they changed. */
+    /* Pushed with every draw: SDL_GPU push constants live in the command buffer. */
     d3d8_pipe_set_uniforms(0, 0, &g_vsh_constants, sizeof(g_vsh_constants));
-    g_vsh_constants_dirty = FALSE;
 
     return TRUE;
 }

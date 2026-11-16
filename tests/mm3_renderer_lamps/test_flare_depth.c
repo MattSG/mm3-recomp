@@ -1,6 +1,7 @@
 /* Lamp glow sprites must not shine through an opaque hill's depth. */
 #include "../../tools/xboxrecomp/src/video/nv2a_d3d11.c"
 #include "../../tools/xboxrecomp/tests/nv2a_test_host.h"
+void nv2a_pb_interp_enable(int on) { (void)on; } /* frame interpolation is not under test */
 
 static uint8_t *ram;
 #include "../../src/mods/render_policy.c"

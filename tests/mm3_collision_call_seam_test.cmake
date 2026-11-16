@@ -107,7 +107,9 @@ foreach(line_endings LF CRLF)
         message(FATAL_ERROR "Collision seam changed other guest instructions")
     endif()
 endforeach()
-set(fixture_path "${CMAKE_CURRENT_BINARY_DIR}/mm3_collision_seam_fixture.c")
+# Under the ignored build/ tree: a cwd-relative path littered the repo root
+# with translated game code when run as `cmake -P` from there.
+set(fixture_path "${CMAKE_CURRENT_LIST_DIR}/../build/mm3_collision_seam_fixture.c")
 file(WRITE "${fixture_path}" "${original}")
 foreach(owner sub_0013FE96 sub_0014E808)
     foreach(reject_case missing_owner duplicate_owner missing_call duplicate_call method return callee push cleanup already_fixed unsupported)

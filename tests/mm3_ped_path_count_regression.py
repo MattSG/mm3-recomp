@@ -2,10 +2,9 @@
 
 The former unresolved stub is a negative control. No live game, profile or
 capture is needed; the captured taxi path's five-point layout is reconstructed
-without copying game assets. Run after scripts/enter-env.ps1.
+without copying game assets. Run inside `python scripts/devenv.py --shell`.
 """
 import json
-import re
 import shutil
 import struct
 import subprocess
@@ -95,7 +94,7 @@ def original_result(ram, entry):
 
 def main():
     if not shutil.which('cl'):
-        raise SystemExit('Run scripts/enter-env.ps1 first.')
+        raise SystemExit('Run inside `python scripts/devenv.py --shell` first.')
     entries = json.loads((ROOT / 'mm3_runtime_entry_repairs.json').read_text())
     entry = next(item for item in entries if item['start'] == '0x0006726A')
     assert entry['end'] == '0x0006727D'

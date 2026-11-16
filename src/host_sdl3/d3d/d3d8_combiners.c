@@ -176,7 +176,6 @@ static void parse_output(DWORD dword, NV2ACombinerOutput *output)
 void d3d8_combiners_parse_token(DWORD token, const DWORD *rs,
                                 NV2ACombinerState *state)
 {
-    int i;
     memset(state, 0, sizeof(*state));
 
     /* Bits [3:0]: number of active combiner stages (1-8) */

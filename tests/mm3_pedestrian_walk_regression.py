@@ -154,7 +154,7 @@ def original(image, memory, old):
 
 def main():
     if not shutil.which('cl'):
-        raise SystemExit('Run scripts/enter-env.ps1 first.')
+        raise SystemExit('Run inside `python scripts/devenv.py --shell` first.')
     image = common.Image(str(ROOT / 'game_files/default.xbe'))
     with tempfile.TemporaryDirectory(prefix='pedestrian-walk-', dir=ROOT / 'conformance_tmp') as path:
         directory = Path(path)

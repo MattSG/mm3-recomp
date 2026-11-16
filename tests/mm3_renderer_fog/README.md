@@ -1,14 +1,18 @@
 # MM3 distance fog GPU regression
 
-Build this directory with Visual Studio CMake, SDL3_DIR and XBOXRECOMP_DXC,
-then run `ctest --test-dir <build> -C Release --output-on-failure`.
+Windows only. From the MM3 root, in a Visual Studio developer shell:
 
-The three cases exercise production MM3 fog over actual D3D11, D3D11 MSAA
-and SDL GPU renderers. They retain near/mid/far depth, destination-alpha
-preservation, sky fill, world-up horizon fade, invalid range rejection and
-subsequent UI drawing checks from the former runtime binding suite.
+```sh
+cmake -S tests/mm3_renderer_fog -B build/renderer-fog
+cmake --build build/renderer-fog --config Release
+ctest --test-dir build/renderer-fog -C Release --output-on-failure
+```
 
-The test files include the generic binding fixtures for device setup, triangles
-and readback, then add MM3-owned shader/curve assertions. The fork builds its
-own suite without any MM3 source, shaders or cases. Its host_draw checks cover
-borrowed handles, ordered rendering, rejected callbacks and guest state recovery.
+The two cases run production MM3 fog (`src/mods/render_fog.c`) over the real
+D3D11 renderer, with and without MSAA: near/mid/far depth, destination-alpha
+preservation, sky fill, world-up horizon fade, invalid range rejection and the
+UI drawing that follows. `nv2a_bindings_fixture.c` is the generic device,
+triangle and readback fixture, kept here since the fork dropped it.
+
+The SDL3 GPU case was removed when the SDL3 host moved to `src/host_sdl3`; its
+fixture and test host no longer exist (see git history to restore it).
