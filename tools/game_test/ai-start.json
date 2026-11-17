@@ -2,7 +2,7 @@
   "name": "saved-profile-checkpoint-ai-start",
   "steps": [
     {"action": "wait_log", "text": "[MOD] skip_intro: intro", "timeout": 60},
-    {"action": "wait", "seconds": 30},
+    {"action": "wait", "seconds": 10},
     {"action": "press", "buttons": "start", "after": 3},
     {"action": "press", "buttons": "a", "after": 7},
     {"action": "press", "buttons": "down", "after": 3},

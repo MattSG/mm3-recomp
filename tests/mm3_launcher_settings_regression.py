@@ -73,7 +73,8 @@ def fixture_source():
         raise AssertionError("Launcher settings filename missing")
     parts.append(match.group(0))
     for name in ("key_name", "pad_bind", "set_key", "parse_keymap", "reset_all", "valid",
-                 "add_mod_options", "load_environment_settings", "load_settings"):
+                 "add_mod_option", "add_mod_setting", "add_mod_options", "load_environment_settings",
+                 "load_settings"):
         parts.append(function(source, name))
     parts.append(r'''
 static int checks;
@@ -100,9 +101,9 @@ int main(int argc, char **argv) {
     for (const Option &o : g_options)
         require(o.env != "MM3_RENDER_EVERY_FRAME",
                 "replacement launcher excludes the legacy render-queue experiment");
-    /* One switch per mod but translation, four gameplay numbers and the effect selector. */
-    require(g_options.size() == original_options + MM3_MOD_COUNT - 1 + 5,
-            "all user-facing mods added once, translation switch excluded");
+    /* One switch per mod but translation and interpolation, four gameplay numbers and the effect selector. */
+    require(g_options.size() == original_options + MM3_MOD_COUNT - 2 + 5,
+            "all user-facing mods added once, translation and interpolation switches excluded");
     for (const char *env : {"MM3_TIME_PERCENT", "MM3_AI_LEVEL", "MM3_DAMAGE_PERCENT", "MM3_OWN_DAMAGE_PERCENT"}) {
         int found = 0;
         for (const Option &o : g_options) found += o.env == env && o.page == SECTION_MODS;

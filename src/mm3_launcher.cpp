@@ -192,6 +192,8 @@ struct Option {
     bool fixed;  /* one choice: shown, not changeable */
     bool dev;    /* a developer tool: shown while that mod is on */
     bool text;   /* typed rather than chosen */
+    Rml::String needs; /* shown only while the option with this env is on */
+    bool shown = true; /* computed by options_changed */
 };
 
 /* A key for a pad input (RECOMP_KEYMAP, defaults from
@@ -239,12 +241,13 @@ Rml::Vector<Option> g_options = {
     {"Network", "Network (experimental)", "EXPERIMENTAL: expect rough edges. System link works between copies "
      "on one PC, a LAN or (with Direct play) the internet; Xbox Live is untested.", "RECOMP_NET", "", "", {{"", "Off"}, {"nat", "On"}}},
     {"", "Xbox Live (experimental)", "EXPERIMENTAL, untested sign-in. Signs in to Insignia as your xemu console: make an Insignia account in xemu, then "
-     "run python tools/xbl/import_xemu_console.py once. Needs Network on.", "", "", "", {{"", "Insignia"}}},
+     "run python tools/xbl/import_xemu_console.py once.", "", "", "", {{"", "Insignia"}}, 0, false, false, false,
+     false, "RECOMP_NET"},
     {"", "Direct play (experimental)", "EXPERIMENTAL: internet System Link, tested only between copies on one PC. Other players to link with, "
      "as address:port, comma separated. One side is enough: the other is found when it first hears "
-     "from you.", "RECOMP_NET_PEERS", "", "", {{"", ""}}},
+     "from you.", "RECOMP_NET_PEERS", "", "", {{"", ""}}, 0, false, false, false, false, "RECOMP_NET"},
     {"", "Your port", "UDP port other players reach you on. Forward it on your router to be found.",
-     "RECOMP_NET_PORT", "3075", "", {{"", ""}}},
+     "RECOMP_NET_PORT", "3075", "", {{"", ""}}, 0, false, false, false, false, "RECOMP_NET"},
     {"Developer", "Developer HUD", "Position, damage, speed, RPM and gear. Needs tools\\debug-features\\prepare.py.",
      "MM3_DEV_HUD", "", "", {{"", "Off"}, {"1", "On"}}},
     {"", "Debug menu", "The retail developer menu (D-pad). Needs prepare.py.",
@@ -316,6 +319,7 @@ bool g_missing;
 int g_result = -1; /* -1 running, 0 quit, 1 play */
 int g_tab;
 int g_splash = 1;    /* 1 shown, 2 fading out, 0 gone */
+bool g_starting;     /* Play pressed: the splash is the game's loading screen, still (it freezes while the game boots) */
 int g_capture = -1;  /* g_binds index waiting for a key */
 bool g_armed;        /* every key was up since the capture began */
 Rml::String g_capture_label;
@@ -468,7 +472,7 @@ scrollbarvertical sliderbar { background-color: #2f333c; border-radius: 3dp; }
   <div id="main">
     <div id="head"><h1>{{ title }}</h1><div id="sub">{{ subtitle }}</div></div>
     <div id="list">
-      <div data-for="o, i : options"><div data-if="o.page == tab && (dev || !o.dev)" data-attr-id="'o' + i">
+      <div data-for="o, i : options"><div data-if="o.page == tab && o.shown" data-attr-id="'o' + i">
         <h2 data-if="o.header != ''">{{ o.header }}</h2>
         <div class="opt" data-class-focus="fo == i">
           <div class="text"><div class="label">{{ o.label }}</div><div class="hint" data-if="o.hint != ''">{{ o.hint }}</div></div>
@@ -500,7 +504,8 @@ scrollbarvertical sliderbar { background-color: #2f333c; border-radius: 3dp; }
     </div>
   </div>
   <div id="splash" data-if="splash" data-class-fade="splash == 2" data-event-click="splash = 0">
-    <div class="logo">@LOGO_BODY@</div><div class="tag">Recompiled for PC</div><div class="bar"><div class="fill"/></div>
+    <div class="logo">@LOGO_BODY@</div><div class="tag">{{ starting ? 'Starting the game' : 'Recompiled for PC' }}</div>
+    <div class="bar" data-if="!starting"><div class="fill"/></div>
   </div>
   <div id="capture" data-if="capturing"><div id="card">
     <div class="hint">{{ capture_label }}</div>
@@ -667,12 +672,19 @@ bool valid(const Option &o, const Rml::String &v)
 /* The developer options and hotkeys show while the developer tools mod is on. */
 bool g_dev;
 
+bool option_on(const Rml::String &env)
+{
+    for (const Option &o : g_options)
+        if (o.env == env)
+            return !o.value.empty() && o.value != "0";
+    return false;
+}
+
 void options_changed()
 {
-    g_dev = false;
-    for (const Option &o : g_options)
-        if (o.env == mm3_mods[MM3_MOD_DEV_TOOLS].env)
-            g_dev = o.value == "1";
+    g_dev = option_on(mm3_mods[MM3_MOD_DEV_TOOLS].env);
+    for (Option &o : g_options)
+        o.shown = (g_dev || !o.dev) && (o.needs.empty() || option_on(o.needs));
     if (!g_dev && g_sections[g_tab].dev)
         g_tab = 0;
     if (g_model) {
@@ -682,46 +694,91 @@ void options_changed()
     }
 }
 
-/* The Mods tab: one switch per entry of src/mods/mods.c. The translation
- * corrections are for developers: MM3_MOD_TRANSLATION=0 only. */
+/* The Mods tab: one switch per entry of src/mods/mods.c, grouped, each followed by
+ * the settings it reads (shown while it is on). The translation corrections are
+ * for developers: MM3_MOD_TRANSLATION=0 only. Frame interpolation is too broken
+ * to offer: MM3_MOD_INTERP=1 by hand only. */
+void add_mod_option(const char *header, int i)
+{
+    Option o;
+    o.header = header;
+    o.label = mm3_mods[i].name;
+    o.hint = mm3_mods[i].description;
+    o.env = mm3_mods[i].env;
+    o.def = mm3_mods[i].default_on || mm3_mods[i].required ? "1" : "0";
+    if (mm3_mods[i].required)
+        o.choices = {{"1", "Always on"}};
+    else
+        o.choices = {{"0", "Off"}, {"1", "On"}};
+    o.page = 2;
+    o.toggle = false;
+    g_options.push_back(o);
+}
+
+void add_mod_setting(int mod, const char *label, const char *hint, const char *env, const char *def, const Rml::Vector<Choice> &choices)
+{
+    Option o;
+    o.label = label;
+    o.hint = hint;
+    o.env = env;
+    o.def = def;
+    o.choices = choices;
+    o.page = 2;
+    o.needs = mm3_mods[mod].env;
+    g_options.push_back(o);
+}
+
 void add_mod_options()
 {
-    for (int i = 0; i < MM3_MOD_COUNT; i++) {
-        if (i == MM3_MOD_TRANSLATION)
-            continue;
-        Option o;
-        o.header = i ? "" : "Changes to the original game";
-        o.label = mm3_mods[i].name;
-        o.hint = mm3_mods[i].description;
-        o.env = mm3_mods[i].env;
-        o.def = mm3_mods[i].default_on || mm3_mods[i].required ? "1" : "0";
-        if (mm3_mods[i].required)
-            o.choices = {{"1", "Always on"}};
-        else
-            o.choices = {{"0", "Off"}, {"1", "On"}};
-        o.page = 2;
-        o.toggle = false;
-        g_options.push_back(o);
-    }
-    /* The numbers the gameplay mods read (their switches are above). */
-    g_options.push_back({"Cheats and Easter eggs", "Easter egg effect",
-        "Needs Auto-activate Easter egg. The original game supports one effect at a time; film also speeds up gameplay.",
-        "MM3_EASTER_EGG_EFFECT", "6", "", {{"6", "Old film + faster gameplay"}, {"8", "Sketched graphics"}}, 2});
+    static const struct { const char *header; int mods[8]; } groups[] = {
+        {"Picture", {MM3_MOD_WIDESCREEN, MM3_MOD_DRAW_DISTANCE, MM3_MOD_SKY, MM3_MOD_FLARE_DEPTH, MM3_MOD_FOV, -1}},
+        {"Frame rate", {MM3_MOD_FRAMERATE, -1}},
+        {"Controls", {MM3_MOD_MENU_MOUSE, MM3_MOD_KEYBOARD_DRIVING, -1}},
+        {"Gameplay", {MM3_MOD_SKIP_INTRO, MM3_MOD_TIME_LIMITS, MM3_MOD_AI_DIFFICULTY, MM3_MOD_DAMAGE,
+                      MM3_MOD_PAUSE_HOLD, -1}},
+        {"Unlocks and Easter eggs", {MM3_MOD_UNLOCK_ALL, MM3_MOD_UNLOCK_CARS, MM3_MOD_UNLOCK_PAINTS,
+                                     MM3_MOD_UNLOCK_RACES, MM3_MOD_AUTO_EASTER_EGG, -1}},
+        {"Fixes", {MM3_MOD_COLLISION_FIX, MM3_MOD_RENTAL_FIX, MM3_MOD_EASTER_EGG_FIX, -1}},
+        {"Developer", {MM3_MOD_DEV_TOOLS, MM3_MOD_DEBUG_OVERLAY, MM3_MOD_TELEPORT, -1}},
+    };
     const Rml::Vector<Choice> percents = {{"0", "0%"}, {"50", "50%"}, {"100", "100% (Xbox)"}, {"150", "150%"},
                                           {"200", "200%"}, {"300", "300%"}};
-    g_options.push_back({"Gameplay mod settings", "Time limit",
-        "Scales the time you start with and each bonus in Blitz and timed jobs. Needs the Time limits mod.",
-        "MM3_TIME_PERCENT", "100", "",
-        {{"50", "50%"}, {"75", "75%"}, {"100", "100% (Xbox)"}, {"150", "150%"}, {"200", "200%"}, {"300", "300%"}}, 2});
-    g_options.push_back({"", "Opponents' difficulty",
-        "0 is easiest, 9 hardest; 5 is the Xbox game. Needs the Opponents' difficulty mod.",
-        "MM3_AI_LEVEL", "5", "",
-        {{"0", "0 (easiest)"}, {"1", "1"}, {"2", "2"}, {"3", "3"}, {"4", "4"}, {"5", "5 (Xbox)"}, {"6", "6"},
-         {"7", "7"}, {"8", "8"}, {"9", "9 (hardest)"}}, 2});
-    g_options.push_back({"", "Damage dealt", "Damage crashes do to every car but yours. Needs the Car damage mod.",
-        "MM3_DAMAGE_PERCENT", "100", "", percents, 2});
-    g_options.push_back({"", "Damage received", "Damage crashes do to your own car. Needs the Car damage mod.",
-        "MM3_OWN_DAMAGE_PERCENT", "100", "", percents, 2});
+    for (const auto &g : groups)
+        for (int k = 0; g.mods[k] >= 0; k++) {
+            const int i = g.mods[k];
+            add_mod_option(k ? "" : g.header, i);
+            if (i == MM3_MOD_TIME_LIMITS)
+                add_mod_setting(i, "Time limit", "Scales the time you start with and each bonus in Blitz and timed jobs.",
+                    "MM3_TIME_PERCENT", "100",
+                    {{"50", "50%"}, {"75", "75%"}, {"100", "100% (Xbox)"}, {"150", "150%"}, {"200", "200%"},
+                     {"300", "300%"}});
+            else if (i == MM3_MOD_AI_DIFFICULTY)
+                add_mod_setting(i, "Opponents' difficulty level", "0 is easiest, 9 hardest; 5 is the Xbox game.",
+                    "MM3_AI_LEVEL", "5",
+                    {{"0", "0 (easiest)"}, {"1", "1"}, {"2", "2"}, {"3", "3"}, {"4", "4"}, {"5", "5 (Xbox)"},
+                     {"6", "6"}, {"7", "7"}, {"8", "8"}, {"9", "9 (hardest)"}});
+            else if (i == MM3_MOD_DAMAGE) {
+                add_mod_setting(i, "Damage dealt", "Damage crashes do to every car but yours.",
+                    "MM3_DAMAGE_PERCENT", "100", percents);
+                add_mod_setting(i, "Damage received", "Damage crashes do to your own car.",
+                    "MM3_OWN_DAMAGE_PERCENT", "100", percents);
+            } else if (i == MM3_MOD_AUTO_EASTER_EGG)
+                add_mod_setting(i, "Easter egg effect",
+                    "The original game supports one effect at a time; film also speeds up gameplay.",
+                    "MM3_EASTER_EGG_EFFECT", "6", {{"6", "Old film + faster gameplay"}, {"8", "Sketched graphics"}});
+        }
+    /* A mod added to mods.c but not to a group above still gets its switch. */
+    const char *other = "Other";
+    for (int i = 0; i < MM3_MOD_COUNT; i++) {
+        bool listed = i == MM3_MOD_TRANSLATION || i == MM3_MOD_INTERP;
+        for (const auto &g : groups)
+            for (int k = 0; g.mods[k] >= 0; k++)
+                listed |= g.mods[k] == i;
+        if (!listed) {
+            add_mod_option(other, i);
+            other = "";
+        }
+    }
 }
 
 /* Profiles and explicit environment settings seed the UI. Saved choices are
@@ -932,13 +989,41 @@ Rml::String city_markup()
     return out + "</div>";
 }
 
+#if defined(XBOXRECOMP_SDL3)
+extern "C" void fbw_initial_size(int work_w, int work_h, int *w, int *h);
+
+/* The game takes this window as it is. Windowed, it then resized it to its own
+ * size, showing the launcher's last frame at the old size in a corner of a
+ * black window until its first picture. Sized here instead, the splash is
+ * drawn again at the game's size and the handover changes nothing. */
+void size_for_game()
+{
+    const Option *mode = mode_option();
+    int count = 0, w, h;
+    SDL_Rect usable = {};
+    if (!mode || !mode->value.empty())
+        return;
+    save_and_export();   /* the window size and aspect settings the game reads */
+    SDL_Window **windows = SDL_GetWindows(&count);
+    if (count > 0 && SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable)) {
+        fbw_initial_size(usable.w, usable.h, &w, &h);
+        SDL_SetWindowSize(windows[0], w, h);
+        SDL_SetWindowPosition(windows[0], SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+    }
+    SDL_free(windows);
+}
+#endif
+
 void play()
 {
     if (!g_missing && g_play_at < 0) {
         g_play_at = Rml::GetSystemInterface() ? Rml::GetSystemInterface()->GetElapsedTime() : 0;
         g_splash = 2;   /* the splash again, faded in, as the loading screen the game replaces */
-        if (g_model)
+        g_starting = true;
+        if (g_model) {
             g_model.DirtyVariable("splash");
+            g_model.DirtyVariable("starting");
+        }
     }
 }
 
@@ -1005,7 +1090,7 @@ Rml::Vector<Row> rows()
 {
     Rml::Vector<Row> r;
     for (int i = 0; i < (int)g_options.size(); i++)
-        if (g_options[i].page == g_tab && (g_dev || !g_options[i].dev))
+        if (g_options[i].page == g_tab && g_options[i].shown)
             r.push_back({false, i});
     if (g_tab == SECTION_CONTROLS)
         for (int i = 0; i < (int)g_binds.size(); i++)
@@ -1284,6 +1369,7 @@ bool bind_model(Rml::Context *ctx)
         o.RegisterMember("fixed", &Option::fixed);
         o.RegisterMember("dev", &Option::dev);
         o.RegisterMember("text", &Option::text);
+        o.RegisterMember("shown", &Option::shown);
     }
     m.RegisterArray<Rml::Vector<Option>>();
     if (auto b = m.RegisterStruct<Bind>()) {
@@ -1299,6 +1385,7 @@ bool bind_model(Rml::Context *ctx)
     m.Bind("missing", &g_missing);
     m.Bind("tab", &g_tab);
     m.Bind("splash", &g_splash);
+    m.Bind("starting", &g_starting);
     m.Bind("capture_label", &g_capture_label);
     m.Bind("fo", &g_fo);
     m.Bind("fb", &g_fb);
@@ -1385,6 +1472,13 @@ static void launcher_before_update(Rml::Context *, double now, void *)
             g_splash = 1;
             g_model.DirtyVariable("splash");
         }
+#if defined(XBOXRECOMP_SDL3)
+        static bool sized;
+        if (!sized && now - g_play_at > 0.3) {   /* under the splash, now opaque */
+            sized = true;
+            size_for_game();
+        }
+#endif
         if (now - g_play_at > 0.45)
             g_result = 1;
         return;   /* no input while it does */

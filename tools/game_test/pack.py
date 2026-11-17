@@ -31,7 +31,7 @@ from tools.game_test.gfx_sweep import analyse, drift, LOG_BAD, vantages, OFFSETS
 from PIL import Image
 import numpy as np
 
-BOOT = [{"action": "wait_log", "text": "[MOD] skip_intro: intro", "timeout": 60}, {"action": "wait", "seconds": 30}]
+BOOT = [{"action": "wait_log", "text": "[MOD] skip_intro: intro", "timeout": 60}, {"action": "wait", "seconds": 10}]
 PAL_FPS = "60"
 PAUSE_FLAG = 0x00429DB2   # the game's own pause singleton (see src/mods/pause_hold.c)
 SUITES = "menus cars paints drive conditions missions gfx lamps".split()

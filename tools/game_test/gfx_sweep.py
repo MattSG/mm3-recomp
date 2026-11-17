@@ -22,7 +22,7 @@ from PIL import Image
 import numpy as np
 
 # cruise: same menu path as driving.json
-CRUISE = [{"action": "wait_log", "text": "[MOD] skip_intro: intro", "timeout": 60}, {"action": "wait", "seconds": 30}] + [
+CRUISE = [{"action": "wait_log", "text": "[MOD] skip_intro: intro", "timeout": 60}, {"action": "wait", "seconds": 10}] + [
     {"action": "press", "buttons": b, "after": t} for b, t in
     (("start", 3), ("a", 7), ("down", 3), ("a", 3), ("a", 2), ("a", 2), ("a", 2), ("a", 2), ("a", 0))] + [
     {"action": "wait_player", "timeout": 30, "advance": "start"}]

@@ -25,6 +25,7 @@ void mm3_debug_overlay_init(void) { assert(false); }
 int mm3_keyboard_driving(void) { assert(false); return 0; }
 void mm3_keyboard_driving_init(int (*)(void)) { assert(false); }
 void nv2a_d3d_set_flare_depth_test(uint32_t) { assert(false); }
+void fbw_initial_size(int, int, int *, int *) { assert(false); }
 }
 int main(int argc, char **argv)
 {
@@ -44,6 +45,27 @@ int main(int argc, char **argv)
         }
         assert(found);
     }
+    /* The Mods page lists every mod once (the developer-only translation
+     * and interpolation switches aside), and a setting that needs a switch shows only while it is on. */
+    for (int m = 0; m < MM3_MOD_COUNT; ++m) {
+        int n = 0;
+        for (const Option &o : g_options) n += o.env == mm3_mods[m].env;
+        assert(n == (m == MM3_MOD_TRANSLATION || m == MM3_MOD_INTERP ? 0 : 1));
+    }
+    auto option = [](const char *env) -> Option & {
+        for (Option &o : g_options) if (o.env == env) return o;
+        assert(false); return g_options[0];
+    };
+    const Rml::String damage = option("MM3_MOD_DAMAGE").value, net = option("RECOMP_NET").value;
+    option("MM3_MOD_DAMAGE").value = "0"; option("RECOMP_NET").value = "";
+    options_changed();
+    assert(!option("MM3_DAMAGE_PERCENT").shown && !option("MM3_OWN_DAMAGE_PERCENT").shown);
+    assert(!option("RECOMP_NET_PEERS").shown && option("RECOMP_NET").shown);
+    option("MM3_MOD_DAMAGE").value = "1"; option("RECOMP_NET").value = "nat";
+    options_changed();
+    assert(option("MM3_DAMAGE_PERCENT").shown && option("RECOMP_NET_PEERS").shown);
+    option("MM3_MOD_DAMAGE").value = damage; option("RECOMP_NET").value = net;
+    options_changed();
     save_and_export();
     for (unsigned i=0; i<4; ++i) assert(getenv(keys[i]) && !strcmp(getenv(keys[i]), values[i]));
     puts(write ? "PASS: actual launcher saves overlay enable/bindings and exports them" :
