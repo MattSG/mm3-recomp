@@ -34,6 +34,24 @@ import tomllib
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+
+
+def private(path):
+    """Keep a file with console secrets (keys, EEPROM, accounts) to its owner. A no-op where the OS has
+    no such mode (Windows keeps the user's profile ACLs); elsewhere the default umask would leave
+    these readable by every local user."""
+    if os.name != "nt":
+        os.chmod(path, 0o600)
+    return path
+
+
+def write_private(path, text):
+    """Write text so the file never exists with wider permissions than 0600."""
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(text)
+    return private(path)
+
 sys.path.insert(0, str(REPO / "tools/saves"))
 import resign_save  # noqa: E402
 FIRST, END = 8 * 512, 0x400 * 512           # the HDD's config sectors
@@ -288,6 +306,7 @@ def main(argv=None):
     save = args.save_dir
     save.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(args.eeprom, save / "eeprom.bin")
+    private(save / "eeprom.bin")
     print(f"EEPROM: serial {eeprom[0x34:0x40].decode(errors='replace')}, "
           f"MAC {eeprom[0x40:0x46].hex(':')}")
 
@@ -296,6 +315,7 @@ def main(argv=None):
     with open(image, "r+b" if image.exists() else "w+b") as f:
         f.seek(FIRST)
         f.write(config_sectors)
+    private(image)
     tags = accounts(config_sectors)
     print(f"Accounts: {', '.join(tags) if tags else 'none found (create one with Insignia in xemu first)'}")
 
@@ -305,8 +325,8 @@ def main(argv=None):
         keys = read_keys(args.xemu, args.gdb_port, want, args.timeout)
         old = saved_keys(save).get("RECOMP_XBOX_SIGKEY", bytes(16))
         resign_saves(save_folders(save, args.xbe.parent), old, keys["RECOMP_XBOX_SIGKEY"])
-        (save / "console_keys.txt").write_text(
-            "".join(f"{name}={value.hex().upper()}\n" for name, value in keys.items()))
+        write_private(save / "console_keys.txt",
+                      "".join(f"{name}={value.hex().upper()}\n" for name, value in keys.items()))
         print(f"Keys: {len(keys)} read from xemu's kernel")
     print(f"Imported into {save}")
 
