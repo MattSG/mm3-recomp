@@ -1,10 +1,25 @@
-/* Lamp glow sprites must not shine through an opaque hill's depth. */
-#include "../../tools/xboxrecomp/src/video/nv2a_d3d11.c"
-#include "../../tools/xboxrecomp/tests/nv2a_test_host.h"
-void nv2a_pb_interp_enable(int on) { (void)on; } /* frame interpolation is not under test */
+/* Lamp (flare) depth rendering on the SDL_GPU renderer; see the other renderer_*.c tests for how
+ * these are built. Restored from tests/mm3_renderer_lamps and ported to the host module. */
+/* SDL3 GPU counterpart of test_flare_depth.c: lamp glow sprites must not shine
+ * through an opaque hill's depth. The decision table (flare_needs_depth) and
+ * the depth-tested glows are the same as on D3D11; pixels are read back from
+ * the GPU. The SDL renderer has one sample per target: RECOMP_MSAA > 1 is
+ * accepted and warned about, and the results must not change. */
+#include <SDL3/SDL.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-static uint8_t *ram;
-#include "../../src/mods/render_policy.c"
+#include "video/nv2a_sdlgpu.c"          /* include path: src/host_sdl3 */
+/* The native vertex program and constants come from this test, not the game. */
+#define NV2A_TEST_OWN_VSH
+#include "renderer_host_stub.h"
+
+#define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #x); return 1; } } while (0)
+
+#include "mods/render_policy.c"        /* include path: src */
 static int depth_policy_enabled;
 int mm3_mod_on(int mod) { return mod == MM3_MOD_FLARE_DEPTH && depth_policy_enabled; }
 static void test_set_depth_policy(uint32_t enabled)
@@ -31,13 +46,7 @@ static uint32_t native_program[136][4] = {
     {0, 0x0020181B, 0x0836106C, 0x2070F861}
 };
 static float native_constants[192][4] = {{1, 1, 16777215, 1}, {.53125f, .53125f, 0, 0}};
-ptrdiff_t xbox_GetMemoryOffset(void) { return (ptrdiff_t)ram; }
-HWND xbox_FramebufferWindowHandle(void) { return NULL; }
-int xbox_FramebufferScanSource(uint32_t *va, uint32_t *pitch) { return 0; }
-int xbox_FramebufferOverlay(XboxOverlay *ovl) { return 0; }
-void xbox_FramebufferNoteFlip(uint32_t draws) {}
-int xbox_GetDisplayMode(uint32_t *pitch, uint32_t *bpp, uint32_t *w, uint32_t *h) { (void)pitch; (void)bpp; (void)w; (void)h; return 0; }
-void xbox_FramebufferRenderHostOverlay(void *device, void *context, void *target) { (void)device; (void)context; (void)target; }
+
 const uint32_t (*nv2a_vsh_program(uint32_t *start, uint32_t *version))[4]
 {
     *start = 0; *version = 1;
@@ -49,27 +58,28 @@ const float (*nv2a_vsh_constants(uint32_t *version))[4]
     return native_fixture ? (const float (*)[4])native_constants : NULL;
 }
 
-#define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #x); return 1; } } while (0)
-
+/* A target's texel, read back from the GPU (BGRA, as the guest sees it). */
 static uint32_t pixel(Surface *surface, unsigned x, unsigned y)
 {
-    ID3D11Texture2D *staging = NULL;
-    D3D11_TEXTURE2D_DESC desc;
-    D3D11_MAPPED_SUBRESOURCE mapped;
+    uint32_t *texels = malloc((size_t)surface->iw * surface->ih * 4);
     uint32_t result = 0xDEADBEEFu;
-    surface_resolve(surface);
-    ID3D11Texture2D_GetDesc(surface->tex, &desc);
-    desc.Usage = D3D11_USAGE_STAGING;
-    desc.BindFlags = desc.MiscFlags = 0;
-    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-    if (FAILED(ID3D11Device_CreateTexture2D(s_dev, &desc, NULL, &staging))) return result;
-    ID3D11DeviceContext_CopyResource(s_ctx, (ID3D11Resource *)staging, (ID3D11Resource *)surface->tex);
-    if (SUCCEEDED(ID3D11DeviceContext_Map(s_ctx, (ID3D11Resource *)staging, 0, D3D11_MAP_READ, 0, &mapped))) {
-        memcpy(&result, (uint8_t *)mapped.pData + y * mapped.RowPitch + x * 4, 4);
-        ID3D11DeviceContext_Unmap(s_ctx, (ID3D11Resource *)staging, 0);
-    }
-    ID3D11Texture2D_Release(staging);
+    if (!texels) return result;
+    if (nv2a_test_read_level(surface->tex, surface->iw, surface->ih, 0, 0, texels))
+        result = texels[y * surface->iw + x];
+    free(texels);
     return result;
+}
+
+/* Clear colour and/or depth of the state's targets (the guest's clear path). */
+static void clear_color(const NvD3DState *st, uint32_t argb)
+{
+    nv2a_d3d_clear(st, 0xF0, argb, 0, 0, 0, 0xFFFF, 0xFFFF);
+}
+
+static void clear_depth(const NvD3DState *st, float depth)
+{
+    /* D24 in the high bits of zstencil for the 24-bit depth format. */
+    nv2a_d3d_clear(st, 1, 0, (uint32_t)(depth * 16777215.0f) << 8, 0, 0, 0xFFFF, 0xFFFF);
 }
 
 static void glow(const NvD3DState *st, float depth)
@@ -93,10 +103,7 @@ static void glow(const NvD3DState *st, float depth)
     nv2a_d3d_draw_ub(st, NV_D3D_TRIANGLES, attributes, defaults, 0, indices, 6, 0, 3, NULL);
 }
 
-/* Native Flares vertex program/constants captured from the installed game.
- * Keep its 56-byte position stride and real distant-sprite Z/RHW convention;
- * a larger quad makes pixel readback stable at every tested resolution. The
- * native combiner uses a white lamp texture and fully visible mask fixture. */
+/* The native Flares vertex program/constants and draw, as in test_flare_depth.c. */
 static void native_glow(const NvD3DState *st)
 {
     static const uint32_t indices[] = {0, 1, 2, 2, 1, 3};
@@ -127,15 +134,16 @@ int main(int argc, char **argv)
     Surface *mask, *target;
     Depth *depth;
     unsigned n, wbuffer, enabled;
-    float red[4] = {1, 0, 0, 1};
     uint32_t gw, gh, zmax;
+    uint8_t *ram;
+    const char *samples = argc > 1 ? argv[1] : "1";
+    const char *scale = argc > 2 ? argv[2] : "1";
     ram = calloc(1, 0x400000);
     CHECK(ram);
-    _putenv_s("RECOMP_MSAA", argc > 1 ? argv[1] : "1");
-    _putenv_s("RECOMP_RENDER_SCALE", argc > 2 ? argv[2] : "1");
-    _putenv_s("RECOMP_PS_SPEC", "0");
-    _putenv_s("RECOMP_FPS_LIMIT", "0");
-    CHECK(nv2a_d3d_init());
+    nv2a_test_ram = ram;
+    nv2a_test_setenv("RECOMP_MSAA", samples);
+    nv2a_test_setenv("RECOMP_RENDER_SCALE", scale);
+    CHECK(nv2a_test_init());
     mask = surface_get(0x20000, 64 * 4, 8, 64, 64, 0);
     CHECK(mask);
     st.color_addr = 0x10000;
@@ -146,7 +154,7 @@ int main(int argc, char **argv)
     st.color_mask = 0x00010101; /* RGB; leave the visibility alpha intact. */
     st.depth_test = 1;
     st.depth_func = 0x203;
-    CHECK(setup_pipeline(&st, NV_D3D_TRIANGLES, &target, &gw, &gh, &zmax));
+    CHECK(setup_pipeline(&st, NV_D3D_TRIANGLES, &target, &gw, &gh, &zmax, 1));
     depth = s_cur_ds;
     CHECK(depth);
     st.depth_test = 0;
@@ -186,9 +194,9 @@ int main(int argc, char **argv)
         st.z_perspective = wbuffer;
         for (enabled = 0; enabled < 2; ++enabled) {
             test_set_depth_policy(enabled ? 0x8421u : 0u);
-            ID3D11DeviceContext_ClearRenderTargetView(s_ctx, target->rtv, red);
-            target->gen++; target->ms_dirty = 1;
-            ID3D11DeviceContext_ClearDepthStencilView(s_ctx, depth->dsv, D3D11_CLEAR_DEPTH, .5f, 0);
+            clear_color(&st, 0xFFFF0000u);
+            target->gen++;
+            clear_depth(&st, .5f);
             glow(&st, .75f);
             CHECK(pixel(target, (unsigned)(16 * s_scale), (unsigned)(16 * s_scale)) ==
                   (enabled ? 0xFFFF0000u : 0xFFFFFF00u));
@@ -203,9 +211,13 @@ int main(int argc, char **argv)
     mask = surface_get(0x100000, 640 * 4, 8, 640, 480, 0);
     CHECK(mask);
     {
-        float white[4] = {1, 1, 1, 1};
-        ID3D11DeviceContext_ClearRenderTargetView(s_ctx, mask->rtv, white);
-        mask->gen++; mask->ms_dirty = 1;
+        NvD3DState clear = {0};
+        clear.color_addr = 0x100000;
+        clear.color_pitch = 640 * 4;
+        clear.surface_format = 0x128;
+        clear.clip_w = 640; clear.clip_h = 480;
+        clear_color(&clear, 0xFFFFFFFFu);
+        mask->gen++;
     }
     st.color_addr = 0x200000;
     st.zeta_addr = 0x300000;
@@ -229,47 +241,41 @@ int main(int argc, char **argv)
         st.z_perspective = wbuffer;
         for (enabled = 0; enabled < 2; ++enabled) {
             test_set_depth_policy(enabled ? 0x8421u : 0u);
-            CHECK(setup_pipeline(&st, NV_D3D_TRIANGLES, &target, &gw, &gh, &zmax));
+            CHECK(setup_pipeline(&st, NV_D3D_TRIANGLES, &target, &gw, &gh, &zmax, 1));
             depth = s_cur_ds;
             if (!depth) depth = depth_find(phys(st.zeta_addr));
-            if (!depth) depth = depth_get(st.zeta_addr, target->iw, target->ih, target->ms ? s_msaa : 1);
+            if (!depth) depth = depth_get(st.zeta_addr, target->iw, target->ih);
             CHECK(depth);
-            ID3D11DeviceContext_ClearRenderTargetView(s_ctx, target->rtv, red);
-            target->gen++; target->ms_dirty = 1;
-            ID3D11DeviceContext_ClearDepthStencilView(s_ctx, depth->dsv, D3D11_CLEAR_DEPTH, lamp_depth - .0001f, 0);
+            clear_color(&st, 0xFFFF0000u);
+            target->gen++;
+            clear_depth(&st, lamp_depth - .0001f);
             native_glow(&st);
             CHECK(pixel(target, (unsigned)(306 * target->sx), (unsigned)(170 * target->sy)) ==
                   (enabled ? 0xFFFF0000u : 0xFFFFFF00u));
             if (enabled) {
-                ID3D11DeviceContext_ClearDepthStencilView(s_ctx, depth->dsv, D3D11_CLEAR_DEPTH, lamp_depth + .0001f, 0);
+                clear_depth(&st, lamp_depth + .0001f);
                 native_glow(&st);
                 CHECK(pixel(target, (unsigned)(306 * target->sx), (unsigned)(170 * target->sy)) == 0xFFFFFF00u);
             }
         }
     }
-    /* A flare can switch CONTROL0 after the scene wrote depth. */
+    /* Flares disable native depth testing and may change Z_PERSPECTIVE.
+     * The forced test must use the scene buffer's encoding, not that toggle. */
     test_set_depth_policy(0x8421);
     for (wbuffer = 0; wbuffer < 2; ++wbuffer) {
         NvD3DState scene = st;
         float lamp_depth = wbuffer ? 1.0f / (2.71648e-7f * 16777216.0f) : .999532f;
         scene.z_perspective = wbuffer;
-        scene.depth_test = scene.depth_mask = 1;
-        CHECK(setup_pipeline(&scene, NV_D3D_TRIANGLES, &target, &gw, &gh, &zmax));
-        depth = s_cur_ds;
-        CHECK(depth);
         st.z_perspective = !wbuffer;
-        ID3D11DeviceContext_ClearRenderTargetView(s_ctx, target->rtv, red);
-        target->gen++; target->ms_dirty = 1;
-        ID3D11DeviceContext_ClearDepthStencilView(s_ctx, depth->dsv, D3D11_CLEAR_DEPTH, lamp_depth - .0001f, 0);
+        clear_color(&st, 0xFFFF0000u);
+        clear_depth(&scene, lamp_depth - .0001f);
         native_glow(&st);
         CHECK(pixel(target, (unsigned)(306 * target->sx), (unsigned)(170 * target->sy)) == 0xFFFF0000u);
-        ID3D11DeviceContext_ClearDepthStencilView(s_ctx, depth->dsv, D3D11_CLEAR_DEPTH, lamp_depth + .0001f, 0);
+        clear_depth(&scene, lamp_depth + .0001f);
         native_glow(&st);
         CHECK(pixel(target, (unsigned)(306 * target->sx), (unsigned)(170 * target->sy)) == 0xFFFFFF00u);
     }
-    puts("PASS: synthetic and native VF/combiner glows fail occluded depth and retain visible lamps; Z/W-buffer and MSAA/scale");
+    free(ram);
+    puts("PASS: synthetic and native VF/combiner glows fail occluded depth and retain visible lamps; Z/W-buffer and MSAA request/scale");
     return 0;
 }
-
-/* These renderer-only fixtures never request executor frame replay. */
-long nv2a_pb_frames_done(void) { abort(); return 0; }
