@@ -5,8 +5,9 @@ Build the Xbox game as a native PC executable using
 you need a dump of your own disc.
 
 **Experimental and AI-assisted.** Windows x64 gameplay has been checked.
-Linux x64 has a build path, but gameplay has not been rechecked after the SDL3
-migration. The builder does not support macOS.
+Linux x64 builds and drives (rechecked after the SDL3 migration on WSL with
+Mesa's dzn Vulkan driver: boot, menus, a city cruise); missions and native
+Linux GPUs are not rechecked. The builder does not support macOS.
 
 ## Build and play
 
@@ -153,7 +154,7 @@ Link and Xbox Live sign-in have not been verified.
 - If the build stops with "SDL3 patch ... does not apply: corrupt patch", your checkout has the patch file with CRLF
   line endings (clones before 2026-11-08). Run `git rm --cached src/host_sdl3/sdl3-d3d12-descriptors.patch`, delete the file,
   then `git checkout -- src/host_sdl3/sdl3-d3d12-descriptors.patch` and build again.
-- Linux has a build path, but gameplay has not been rechecked since the SDL3 migration.
+- Linux: boot, menus and a city cruise were rechecked on WSL (Mesa dzn Vulkan) after the SDL3 migration; missions and native Linux GPUs were not.
 - Online play: System Link is work in progress; Xbox Live / Insignia sign-in is untested.
 
 ## Optional car tools
