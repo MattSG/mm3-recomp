@@ -11,15 +11,23 @@ extern void sub_001DEA30_original(void);
  * evaluation, RET 4 and AL unlock-notification result. The optional override
  * exposes the entry, including hidden bonus cars in the existing list builder.
  * Catalog loading, race classes and paint/profile keys retain their semantics.
- * MM3_UNLOCK_ALL_CARS=1 or the master MM3_UNLOCK_ALL=1 overrides availability. */
+ * MM3_UNLOCK_ALL_CARS or the master MM3_UNLOCK_ALL =1 overrides availability. */
+/* Only "1" enables (tests/mm3_car_unlock_contract.c); read once, this runs per catalog entry. */
+static int env_on(const char *name)
+{
+    const char *v = getenv(name);
+    return v && !strcmp(v, "1");
+}
+
 void sub_001DEA30(void)
 {
+    static int unlock_all;   /* 0 unread, 1 off, 2 on */
     uint32_t vehicle = g_esi;
-    const char *setting = getenv("MM3_UNLOCK_ALL_CARS");
-    const char *all = getenv("MM3_UNLOCK_ALL");
 
+    if (!unlock_all)
+        unlock_all = env_on("MM3_UNLOCK_ALL_CARS") || env_on("MM3_UNLOCK_ALL") ? 2 : 1;
     sub_001DEA30_original();
-    if ((setting && !strcmp(setting, "1")) || (all && !strcmp(all, "1"))) {
+    if (unlock_all == 2) {
         static int reported;
         if (!reported) {
             fprintf(stderr, "[MM3_CARS] all installed cars available\n");

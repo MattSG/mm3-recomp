@@ -243,16 +243,26 @@ static struct {
     unsigned count, current, closed;
 } s_snap[RACE_PLAYERS];
 
+/* volatile alone does not order the plain data copies around it everywhere. */
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <intrin.h>
+#define SNAP_FENCE() _ReadWriteBarrier()   /* x86 stores/loads are not reordered by the CPU */
+#else
+#define SNAP_FENCE() __atomic_thread_fence(__ATOMIC_SEQ_CST)
+#endif
+
 static void race_snapshot(unsigned player)
 {
     unsigned i;
     if (!s_race[player].count) return;       /* keep the list through HUD frames with none */
     s_snap[player].seq++;
+    SNAP_FENCE();
     for (i = 0; i < s_race[player].count; ++i)
         s_snap[player].points[i] = s_race[player].checkpoints[i].position;
     s_snap[player].count = s_race[player].count;
     s_snap[player].current = s_race[player].current;
     s_snap[player].closed = s_race[player].closed;
+    SNAP_FENCE();
     s_snap[player].seq++;
 }
 
@@ -267,6 +277,7 @@ unsigned mm3_race_snapshot(unsigned player, float (*xz)[2], unsigned capacity,
     for (attempt = 0; attempt < 8; ++attempt) {
         before = s_snap[player].seq;
         if (before & 1) continue;
+        SNAP_FENCE();
         n = s_snap[player].count < capacity ? s_snap[player].count : capacity;
         for (i = 0; i < n; ++i) {
             xz[i][0] = s_snap[player].points[i].x;
@@ -274,6 +285,7 @@ unsigned mm3_race_snapshot(unsigned player, float (*xz)[2], unsigned capacity,
         }
         if (current) *current = s_snap[player].current;
         if (closed) *closed = s_snap[player].closed;
+        SNAP_FENCE();
         if (s_snap[player].seq == before) return n;
     }
     return 0;
