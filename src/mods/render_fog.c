@@ -4,6 +4,9 @@
 #include "render_fog.h"
 #include "render_fog_sdlgpu.h"
 
+extern int nv2a_sdlgpu_host_draw_replayable(const NvD3DState *, int (*)(const NvHostTarget *, void *),
+                                            const void *, size_t);
+
 /* Plain data only: frame interpolation keeps a copy and draws the pass again (nv2a_sdlgpu.c). */
 typedef struct { float scale,start,end; uint32_t argb,flags; float sky[4]; } FogArgs;
 static int fog_target(const NvHostTarget *target,void *user)
@@ -35,7 +38,5 @@ void mm3_render_fog(const NvD3DState *state,float depth_to_world,float far_clip,
         depth_to_world <= 0 || far_clip <= 0 || start < 0 || end <= start || end > far_clip || !state) return;
     FogArgs args = {depth_to_world,start,end,argb,flags,{0,0,0,0}};
     if (sky) memcpy(args.sky,sky,sizeof args.sky);
-    extern int nv2a_sdlgpu_host_draw_replayable(const NvD3DState *, int (*)(const NvHostTarget *, void *),
-                                                const void *, size_t);
     nv2a_sdlgpu_host_draw_replayable(state,fog_target,&args,sizeof args);
 }
