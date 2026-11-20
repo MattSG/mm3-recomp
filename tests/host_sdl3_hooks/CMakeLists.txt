@@ -10,6 +10,8 @@ get_filename_component(_mm3 "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 set(XBOXRECOMP_DIR "${_mm3}/tools/xboxrecomp" CACHE PATH "xboxrecomp checkout")
 set(XBOXRECOMP_RENDERER EXTERNAL CACHE STRING "" FORCE)
 set(XBOXRECOMP_APU_OUTPUT EXTERNAL CACHE STRING "" FORCE)
+set(XBOXRECOMP_INPUT_SDL2 OFF CACHE BOOL "" FORCE)   # the SDL3 host feeds the key table itself
+set(XBOXRECOMP_SDL3 ON CACHE BOOL "" FORCE)
 set(XBOXRECOMP_BUILD_D3D8 OFF CACHE BOOL "" FORCE)
 set(XBOXRECOMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(${_mm3}/src/host_sdl3 host_sdl3)

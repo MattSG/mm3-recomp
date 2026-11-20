@@ -55,6 +55,8 @@ set(MM3_RENDERER "${XBOXRECOMP_RENDERER}")
 unset(XBOXRECOMP_RENDERER)        # a normal variable would shadow the cache value below
 set(XBOXRECOMP_RENDERER EXTERNAL CACHE STRING "" FORCE)
 set(XBOXRECOMP_APU_OUTPUT EXTERNAL CACHE STRING "" FORCE)
+set(XBOXRECOMP_INPUT_SDL2 OFF CACHE BOOL "" FORCE)   # the SDL3 host feeds the key table itself
+set(XBOXRECOMP_SDL3 ON CACHE BOOL "" FORCE)
 set(XBOXRECOMP_BUILD_D3D8 OFF CACHE BOOL "" FORCE)
 add_subdirectory(src/host_sdl3)     # before the toolkit: it defines xbox_d3d8
 add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)

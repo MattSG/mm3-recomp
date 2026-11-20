@@ -11,7 +11,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include "xinput_xbox.h"
+#ifdef _WIN32
 #include <xinput.h>   /* only the XINPUT_STATE types: nothing links against XInput */
+#else
+#include "platform/win32_compat.h"   /* XINPUT_STATE and the button bits */
+#endif
 #include <SDL3/SDL.h>
 
 /* SDL3 gamepads as XInput ports: port n is the n-th gamepad SDL lists. The

@@ -9,7 +9,7 @@ upstream xboxrecomp configured with the host backends left out (see
 | File | Provides |
 |---|---|
 | `video/nv2a_sdlgpu.c` | the `nv2a_d3d_*` renderer contract on SDL_GPU |
-| `video/fb_window_sdl.[ch]`, `video/fb_present_sdl.c`, `gfx/*` | the framebuffer window contract, event pump, GPU device and shader helpers |
+| `video/fb_window_sdl.[ch]`, `gfx/*` | the framebuffer window contract, event pump, GPU device and shader helpers |
 | `d3d/*` | the `xbox_d3d8` target (SDL_GPU) |
 | `apu/apu_sdl.c` | the `xa2_*` audio device on an SDL3 stream |
 | `input/sdl_pads.c` | the host pad provider; call `mm3_sdl3_install_pads()` before `xbox_InputInit()` |
@@ -20,6 +20,8 @@ Wiring (the order matters: the toolkit checks for `xbox_d3d8` when it is added):
 ```cmake
 set(XBOXRECOMP_RENDERER EXTERNAL)
 set(XBOXRECOMP_APU_OUTPUT EXTERNAL)
+set(XBOXRECOMP_INPUT_SDL2 OFF)      # the host feeds the key table; no SDL2 beside SDL3
+set(XBOXRECOMP_SDL3 ON)             # XBOXRECOMP_SDL3 for every toolkit target
 set(XBOXRECOMP_BUILD_D3D8 OFF)
 set(XBOXRECOMP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tools/xboxrecomp)
 add_subdirectory(src/host_sdl3)
