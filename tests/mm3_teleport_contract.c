@@ -17,6 +17,11 @@ unsigned mm3_race_snapshot(unsigned player, float (*xz)[2], unsigned capacity,
 #endif
 
 ptrdiff_t g_xbox_mem_offset;
+/* The force-load path (run_force) calls into translated game code; this
+ * contract never drives it, so these only satisfy the link. */
+void sub_000125EA(void) {}
+void sub_00214F74(void) {}
+void sub_000127A9(void) {}
 
 /* Test double for the fork's xbox_GuestMapped: the devkit window, with the whole
  * range inside this fixture's 8 MB committed guest buffer. */

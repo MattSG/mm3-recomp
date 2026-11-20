@@ -16,9 +16,18 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO / 'tools/xboxrecomp'))
-from tools.xiso.xdvdfs import Xiso, XisoError  # noqa: E402
-from tools.xiso.__main__ import _safe_component  # noqa: E402
+_TOOLKIT = str(REPO / 'tools/xboxrecomp')
+sys.path.insert(0, _TOOLKIT)
+try:
+    from tools.xiso.xdvdfs import Xiso, XisoError  # noqa: E402
+    from tools.xiso.__main__ import _safe_component  # noqa: E402
+finally:
+    # The toolkit's `tools` is a regular package, so while it stays imported it
+    # hides this repo's `tools` namespace (tools.game_test) from every importer
+    # in the process, such as build_gui and the unit tests. Drop it again.
+    sys.path.remove(_TOOLKIT)
+    for _name in [n for n in sys.modules if n == 'tools' or n.startswith('tools.')]:
+        del sys.modules[_name]
 
 # sha256 of default.xbe's sections, media-check branch normalised (see below).
 CODE_SHA256 = '9c437324a42a8dbd2d7dd6852969f942ad2da3a6a513196b068db4776bbf8ba4'
