@@ -618,6 +618,9 @@ static void flush_batch(void)
             break;
         case OP_DRAWI:
         case OP_DRAW:
+            /* An empty scissor writes nothing (the D3D12 debug layer reports
+             * thousands per race): skip the draw, not its state. */
+            if (o->sc.w <= 0 || o->sc.h <= 0) break;
             if (!vp_set || memcmp(&vp, &o->vp, sizeof vp)) {
                 vp = o->vp; vp_set = 1;
                 SDL_SetGPUViewport(rp, &vp);
@@ -5308,6 +5311,7 @@ static int rec_replay(Rec *r, float t)
                 }
                 case OP_DRAWI:
                 case OP_DRAW:
+                    if (o->sc.w <= 0 || o->sc.h <= 0) break;   /* writes nothing, as in flush_batch */
                     if (!vp_set || memcmp(&vp, &o->vp, sizeof vp)) { vp = o->vp; vp_set = 1; SDL_SetGPUViewport(rp, &vp); }
                     if (!sc_set || memcmp(&scs, &o->sc, sizeof scs)) { scs = o->sc; sc_set = 1; SDL_SetGPUScissor(rp, &scs); }
                     if (!blend_set || memcmp(&blend, &o->blend, sizeof blend)) {
