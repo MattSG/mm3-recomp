@@ -9,7 +9,7 @@
 #include "env_range.h"
 
 /* PAL MM3: increase the title's own visibility/LOD distances before its
- * native D3D11 translation sees geometry. Keep the original fade fractions,
+ * native renderer translation sees geometry. Keep the original fade fractions,
  * frustum construction, streaming and temporary render-pass save/restore.
  * Two knobs, both 1 = Xbox:
  *   RECOMP_DRAW_DISTANCE (default 4): object/pedestrian/traffic LODs, blob

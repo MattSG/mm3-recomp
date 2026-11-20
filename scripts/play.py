@@ -41,7 +41,7 @@ SOURCE_FILES = [
     "CMakeLists.txt", "src/mods/draw_distance.c", "src/mods/widescreen.c",
     "src/mm3_performance_profile.h", "src/mm3_performance_profiles.def", "src/mm3_building_diagnostics.c", "src/main.c",
     "src/recomp_manual.c", "tools/xboxrecomp/src/kernel/kernel_bridge.c",
-    "tools/xboxrecomp/src/video/nv2a_d3d11.c",
+    "src/host_sdl3/video/nv2a_sdlgpu.c",
 ]
 from performance_profiles import load_profiles
 PROFILE_DEFAULTS = {name.lower(): values for name, values in load_profiles().items()}
