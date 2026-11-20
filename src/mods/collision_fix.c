@@ -20,6 +20,17 @@
  * ponytail: why that cell's compressed input differs between runs is not
  * known; the guard holds whatever the decoded indices are. */
 extern void sub_0015A929_original(void);
+extern void sub_00159186_original(void);
+
+/* The cell decoder only runs on a cache miss. A miss can decode into the very
+ * buffer the cell already pointed at (the ring frees and reuses it), so the
+ * cell pointer alone cannot say whether the data is fresh. */
+static RECOMP_TLS int s_decoded;
+void sub_00159186(void)
+{
+    s_decoded = 1;
+    sub_00159186_original();
+}
 
 static int ok_range(uint32_t a, uint32_t bytes)
 {
@@ -58,7 +69,8 @@ static void sanitize(uint32_t hdr)
 void sub_0015A929(void)
 {
     uint32_t cell = g_esi, before = ok_range(cell, 4) ? MEM32(cell) : 0;
+    s_decoded = 0;
     sub_0015A929_original();
-    if (ok_range(cell, 4) && (g_eax & 0xFF) && MEM32(cell) != before)
+    if (ok_range(cell, 4) && (g_eax & 0xFF) && (s_decoded || MEM32(cell) != before))
         sanitize(MEM32(cell));                 /* this call decoded the cell */
 }

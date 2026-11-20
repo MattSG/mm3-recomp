@@ -30,7 +30,7 @@ function(mm3_prepare_generated_sources out RECOMP_GEN_DIR)
     # Render distance renames definitions only: renaming every reference with a
     # compile definition would bypass the hooks for callers in the same chunk.
     set(MM3_DISTANCE_FUNCTIONS sub_000D9E2E sub_000E2D5B sub_000F4AC3 sub_000FE71E
-        sub_001630A7 sub_001661D0 sub_002256C7 sub_00248518 sub_002203E5 sub_0022F298 sub_0015A929 sub_000F8DCE sub_000F8750)
+        sub_001630A7 sub_001661D0 sub_002256C7 sub_00248518 sub_002203E5 sub_0022F298 sub_0015A929 sub_00159186 sub_000F8DCE sub_000F8750)
     set(MM3_DEFINITION_ONLY_FUNCTIONS ${MM3_DISTANCE_FUNCTIONS})
     # In-memory mission script correction and old-film filter lifecycle reset.
     list(APPEND MM3_DEFINITION_ONLY_FUNCTIONS sub_00088A6E sub_00235D1C sub_00237392)

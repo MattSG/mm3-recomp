@@ -6,8 +6,15 @@
 
 ptrdiff_t g_xbox_mem_offset;
 RECOMP_TLS uint32_t g_eax, g_esi;
+/* Stand-in for the runtime's xbox_GuestRangeInWindow: the 128 MB guest window. */
+int xbox_GuestRangeInWindow(uint32_t va, uint32_t bytes)
+{
+    return va >= 0x10000u && va < 0x08000000u && bytes <= 0x08000000u - va;
+}
 static uint32_t decoded;
-void sub_0015A929_original(void) { MEM32(g_esi) = decoded; g_eax = 1; }
+static int redecode;
+void sub_00159186_original(void) {}
+void sub_0015A929_original(void) { MEM32(g_esi) = decoded; g_eax = 1; if (redecode) sub_00159186(); }
 
 int main(void)
 {
@@ -46,6 +53,10 @@ int main(void)
     g_esi = 0x13000; decoded = hdr;
     MEM16(list) = 0xFFFF; sub_0015A929(); assert(MEM16(list) < 3);
     MEM16(list) = 0xFFFF; sub_0015A929(); assert(MEM16(list) == 0xFFFF);
+    /* A decode into the buffer the cell already pointed at is still fresh data. */
+    redecode = 1;
+    MEM16(list) = 0xFFFF; sub_0015A929(); assert(MEM16(list) < 3);
+    redecode = 0;
     assert(VirtualFree(ram, 0, MEM_RELEASE));
     puts("PASS: collision dimensions, full ranges, repair and cache-hit behavior");
     return 0;
