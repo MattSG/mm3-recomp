@@ -13,7 +13,6 @@
 #include "keymap_spec.h"
 #include "ui/rmlui_host.h"
 
-#if defined(XBOXRECOMP_SDL3)
 /* The SDL3 GPU build (also Linux) has no Win32 or XInput. The launcher's
  * Win32 calls are shimmed below with the same names and layouts, so the
  * shared logic reads the same in both builds. Keys reach the launcher as
@@ -149,11 +148,6 @@ static int vk_of_key(Rml::Input::KeyIdentifier k)
     default: return 0;
     }
 }
-#else
-#include <windows.h>
-#include <dwmapi.h>
-#include <Xinput.h>   /* the XINPUT_STATE type only: the pad itself is read through the runtime */
-#endif
 
 /* The launcher's controller reads use the runtime's one host pad path (SDL3,
  * tools/xboxrecomp/src/input/xinput_device.c) in both builds. */
@@ -515,7 +509,6 @@ scrollbarvertical sliderbar { background-color: #2f333c; border-radius: 3dp; }
 </body></rml>
 )RML";
 
-#if defined(XBOXRECOMP_SDL3)
 Rml::String key_name(int vk)
 {
     switch (vk) {
@@ -552,32 +545,6 @@ Rml::String key_name(int vk)
     snprintf(name, sizeof name, "Key %02X", vk);
     return name;
 }
-#else
-Rml::String key_name(int vk)
-{
-    switch (vk) {
-    case 0: return "Unbound";
-    case VK_LBUTTON: return "Left mouse";
-    case VK_RBUTTON: return "Right mouse";
-    case VK_MBUTTON: return "Middle mouse";
-    case VK_XBUTTON1: return "Mouse 4";
-    case VK_XBUTTON2: return "Mouse 5";
-    }
-    LONG param = (LONG)MapVirtualKeyA(vk, MAPVK_VK_TO_VSC) << 16;
-    if (vk >= VK_PRIOR && vk <= VK_DELETE) /* the extended navigation block, not the numpad */
-        param |= 1 << 24;
-    char name[64];
-    if ((param >> 16) && GetKeyNameTextA(param, name, sizeof name)) {
-        /* Windows names some keys in capitals (ENTER, BACKSPACE). */
-        for (char *c = name + 1; *c; c++)
-            if (c[-1] != ' ')
-                *c = (char)tolower((unsigned char)*c);
-        return name;
-    }
-    snprintf(name, sizeof name, "Key %02X", vk);
-    return name;
-}
-#endif
 
 /* The controller's buttons by RECOMP_PADMAP's names, and their XInput bits
  * (tools/xboxrecomp/src/input/xinput_device.c); the last two are triggers. */
@@ -889,14 +856,13 @@ void save_and_export()
     set_env("RECOMP_KEYMAP", keys.c_str());
     set_env("RECOMP_PADMAP", pad.c_str());
     set_env("MM3_DEV_HOTKEYS", getenv("MM3_DEV_HOTKEYS_ON") ? hotkeys.c_str() : "");
-    /* What scripts/play.py sets: the window, D3D11 executor, pads and audio. */
+    /* What scripts/play.py sets: the window, SDL_GPU executor, pads and audio. */
     set_env("RECOMP_PB_EXEC", "1");
     set_env("RECOMP_FB_WINDOW", "1");
     set_env("RECOMP_USB", "1");
 }
 
 /* Started from build\<config>\: run from the folder above that holds game_files\. */
-#if defined(XBOXRECOMP_SDL3)
 bool find_game_dir()
 {
     if (file_exists("game_files/default.xbe"))
@@ -919,24 +885,6 @@ bool find_game_dir()
         *slash = 0;
     }
 }
-#else
-bool find_game_dir()
-{
-    char dir[MAX_PATH];
-    if (GetFileAttributesA("game_files\\default.xbe") != INVALID_FILE_ATTRIBUTES)
-        return true;
-    if (!GetModuleFileNameA(NULL, dir, MAX_PATH))
-        return false;
-    for (char *slash; (slash = strrchr(dir, '\\')) != NULL;) {
-        *slash = 0;
-        char probe[MAX_PATH];
-        snprintf(probe, sizeof probe, "%s\\game_files\\default.xbe", dir);
-        if (GetFileAttributesA(probe) != INVALID_FILE_ATTRIBUTES)
-            return SetCurrentDirectoryA(dir) != 0;
-    }
-    return false;
-}
-#endif
 
 Option *mode_option()
 {
@@ -989,7 +937,6 @@ Rml::String city_markup()
     return out + "</div>";
 }
 
-#if defined(XBOXRECOMP_SDL3)
 extern "C" void fbw_initial_size(int work_w, int work_h, int *w, int *h);
 
 /* The game takes this window as it is. Windowed, it then resized it to its own
@@ -1012,7 +959,6 @@ void size_for_game()
     }
     SDL_free(windows);
 }
-#endif
 
 void play()
 {
@@ -1302,12 +1248,10 @@ bool on_key(Rml::Context *ctx, Rml::Input::KeyIdentifier key, int mods, float, b
     if (g_capture >= 0) { /* the prompt owns the keyboard */
         if (key == Rml::Input::KI_ESCAPE)
             end_capture();
-#if defined(XBOXRECOMP_SDL3)
         else if (!pad_bind(g_binds[g_capture]) && vk_of_key(key)) {
             set_key(g_binds[g_capture], vk_of_key(key));
             end_capture();
         }
-#endif
         return false;
     }
     set_pad(false);
@@ -1325,25 +1269,12 @@ bool on_key(Rml::Context *ctx, Rml::Input::KeyIdentifier key, int mods, float, b
     return false;
 }
 
-#if defined(XBOXRECOMP_SDL3)
 /* The document asks for Segoe UI; the host registers the first installed
  * sans-serif pair under that name (regular and bold). */
 void load_fonts()
 {
     rmlui_host_load_sans_fonts("Segoe UI");
 }
-#else
-void load_fonts()
-{
-    char fonts[MAX_PATH];
-    GetWindowsDirectoryA(fonts, MAX_PATH);
-    for (const char *name : {"segoeui.ttf", "segoeuib.ttf"}) {
-        char path[MAX_PATH];
-        snprintf(path, sizeof path, "%s\\Fonts\\%s", fonts, name);
-        Rml::LoadFontFace(path);
-    }
-}
-#endif
 
 /* The backend's system interface, with RmlUi's log on stderr (tagged launcher). */
 RmlUiHostLogSystem g_system;
@@ -1472,13 +1403,11 @@ static void launcher_before_update(Rml::Context *, double now, void *)
             g_splash = 1;
             g_model.DirtyVariable("splash");
         }
-#if defined(XBOXRECOMP_SDL3)
         static bool sized;
         if (!sized && now - g_play_at > 0.3) {   /* under the splash, now opaque */
             sized = true;
             size_for_game();
         }
-#endif
         if (now - g_play_at > 0.45)
             g_result = 1;
         return;   /* no input while it does */
@@ -1555,12 +1484,6 @@ static void launcher_unavailable(void *)
 
 extern "C" int mm3_launcher(void)
 {
-#if !defined(XBOXRECOMP_SDL3)
-    /* Double-clicked: the console only carries diagnostics, drop it. */
-    DWORD pids[2];
-    if (GetConsoleProcessList(pids, 2) == 1)
-        FreeConsole();
-#endif
 
     g_missing = !find_game_dir();
     load_settings();

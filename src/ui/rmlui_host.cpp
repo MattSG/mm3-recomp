@@ -2,7 +2,6 @@
 #include <RmlUi_Backend.h>
 #include <stdio.h>
 
-#if defined(XBOXRECOMP_SDL3)
 #include <SDL3/SDL.h>
 extern "C" int xbox_FramebufferStartHidden(void);
 extern "C" void xbox_FramebufferSdlHints(void);
@@ -10,46 +9,8 @@ extern "C" void fbw_sdl_adopt(SDL_Window *window, void (*release)(void));
 SDL_Window *rmlui_backend_hand_over();
 extern bool rmlui_backend_fullscreen;
 void rmlui_backend_release_window();
-#else
-#include <RmlUi_Renderer_DX11.h>
-#include <windows.h>
-#include <dwmapi.h>
-#endif
 
-#if !defined(XBOXRECOMP_SDL3)
-/* The backend's window: the thread's visible top-level window, NULL while hidden. */
-static HWND host_window(void)
-{
-    HWND hwnd = NULL;
-    EnumThreadWindows(GetCurrentThreadId(), [](HWND h, LPARAM p) -> BOOL {
-        if (!IsWindowVisible(h))
-            return TRUE;
-        *(HWND *)p = h;
-        return FALSE;
-    }, (LPARAM)&hwnd);
-    return hwnd;
-}
 
-/* A dark caption in the client's colour instead of the light default. */
-static void dark_title_bar(int icon_resource)
-{
-    HWND hwnd = host_window();
-    if (!hwnd)
-        return;
-    const BOOL dark = TRUE;
-    const COLORREF caption = RGB(0x12, 0x14, 0x18);
-    DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &dark, sizeof dark);
-    DwmSetWindowAttribute(hwnd, 35 /* DWMWA_CAPTION_COLOR, Windows 11 */, &caption, sizeof caption);
-    if (icon_resource) {
-        if (HICON icon = LoadIconA(GetModuleHandleA(NULL), MAKEINTRESOURCEA(icon_resource))) {
-            SendMessageA(hwnd, WM_SETICON, ICON_BIG, (LPARAM)icon);
-            SendMessageA(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)icon);
-        }
-    }
-}
-#endif
-
-#if defined(XBOXRECOMP_SDL3)
 static SDL_Window *host_window(void)
 {
     int count = 0;
@@ -58,20 +19,11 @@ static SDL_Window *host_window(void)
     SDL_free(windows);
     return window;
 }
-#else
-static bool s_fullscreen;
-static LONG s_windowed_style;
-static RECT s_windowed_rect;
-#endif
 
 int rmlui_host_fullscreen(void)
 {
-#if defined(XBOXRECOMP_SDL3)
     SDL_Window *window = host_window();
     return window && (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) != 0;
-#else
-    return s_fullscreen;
-#endif
 }
 
 /* Borderless fullscreen on the window's display, and back to the window it was. */
@@ -79,32 +31,10 @@ void rmlui_host_set_fullscreen(int on)
 {
     if (!on == !rmlui_host_fullscreen())
         return;
-#if defined(XBOXRECOMP_SDL3)
     SDL_Window *window = host_window();
     if (window && !(SDL_GetWindowFlags(window) & SDL_WINDOW_HIDDEN) &&   /* a hidden start stays hidden, */
         !SDL_getenv("MM3_LAUNCHER_OFFSCREEN"))                           /* an off-screen one off screen */
         SDL_SetWindowFullscreen(window, on != 0);   /* no mode set: the desktop's */
-#else
-    HWND hwnd = host_window();
-    if (!hwnd)
-        return;
-    if (on) {
-        MONITORINFO monitor = {sizeof monitor};
-        GetMonitorInfoA(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitor);
-        s_windowed_style = GetWindowLongA(hwnd, GWL_STYLE);
-        GetWindowRect(hwnd, &s_windowed_rect);
-        SetWindowLongA(hwnd, GWL_STYLE, (s_windowed_style & ~WS_OVERLAPPEDWINDOW) | WS_POPUP);
-        const RECT &r = monitor.rcMonitor;
-        SetWindowPos(hwnd, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top,
-                     SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
-    } else {
-        SetWindowLongA(hwnd, GWL_STYLE, s_windowed_style);
-        const RECT &r = s_windowed_rect;
-        SetWindowPos(hwnd, NULL, r.left, r.top, r.right - r.left, r.bottom - r.top,
-                     SWP_FRAMECHANGED | SWP_NOOWNERZORDER | SWP_NOZORDER);
-    }
-    s_fullscreen = on != 0;
-#endif
 }
 
 /* The document is laid out for max_width x max_height dp. A larger window (or
@@ -112,13 +42,8 @@ void rmlui_host_set_fullscreen(int on)
  * and scrolls or reflows instead of shrinking the text. */
 static void fit_to_window(Rml::Context *ctx, const RmlUiHostOptions *options)
 {
-#if defined(XBOXRECOMP_SDL3)
     SDL_Window *window = host_window();
     const float native = window ? SDL_GetWindowDisplayScale(window) : 1.0f;
-#else
-    HWND hwnd = host_window();
-    const float native = hwnd ? (float)GetDpiForWindow(hwnd) / 96.0f : 1.0f;
-#endif
     const Rml::Vector2i size = ctx->GetDimensions();
     const float fit = Rml::Math::Min((float)size.x / (float)options->max_width,
                                      (float)size.y / (float)options->max_height);
@@ -130,7 +55,6 @@ static void fit_to_window(Rml::Context *ctx, const RmlUiHostOptions *options)
 int rmlui_host_run(const RmlUiHostOptions *options, const RmlUiHostClient *client)
 {
     int width, height;
-#if defined(XBOXRECOMP_SDL3)
     /* 10/9 of the window size, so the usable display bounds can shrink it. */
     SDL_Rect work = {0, 0, options->max_width * 10 / 9, options->max_height * 10 / 9};
     xbox_FramebufferSdlHints();   /* the same video driver choice as the game */
@@ -141,22 +65,11 @@ int rmlui_host_run(const RmlUiHostOptions *options, const RmlUiHostClient *clien
     rmlui_backend_fullscreen = options->fullscreen && !xbox_FramebufferStartHidden();
     /* The SDL GPU backend ships SPIR-V shaders only, which only Vulkan takes on Windows. */
     SDL_SetHint(SDL_HINT_GPU_DRIVER, "vulkan");
-#else
-    /* Not DPI-aware yet, so the work area is in the backend's 96-dpi units. */
-    RECT work = {0, 0, options->max_width, options->max_height};
-    SystemParametersInfoA(SPI_GETWORKAREA, 0, &work, 0);
-    width = Rml::Math::Min(options->max_width, (int)(work.right - work.left) * 9 / 10);
-    height = Rml::Math::Min(options->max_height, (int)(work.bottom - work.top) * 9 / 10);
-#endif
     if (!Backend::Initialize(options->title, width, height, true)) {
         if (client->unavailable)
             client->unavailable(client->user);
         return 0;
     }
-#if !defined(XBOXRECOMP_SDL3)
-    if (options->dark_title_bar)
-        dark_title_bar(options->icon_resource);
-#else
     /* A hidden start (scripts, tests), which the Win32 backend's first
      * ShowWindow honours and SDL's window does not. */
     if (xbox_FramebufferStartHidden()) {
@@ -166,7 +79,6 @@ int rmlui_host_run(const RmlUiHostOptions *options, const RmlUiHostClient *clien
             SDL_HideWindow(windows[i]);
         SDL_free(windows);
     }
-#endif
     client->bind_system(client->user);
     Rml::SetSystemInterface(client->system);
     Rml::SetRenderInterface(Backend::GetRenderInterface());
@@ -181,11 +93,7 @@ int rmlui_host_run(const RmlUiHostOptions *options, const RmlUiHostClient *clien
          * is polled every frame (the backend presents with v-sync). */
         while (client->keep_running(client->user) &&
                Backend::ProcessEvents(ctx, client->on_key, !
-#if defined(XBOXRECOMP_SDL3)
                    SDL_GetKeyboardFocus()
-#else
-                   GetActiveWindow()
-#endif
                )) {
             const double now = Rml::GetSystemInterface()->GetElapsedTime();
             client->before_update(ctx, now, client->user);
@@ -196,11 +104,6 @@ int rmlui_host_run(const RmlUiHostOptions *options, const RmlUiHostClient *clien
              * A hidden startup need not send another one: seed its viewport
              * from the context's actual pixel size before drawing. */
             const Rml::Vector2i dimensions = ctx->GetDimensions();
-#if !defined(XBOXRECOMP_SDL3)
-            static_cast<RenderInterface_DX11 *>(Backend::GetRenderInterface())->SetViewport(
-                dimensions.x, dimensions.y);
-#endif
-#if defined(XBOXRECOMP_SDL3)
             /* No swapchain image while hidden or minimized, and RmlUi's SDL GPU
              * backend then submits a cancelled command buffer: skip the frame. */
             {
@@ -214,7 +117,6 @@ int rmlui_host_run(const RmlUiHostOptions *options, const RmlUiHostClient *clien
                     continue;
                 }
             }
-#endif
             /* The SDL GPU renderer takes its viewport from each swapchain image. */
             Backend::BeginFrame();
             ctx->Render();
@@ -228,12 +130,10 @@ int rmlui_host_run(const RmlUiHostOptions *options, const RmlUiHostClient *clien
         }
     }
     Rml::Shutdown();
-#if defined(XBOXRECOMP_SDL3)
     if (client->hand_over && client->hand_over(client->user)) {
         fbw_sdl_adopt(rmlui_backend_hand_over(), rmlui_backend_release_window);
         return 1;
     }
-#endif
     Backend::Shutdown();
     return 1;
 }

@@ -1,12 +1,8 @@
-#if defined(XBOXRECOMP_SDL3)
 /* No <windows.h> on this path: the runtime's portable headers supply the
  * NT types, SRWLOCK and GetTickCount64 (the real SDK on a Windows host). */
 #include <SDL3/SDL.h>
 #include "platform/xbox_winnt.h"
 #include "platform/win32_compat.h"
-#else
-#include <windows.h>
-#endif
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -51,7 +47,6 @@ static CursorPrompt cursor_prompts[16];
 static SRWLOCK cursor_lock = SRWLOCK_INIT;
 #include "menu_cursor.h"
 
-#if defined(XBOXRECOMP_SDL3)
 /* SDL cursors need the video subsystem, which starts after mods init, so they
  * are made on the window thread at first use. */
 static void make_menu_cursors(void)
@@ -62,14 +57,11 @@ static void make_menu_cursors(void)
     menu_cursor = create_menu_cursor();
     menu_hand = create_menu_hand();
 }
-#endif
 
 static XboxCursor native_cursor(void)
 {
     if (!enabled()) return NULL;
-#if defined(XBOXRECOMP_SDL3)
     make_menu_cursors();
-#endif
     float x, y;
     xbox_FramebufferMouse(&x, &y);
     XboxCursor cursor = menu_cursor;
@@ -354,13 +346,6 @@ static int mouse_click(float x, float y)
 void mm3_menu_mouse_init(void)
 {
     (void)enabled(); /* Cache environment settings before worker threads start. */
-#if !defined(XBOXRECOMP_SDL3)
-    /* Windows composites the themed pointer independently of guest frames. */
-    menu_cursor = create_menu_cursor();
-    if (!menu_cursor) menu_cursor = LoadCursorA(NULL, IDC_ARROW);
-    menu_hand = create_menu_hand();
-    if (!menu_hand) menu_hand = LoadCursorA(NULL, IDC_HAND);
-#endif
     xbox_FramebufferSetCursorHandler(native_cursor);
     xbox_InputSetMenuClickHandler(mouse_click);
 }

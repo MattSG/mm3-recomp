@@ -17,3 +17,8 @@ The builder's own tests (`tests/test_build_gui.py`) need nothing else and are th
 `tools/game_test/` holds the runtime harness (needs the built game and extracted assets).
 
 `tools/run_regressions.ps1` runs every regression and `test_*.py` in the VS environment and prints a summary (`-Filter` narrows it).
+
+`tests/menu_mouse/` (the native menu-mouse contract) and `tests/host_sdl3_hooks/` need SDL3 and are not in CI.
+The mouse contract drives real SDL cursors, so it needs a display (`xvfb-run` works; `SDL_VIDEO_DRIVER=dummy`
+has no cursors). `host_sdl3_hooks` builds SDL3 and DXC on first configure (long) and uses an SDL_GPU device when
+there is one (Mesa's lavapipe under Xvfb is enough).

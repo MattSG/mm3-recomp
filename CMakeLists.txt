@@ -44,14 +44,14 @@ endif()
 set(XBOXRECOMP_DSP_PROGRAM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/game_files/dsp")
 # MM3 owns its depth-view compatibility shader; both host renderers use it.
 set(XBOXRECOMP_NV2A_SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/mods/shaders/nv2a")
-# MM3 carries its own SDL3 host stack (src/host_sdl3) and builds the toolkit
-# with its renderer, window, audio device and D3D8 layer left out. MM3_RENDERER
-# is MM3's own choice (setup.py passes it as -DXBOXRECOMP_RENDERER=SDL3_GPU);
-# the toolkit always sees EXTERNAL.
-if(NOT XBOXRECOMP_RENDERER OR XBOXRECOMP_RENDERER STREQUAL "EXTERNAL")
-    set(XBOXRECOMP_RENDERER "SDL3_GPU")
+# MM3 carries its own SDL3 host stack (src/host_sdl3) on every platform and
+# builds the toolkit with its renderer, window, audio device and D3D8 layer left
+# out (the toolkit always sees EXTERNAL). SDL3_GPU is the only renderer;
+# setup.py passes it as -DXBOXRECOMP_RENDERER=SDL3_GPU.
+if(XBOXRECOMP_RENDERER AND NOT XBOXRECOMP_RENDERER STREQUAL "EXTERNAL"
+        AND NOT XBOXRECOMP_RENDERER STREQUAL "SDL3_GPU")
+    message(FATAL_ERROR "XBOXRECOMP_RENDERER=${XBOXRECOMP_RENDERER}: SDL3_GPU is the only renderer")
 endif()
-set(MM3_RENDERER "${XBOXRECOMP_RENDERER}")
 unset(XBOXRECOMP_RENDERER)        # a normal variable would shadow the cache value below
 set(XBOXRECOMP_RENDERER EXTERNAL CACHE STRING "" FORCE)
 set(XBOXRECOMP_APU_OUTPUT EXTERNAL CACHE STRING "" FORCE)
@@ -73,9 +73,8 @@ if(MSVC AND MM3_DSP_AUTO_INLINE)
 endif()
 
 
-# Settings launcher (src/mm3_launcher.cpp): RmlUi on its Win32/D3D11 backend,
-# or with the SDL3 GPU renderer its SDL3 platform and SDL GPU renderer;
-# FreeType for its fonts. Static, fetched once at configure time.
+# Settings launcher (src/mm3_launcher.cpp): RmlUi on its SDL3 platform and SDL GPU
+# renderer, on every platform; FreeType for its fonts. Static, fetched once at configure time.
 include(FetchContent)
 if(POLICY CMP0135)
     cmake_policy(SET CMP0135 NEW)   # archive timestamps: extraction time (CMake 3.24+)
@@ -99,46 +98,32 @@ FetchContent_Declare(imgui
     URL https://github.com/ocornut/imgui/archive/refs/tags/v1.91.9b.tar.gz
     URL_HASH SHA256=8e1bbc76c71d74fef2fb85db7e7ca8eba13d6a86623c54992b60162db554ffdb)
 FetchContent_MakeAvailable(imgui)
-if(MM3_RENDERER STREQUAL "SDL3_GPU")
-    # RmlUi's SDL GPU renderer loads textures through SDL3_image; the
-    # launcher's images need no external codecs.
-    set(SDLIMAGE_VENDORED OFF CACHE BOOL "" FORCE)
-    set(SDLIMAGE_DEPS_SHARED OFF CACHE BOOL "" FORCE)
-    set(SDLIMAGE_SAMPLES OFF CACHE BOOL "" FORCE)
-    set(SDLIMAGE_TESTS OFF CACHE BOOL "" FORCE)
-    set(SDLIMAGE_INSTALL OFF CACHE BOOL "" FORCE)
-    set(SDLIMAGE_PNG_LIBPNG OFF CACHE BOOL "" FORCE)
-    foreach(format AVIF JXL TIF WEBP)
-        set(SDLIMAGE_${format} OFF CACHE BOOL "" FORCE)
-    endforeach()
-    FetchContent_Declare(SDL3_image
-        URL https://github.com/libsdl-org/SDL_image/releases/download/release-3.4.6/SDL3_image-3.4.6.tar.gz
-        URL_HASH SHA256=d2e4637ae700f72e5196b8fbd749850ed2e5e1e09c5a5be8d06ff55aaccf3b01)
-    FetchContent_MakeAvailable(SDL3_image)
-    set(MM3_RMLUI_BACKEND
-        ${rmlui_SOURCE_DIR}/Backends/RmlUi_Platform_SDL.cpp
-        ${rmlui_SOURCE_DIR}/Backends/RmlUi_Renderer_SDL_GPU.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/rmlui_backend_sdlgpu.cpp)   # RmlUi's, able to hand its window over
-    set(MM3_RMLUI_BACKEND_LIBS SDL3::SDL3 SDL3_image::SDL3_image)
-    set(MM3_IMGUI_BACKEND
-        ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp
-        ${imgui_SOURCE_DIR}/backends/imgui_impl_sdlgpu3.cpp)
-    set(MM3_IMGUI_BACKEND_LIBS SDL3::SDL3)
-    set(MM3_D3D11_LIBS)
-else()
-    set(MM3_RMLUI_BACKEND
-        ${rmlui_SOURCE_DIR}/Backends/RmlUi_Platform_Win32.cpp
-        ${rmlui_SOURCE_DIR}/Backends/RmlUi_Renderer_DX11.cpp
-        ${rmlui_SOURCE_DIR}/Backends/RmlUi_Backend_Win32_DX11.cpp)
-    set(MM3_RMLUI_BACKEND_LIBS d3d11 dxgi d3dcompiler dwmapi)
-    set(MM3_IMGUI_BACKEND
-        ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp
-        ${imgui_SOURCE_DIR}/backends/imgui_impl_dx11.cpp)
-    set(MM3_IMGUI_BACKEND_LIBS d3d11 d3dcompiler dwmapi)
-    set(MM3_D3D11_LIBS d3d11 dxgi d3dcompiler dwmapi)
-endif()
-# Windows' pad API stays XInput with either renderer; elsewhere pads come
-# through SDL3 (tools/xboxrecomp/src/input).
+# RmlUi's SDL GPU renderer loads textures through SDL3_image; the
+# launcher's images need no external codecs.
+set(SDLIMAGE_VENDORED OFF CACHE BOOL "" FORCE)
+set(SDLIMAGE_DEPS_SHARED OFF CACHE BOOL "" FORCE)
+set(SDLIMAGE_SAMPLES OFF CACHE BOOL "" FORCE)
+set(SDLIMAGE_TESTS OFF CACHE BOOL "" FORCE)
+set(SDLIMAGE_INSTALL OFF CACHE BOOL "" FORCE)
+set(SDLIMAGE_PNG_LIBPNG OFF CACHE BOOL "" FORCE)
+foreach(format AVIF JXL TIF WEBP)
+    set(SDLIMAGE_${format} OFF CACHE BOOL "" FORCE)
+endforeach()
+FetchContent_Declare(SDL3_image
+    URL https://github.com/libsdl-org/SDL_image/releases/download/release-3.4.6/SDL3_image-3.4.6.tar.gz
+    URL_HASH SHA256=d2e4637ae700f72e5196b8fbd749850ed2e5e1e09c5a5be8d06ff55aaccf3b01)
+FetchContent_MakeAvailable(SDL3_image)
+set(MM3_RMLUI_BACKEND
+    ${rmlui_SOURCE_DIR}/Backends/RmlUi_Platform_SDL.cpp
+    ${rmlui_SOURCE_DIR}/Backends/RmlUi_Renderer_SDL_GPU.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/rmlui_backend_sdlgpu.cpp)   # RmlUi's, able to hand its window over
+set(MM3_RMLUI_BACKEND_LIBS SDL3::SDL3 SDL3_image::SDL3_image)
+set(MM3_IMGUI_BACKEND
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_sdlgpu3.cpp)
+set(MM3_IMGUI_BACKEND_LIBS SDL3::SDL3)
+# Pads come through SDL3 on every platform (mm3_sdl3_install_pads in main); the
+# Windows libraries are for the launcher's and contracts' Win32 calls.
 if(WIN32)
     set(MM3_WIN32_LIBS xinput user32)
     set(MM3_LIBM)
@@ -231,10 +216,8 @@ add_executable(${PROJECT_NAME}
 if(WIN32)
     target_sources(${PROJECT_NAME} PRIVATE src/mm3.rc)
 endif()
-if(MM3_RENDERER STREQUAL "SDL3_GPU")
-    set_property(SOURCE ${MM3_RMLUI_BACKEND} src/mm3_launcher.cpp src/ui/rmlui_host.cpp APPEND PROPERTY
-        COMPILE_DEFINITIONS RMLUI_SDL_VERSION_MAJOR=3)
-endif()
+set_property(SOURCE ${MM3_RMLUI_BACKEND} src/mm3_launcher.cpp src/ui/rmlui_host.cpp APPEND PROPERTY
+    COMPILE_DEFINITIONS RMLUI_SDL_VERSION_MAJOR=3)
 
 set_property(SOURCE src/recomp_manual.c APPEND PROPERTY COMPILE_DEFINITIONS
     "recomp_lookup_manual=recomp_lookup_manual_base")
@@ -279,20 +262,6 @@ foreach(check teleport dev_tools draw_distance)
     endif()
 endforeach()
 
-# Win32-only checks, so not registered elsewhere. The overlay check drives the
-# WM_* message path of debug_overlay.cpp with the Win32/DX11 ImGui backend
-# (the SDL3 build reads SDL events instead, and the SDL3 build's ImGui backend
-# is not linked here), and the input check drives the XInput port ABI, which
-# xinput_device.c uses only on Windows (SDL gamepads elsewhere).
-if(WIN32 AND MM3_RENDERER STREQUAL "D3D11")
-    add_executable(mm3_overlay_contract EXCLUDE_FROM_ALL tests/mm3_overlay_contract.cpp)
-    target_include_directories(mm3_overlay_contract PRIVATE src src/recomp ${RECOMP_GEN_DIR}
-        ${XBOXRECOMP_DIR}/include ${XBOXRECOMP_DIR}/src/video)
-    target_link_libraries(mm3_overlay_contract PRIVATE mm3_imgui ${MM3_WIN32_LIBS})
-    if(MSVC)
-        target_compile_options(mm3_overlay_contract PRIVATE /UNDEBUG)
-    endif()
-endif()
 
 # GNU linkers only: route recomp_trace_esp through src/recomp_trace_probe.c
 # (an opt-in RECOMP_TRACE_EFD85 diagnostic).
@@ -316,12 +285,10 @@ target_include_directories(mm3_launcher_settings_contract PRIVATE src
     ${rmlui_SOURCE_DIR}/Backends ${XBOXRECOMP_DIR}/src/video ${XBOXRECOMP_DIR}/src/input)
 target_link_libraries(mm3_launcher_settings_contract PRIVATE platform RmlUi::RmlUi
     ${MM3_RMLUI_BACKEND_LIBS} ${MM3_WIN32_LIBS} ${MM3_LIBM})
-if(MM3_RENDERER STREQUAL "SDL3_GPU")
-    # The launcher source selects its SDL3 path and RmlUi's SDL3 renderer on
-    # these; the contract includes the launcher source, so set them here.
-    target_compile_definitions(mm3_launcher_settings_contract PRIVATE
-        XBOXRECOMP_SDL3=1 RMLUI_SDL_VERSION_MAJOR=3)
-endif()
+# The launcher source selects its SDL3 path and RmlUi's SDL3 renderer on these;
+# the contract includes the launcher source, so set them here.
+target_compile_definitions(mm3_launcher_settings_contract PRIVATE
+    XBOXRECOMP_SDL3=1 RMLUI_SDL_VERSION_MAJOR=3)
 if(MSVC)
     target_compile_options(mm3_launcher_settings_contract PRIVATE /UNDEBUG)
 endif()
@@ -329,6 +296,6 @@ endif()
 # The distance enhancement belongs to this port, including host shaders.
 target_sources(mm3_recomp PRIVATE src/mods/render_fog.c)
 include(cmake/MM3RenderFog.cmake)
-mm3_render_fog_shaders(mm3_recomp "${MM3_RENDERER}")
+mm3_render_fog_shaders(mm3_recomp)
 
 mm3_copy_runtime_dlls(mm3_recomp)

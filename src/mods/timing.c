@@ -106,12 +106,10 @@ static void begin_tick(uint32_t game, uint32_t current_state)
         now = seconds();
         if (mm3_tick_clock_take(&clock_state, now)) {
             late_seconds = now - (clock_state.next_tick - clock_state.step);
-#if defined(XBOXRECOMP_SDL3)
             /* The step's scheduled start, on the performance counter's clock (as seconds() is). */
             extern void nv2a_sdlgpu_tick_started(double start, double step);
             if (mm3_mod_on(MM3_MOD_INTERP))
                 nv2a_sdlgpu_tick_started(clock_state.next_tick - clock_state.step, clock_state.step);
-#endif
             break;
         }
         if (mm3_tick_clock_present(&clock_state, now))
