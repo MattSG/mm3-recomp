@@ -20,7 +20,7 @@ void __wrap_recomp_trace_esp(const char *name, const char *tag)
                 "item=%08X %08X %08X %08X %08X %08X edi=%08X\n",
                 tag, frame, MEM32(frame - 8u), MEM32(item), MEM32(item + 4u),
                 MEM32(item + 8u), MEM32(item + 12u), MEM32(item + 16u),
-                MEM32(item + 20u), MEM32(item + 24u), g_edi);
+                MEM32(item + 20u), MEM32(item + 24u), MEM32(item + 28u), g_edi);
     }
 
     __real_recomp_trace_esp(name, tag);
