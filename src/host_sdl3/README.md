@@ -9,7 +9,7 @@ upstream xboxrecomp configured with the host backends left out (see
 | File | Provides |
 |---|---|
 | `video/nv2a_sdlgpu.c` | the `nv2a_d3d_*` renderer contract on SDL_GPU |
-| `video/fb_window_sdl.[ch]`, `video/fb_present_sdl.c`, `gfx/*` | the framebuffer window contract, event pump, GPU device and shader helpers |
+| `video/fb_window_sdl.[ch]`, `gfx/*` | the framebuffer window contract, event pump, GPU device and shader helpers |
 | `d3d/*` | the `xbox_d3d8` target (SDL_GPU) |
 | `apu/apu_sdl.c` | the `xa2_*` audio device on an SDL3 stream |
 | `input/sdl_pads.c` | the host pad provider; call `mm3_sdl3_install_pads()` before `xbox_InputInit()` |

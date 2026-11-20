@@ -56,8 +56,20 @@ unset(XBOXRECOMP_RENDERER)        # a normal variable would shadow the cache val
 set(XBOXRECOMP_RENDERER EXTERNAL CACHE STRING "" FORCE)
 set(XBOXRECOMP_APU_OUTPUT EXTERNAL CACHE STRING "" FORCE)
 set(XBOXRECOMP_BUILD_D3D8 OFF CACHE BOOL "" FORCE)
+# The SDL3 window (src/host_sdl3) feeds the key table itself: no SDL2 on POSIX.
+set(XBOXRECOMP_INPUT_SDL2 OFF CACHE BOOL "" FORCE)
 add_subdirectory(src/host_sdl3)     # before the toolkit: it defines xbox_d3d8
 add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)
+if(MM3_RENDERER STREQUAL "SDL3_GPU")
+    # The toolkit's display state and graphics init have an SDL3 shape. Without
+    # it they take the Win32 path: Linux does not compile, and on Windows
+    # xbox_HostGraphicsInit made a hidden window and a second, unused GPU device.
+    target_compile_definitions(xbox_host PRIVATE XBOXRECOMP_SDL3=1)
+    target_compile_definitions(xbox_video PRIVATE XBOXRECOMP_SDL3=1)
+    # xbox_apu calls the xa2_* device that apu/apu_sdl.c provides; a one-pass
+    # linker (GNU ld) needs that edge stated. CMake repeats the static cycle.
+    target_link_libraries(xbox_apu PRIVATE mm3_host_sdl3)
+endif()
 # MM3 VP-only playback was measured about 10 dB above GP output (-10.7 vs
 # -20.7 dBFS in a race). Keep its existing calibration outside the runtime.
 target_compile_definitions(xbox_apu PRIVATE XBOXRECOMP_APU_VP_MONITOR_GAIN=0.316f)

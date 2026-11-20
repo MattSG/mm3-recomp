@@ -1,9 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
-#ifdef _WIN32
-#include <windows.h>
+#include "platform/xbox_winnt.h"
 #include "guest_state.h"
 #include "xbox_memory_layout.h"
-#endif
 #include <stdio.h>
 #include <math.h>
 #include <string.h>

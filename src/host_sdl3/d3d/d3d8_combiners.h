@@ -42,7 +42,7 @@
 
 #include "gfx/gpu_shader.h"
 #include <stdint.h>
-#include <windows.h>
+#include "platform/xbox_winnt.h"   /* <windows.h> on Windows, the POSIX stand-in elsewhere */
 
 #ifdef __cplusplus
 extern "C" {

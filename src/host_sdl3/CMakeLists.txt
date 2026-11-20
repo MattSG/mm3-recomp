@@ -11,7 +11,7 @@
 #
 # It provides the contracts documented in xboxrecomp's
 # docs/technical/host-backends.md: nv2a_d3d_* (video/nv2a_sdlgpu.c), the
-# framebuffer window (video/fb_window_sdl.c, fb_present_sdl.c), xa2_*
+# framebuffer window (video/fb_window_sdl.c), xa2_*
 # (apu/apu_sdl.c), the xbox_d3d8 target (d3d/, gfx/) and the host pad provider
 # (input/sdl_pads.c, installed by mm3_sdl3_install_pads()).
 set(MM3_HOST_SDL3_DIR ${CMAKE_CURRENT_LIST_DIR})
@@ -38,7 +38,7 @@ target_link_libraries(xbox_d3d8 PUBLIC platform xbox_input SDL3::SDL3
     SDL3_shadercross::SDL3_shadercross-static)
 
 add_library(mm3_host_sdl3 STATIC
-    video/nv2a_sdlgpu.c video/fb_window_sdl.c video/fb_present_sdl.c
+    video/nv2a_sdlgpu.c video/fb_window_sdl.c
     apu/apu_sdl.c input/sdl_pads.c ${_shader_headers})
 target_include_directories(mm3_host_sdl3 PRIVATE ${_gen} ${MM3_HOST_SDL3_DIR}
     ${MM3_HOST_SDL3_DIR}/video ${MM3_HOST_SDL3_DIR}/gfx
