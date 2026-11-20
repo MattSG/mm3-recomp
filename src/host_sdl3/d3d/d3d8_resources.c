@@ -1373,24 +1373,22 @@ static void d3d8_upload_mip_level(SDL_GPUTexture *gpu_texture, D3DFORMAT fmt,
     /* Step 1: unswizzle swizzled formats into linear storage. */
     if (!d3d8_format_is_compressed(fmt) && d3d8_format_is_swizzled(fmt)) {
         linear = (BYTE *)malloc((size_t)w * h * bpp);
-        if (linear) {
-            xbox_unswizzle_rect(linear, src_data, w, h, bpp);
-            upload_data = linear;
-            upload_pitch = w * bpp;
-        }
+        if (!linear) return;   /* skip rather than upload swizzled bytes as linear */
+        xbox_unswizzle_rect(linear, src_data, w, h, bpp);
+        upload_data = linear;
+        upload_pitch = w * bpp;
     }
 
     /* Step 2: convert formats whose GPU layout differs. */
     if (d3d8_format_has_conversion(fmt)) {
         UINT ubpp = d3d8_upload_bpp(fmt) / 8;
         converted = (BYTE *)malloc((size_t)w * h * ubpp);
-        if (converted) {
-            d3d8_convert_linear_pixels(fmt, w, h, upload_data, converted, palette);
-            if (linear) { free(linear); linear = NULL; }
-            upload_data = converted;
-            upload_pitch = w * ubpp;
-            rows = h;
-        }
+        if (!converted) { free(linear); return; }
+        d3d8_convert_linear_pixels(fmt, w, h, upload_data, converted, palette);
+        if (linear) { free(linear); linear = NULL; }
+        upload_data = converted;
+        upload_pitch = w * ubpp;
+        rows = h;
     }
 
     /* Block-compressed copies must cover whole 4x4 blocks, which matters for
