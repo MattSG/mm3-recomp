@@ -46,3 +46,30 @@ jobs:
           # fail against its resolved long form.
           TEMP: ${{ runner.temp }}
           TMP: ${{ runner.temp }}
+
+  # The same asset-free contracts on Linux with GCC: it builds the sources the game's Linux
+  # port shares (the platform layer, the mods, the launcher settings) and catches POSIX-only
+  # breakage that the Windows job cannot see. A venv over the system Python keeps apt's Tk
+  # (the car editor test needs a display) while pip supplies a Pillow that can write DXT
+  # (Ubuntu's 10.x cannot; the texture tests need the version Windows CI gets).
+  contracts-linux:
+    name: Asset-free contracts (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential python3-venv python3-tk xvfb
+          /usr/bin/python3 -m venv --system-site-packages "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install pillow numpy scipy
+      - name: No game assets tracked
+        run: ${{ runner.temp }}/venv/bin/python -m unittest tests.test_no_game_assets -v
+        env:
+          PYTHONPATH: .
+      - name: Contracts and unit tests
+        run: xvfb-run -a tools/run_regressions.sh --ci
+        env:
+          PYTHON: ${{ runner.temp }}/venv/bin/python
