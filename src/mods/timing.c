@@ -47,10 +47,12 @@ static double seconds(void)
 extern int mm3_pause_frozen(void);
 #define HOLD_RATE 100000.0
 
+/* Tick counts of the current clock; zeroed whenever the clock is reset. */
+static int was_held;
+static unsigned long long hold_start, held_total;
+
 static void publish_time(uint32_t game)
 {
-    static int was_held;
-    static unsigned long long hold_start, held_total;
     int held = mm3_pause_frozen();
     double step = held ? clock_state.step / HOLD_RATE : clock_state.step;
     if (held && !was_held) hold_start = clock_state.ticks;
@@ -88,6 +90,7 @@ static void begin_tick(uint32_t game, uint32_t current_state)
         scene != current_scene || paused != current_pause) {
         /* Discard catch-up and presentation history at lifecycle boundaries. */
         mm3_tick_clock_reset(&clock_state, now, hz, fps);
+        was_held = 0; hold_start = held_total = 0;   /* ticks restart at 0: stale totals underflow */
         time_origin = MEMD(game + 0x38);
         owner = game; state = current_state; scene = current_scene; paused = current_pause;
         initialized = 1;
