@@ -618,6 +618,9 @@ static void flush_batch(void)
             break;
         case OP_DRAWI:
         case OP_DRAW:
+            /* An empty scissor writes nothing (the D3D12 debug layer reports
+             * thousands per race): skip the draw, not its state. */
+            if (o->sc.w <= 0 || o->sc.h <= 0) break;
             if (!vp_set || memcmp(&vp, &o->vp, sizeof vp)) {
                 vp = o->vp; vp_set = 1;
                 SDL_SetGPUViewport(rp, &vp);
@@ -1040,6 +1043,8 @@ static SDL_GPUTextureFormat color_format(uint8_t f)
     }
 }
 
+static void pipe_list_add(const PipeKey *k);
+
 static SDL_GPUGraphicsPipeline *pipeline(const PipeKey *k)
 {
     uint64_t h = hash_mem((const uint8_t *)k, sizeof *k);
@@ -1110,6 +1115,7 @@ static SDL_GPUGraphicsPipeline *pipeline(const PipeKey *k)
         RECOMP_PROFILE_END();
         if (!s_pipes[i].pipe) { fail("SDL_CreateGPUGraphicsPipeline"); return NULL; }
         s_pipes[i].key = *k;
+        pipe_list_add(k);
         return s_pipes[i].pipe;
     }
 }
@@ -1120,6 +1126,111 @@ static void pipe_key_plain(PipeKey *k, uint8_t vs, uint8_t ps, uint8_t color, ui
     k->vs = vs; k->ps = ps; k->color = color; k->prim = prim;
     k->write_mask = 15;
     k->zfunc = 7; k->sfunc = 7;
+}
+
+/* Pipelines this machine has built, built again before the first frame so a
+ * new state combination does not stall a later frame. SDL GPU has no
+ * pipeline-cache blob, so the list of keys is what persists. The file is
+ * per machine (same rules as the D3D11 shader cache: RECOMP_SHADER_CACHE=0
+ * off, RECOMP_SHADER_CACHE_DIR elsewhere) and its header fingerprints the
+ * shader table and key layout: any other build's list is discarded, and every
+ * loaded key is range-checked before it reaches the driver. */
+typedef struct { char magic[4]; uint32_t key_size, depth_format; uint64_t shaders; } PipeListHeader;
+static FILE *s_pipe_list;
+static int s_pipe_list_loading;
+
+static uint64_t pipe_list_fingerprint(void)
+{
+    uint64_t h = 1469598103934665603ull;
+    int i;
+    for (i = 0; i < SH_COUNT; i++) {
+        uint64_t v[4] = { (uint64_t)s_shader_src[i].spirv_size, (uint64_t)s_shader_src[i].dxil_size,
+                          (uint64_t)s_shader_src[i].stage, hash_mem((const uint8_t *)s_shader_src[i].entry,
+                                                                    strlen(s_shader_src[i].entry)) };
+        h = (h ^ hash_mem((const uint8_t *)v, sizeof v)) * 1099511628211ull;
+    }
+    return h ^ (uint64_t)SH_COUNT;
+}
+
+static int pipe_list_path(char *path, size_t size)
+{
+    const char *e = getenv("RECOMP_SHADER_CACHE"), *dir = getenv("RECOMP_SHADER_CACHE_DIR");
+    char base[1024];
+    if (e && !strcmp(e, "0")) return 0;
+    if (dir && *dir) {
+        snprintf(base, sizeof base, "%s", dir);
+    } else {
+#ifdef _WIN32
+        const char *root = getenv("LOCALAPPDATA");
+        if (!root || !*root) return 0;
+        snprintf(base, sizeof base, "%s/xboxrecomp/ShaderCache", root);
+#else
+        const char *root = getenv("XDG_CACHE_HOME"), *home = getenv("HOME");
+        if (root && *root) snprintf(base, sizeof base, "%s/xboxrecomp", root);
+        else if (home && *home) snprintf(base, sizeof base, "%s/.cache/xboxrecomp", home);
+        else return 0;
+#endif
+    }
+    if (!SDL_CreateDirectory(base)) return 0;
+    return snprintf(path, size, "%s/sdlgpu-pipelines-%s.bin", base, SDL_GetGPUDeviceDriver(s_dev)) < (int)size;
+}
+
+static int pipe_key_valid(const PipeKey *k)
+{
+    return k->vs < SH_COUNT && k->ps < SH_COUNT &&
+        s_shader_src[k->vs].stage == SDL_GPU_SHADERSTAGE_VERTEX &&
+        s_shader_src[k->ps].stage == SDL_GPU_SHADERSTAGE_FRAGMENT && s_shader[k->vs] && s_shader[k->ps] &&
+        k->color <= FMT_R32F && k->depth <= 1 && k->prim <= SDL_GPU_PRIMITIVETYPE_POINTLIST &&
+        k->cull <= 2 && k->front_ccw <= 1 && k->zt <= 1 && k->zw <= 1 && k->st <= 1 &&
+        k->zfunc <= 7 && k->sfunc <= 7 && k->sfail <= 7 && k->szfail <= 7 && k->szpass <= 7 &&
+        k->blend_enable <= 1 && k->write_mask <= 15 && isfinite(k->slope);
+}
+
+/* Build the listed pipelines, then keep the file open to append new ones. */
+static void pipe_list_load(void)
+{
+    PipeListHeader want, got;
+    PipeKey k;
+    char path[1100];
+    FILE *f;
+    unsigned built = 0, rejected = 0, records = 0;
+    uint64_t start = SDL_GetTicksNS();
+    if (!pipe_list_path(path, sizeof path)) return;
+    memset(&want, 0, sizeof want);
+    memcpy(want.magic, "SGPL", 4);
+    want.key_size = (uint32_t)sizeof(PipeKey);
+    want.depth_format = (uint32_t)s_depth_format;
+    want.shaders = pipe_list_fingerprint();
+    if ((f = fopen(path, "rb")) != NULL) {
+        if (fread(&got, sizeof got, 1, f) == 1 && !memcmp(&got, &want, sizeof want)) {
+            s_pipe_list_loading = 1;
+            /* Never more than the table holds: a full table would evict. */
+            while (records < PIPE_SLOTS / 2 && fread(&k, sizeof k, 1, f) == 1) {
+                ++records;
+                if (!pipe_key_valid(&k)) { ++rejected; continue; }
+                if (pipeline(&k)) ++built;
+            }
+            s_pipe_list_loading = 0;
+            fclose(f);
+            s_pipe_list = fopen(path, "ab");
+        } else {
+            fclose(f);
+        }
+    }
+    if (!s_pipe_list && (s_pipe_list = fopen(path, "wb")) != NULL &&
+        fwrite(&want, sizeof want, 1, s_pipe_list) != 1) {
+        fclose(s_pipe_list);
+        s_pipe_list = NULL;
+    }
+    if (records)
+        fprintf(stderr, "[SDLGPU] %u saved pipelines built in %.0f ms (%u rejected)\n",
+                built, (double)(SDL_GetTicksNS() - start) / 1e6, rejected);
+}
+
+static void pipe_list_add(const PipeKey *k)
+{
+    if (!s_pipe_list || s_pipe_list_loading) return;
+    if (fwrite(k, sizeof *k, 1, s_pipe_list) == 1) fflush(s_pipe_list);
 }
 
 /* ---------------------------------------------------------------- samplers */
@@ -1300,15 +1411,20 @@ int nv2a_d3d_init(void)
             int vsync = getenv("RECOMP_VSYNC") ? atoi(getenv("RECOMP_VSYNC")) : 0;
             SDL_GPUPresentMode mode = SDL_GPU_PRESENTMODE_VSYNC;
             if (!vsync) {
-                if (SDL_WindowSupportsGPUPresentMode(s_dev, s_window, SDL_GPU_PRESENTMODE_IMMEDIATE))
-                    mode = SDL_GPU_PRESENTMODE_IMMEDIATE;
-                else if (SDL_WindowSupportsGPUPresentMode(s_dev, s_window, SDL_GPU_PRESENTMODE_MAILBOX))
-                    mode = SDL_GPU_PRESENTMODE_MAILBOX;
+                /* A frame cap already sets the rate: mailbox shows each frame
+                 * whole without tearing. Uncapped wants immediate's lowest latency. */
+                const SDL_GPUPresentMode capped[2] = { SDL_GPU_PRESENTMODE_MAILBOX, SDL_GPU_PRESENTMODE_IMMEDIATE };
+                const SDL_GPUPresentMode uncapped[2] = { SDL_GPU_PRESENTMODE_IMMEDIATE, SDL_GPU_PRESENTMODE_MAILBOX };
+                const SDL_GPUPresentMode *order = recomp_frame_limit_from_env() > 0 ? capped : uncapped;
+                int k;
+                for (k = 0; k < 2; k++)
+                    if (SDL_WindowSupportsGPUPresentMode(s_dev, s_window, order[k])) { mode = order[k]; break; }
             }
             SDL_SetGPUSwapchainParameters(s_dev, s_window, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, mode);
         }
     }
     display_config(1);
+    pipe_list_load();
     if ((e = getenv("RECOMP_ANISO")) != NULL) s_aniso = (uint32_t)atoi(e);
     if (s_aniso < 1) s_aniso = 1;
     if (s_aniso > 16) s_aniso = 16;
@@ -2555,10 +2671,27 @@ void nv2a_d3d_zpass_clear(void)
 /* A block of a render target in guest pixels (nearest sampling when the host
  * target is scaled), B8G8R8A8 with the alpha kept raw: the 2D engine's blits
  * from a surface the GPU drew into (nv2a_pb_exec.c) read it this way. */
+/* One download buffer for every surface read, grown on demand. Each read waits
+ * for its fence before mapping, so the buffer is idle whenever it is reused. */
+static SDL_GPUTransferBuffer *s_read_tb;
+static uint32_t s_read_cap;
+
+static SDL_GPUTransferBuffer *read_buffer(uint32_t bytes)
+{
+    SDL_GPUTransferBufferCreateInfo ci;
+    if (s_read_tb && bytes <= s_read_cap) return s_read_tb;
+    if (s_read_tb) SDL_ReleaseGPUTransferBuffer(s_dev, s_read_tb);
+    memset(&ci, 0, sizeof ci);
+    ci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD;
+    ci.size = bytes < 64u * 1024u ? 64u * 1024u : bytes;
+    s_read_tb = SDL_CreateGPUTransferBuffer(s_dev, &ci);
+    s_read_cap = s_read_tb ? ci.size : 0;
+    return s_read_tb;
+}
+
 int nv2a_d3d_surface_read(uint32_t phys, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t *out)
 {
     Surface *s;
-    SDL_GPUTransferBufferCreateInfo ci;
     SDL_GPUTransferBuffer *tb;
     SDL_GPUTextureRegion r;
     SDL_GPUTextureTransferInfo info;
@@ -2577,14 +2710,8 @@ int nv2a_d3d_surface_read(uint32_t phys, uint32_t x, uint32_t y, uint32_t w, uin
     if (hy1 <= hy0) hy1 = hy0 + 1;
     if (hx1 > s->iw || hy1 > s->ih) return 0;
     bw = hx1 - hx0; bh = hy1 - hy0;
-    memset(&ci, 0, sizeof ci);
-    ci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD;
-    ci.size = bw * bh * 4;
-    tb = SDL_CreateGPUTransferBuffer(s_dev, &ci);
-    if (!tb || !copy_begin()) {
-        if (tb) SDL_ReleaseGPUTransferBuffer(s_dev, tb);
-        return 0;
-    }
+    tb = read_buffer(bw * bh * 4);
+    if (!tb || !copy_begin()) return 0;
     memset(&r, 0, sizeof r);
     memset(&info, 0, sizeof info);
     r.texture = s->tex; r.x = hx0; r.y = hy0; r.w = bw; r.h = bh; r.d = 1;
@@ -2613,7 +2740,6 @@ int nv2a_d3d_surface_read(uint32_t phys, uint32_t x, uint32_t y, uint32_t w, uin
         SDL_UnmapGPUTransferBuffer(s_dev, tb);
         ok = 1;
     }
-    SDL_ReleaseGPUTransferBuffer(s_dev, tb);
     return ok;
 }
 
@@ -5185,6 +5311,7 @@ static int rec_replay(Rec *r, float t)
                 }
                 case OP_DRAWI:
                 case OP_DRAW:
+                    if (o->sc.w <= 0 || o->sc.h <= 0) break;   /* writes nothing, as in flush_batch */
                     if (!vp_set || memcmp(&vp, &o->vp, sizeof vp)) { vp = o->vp; vp_set = 1; SDL_SetGPUViewport(rp, &vp); }
                     if (!sc_set || memcmp(&scs, &o->sc, sizeof scs)) { scs = o->sc; sc_set = 1; SDL_SetGPUScissor(rp, &scs); }
                     if (!blend_set || memcmp(&blend, &o->blend, sizeof blend)) {

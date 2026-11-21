@@ -6,6 +6,7 @@
 #include "../tools/xboxrecomp/src/kernel/guest_state.c"
 
 ptrdiff_t g_xbox_mem_offset;
+ptrdiff_t xbox_GetMemoryOffset(void) { return g_xbox_mem_offset; }
 RECOMP_TLS uint32_t g_eax, g_ecx, g_edx, g_esp, g_ebx, g_esi, g_edi;
 RECOMP_TLS uint32_t g_ebp, g_seh_ebp, g_fs_base;
 RECOMP_TLS double g_fp_stack[8];

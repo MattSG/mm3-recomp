@@ -1061,6 +1061,7 @@ void step(Option &o, int d, bool wrap)
 {
     const int n = (int)o.choices.size();
     int k = 0;
+    if (n == 0) return;       /* nothing to step through (and no % 0) */
     while (k < n && o.choices[k].value != o.value)
         k++;
     k = wrap ? (k + d + n) % n : Rml::Math::Clamp(k + d, 0, n - 1);

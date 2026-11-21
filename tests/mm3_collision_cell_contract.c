@@ -17,7 +17,11 @@ static unsigned char memory[0x40000];
 static const uint32_t cell = 0x10000, header = 0x11000, list = 0x12000, grid = 0x13000;
 static int loader_succeeds = 1;
 static unsigned calls;
+static int redecode;
+void sub_00159186_original(void) {}
+void sub_00159186(void);
 void sub_0015A929_original(void) {
+    if (redecode) sub_00159186();
     ++calls;
     MEM32(cell) = header;
     g_eax = loader_succeeds ? 0x123401u : 0x123400u;
@@ -50,11 +54,14 @@ int main(void) {
     assert(MEM16(grid+10) == 5 && MEM16(grid+12) == 2);
     MEM16(list+2) = 0xFFFF;
     load(); assert(MEM16(list+2) == 0xFFFF); /* Cache hit is already decoded. */
+    redecode = 1; MEM16(list+2) = 0xFFFF;
+    load(); assert(MEM16(list+2) == 0); /* Re-decode into the same buffer. */
+    redecode = 0; MEM16(list+2) = 0xFFFF;
     MEM32(cell) = 0; loader_succeeds = 0;
     load(); assert(MEM16(list+2) == 0xFFFF); /* Native failure path retained. */
     MEM32(cell) = 0; loader_succeeds = 1;
     load(); assert(MEM16(list+2) == 0);
-    assert(calls == 4);
+    assert(calls == 5);
     puts("PASS collision cell guard: valid faces retained, corrupt indices repaired within grid ranges, bounds clamped, native load/cache/failure ABI");
     return 0;
 }

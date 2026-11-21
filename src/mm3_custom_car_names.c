@@ -6,7 +6,7 @@
 extern void sub_0011C194_original(void);
 extern void sub_00016148(void);
 
-/* The normal catalog enumerator already accepts additional Cars/Tweak/*.txt.
+/* The normal catalog enumerator already accepts additional Cars/Tweak/<name>.txt.
  * Retail compressed locale resources contain no strings for the new IDs.
  * Extend only the variant localization keys; every other lookup retains the
  * original implementation. All installed languages use these vehicle names.

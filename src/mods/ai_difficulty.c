@@ -14,7 +14,7 @@
  * traffic have their own AIs and are left alone). Each frame its Normal state
  * (sub_0014194C, thiscall: ECX = state, state+4 = the AI, ret 4) plans the
  * drive from the AI's personality (AI+0x94, an object shared by every car of
- * that personality, AI/Personalities/RaceCars/*.aip):
+ * that personality, AI/Personalities/RaceCars/<name>.aip):
  *   +0xD4 m_maxDeceleration     how hard it expects to brake: where it starts
  *                               braking for a corner, (v - corner)^2 / this
  *   +0xD0 m_maxTurnAcceleration corner speed = sqrt(curve * this)
@@ -102,8 +102,7 @@ static int own_car(uint32_t car)
 }
 
 /* The scripts' own value of each car's engine and brake factor, told apart
- * from ours by what was written last. A car not seen for two seconds is
- * forgotten (a new race may reuse its memory). */
+ * from ours by what was written last. */
 static struct Car {
     uint32_t car;
     ULONGLONG seen;
@@ -114,7 +113,9 @@ static struct Car *car_entry(uint32_t car, ULONGLONG now)
 {
     struct Car *free_entry = NULL;
     for (int i = 0; i < 32; ++i) {
-        if (s_cars[i].car == car && now - s_cars[i].seen < 2000u) return &s_cars[i];
+        /* No time expiry: a pause longer than that would re-read our own scaled value as the
+         * scripts' and compound it. A reused address is caught by value != written below. */
+        if (s_cars[i].car == car) return &s_cars[i];
         if (!free_entry || now - s_cars[i].seen > now - free_entry->seen) free_entry = &s_cars[i];
     }
     free_entry->car = car;

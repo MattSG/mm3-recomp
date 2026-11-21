@@ -60,6 +60,9 @@ set(XBOXRECOMP_SDL3 ON CACHE BOOL "" FORCE)
 set(XBOXRECOMP_BUILD_D3D8 OFF CACHE BOOL "" FORCE)
 add_subdirectory(src/host_sdl3)     # before the toolkit: it defines xbox_d3d8
 add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)
+# xbox_apu calls the xa2_* device that apu/apu_sdl.c provides; a one-pass
+# linker (GNU ld) needs that edge stated. CMake repeats the static cycle.
+target_link_libraries(xbox_apu PRIVATE mm3_host_sdl3)
 # MM3 VP-only playback was measured about 10 dB above GP output (-10.7 vs
 # -20.7 dBFS in a race). Keep its existing calibration outside the runtime.
 target_compile_definitions(xbox_apu PRIVATE XBOXRECOMP_APU_VP_MONITOR_GAIN=0.316f)
