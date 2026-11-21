@@ -173,12 +173,12 @@ class BuildWindow:
             return
         renderer, driver = self.options[self.graphics.get()]
         if not check_only and not (self.repo / 'scripts/setup.py').is_file():
-            chosen = filedialog.askdirectory(title='Select your mm3-recomp checkout')
+            chosen = filedialog.askdirectory(title='Select your midtown-madness-3-recomp checkout')
             if not chosen:
                 return
             self.repo = Path(chosen)
             if not (self.repo / 'scripts/setup.py').is_file():
-                messagebox.showerror('Checkout', 'Select the mm3-recomp repository folder.', parent=self.root)
+                messagebox.showerror('Checkout', 'Select the midtown-madness-3-recomp repository folder.', parent=self.root)
                 return
         self.busy = True
         self.exe = None

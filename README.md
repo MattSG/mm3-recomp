@@ -1,11 +1,15 @@
-# Midtown Madness 3 recompilation
+# Midtown Madness 3 recompilation for PC
 
-A native PC build of the Xbox game, made with
+A native Windows and Linux port of the Xbox game Midtown Madness 3, made with
 [xboxrecomp](https://github.com/MattSG/xboxrecomp). No game files are included;
 you need a dump of your own disc.
 
 **Experimental and AI-assisted.** Windows x64 is fully playable. Linux x64 builds
 and runs but needs testing. macOS is not supported.
+
+| | | |
+|---|---|---|
+| ![Midtown Madness 3 PC port: driving a van through Paris](docs/media/paris-day.jpg) | ![Midtown Madness 3 PC port: Paris at night](docs/media/paris-night.jpg) | ![Midtown Madness 3 PC port: Paris street, bumper camera](docs/media/paris-street.jpg) |
 
 ## Build and play
 
@@ -15,11 +19,11 @@ Install Python 3.12+, Git, CMake and Visual Studio 2022+ with **Desktop developm
 with C++** and **C++ CMake tools for Windows**.
 
 ```sh
-git clone --recurse-submodules https://github.com/MattSG/mm3-recomp.git
-cd mm3-recomp
+git clone --recurse-submodules https://github.com/MattSG/midtown-madness-3-recomp.git
+cd midtown-madness-3-recomp
 ```
 
-Run the builder from [Releases](https://github.com/MattSG/mm3-recomp/releases/latest)
+Run the builder from [Releases](https://github.com/MattSG/midtown-madness-3-recomp/releases/latest)
 or `python scripts/build_gui.py`:
 
 1. Choose your disc image (**Check SHA** verifies it).
