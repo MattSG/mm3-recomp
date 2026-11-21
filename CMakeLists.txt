@@ -87,7 +87,10 @@ FetchContent_Declare(freetype
     URL_HASH SHA256=bc5c898e4756d373e0d991bab053036c5eb2aa7c0d5c67e8662ddc6da40c4103)
 FetchContent_Declare(rmlui
     URL https://github.com/mikke89/RmlUi/archive/refs/tags/6.3.tar.gz
-    URL_HASH SHA256=d977298bb6147610e5984d5db85ddf284020d655a8713913f6982074f1dbdede)
+    URL_HASH SHA256=d977298bb6147610e5984d5db85ddf284020d655a8713913f6982074f1dbdede
+    # 4x MSAA in the SDL GPU renderer: skewed boxes and rounded corners came out jagged.
+    PATCH_COMMAND "${CMAKE_COMMAND}" "-DPATCH=${CMAKE_CURRENT_SOURCE_DIR}/src/ui/rmlui-sdlgpu-msaa.patch"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/src/host_sdl3/ApplySdlPatch.cmake")
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 set(BUILD_SHARED_LIBS OFF)
 set(SKIP_INSTALL_ALL ON)
