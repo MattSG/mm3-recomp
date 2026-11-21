@@ -162,7 +162,9 @@ int xbox_FramebufferStartHidden(void)
     GetStartupInfoW(&si);
     return (si.dwFlags & STARTF_USESHOWWINDOW) && si.wShowWindow == SW_HIDE;
 #else
-    return 0;
+    /* No start-up show state here: a harness asks for it. */
+    const char *e = getenv("RECOMP_START_HIDDEN");
+    return e && strcmp(e, "1") == 0;
 #endif
 }
 
