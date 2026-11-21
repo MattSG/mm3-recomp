@@ -1277,7 +1277,7 @@ HRESULT d3d8_vsh_create_shader(const DWORD *microcode, int num_insns,
     *out_handle = (DWORD)(slot + 0x10000);
 
     fprintf(stderr, "D3D8 VSH: Created shader handle 0x%lX (%d instructions)\n",
-            *out_handle, num_insns);
+            (unsigned long)*out_handle, num_insns);
 
     return S_OK;
 }

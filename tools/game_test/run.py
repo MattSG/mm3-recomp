@@ -291,7 +291,11 @@ class Session:
             raise TimeoutError(f"Run exceeded {self.timeout}s deadline")
         self.read_logs()
         if self.process.poll() is not None:
-            raise RuntimeError(f"Game exited unexpectedly: {self.process.returncode}")
+            # The last output says why, which an exit code alone never does (a flaky CI run is
+            # otherwise undiagnosable).
+            tail = self.log_text[-600:].strip()
+            raise RuntimeError(f"Game exited unexpectedly: {self.process.returncode}"
+                               + (f"; last output: {tail!r}" if tail else "; it printed nothing"))
 
     def read_logs(self):
         for name in ("stderr.log", "stdout.log"):

@@ -13,7 +13,7 @@
  * the horizontal one, and the game culls against the same wider frustum, so
  * nothing pops in at the new screen edges. The renderer stretches display-
  * sized surfaces to that aspect and keeps 2D overlays at their own proportions
- * (nv2a_d3d11.c). Other aspects (square environment maps) are left alone.
+ * (nv2a_sdlgpu.c). Other aspects (square environment maps) are left alone.
  * The 0x385F20 constant itself is also read as a 4/3 scale by unrelated code
  * (0x220B1E), which is why the argument is patched rather than the data. */
 extern void sub_0025968E_original(void);
@@ -210,7 +210,7 @@ void sub_0025968E(void)
      * that narrows fovy (Vert-, a zoom). Undo it so the vertical view stays
      * the 4:3 one, for the matrix and for the copy stored for culling.
      * It is also how the renderer knows a race has started, so its HUD can
-     * move out to the screen edges (nv2a_d3d11.c); the race camera builds its
+     * move out to the screen edges (nv2a_sdlgpu.c); the race camera builds its
      * projection once per race, car select's (0xE51EE) every frame. */
     if (race && widescreen) {
         /* The race HUD starts with the minimap's base quad; 2D drawn ahead of

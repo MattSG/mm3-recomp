@@ -1,3 +1,4 @@
+import gc
 import sys
 import tempfile
 import time
@@ -39,6 +40,10 @@ class BuilderTests(unittest.TestCase):
         except build_gui.tk.TclError:
             self.skipTest('No display available')
         root.withdraw()
+        # Cleanups run last-in first-out: destroy, then free the window's Tk variables here.
+        # Left to a later collection they can be freed on another test's worker thread,
+        # where Tcl aborts the whole run ("async handler deleted by the wrong thread").
+        self.addCleanup(gc.collect)
         self.addCleanup(root.destroy)
         with tempfile.TemporaryDirectory() as temp:
             iso = Path(temp) / 'disc.iso'

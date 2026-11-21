@@ -70,10 +70,16 @@ static Factors factors(int level)
     return f;
 }
 
+/* The environment is read once: this runs for every opponent every frame, and the CRT's environment
+ * lock would serialise the worker threads (see mm3_configure_diagnostics). */
 static int ai_level(void)
 {
-    const char *v = getenv("MM3_AI_LEVEL");
-    return mm3_mod_on(MM3_MOD_AI_DIFFICULTY) && v && *v >= '0' && *v <= '9' && !v[1] ? *v - '0' : 5;
+    static int level = -1;
+    if (level < 0) {
+        const char *v = getenv("MM3_AI_LEVEL");
+        level = v && *v >= '0' && *v <= '9' && !v[1] ? *v - '0' : 5;
+    }
+    return mm3_mod_on(MM3_MOD_AI_DIFFICULTY) ? level : 5;
 }
 
 static int guest(uint32_t address)

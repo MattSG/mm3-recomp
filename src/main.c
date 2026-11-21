@@ -16,6 +16,8 @@
 #include "mods/mods.h"
 #include <xbox_host.h>
 #include <xinput_xbox.h>
+
+extern void mm3_sdl3_install_pads(void);   /* src/host_sdl3/input/sdl_pads.c */
 #include <video/fb_present.h>
 #include <video/nv2a_d3d11.h>
 #include <net/net.h>
@@ -487,6 +489,9 @@ int main(void)
         {"xds.xboxlive.com", "xexds.xboxlive.com"},
     };
     net_backend_set_dns_aliases(service_dns, sizeof service_dns / sizeof service_dns[0]);
+    /* Pads come through SDL3 on every platform; the provider must be set before
+     * the title's first XInput read. */
+    mm3_sdl3_install_pads();
     if (!xbox_HostHardwareInit()) {
         xbox_kernel_shutdown();
         xbox_MemoryLayoutShutdown();

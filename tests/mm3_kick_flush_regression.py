@@ -4,6 +4,7 @@ The runtime helper (xbox_Nv2aWbcFlush, in the runtime) is compiled directly; the
 title's sub_00344AB0 wrapper is extracted from src/recomp_manual.c and runs
 against it.
 """
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -18,7 +19,11 @@ def main():
     kick = source.index("void sub_00344AB0(void)\n{")
     end = source.index("\n}\n", kick) + 3
     fixture = r'''
+#ifdef _WIN32
 #include <windows.h>
+#else
+#include "win32_compat.h"
+#endif
 #include <stdint.h>
 #include <stdio.h>
 #include <assert.h>
@@ -72,10 +77,11 @@ int main(void)
         cfile = folder / "flush.c"
         cfile.write_text(fixture, encoding="utf-8")
         exe = folder / "flush.exe"
-        includes = [ROOT / "tools/xboxrecomp/src/kernel", ROOT / "tools/xboxrecomp/src",
+        includes = [ROOT / "tools/xboxrecomp/src/kernel", ROOT / "tools/xboxrecomp/src", ROOT / "tools/xboxrecomp/src/platform",
                     ROOT / "tools/xboxrecomp/src/nv2a", ROOT / "tools/xboxrecomp/templates/runtime",
                     ROOT / "tools/xboxrecomp/include"]
-        subprocess.run(cc.compile_command([cfile], exe, std="c11", optimize="none",
+        extra = [] if os.name == "nt" else [ROOT / "tools/xboxrecomp/src/platform/win32_compat.c"]
+        subprocess.run(cc.compile_command([cfile, *extra], exe, std="c11", optimize="none",
                         warnings="high", includes=includes, obj=folder / "flush.obj"),
                        check=True, cwd=folder)
         subprocess.run([str(exe)], check=True, timeout=10)

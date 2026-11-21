@@ -631,9 +631,12 @@ void d3d8_convert_linear_pixels(D3DFORMAT fmt, UINT width, UINT height,
                     int r = (298 * c + 409 * cv + 128) >> 8;
                     int g = (298 * c - 100 * cu - 208 * cv + 128) >> 8;
                     int b = (298 * c + 516 * cu + 128) >> 8;
-                    if (r < 0) r = 0; if (r > 255) r = 255;
-                    if (g < 0) g = 0; if (g > 255) g = 255;
-                    if (b < 0) b = 0; if (b > 255) b = 255;
+                    if (r < 0) r = 0;
+                    if (r > 255) r = 255;
+                    if (g < 0) g = 0;
+                    if (g > 255) g = 255;
+                    if (b < 0) b = 0;
+                    if (b > 255) b = 255;
                     d[(x + k) * 4 + 0] = (BYTE)b;
                     d[(x + k) * 4 + 1] = (BYTE)g;
                     d[(x + k) * 4 + 2] = (BYTE)r;

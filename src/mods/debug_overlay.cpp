@@ -1,16 +1,7 @@
-#if defined(XBOXRECOMP_SDL3)
 #include <SDL3/SDL.h>
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlgpu3.h"
-#else
-#include <windows.h>
-#include <Xinput.h>
-#include <d3d11.h>
-#include "imgui.h"
-#include "imgui_impl_win32.h"
-#include "imgui_impl_dx11.h"
-#endif
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -22,9 +13,6 @@ extern "C" {
 #include "dev_tools.h"
 #include "render_policy.h"
 }
-#if !defined(XBOXRECOMP_SDL3)
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
-#endif
 
 namespace {
 /* MM3_OVERLAY_KEY / MM3_OVERLAY_MOUSE / the default toggle are Windows virtual-key
@@ -188,58 +176,6 @@ void build_frame()
     if (visible) draw_tools(state);
 }
 
-#if !defined(XBOXRECOMP_SDL3)
-/* ---- Win32 / D3D11 platform ---- */
-
-void *overlay_window()
-{
-    return (void *)xbox_FramebufferWindowHandle();
-}
-
-bool window_focused(void *window)
-{
-    return GetForegroundWindow() == (HWND)window;
-}
-
-bool backend_init(void *window, void *device, void *context)
-{
-    bool platform = ImGui_ImplWin32_Init(window);
-    if (platform && ImGui_ImplDX11_Init((ID3D11Device *)device, (ID3D11DeviceContext *)context)) return true;
-    if (platform) ImGui_ImplWin32_Shutdown();
-    return false;
-}
-
-void backend_new_frame()
-{
-    ImGui_ImplDX11_NewFrame(); ImGui_ImplWin32_NewFrame();
-}
-
-void backend_draw(void *context, void *target)
-{
-    auto *ctx = (ID3D11DeviceContext *)context;
-    auto *rtv = (ID3D11RenderTargetView *)target;
-    ctx->OMSetRenderTargets(1, &rtv, nullptr);
-    ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-}
-
-int message(HWND h, UINT m, WPARAM w, LPARAM l)
-{
-    std::lock_guard<std::recursive_mutex> guard(imgui_lock);
-    if (m == WM_KILLFOCUS || (m == WM_ACTIVATEAPP && !w))
-        visible.exchange(0);
-    bool key_toggle = (m == WM_KEYDOWN || m == WM_SYSKEYDOWN) &&
-                      w == (WPARAM)toggle_key && !(l & (1LL << 30));
-    int mouse = m == WM_MBUTTONDOWN ? VK_MBUTTON :
-                m == WM_XBUTTONDOWN ? (GET_XBUTTON_WPARAM(w) == XBUTTON1 ? VK_XBUTTON1 : VK_XBUTTON2) : 0;
-    if (key_toggle || (toggle_mouse && mouse == toggle_mouse))
-        visible.exchange(!visible);
-    LRESULT handled = backend_ready ? ImGui_ImplWin32_WndProcHandler(h, m, w, l) : 0;
-    bool input = (m >= WM_KEYFIRST && m <= WM_KEYLAST) ||
-                 (m >= WM_MOUSEFIRST && m <= WM_MOUSELAST);
-    return (visible && handled) ||
-           (input && (visible || key_toggle || (toggle_mouse && mouse == toggle_mouse)));
-}
-#else
 /* ---- SDL3 SDLGPU platform ---- */
 
 SDL_Scancode toggle_scancode = SDL_SCANCODE_UNKNOWN;
@@ -340,7 +276,6 @@ int event(const SDL_Event *e)
     return (visible && wanted) ||
            ((key || mouse) && (visible || key_toggle || mouse_toggle));
 }
-#endif
 
 int capture()
 {
@@ -391,11 +326,7 @@ extern "C" void mm3_debug_overlay_init()
     toggle_mouse = setting("MM3_OVERLAY_MOUSE", 0, 6);
     if (toggle_mouse != kVkMButton && toggle_mouse != kVkXButton1 && toggle_mouse != kVkXButton2) toggle_mouse = 0;
     toggle_pad = (unsigned short)setting("MM3_OVERLAY_PAD", kPadBackThumb, 0xFFFF);
-#if defined(XBOXRECOMP_SDL3)
     toggle_scancode = vk_to_scancode(toggle_key);
     XboxHostOverlay hooks = {render, debug_enabled ? event : nullptr, debug_enabled ? capture : nullptr};
-#else
-    XboxHostOverlay hooks = {render, debug_enabled ? message : nullptr, debug_enabled ? capture : nullptr};
-#endif
     xbox_FramebufferSetHostOverlay(&hooks);
 }

@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include "platform/xbox_winnt.h"
 #include "recomp_types.h"
+#include "xbox_memory_layout.h"
 #include "mods.h"
 
 extern void sub_001CDB6C_original(void);
@@ -21,6 +22,8 @@ static float percent_scale(const char *name, const char *what)
     const char *v = getenv(name);
     int percent = v && *v ? atoi(v) : 100;
     float scale = percent >= 0 && percent <= 1000 ? (float)percent / 100.0f : 1.0f;
+    if (v && *v && scale == 1.0f && percent != 100)
+        fprintf(stderr, "[MM3_DAMAGE] %s=%s is outside 0..1000; damage %s stays at 100%%\n", name, v, what);
     if (scale != 1.0f)
         fprintf(stderr, "[MM3_DAMAGE] damage %s x%.2f (Damage mod)\n", what, scale);
     return scale;
@@ -63,7 +66,9 @@ void sub_001CDB6C(void)
 {
     uint32_t component = g_edx;
     float scale, factor;
-    if (!mm3_mod_on(MM3_MOD_DAMAGE) || !guest_object(component)) {
+    /* The factor sits 0x8718 into the component: it must be mapped, not merely below 128 MB. */
+    if (!mm3_mod_on(MM3_MOD_DAMAGE) || !guest_object(component) ||
+        !xbox_GuestMapped(component + 0x8718u, sizeof(float))) {
         sub_001CDB6C_original();
         return;
     }

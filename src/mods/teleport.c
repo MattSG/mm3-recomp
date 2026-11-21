@@ -218,7 +218,7 @@ static void sample_car(uint32_t player)
  * needs no elevation. Every millisecond it suspends the thread, reads its RIP and writes one line
  * per sample ("exe <rva>" inside the executable, "<module> <offset>" elsewhere, so waits show up
  * as ntdll). Debug use only, behind MM3_DEBUG_TELEPORT: a suspended thread holding a lock stalls. */
-#if defined(_WIN32)   /* thread suspend, context and unwind tables: Win32 x64 only */
+#if defined(_WIN32)   /* thread suspend, GetThreadContext and RtlVirtualUnwind: Windows only */
 static HANDLE s_prof_thread;
 static struct { int seconds; char path[200]; } s_prof_job;
 /* The first frame of the (suspended) thread's stack that lies inside the executable: the code that
@@ -284,7 +284,7 @@ static DWORD WINAPI prof_run(void *arg)
     }
     return 0;
 }
-#endif
+#endif /* _WIN32 */
 
 void sub_002203E5(void)
 {
@@ -435,9 +435,7 @@ static void teleport_answer(const char *command, char *reply, size_t size)
         isfinite(xyz[0]) && isfinite(xyz[2])) {
         request_teleport(xyz, fields == 3 ? heading : NAN, reply, size);
     } else if (strncmp(command, "profile ", 8) == 0) {
-#if !defined(_WIN32)
-        snprintf(reply, size, "{\"result\":\"profiling is Windows-only\"}");
-#else
+#if defined(_WIN32)
         int secs = 0, off = 0;
         if (sscanf(command + 8, "%d %n", &secs, &off) >= 1 && secs > 0 && s_prof_thread) {
             s_prof_job.seconds = secs;
@@ -445,6 +443,8 @@ static void teleport_answer(const char *command, char *reply, size_t size)
             CloseHandle(CreateThread(NULL, 0, prof_run, NULL, 0, NULL));
             snprintf(reply, size, "{\"result\":\"started\"}");
         } else snprintf(reply, size, "{\"result\":\"no game thread yet\"}");
+#else
+        snprintf(reply, size, "{\"result\":\"profile is Windows-only\"}");
 #endif
     } else if (strcmp(command, "cars") == 0) {
         uint32_t primary = primary_player();

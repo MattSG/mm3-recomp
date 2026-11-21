@@ -1,20 +1,17 @@
-/* Compile with MSVC and the same src/generated/toolkit includes as the game.
- * This checks interop and picking; real UI transitions need runtime proof. */
+/* Compile with -DXBOXRECOMP_SDL3=1 and the same src/generated/toolkit includes as the game,
+ * linked against SDL3 (tests/menu_mouse/CMakeLists.txt). Cursors are real SDL cursors, so run
+ * with SDL_VIDEO_DRIVER=dummy or any display. This checks interop and picking; real UI
+ * transitions need runtime proof. */
 /* The shared guest-state helpers, as shipped. */
 #include "../tools/xboxrecomp/src/kernel/guest_state.c"
 #include "../src/mods/menu_mouse.c"
 #include <assert.h>
-#include <xinput.h>
-#define XBOX_INPUT_HOST_PAD 1
-static DWORD host_pad_state(DWORD port, XINPUT_STATE *state)
-{ (void)port; (void)state; return ERROR_DEVICE_NOT_CONNECTED; }
+/* No host pad provider is registered here, so the pad reads as disconnected. */
 #include "../tools/xboxrecomp/src/input/xinput_device.c"
 /* This fixture supplies mouse state directly; keyboard/raw-pad behavior has
  * its own input contracts. */
 int xbox_InputKeyboardPoll(XBOX_INPUT_STATE *state) { (void)state; return 0; }
 int xbox_InputKeyboardMenu(void) { return 0; }
-int mkb_enabled(void) { return 0; }
-int mkb_merge(DWORD port, XBOX_INPUT_STATE *state) { (void)port; (void)state; return 0; }
 
 ptrdiff_t g_xbox_mem_offset;
 RECOMP_TLS uint32_t g_eax, g_ecx, g_edx, g_esp, g_ebx, g_esi, g_edi, g_seh_ebp, g_ebp;
@@ -34,10 +31,10 @@ static int swatch_fixture, orange_rings;
 static unsigned expected_button = 1;
 static int accept_focus = 1;
 static const uint32_t root = 0x10000, context = 0x11000, node = 0x12000;
-static HCURSOR (*cursor_handler)(void);
+static XboxCursor (*cursor_handler)(void);
 static int driving;
 int mm3_keyboard_driving(void) { return driving; }
-void xbox_FramebufferSetCursorHandler(HCURSOR (*handler)(void)) { cursor_handler = handler; }
+void xbox_FramebufferSetCursorHandler(XboxCursor (*handler)(void)) { cursor_handler = handler; }
 int xbox_FramebufferHostInputCaptured(void) { return 0; }
 void xbox_FramebufferSetMousePressHandler(int (*handler)(float, float)) { (void)handler; }
 
@@ -207,6 +204,7 @@ recomp_func_t recomp_lookup(uint32_t va)
 
 int main(void)
 {
+    if (!SDL_Init(SDL_INIT_VIDEO)) { fprintf(stderr, "SDL_Init: %s\n", SDL_GetError()); return 1; }
     void *memory = calloc(1, 0x800000);
     assert(memory);
     g_xbox_mem_offset = (ptrdiff_t)memory;
@@ -290,41 +288,9 @@ int main(void)
      * survives release/movement, and dispatches one native press/release pair. */
     mm3_menu_mouse_init();
     assert(cursor_handler && cursor_handler());
-    ICONINFO cursor_info;
-    assert(GetIconInfo(cursor_handler(), &cursor_info));
-    assert(!cursor_info.fIcon && cursor_info.xHotspot == 2 && cursor_info.yHotspot == 2);
-    ICONINFO hand_info;
-    assert(GetIconInfo(menu_hand, &hand_info) && !hand_info.fIcon);
-    BITMAPINFO hand_bitmap = {0};
-    hand_bitmap.bmiHeader.biSize = sizeof hand_bitmap.bmiHeader;
-    hand_bitmap.bmiHeader.biWidth = 32; hand_bitmap.bmiHeader.biHeight = -32;
-    hand_bitmap.bmiHeader.biPlanes = 1; hand_bitmap.bmiHeader.biBitCount = 32;
-    uint32_t hand_pixels[1024];
-    HDC hand_dc = GetDC(NULL);
-    assert(GetDIBits(hand_dc, hand_info.hbmColor, 0, 32, hand_pixels, &hand_bitmap, DIB_RGB_COLORS));
-    ReleaseDC(NULL, hand_dc);
-    unsigned gold_hand = 0, transparent_hand = 0;
-    for (unsigned i = 0; i < 1024; ++i) {
-        gold_hand += hand_pixels[i] == 0xFFFFBB35;
-        transparent_hand += hand_pixels[i] == 0;
-    }
-    assert(gold_hand > 10 && transparent_hand > 100);
-    DeleteObject(hand_info.hbmColor); DeleteObject(hand_info.hbmMask);
-    BITMAPINFO bitmap = {0};
-    bitmap.bmiHeader.biSize = sizeof bitmap.bmiHeader;
-    bitmap.bmiHeader.biWidth = 32; bitmap.bmiHeader.biHeight = -40;
-    bitmap.bmiHeader.biPlanes = 1; bitmap.bmiHeader.biBitCount = 32;
-    uint32_t cursor_pixels[32*40];
-    HDC dc = GetDC(NULL);
-    assert(GetDIBits(dc, cursor_info.hbmColor, 0, 40, cursor_pixels, &bitmap, DIB_RGB_COLORS));
-    ReleaseDC(NULL, dc);
-    int blue_pixels = 0, orange_pixels = 0;
-    for (unsigned i = 0; i < 32*40; ++i) {
-        blue_pixels += cursor_pixels[i] == 0xFFFFDB5D;
-        orange_pixels += cursor_pixels[i] == 0xFFFF9B19;
-    }
-    assert(blue_pixels && orange_pixels); /* Themed ARGB cursor, not the system hand. */
-    DeleteObject(cursor_info.hbmColor); DeleteObject(cursor_info.hbmMask);
+    /* SDL cursors cannot be read back: the themed arrow's pixels are checked by the
+     * renderer-independent cursor_inside() maths, here only that both cursors exist and differ. */
+    assert(menu_cursor && menu_hand && menu_cursor != menu_hand);
     driving = 1; assert(!cursor_handler());
     driving = 0; assert(cursor_handler());
     BOOL pad_click;
@@ -466,7 +432,7 @@ int main(void)
         MEMF(context+12) = 640; MEMF(context+16) = 480;
         float old_x = mouse_x, old_y = mouse_y;
         mouse_x = .625f; mouse_y = .9f;
-        HCURSOR arrow = menu_cursor;
+        XboxCursor arrow = menu_cursor;
         MenuPrompt *parent_prompt = painting_prompt;
         painting_prompt = &prompts[0];
         int before_text = light_text;

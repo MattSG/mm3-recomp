@@ -20,6 +20,8 @@ Wiring (the order matters: the toolkit checks for `xbox_d3d8` when it is added):
 ```cmake
 set(XBOXRECOMP_RENDERER EXTERNAL)
 set(XBOXRECOMP_APU_OUTPUT EXTERNAL)
+set(XBOXRECOMP_INPUT_SDL2 OFF)      # the host feeds the key table; no SDL2 beside SDL3
+set(XBOXRECOMP_SDL3 ON)             # XBOXRECOMP_SDL3 for every toolkit target
 set(XBOXRECOMP_BUILD_D3D8 OFF)
 set(XBOXRECOMP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tools/xboxrecomp)
 add_subdirectory(src/host_sdl3)

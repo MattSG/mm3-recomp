@@ -112,7 +112,6 @@ const DWORD *d3d8_GetPalette(DWORD stage)
 
 /* Forward declarations */
 static const IDirect3DDevice8Vtbl g_device_vtbl;
-static void up_ring_shutdown(void);
 
 /* Window events: the game's internal loop drives rendering, so nothing else
  * pumps the window. Called from every present. The pump (gfx/sdl_events.c)
@@ -1257,7 +1256,7 @@ static HRESULT __stdcall d3d8_CreateDevice(IDirect3D8 *self, UINT Adapter, DWORD
 
     hr = d3d8_pipe_init();
     if (FAILED(hr)) {
-        fprintf(stderr, "D3D8: Pipeline init failed: 0x%08lX\n", hr);
+        fprintf(stderr, "D3D8: Pipeline init failed: 0x%08lX\n", (unsigned long)hr);
         return hr;
     }
     xgpu_begin_frame(&g_device_state.gpu);
@@ -1265,25 +1264,25 @@ static HRESULT __stdcall d3d8_CreateDevice(IDirect3D8 *self, UINT Adapter, DWORD
     /* Initialize shader and state subsystems */
     hr = d3d8_shaders_init();
     if (FAILED(hr)) {
-        fprintf(stderr, "D3D8: Shader init failed: 0x%08lX\n", hr);
+        fprintf(stderr, "D3D8: Shader init failed: 0x%08lX\n", (unsigned long)hr);
         return hr;
     }
 
     hr = d3d8_states_init();
     if (FAILED(hr)) {
-        fprintf(stderr, "D3D8: State init failed: 0x%08lX\n", hr);
+        fprintf(stderr, "D3D8: State init failed: 0x%08lX\n", (unsigned long)hr);
         return hr;
     }
 
     hr = d3d8_combiners_init();
     if (FAILED(hr)) {
-        fprintf(stderr, "D3D8: Combiner init failed: 0x%08lX\n", hr);
+        fprintf(stderr, "D3D8: Combiner init failed: 0x%08lX\n", (unsigned long)hr);
         /* Non-fatal: fall back to fixed-function pixel shaders */
     }
 
     hr = d3d8_vsh_init();
     if (FAILED(hr)) {
-        fprintf(stderr, "D3D8: VSH init failed: 0x%08lX\n", hr);
+        fprintf(stderr, "D3D8: VSH init failed: 0x%08lX\n", (unsigned long)hr);
         /* Non-fatal: fall back to FVF vertex shaders */
     }
 

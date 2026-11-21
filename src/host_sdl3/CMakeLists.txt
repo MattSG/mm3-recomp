@@ -3,6 +3,7 @@
 #
 #   set(XBOXRECOMP_RENDERER EXTERNAL)       # before add_subdirectory(xboxrecomp)
 #   set(XBOXRECOMP_APU_OUTPUT EXTERNAL)
+#   set(XBOXRECOMP_INPUT_SDL2 OFF)          # no SDL2 beside SDL3
 #   set(XBOXRECOMP_BUILD_D3D8 OFF)
 #   set(XBOXRECOMP_DIR tools/xboxrecomp)
 #   add_subdirectory(src/host_sdl3)         # BEFORE the toolkit: it defines xbox_d3d8

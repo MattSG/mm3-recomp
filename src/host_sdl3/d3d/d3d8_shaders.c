@@ -22,6 +22,7 @@
 
 #include "d3d8_internal.h"
 #include "d3d8_fvf.h"
+#include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <math.h>

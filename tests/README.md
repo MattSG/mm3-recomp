@@ -17,3 +17,12 @@ The builder's own tests (`tests/test_build_gui.py`) need nothing else and are th
 `tools/game_test/` holds the runtime harness (needs the built game and extracted assets).
 
 `tools/run_regressions.ps1` runs every regression and `test_*.py` in the VS environment and prints a summary (`-Filter` narrows it).
+`tools/run_regressions.sh [--ci] [--filter x]` does the same on Linux with GCC (`PYTHON=` picks the interpreter; run under `xvfb-run` for the car editor test); CI runs it as `contracts-linux`.
+
+`tests/menu_mouse/` (the native menu-mouse contract) and `tests/host_sdl3_hooks/` need SDL3 and are not in CI.
+`host_sdl3_hooks` also holds the renderer tests (`renderer_bindings`, `renderer_fog`, `renderer_lamps`): white-box GPU
+checks of the shipping SDL_GPU renderer (draw bindings, production distance fog, lamp depth), run with
+`RECOMP_SDL_GPU_DRIVER=vulkan xvfb-run -a ctest` (Mesa lavapipe is enough). They replace the old D3D11 fog/lamp tests.
+The mouse contract drives real SDL cursors, so it needs a display (`xvfb-run` works; `SDL_VIDEO_DRIVER=dummy`
+has no cursors). `host_sdl3_hooks` builds SDL3 and DXC on first configure (long) and uses an SDL_GPU device when
+there is one (Mesa's lavapipe under Xvfb is enough).

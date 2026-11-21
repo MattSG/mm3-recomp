@@ -81,7 +81,7 @@ int xa2_init(void)
     g_num_bufs = env_int("RECOMP_AUDIO_BUF_COUNT", SDLA_NUM_BUFS_DEFAULT,
                          SDLA_NUM_BUFS_MIN, SDLA_NUM_BUFS_MAX);
 
-    /* SDL installs SIGINT/SIGTERM handlers that only post SDL_QUIT, which
+    /* SDL installs SIGINT/SIGTERM handlers that only post SDL_EVENT_QUIT, which
      * nothing reads in a headless run; keep the default handlers so Ctrl-C
      * still ends the process. */
     SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");

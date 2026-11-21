@@ -35,7 +35,7 @@ static int in_menu(void) { return 0; }
 
 int main(void)
 {
-    _putenv("SDL_AUDIO_DRIVER=dummy");
+    SDL_setenv_unsafe("SDL_AUDIO_DRIVER", "dummy", 1);
 
     /* --- pads: a virtual SDL gamepad through mm3's provider and the toolkit's shared logic */
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
