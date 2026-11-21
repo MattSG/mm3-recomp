@@ -188,6 +188,8 @@ struct Option {
     bool text;   /* typed rather than chosen */
     Rml::String needs; /* shown only while the option with this env is on */
     bool shown = true; /* computed by options_changed */
+    bool hit = true;   /* matches the search (search_changed) */
+    Rml::String where; /* its section's label, shown beside a search result */
 };
 
 /* A key for a pad input (RECOMP_KEYMAP, defaults from
@@ -199,6 +201,7 @@ struct Bind {
     Rml::String key; /* vk's display name */
     Rml::String env = "RECOMP_KEYMAP";
     bool dev = false;
+    bool hit = true;   /* matches the search (search_changed) */
 };
 
 Rml::Vector<Option> g_options = {
@@ -350,7 +353,10 @@ div, h1, h2 { display: block; }
 .logo .three { display: flex; align-items: center; justify-content: center; width: 1.05em; margin-left: 0.28em;
                border-radius: 0.1em; background-color: #e8a33d; color: #0c0e11; font-weight: bold;
                transform: skewX(-12deg); }
-.logo .three span { font-size: 1.6em; line-height: 1em; }
+/* Text in a skewed box is drawn upright again and slanted by its italic face: a skewed glyph texture blurs. */
+/* A figure has no descender, so a centred line box leaves it low in the badge: lift it to the middle. */
+.logo .three span { font-size: 1.6em; line-height: 1em; font-style: italic; transform: skewX(12deg);
+                    position: relative; top: -0.07em; left: -0.04em; }
 .logo .stripes { margin-top: 0.34em; }
 .logo .stripes div { height: 0.08em; margin-bottom: 0.1em; background-color: #e8a33d; transform: skewX(-12deg); }
 .logo .stripes div:nth-child(1) { width: 100%; }
@@ -375,6 +381,7 @@ div, h1, h2 { display: block; }
 #play { padding: 13dp 0dp; border-radius: 6dp; text-align: center; font-size: 17dp; font-weight: bold;
         letter-spacing: 3dp; color: #17120a; background-color: #e8a33d; cursor: pointer;
         transform: skewX(-8deg); transition: background-color 0.12s cubic-out; }
+#play span { display: inline-block; font-style: italic; transform: skewX(8deg); }
 #play:hover { background-color: #f4b95c; }
 #play.off { background-color: #24272e; color: #5d616b; cursor: arrow; }
 .small { display: flex; margin-top: 10dp; }
@@ -384,7 +391,18 @@ div, h1, h2 { display: block; }
 
 /* Main: the section's title, its rows, then hints. */
 #main { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
-#head { padding: 30dp 36dp 14dp 36dp; }
+#head { display: flex; flex-direction: row; align-items: center; padding: 30dp 36dp 14dp 36dp; }
+#heading { flex: 1 1 0; min-width: 0; }
+/* The search field, with its own placeholder (RmlUi inputs have none). */
+#find { position: relative; flex: 0 0 260dp; width: 260dp; margin-left: 24dp; }
+#search { display: block; box-sizing: border-box; width: 100%; padding: 8dp 12dp; border-radius: 7dp; background-color: #191c22;
+          border: 1dp #ffffff14; color: #e6e7ea; font-size: 13dp; cursor: text; }
+#search:hover { border-color: #ffffff26; }
+#search:focus { border-color: #e8a33d; }
+#find-ph, #find-key { position: absolute; top: 9dp; font-size: 13dp; color: #5d616b; pointer-events: none; }
+#find-ph { left: 13dp; }
+#find-key { right: 12dp; font-size: 11dp; padding-top: 1dp; }
+.where { margin-left: 10dp; font-size: 11dp; letter-spacing: 1dp; color: #e8a33d; text-transform: uppercase; }
 h1 { font-size: 28dp; font-weight: bold; color: #ffffff; }
 #sub { margin-top: 4dp; font-size: 13dp; color: #80848f; }
 #list { flex: 1 1 0; min-height: 0; padding: 4dp 30dp 18dp 36dp; overflow-y: auto; }
@@ -451,11 +469,11 @@ scrollbarvertical sliderbar { background-color: #2f333c; border-radius: 3dp; }
   <div id="side">
     <div id="brand">@LOGO@<div class="tag">Recompiled for PC</div></div>
     <div id="nav"><div data-for="s, i : sections">
-      <div class="nav" data-if="dev || !s.dev" data-class-on="tab == i" data-event-click="tab = i"><div class="mark"/><span>{{ s.label }}</span></div>
+      <div class="nav" data-if="dev || !s.dev" data-class-on="tab == i && !searching" data-event-click="tab = i; query = ''"><div class="mark"/><span>{{ s.label }}</span></div>
     </div></div>
     <div id="city">@CITY@</div>
     <div id="actions">
-      <div id="play" data-class-off="missing" data-event-click="play()">PLAY</div>
+      <div id="play" data-class-off="missing" data-event-click="play()"><span>PLAY</span></div>
       <div class="small">
         <div class="ghost" data-event-click="reset()">Defaults</div>
         <div class="ghost" data-event-click="fullscreen()">{{ full ? 'Windowed' : 'Fullscreen' }}</div>
@@ -464,12 +482,16 @@ scrollbarvertical sliderbar { background-color: #2f333c; border-radius: 3dp; }
     </div>
   </div>
   <div id="main">
-    <div id="head"><h1>{{ title }}</h1><div id="sub">{{ subtitle }}</div></div>
+    <div id="head">
+      <div id="heading"><h1>{{ title }}</h1><div id="sub">{{ subtitle }}</div></div>
+      <div id="find"><input id="search" type="text" maxlength="40" data-value="query"/>
+        <div id="find-ph" data-if="query == ''">Type to search</div><div id="find-key" data-if="query == ''">Ctrl+F</div></div>
+    </div>
     <div id="list">
-      <div data-for="o, i : options"><div data-if="o.page == tab && o.shown" data-attr-id="'o' + i">
-        <h2 data-if="o.header != ''">{{ o.header }}</h2>
+      <div data-for="o, i : options"><div data-if="(searching ? o.hit : o.page == tab) && o.shown" data-attr-id="'o' + i">
+        <h2 data-if="o.header != '' && !searching">{{ o.header }}</h2>
         <div class="opt" data-class-focus="fo == i">
-          <div class="text"><div class="label">{{ o.label }}</div><div class="hint" data-if="o.hint != ''">{{ o.hint }}</div></div>
+          <div class="text"><div class="label">{{ o.label }}<span class="where" data-if="searching">{{ o.where }}</span></div><div class="hint" data-if="o.hint != ''">{{ o.hint }}</div></div>
           <div class="fixed" data-if="o.fixed">{{ o.choices[0].label }}</div>
           <input class="field" type="text" data-if="o.text" data-value="o.value"/>
           <div class="seg" data-if="!o.toggle && !o.fixed && !o.text"><div class="btn" data-for="c : o.choices" data-class-on="c.value == o.value"
@@ -477,11 +499,11 @@ scrollbarvertical sliderbar { background-color: #2f333c; border-radius: 3dp; }
           <div class="switch" data-if="o.toggle" data-class-on="o.value != o.choices[0].value" data-event-click="toggle(i)"><div class="knob"/></div>
         </div>
       </div></div>
-      <div data-if="tab == 4">
-        <div data-for="b, i : binds"><div data-if="dev || !b.dev" data-attr-id="'b' + i">
-          <h2 data-if="b.header != ''">{{ b.header }}</h2>
+      <div data-if="searching || tab == 4">
+        <div data-for="b, i : binds"><div data-if="(dev || !b.dev) && (!searching || b.hit)" data-attr-id="'b' + i">
+          <h2 data-if="b.header != '' && !searching">{{ b.header }}</h2>
           <div class="opt compact" data-class-focus="fb == i">
-            <div class="text label">{{ b.label }}</div>
+            <div class="text label">{{ b.label }}<span class="where" data-if="searching">Controls</span></div>
             <div class="key" data-class-none="b.vk == 0" data-event-click="rebind(i)">{{ b.key }}</div>
           </div>
         </div></div>
@@ -490,7 +512,8 @@ scrollbarvertical sliderbar { background-color: #2f333c; border-radius: 3dp; }
     <div id="foot">
       <div class="hints" data-if="!pad"><span class="glyph first">Up</span><span class="glyph pair">Down</span>Move<span
         class="glyph">Left</span><span class="glyph pair">Right</span>Change<span class="glyph">Tab</span>Section<span
-        class="glyph">F11</span>Fullscreen<span class="glyph">Enter</span>Play<span class="glyph">Esc</span>Quit</div>
+        class="glyph">F11</span>Fullscreen<span class="glyph">Ctrl+F</span>Search<span class="glyph">Enter</span>Play<span
+        class="glyph">Esc</span>{{ searching ? 'Clear search' : 'Quit' }}</div>
       <div class="hints" data-if="pad"><span class="glyph first">LB</span><span class="glyph pair">RB</span>Section<span
         class="glyph">A</span>Change<span class="glyph">Y</span>Defaults<span class="glyph">Back</span>Quit<span
         class="glyph">Start</span>Play</div>
@@ -1032,15 +1055,72 @@ struct Row {
     int i;
 };
 
+/* The settings search: while it holds text, the list shows every matching row of every
+ * section instead of the current tab. */
+Rml::String g_query;
+bool g_find;   /* focus the search field, caret at the end, after the next update */
+bool searching()
+{
+    for (char c : g_query)
+        if (!isspace((unsigned char)c))
+            return true;
+    return false;
+}
+
+Rml::String lower(const Rml::String &s)
+{
+    Rml::String r = s;
+    for (char &c : r)
+        c = (char)tolower((unsigned char)c);
+    return r;
+}
+
+/* Every word of the query appears somewhere in text (already lower case). */
+bool matches(const Rml::String &text)
+{
+    const Rml::String q = lower(g_query);
+    size_t at = 0;
+    while (at < q.size()) {
+        while (at < q.size() && isspace((unsigned char)q[at])) at++;
+        size_t end = at;
+        while (end < q.size() && !isspace((unsigned char)q[end])) end++;
+        if (end > at && text.find(q.substr(at, end - at)) == Rml::String::npos)
+            return false;
+        at = end;
+    }
+    return true;
+}
+
+void search_changed()
+{
+    for (Option &o : g_options) {
+        o.where = g_sections[o.page].label;
+        Rml::String text = o.label + " " + o.hint + " " + o.header + " " + o.where;
+        for (const Choice &c : o.choices)
+            text += " " + c.label;
+        o.hit = matches(lower(text));
+    }
+    for (Bind &b : g_binds)
+        b.hit = matches(lower(b.label + " " + b.header + " " + b.key + " " + g_sections[SECTION_CONTROLS].label));
+    if (g_model) {
+        g_model.DirtyVariable("options");
+        g_model.DirtyVariable("binds");
+        g_model.DirtyVariable("title");
+        g_model.DirtyVariable("subtitle");
+        g_model.DirtyVariable("searching");
+    }
+}
+
 Rml::Vector<Row> rows()
 {
     Rml::Vector<Row> r;
+    const bool all = searching();
     for (int i = 0; i < (int)g_options.size(); i++)
-        if (g_options[i].page == g_tab && g_options[i].shown)
+        if ((all ? g_options[i].hit : g_options[i].page == g_tab) && g_options[i].shown)
             r.push_back({false, i});
-    if (g_tab == SECTION_CONTROLS)
+    if (all || g_tab == SECTION_CONTROLS)
         for (int i = 0; i < (int)g_binds.size(); i++)
-            if (g_dev || !g_binds[i].dev)
+            if ((g_dev || !g_binds[i].dev) && (!all || g_binds[i].hit))
                 r.push_back({true, i});
     return r;
 }
@@ -1048,9 +1128,9 @@ Rml::Vector<Row> rows()
 void show_focus()
 {
     const Rml::Vector<Row> r = rows();
-    g_row = Rml::Math::Clamp(g_row, 0, (int)r.size() - 1);
-    g_fo = g_nav && !r[g_row].bind ? r[g_row].i : -1;
-    g_fb = g_nav && r[g_row].bind ? r[g_row].i : -1;
+    g_row = Rml::Math::Clamp(g_row, 0, Rml::Math::Max((int)r.size() - 1, 0));
+    g_fo = g_nav && !r.empty() && !r[g_row].bind ? r[g_row].i : -1;   /* a search can match nothing */
+    g_fb = g_nav && !r.empty() && r[g_row].bind ? r[g_row].i : -1;
     g_model.DirtyVariable("fo");
     g_model.DirtyVariable("fb");
     g_scroll = g_nav;
@@ -1075,6 +1155,12 @@ void navigate(Nav act)
 {
     if (act == PREV_TAB || act == NEXT_TAB) {
         const int n = (int)g_sections.size();
+        if (searching()) {   /* leave the search for the tab it was opened over */
+            g_query.clear();
+            search_changed();
+            g_model.DirtyVariable("query");
+            return;
+        }
         do
             g_tab = (g_tab + (act == NEXT_TAB ? 1 : n - 1)) % n;
         while (g_sections[g_tab].dev && !g_dev);
@@ -1086,7 +1172,10 @@ void navigate(Nav act)
         show_focus();
         return;
     }
-    const Row f = rows()[g_row];
+    const Rml::Vector<Row> r = rows();
+    if (r.empty())
+        return;
+    const Row f = r[g_row];
     if (act == UP || act == DOWN)
         g_row += act == UP ? -1 : 1;
     else if (f.bind && act == ACCEPT)
@@ -1231,6 +1320,10 @@ bool on_key(Rml::Context *ctx, Rml::Input::KeyIdentifier key, int mods, float, b
         if (key != Rml::Input::KI_RETURN && key != Rml::Input::KI_ESCAPE &&
             key != Rml::Input::KI_UP && key != Rml::Input::KI_DOWN)
             return true;
+        if (key == Rml::Input::KI_ESCAPE && typing->GetId() == "search") {   /* Esc empties the search */
+            g_query.clear();
+            g_model.DirtyVariable("query");
+        }
         typing->Blur();
         if (key == Rml::Input::KI_UP || key == Rml::Input::KI_DOWN)
             navigate(key == Rml::Input::KI_UP ? UP : DOWN);
@@ -1256,6 +1349,24 @@ bool on_key(Rml::Context *ctx, Rml::Input::KeyIdentifier key, int mods, float, b
         return false;
     }
     set_pad(false);
+    if (key == Rml::Input::KI_F && (mods & Rml::Input::KM_CTRL)) {   /* Ctrl+F: the search field */
+        g_find = true;
+        return false;
+    }
+    /* A letter or digit typed anywhere starts a search with it (none of them is a shortcut). */
+    const int vk = vk_of_key(key);
+    if (!(mods & (Rml::Input::KM_CTRL | Rml::Input::KM_ALT)) &&
+        ((vk >= 'A' && vk <= 'Z') || (vk >= '0' && vk <= '9') || (vk >= 0x60 && vk <= 0x69))) {
+        g_query += (char)(vk >= 0x60 && vk <= 0x69 ? '0' + (vk - 0x60) : vk >= 'A' && vk <= 'Z' ? vk - 'A' + 'a' : vk);
+        g_model.DirtyVariable("query");
+        g_find = true;
+        return false;
+    }
+    if (key == Rml::Input::KI_ESCAPE && searching()) {   /* Esc leaves a search before it quits */
+        g_query.clear();
+        g_model.DirtyVariable("query");
+        return false;
+    }
     switch (key) {
     case Rml::Input::KI_RETURN: play(); break;
     case Rml::Input::KI_ESCAPE: g_result = 0; break;
@@ -1302,6 +1413,8 @@ bool bind_model(Rml::Context *ctx)
         o.RegisterMember("dev", &Option::dev);
         o.RegisterMember("text", &Option::text);
         o.RegisterMember("shown", &Option::shown);
+        o.RegisterMember("hit", &Option::hit);
+        o.RegisterMember("where", &Option::where);
     }
     m.RegisterArray<Rml::Vector<Option>>();
     if (auto b = m.RegisterStruct<Bind>()) {
@@ -1310,6 +1423,7 @@ bool bind_model(Rml::Context *ctx)
         b.RegisterMember("vk", &Bind::vk);
         b.RegisterMember("key", &Bind::key);
         b.RegisterMember("dev", &Bind::dev);
+        b.RegisterMember("hit", &Bind::hit);
     }
     m.RegisterArray<Rml::Vector<Bind>>();
     m.Bind("options", &g_options);
@@ -1330,8 +1444,18 @@ bool bind_model(Rml::Context *ctx)
     }
     m.RegisterArray<Rml::Vector<Section>>();
     m.Bind("sections", &g_sections);
-    m.BindFunc("title", [](Rml::Variant &v) { v = g_sections[g_tab].label; });
-    m.BindFunc("subtitle", [](Rml::Variant &v) { v = g_sections[g_tab].sub; });
+    m.Bind("query", &g_query);
+    m.BindFunc("searching", [](Rml::Variant &v) { v = searching(); });
+    m.BindFunc("title", [](Rml::Variant &v) { v = searching() ? Rml::String("Search") : g_sections[g_tab].label; });
+    m.BindFunc("subtitle", [](Rml::Variant &v) {
+        if (!searching()) {
+            v = g_sections[g_tab].sub;
+            return;
+        }
+        const int n = (int)rows().size();
+        v = n == 0 ? Rml::String("No settings match.")
+                   : Rml::ToString(n) + (n == 1 ? " setting matches." : " settings match.");
+    });
     m.BindFunc("capturing", [](Rml::Variant &v) { v = g_capture >= 0; });
     m.BindFunc("capture_pad", [](Rml::Variant &v) { v = g_capture >= 0 && pad_bind(g_binds[g_capture]); });
     m.BindEventCallback("toggle", [](Rml::DataModelHandle h, Rml::Event &, const Rml::VariantList &args) {
@@ -1433,6 +1557,23 @@ static void launcher_after_update(Rml::Context *ctx, void *)
     static int shown_tab = -1;
     static bool scrolled;
     Rml::ElementDocument *doc = ctx->GetDocument(0);
+    static Rml::String shown_query = "\x01";   /* runs once at start too: fills each row's section */
+    if (shown_query != g_query && doc) {      /* the search field writes query */
+        shown_query = g_query;
+        search_changed();
+        g_row = 0;
+        show_focus();
+        if (Rml::Element *list = doc->GetElementById("list"))
+            list->SetScrollTop(0);
+        ctx->Update();
+    }
+    if (g_find && doc) {   /* after the update above, so the field already holds the query */
+        g_find = false;
+        if (auto *search = rmlui_dynamic_cast<Rml::ElementFormControlInput *>(doc->GetElementById("search"))) {
+            search->Focus();
+            search->SetSelectionRange((int)g_query.size(), (int)g_query.size());
+        }
+    }
     if (shown_tab < 0)
         shown_tab = g_tab;
     if (g_tab != shown_tab && doc) { /* a new tab starts at its top */
@@ -1494,6 +1635,9 @@ extern "C" int mm3_launcher(void)
         const int n = atoi(tab);
         g_tab = n >= 0 && n < (int)g_sections.size() && (g_dev || !g_sections[n].dev) ? n : 0;
     }
+    /* MM3_LAUNCHER_SEARCH=<text> opens with that search typed (screenshots, tests). */
+    if (const char *query = getenv("MM3_LAUNCHER_SEARCH"))
+        g_query = query;
 
     const Option *mode = mode_option();
     g_full = mode && !mode->value.empty();

@@ -59,6 +59,9 @@ struct RmlUiHostLogSystem : Rml::SystemInterface {
     void SetMouseCursor(const Rml::String &name) override { base->SetMouseCursor(name); }
     void SetClipboardText(const Rml::String &text) override { base->SetClipboardText(text); }
     void GetClipboardText(Rml::String &text) override { base->GetClipboardText(text); }
+    /* SDL text input starts here: without these a focused field takes no typing. */
+    void ActivateKeyboard(Rml::Vector2f caret, float line_height) override { base->ActivateKeyboard(caret, line_height); }
+    void DeactivateKeyboard() override { base->DeactivateKeyboard(); }
     bool LogMessage(Rml::Log::Type type, const Rml::String &message) override
     {
         if (type == Rml::Log::LT_ERROR || type == Rml::Log::LT_ASSERT)
