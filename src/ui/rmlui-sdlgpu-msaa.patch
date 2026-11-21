@@ -1,0 +1,91 @@
+--- a/Backends/RmlUi_Renderer_SDL_GPU.h
++++ b/Backends/RmlUi_Renderer_SDL_GPU.h
+@@ -28,6 +28,13 @@
+ 	SDL_GPUSampler* linear_sampler;
+ 	SDL_GPUCommandBuffer* command_buffer;
+ 	SDL_GPUTexture* swapchain_texture;
++	// Multisampled target, resolved into the swapchain: anti-aliased edges for
++	// transformed boxes and rounded corners. Single-sampled if the format can't.
++	SDL_GPUSampleCount sample_count = SDL_GPU_SAMPLECOUNT_1;
++	SDL_GPUTexture* msaa_texture = nullptr;
++	uint32_t msaa_width = 0;
++	uint32_t msaa_height = 0;
++	bool msaa_cleared = false;
+ 	uint32_t swapchain_width;
+ 	uint32_t swapchain_height;
+ 	SDL_GPURenderPass* render_pass;
+--- a/Backends/RmlUi_Renderer_SDL_GPU.cpp
++++ b/Backends/RmlUi_Renderer_SDL_GPU.cpp
+@@ -97,6 +97,8 @@
+ 
+ 	SDL_GPUColorTargetDescription target{};
+ 	target.format = SDL_GetGPUSwapchainTextureFormat(device, window);
++	if (SDL_GPUTextureSupportsSampleCount(device, target.format, SDL_GPU_SAMPLECOUNT_4))
++		sample_count = SDL_GPU_SAMPLECOUNT_4;
+ 	target.blend_state.enable_blend = true;
+ 	target.blend_state.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+ 	target.blend_state.color_blend_op = SDL_GPU_BLENDOP_ADD;
+@@ -124,6 +126,7 @@
+ 
+ 	info.target_info.num_color_targets = 1;
+ 	info.target_info.color_target_descriptions = &target;
++	info.multisample_state.sample_count = sample_count;
+ 
+ 	info.vertex_input_state.num_vertex_attributes = 3;
+ 	info.vertex_input_state.num_vertex_buffers = 1;
+@@ -182,6 +185,11 @@
+ 		SDL_ReleaseGPUTransferBuffer(device, buffer->transfer_buffer);
+ 		SDL_ReleaseGPUBuffer(device, buffer->buffer);
+ 	}
++	if (msaa_texture)
++	{
++		SDL_ReleaseGPUTexture(device, msaa_texture);
++		msaa_texture = nullptr;
++	}
+ 	SDL_ReleaseGPUSampler(device, linear_sampler);
+ 	SDL_ReleaseGPUGraphicsPipeline(device, color_pipeline);
+ 	SDL_ReleaseGPUGraphicsPipeline(device, texture_pipeline);
+@@ -194,6 +202,26 @@
+ 	swapchain_width = width;
+ 	swapchain_height = height;
+ 	proj = Matrix4f::ProjectOrtho(0.0f, static_cast<float>(width), static_cast<float>(height), 0.0f, -10'000.f, 10'000.f);
++	if (sample_count != SDL_GPU_SAMPLECOUNT_1 && (!msaa_texture || msaa_width != width || msaa_height != height))
++	{
++		if (msaa_texture)
++			SDL_ReleaseGPUTexture(device, msaa_texture);
++		SDL_GPUTextureCreateInfo info{};
++		info.type = SDL_GPU_TEXTURETYPE_2D;
++		info.format = SDL_GetGPUSwapchainTextureFormat(device, window);
++		info.usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET;
++		info.width = width;
++		info.height = height;
++		info.layer_count_or_depth = 1;
++		info.num_levels = 1;
++		info.sample_count = sample_count;
++		msaa_texture = SDL_CreateGPUTexture(device, &info);
++		if (!msaa_texture)
++			Log::Message(Log::LT_ERROR, "Failed to create multisample target: %s", SDL_GetError());
++		msaa_width = width;
++		msaa_height = height;
++	}
++	msaa_cleared = false;
+ 	SetTransform(nullptr);
+ 	EnableScissorRegion(false);
+ }
+@@ -253,6 +281,16 @@
+ 	color_info.texture = swapchain_texture;
+ 	color_info.load_op = SDL_GPU_LOADOP_LOAD;
+ 	color_info.store_op = SDL_GPU_STOREOP_STORE;
++	if (msaa_texture)
++	{
++		// Draw multisampled; each pass resolves into the swapchain. The first pass
++		// of a frame clears to the backend's clear colour (zero), later ones load.
++		color_info.texture = msaa_texture;
++		color_info.load_op = msaa_cleared ? SDL_GPU_LOADOP_LOAD : SDL_GPU_LOADOP_CLEAR;
++		color_info.store_op = SDL_GPU_STOREOP_RESOLVE_AND_STORE;
++		color_info.resolve_texture = swapchain_texture;
++		msaa_cleared = true;
++	}
+ 	render_pass = SDL_BeginGPURenderPass(command_buffer, &color_info, 1, nullptr);
+ 	if (!render_pass)
+ 	{
