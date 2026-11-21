@@ -32,6 +32,11 @@ BUTTONS = set("up down left right start back lthumb rthumb a b x y black white l
               "lleft lright lup ldown rleft rright rup rdown".split())
 MANAGED = {"MM3_SAVE_DIR", "RECOMP_SAVE_DIR", "RECOMP_PAD_LIVE", "RECOMP_PAD_SCRIPT", "RECOMP_PAD_PRESS",
            "MM3_DEBUG_TELEPORT", "RECOMP_PRESENT_CAPTURE", "RECOMP_FRAME_CSV", "RECOMP_PB_EXEC"}
+SEM_FAILCRITICALERRORS, SEM_NOGPFAULTERRORBOX = 0x0001, 0x0002
+# Windows loader failures, named: the code alone sends people looking in the game.
+EXIT_REASONS = {0xC0000135: "a DLL it needs is missing (FFmpeg or SDL beside the executable?)",
+                0xC0000139: "a DLL it loaded lacks an entry point (a mismatched DLL version)",
+                0xC000007B: "a DLL is for the wrong architecture"}
 
 
 
@@ -294,6 +299,9 @@ class Session:
             # The last output says why, which an exit code alone never does (a flaky CI run is
             # otherwise undiagnosable).
             tail = self.log_text[-600:].strip()
+            code = self.process.returncode & 0xFFFFFFFF
+            if code in EXIT_REASONS:
+                raise RuntimeError(f"Game did not start: {EXIT_REASONS[code]} (0x{code:08X})")
             raise RuntimeError(f"Game exited unexpectedly: {self.process.returncode}"
                                + (f"; last output: {tail!r}" if tail else "; it printed nothing"))
 
@@ -511,7 +519,11 @@ class Session:
             settings = {"RECOMP_FB_WINDOW": "1", "RECOMP_USB": "1",
                         "RECOMP_FPS_LIMIT": "60", "RECOMP_VSYNC": "0", "RECOMP_RENDER_SCALE": "1",
                         "RECOMP_ASPECT": "16:9", "RECOMP_WINDOW_SIZE": "960x540", "RECOMP_MSAA": "1",
-                        "MM3_MOD_SKIP_INTRO": "1", "MM3_LOG_UNBUFFERED": "1", "MM3_NO_DIALOGS": "1", "RECOMP_PAUSE_UNFOCUSED": "0"}
+                        "MM3_MOD_SKIP_INTRO": "1", "MM3_LOG_UNBUFFERED": "1", "MM3_NO_DIALOGS": "1", "RECOMP_PAUSE_UNFOCUSED": "0",
+                        # Silent and off screen, also on POSIX where no SW_HIDE exists: the user hears and
+                        # sees nothing of a check. Muted audio is still mixed and paced, and RECOMP_AUDIO_WAV
+                        # still records it.
+                        "RECOMP_AUDIO_MUTE": "1", "RECOMP_START_HIDDEN": "1"}
             settings.update(self.overrides)
             # RECOMP_SAVE_DIR too: without it, a template with no UDATA falls back to
             # the game dir's UDATA, through the asset junction to the real saves.
@@ -527,6 +539,10 @@ class Session:
             startup = None
             if os.name == "nt":
                 startup = subprocess.STARTUPINFO(dwFlags=subprocess.STARTF_USESHOWWINDOW, wShowWindow=subprocess.SW_HIDE)
+                # The child inherits the error mode: a missing DLL then fails the launch with
+                # STATUS_DLL_NOT_FOUND instead of a "System Error" box queued on the user's desktop.
+                kernel32 = ctypes.WinDLL("kernel32")
+                kernel32.SetErrorMode(kernel32.SetErrorMode(0) | SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX)
             self.process = subprocess.Popen([str(self.exe)], cwd=self.run_dir, env=env, stdin=subprocess.DEVNULL,
                                             stdout=self.files[0], stderr=self.files[1], startupinfo=startup)
             self.result["pid"] = self.process.pid
