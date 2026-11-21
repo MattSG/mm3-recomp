@@ -25,15 +25,24 @@ CONTRACTS = {
     "mm3_video_capture_contract.c": [],
     "mm3_timing_hold_contract.c": [ROOT / "src/mm3_tick_clock.c"],
 }
+POSIX = os.name != "nt"
+# Off Windows the platform layer supplies the Win32 calls these sources make, as in the game.
+WIN32_API = {"mm3_ai_difficulty_contract.c", "mm3_collision_contract.c", "mm3_dev_tools_contract.c",
+             "mm3_teleport_contract.c", "mm3_timing_hold_contract.c"}
 
 
 def run(name, extra, folder):
     executable = folder / f"{Path(name).stem}{cc.exe_suffix()}"
+    defines = ["_CRT_SECURE_NO_WARNINGS="]  # empty, as the sources define it
+    if POSIX:   # setenv/putenv under -std=c11; the contracts set variables with the CRT's _putenv
+        defines += ["_XOPEN_SOURCE=700", "_putenv=putenv"]
+        if name in WIN32_API:
+            extra = [*extra, PLATFORM / "win32_compat.c"]
     subprocess.run(cc.compile_command(
-        [ROOT / "tests" / name, *extra], executable, defines=["_CRT_SECURE_NO_WARNINGS="],  # empty, as the sources define it
+        [ROOT / "tests" / name, *extra], executable, defines=defines,
         includes=[folder, ROOT / "tools/xboxrecomp/include", ROOT / "tools/xboxrecomp/src/kernel",
                   ROOT / "tools/xboxrecomp/src", ROOT / "tools/xboxrecomp/src/video", ROOT / "src/mods"], std="c11",
-        optimize="speed", warnings="normal", werror=True,
+        optimize="speed", warnings="normal", werror=True, gcc_extra=["-pthread"] if POSIX else [],
         obj=f"{folder}{os.sep}"), check=True, cwd=folder)
     subprocess.run([str(executable)], check=True, cwd=folder)
 

@@ -2,7 +2,11 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef _WIN32
 #include <windows.h>
+#else
+#include "platform/win32_compat.h"   /* VirtualAlloc reserve/commit over mmap */
+#endif
 
 ptrdiff_t g_xbox_mem_offset;
 RECOMP_TLS uint32_t g_eax, g_esi;

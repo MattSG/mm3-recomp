@@ -14,7 +14,7 @@
  * traffic have their own AIs and are left alone). Each frame its Normal state
  * (sub_0014194C, thiscall: ECX = state, state+4 = the AI, ret 4) plans the
  * drive from the AI's personality (AI+0x94, an object shared by every car of
- * that personality, AI/Personalities/RaceCars/*.aip):
+ * that personality, AI/Personalities/RaceCars/<name>.aip):
  *   +0xD4 m_maxDeceleration     how hard it expects to brake: where it starts
  *                               braking for a corner, (v - corner)^2 / this
  *   +0xD0 m_maxTurnAcceleration corner speed = sqrt(curve * this)
