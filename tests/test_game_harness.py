@@ -298,7 +298,11 @@ def fixture():
                 print(f'  PAD: live "{line.strip()}" at t=0 ms', flush=True)
             pad_offset = pad.tell()
         if flag.exists():
-            flag.unlink()
+            try:
+                flag.unlink()
+            except PermissionError:   # Windows: the harness is still writing it; take it next pass
+                time.sleep(.01)
+                continue
             header = bytearray(54)
             header[:2] = b"BM"
             struct.pack_into("<I", header, 2, 70)
