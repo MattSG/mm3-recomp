@@ -26,7 +26,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from tools.game_test.run import Session
-from tools.game_test import mission_win, gfx_sweep
+from tools.game_test import audio, mission_win, gfx_sweep
 from tools.game_test.gfx_sweep import analyse, drift, LOG_BAD, vantages, OFFSETS
 from PIL import Image
 import numpy as np
@@ -115,6 +115,11 @@ class Pack:
         e = dict(mission_win.ALL_MODS, MM3_UNLOCK_ALL_CARS="1", RECOMP_FPS_LIMIT=PAL_FPS)
         e.update(dict(x.split("=", 1) for x in self.a.env))
         e.update(env or {})
+        wav = None
+        if "RECOMP_AUDIO_WAV" not in e:     # every session's sound is checked for crackle and holes
+            (self.out / "audio").mkdir(parents=True, exist_ok=True)
+            name = re.sub(r"\W+", "_", f"{suite}-{label}")
+            wav = e["RECOMP_AUDIO_WAV"] = str((self.out / "audio" / f"{name}.wav").resolve())
         g = None
         try:
             with Session(self.a.exe, self.a.game_dir, save_template=self.a.save_template,
@@ -128,6 +133,23 @@ class Pack:
             if g is not None:
                 bad = sorted({l.strip()[:200] for l in g.log_text.splitlines() if LOG_BAD.search(l)})[:10]
                 self.record(suite, f"{label}: game log", "fail" if bad else "pass", bad)
+            if wav:
+                self.check_audio(suite, label, Path(wav))
+
+    def check_audio(self, suite, label, wav):
+        """The session's WAV capture; kept only when something is wrong with it."""
+        if not wav.exists():
+            return
+        samples, rate = audio.read(wav)
+        if len(samples) < 5 * rate:          # the session ended before there was much to hear
+            wav.unlink()
+            return
+        stats = audio.faults(samples, rate)
+        found = audio.problems(stats)
+        status = "fail" if any(s == "fail" for s, _ in found) else "warn" if found else "pass"
+        self.record(suite, f"{label}: audio", status, [f for _, f in found], note=json.dumps(stats))
+        if status == "pass":
+            wav.unlink()
 
     def press(self, g, button, after=1.5):
         g.press(button, after=after)
