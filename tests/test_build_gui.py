@@ -32,6 +32,26 @@ class BuilderTests(unittest.TestCase):
             self.assertEqual(args[2], repo)
             self.assertTrue(str(exe).startswith(str(repo)))
 
+    def test_import_save_button_imports_into_the_save_folder(self):
+        if build_gui.tk is None:
+            self.skipTest('Tkinter is unavailable')
+        try:
+            root = build_gui.tk.Tk()
+        except build_gui.tk.TclError:
+            self.skipTest('No display available')
+        root.withdraw()
+        self.addCleanup(gc.collect)
+        self.addCleanup(root.destroy)
+        window = build_gui.BuildWindow(root)
+        with tempfile.TemporaryDirectory() as temp:
+            udata, saves = Path(temp) / 'UDATA', Path(temp) / 'saves'
+            with patch.object(build_gui.filedialog, 'askdirectory', return_value=str(udata)), \
+                    patch.object(build_gui.resign_save, 'default_save_root', return_value=saves), \
+                    patch.object(build_gui.resign_save, 'import_saves', return_value=['profile re-signed']) as imp:
+                window.import_save()
+            self.assertEqual(imp.call_args.args[:2], (udata, saves))
+            self.assertIn('Save imported', window.status.get())
+
     def test_window_handles_build_success_and_failure(self):
         if build_gui.tk is None:
             self.skipTest('Tkinter is unavailable')

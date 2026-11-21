@@ -62,7 +62,7 @@ jobs:
       - run: python -m pip install pyinstaller==6.22.3
       - run: python -m unittest discover -s tests -p 'test_build*.py' -v
       - name: Package builder
-        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name ${{ matrix.name }} --paths tools/xboxrecomp --hidden-import tools.xiso.xdvdfs --hidden-import tools.xiso.__main__ scripts/build_gui.py
+        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name ${{ matrix.name }} --paths tools/xboxrecomp --paths tools/saves --hidden-import resign_save --hidden-import tools.xiso.xdvdfs --hidden-import tools.xiso.__main__ scripts/build_gui.py
       - name: Smoke test executable
         shell: python
         run: |

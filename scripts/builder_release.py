@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 SOURCES = ('scripts/build_gui.py', 'scripts/extract_disc.py', 'scripts/setup.py',
-           'scripts/devenv.py', 'scripts/generate_mm3.py')
+           'scripts/devenv.py', 'scripts/generate_mm3.py', 'tools/saves/resign_save.py')
 WORKFLOW = '.github/workflows/release-builder.yml'
 
 

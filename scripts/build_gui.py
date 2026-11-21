@@ -14,6 +14,8 @@ try:
 except ImportError:
     tk = None
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools' / 'saves'))
+import resign_save
 from extract_disc import CODE_SHA256, TESTED_IMAGES, Xiso, code_sha256, file_sha1
 from setup import REPO as SOURCE_REPO
 
@@ -129,6 +131,8 @@ class BuildWindow:
         self.play.pack(side='left', padx=8)
         self.details = ttk.Button(actions, text='Show log', command=self.toggle_log)
         self.details.pack(side='right')
+        self.saves = ttk.Button(actions, text='Import save...', command=self.import_save)
+        self.saves.pack(side='right', padx=8)
         self.status = tk.StringVar(value=f'Ready - {platform.system()} / {platform.machine()}')
         ttk.Label(frame, textvariable=self.status, style='Hint.TLabel', wraplength=480).pack(fill='x', pady=(15, 0))
         self.log = scrolledtext.ScrolledText(frame, height=12, wrap='word', font=('Consolas', 9))
@@ -231,6 +235,21 @@ class BuildWindow:
                 self.write(f'\nBuild stopped: {value}\n')
                 self.status.set('Check or build failed. See the log for details.')
         self.root.after(100, self.poll)
+
+    def import_save(self):
+        """A save copied off an Xbox (UDATA, its 4d53002a folder or one save), re-signed into the game's saves."""
+        chosen = filedialog.askdirectory(title='Select the Xbox save: UDATA, its 4d53002a folder, or one save folder')
+        if not chosen:
+            return
+        root = resign_save.default_save_root()
+        try:
+            key = resign_save.parse_key(os.environ.get('RECOMP_XBOX_SIGKEY', ''))
+            lines = resign_save.import_saves(Path(chosen), root, key)
+        except (OSError, ValueError) as error:
+            messagebox.showerror('Import save', str(error), parent=self.root)
+            return
+        self.write(f'Imported into {root}:\n' + ''.join(f'  {line}\n' for line in lines))
+        self.status.set(f'Save imported into {root / "UDATA"}.')
 
     def launch(self):
         try:

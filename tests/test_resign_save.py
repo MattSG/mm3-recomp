@@ -73,6 +73,28 @@ class ResignSaveTests(unittest.TestCase):
             body = (udata / '4d53002a' / '194916D15BE4' / 'score').read_bytes()[:-20]
             self.assertEqual((Path(temp) / 'one' / 'score').read_bytes(), signed(bytes.fromhex(key), body))
 
+    def test_import_signs_into_the_save_folder_and_backs_up_what_was_there(self):
+        with tempfile.TemporaryDirectory() as temp:
+            udata = self.make_udata(Path(temp) / 'console')
+            root = Path(temp) / 'saves'
+            dest = root / 'UDATA' / '4d53002a' / '194916D15BE4'
+            dest.mkdir(parents=True)
+            (dest / 'profile').write_bytes(b'old save')
+            report = resign_save.import_saves(udata, root, PORT_KEY)
+            body = (udata / '4d53002a' / '194916D15BE4' / 'profile').read_bytes()[:-20]
+            self.assertEqual((dest / 'profile').read_bytes(), signed(PORT_KEY, body))
+            backup, = (root / 'save-backups').glob('*/194916D15BE4/profile')
+            self.assertEqual(backup.read_bytes(), b'old save')
+            self.assertTrue(any('profile re-signed' in line for line in report))
+            with self.assertRaises(ValueError):
+                resign_save.import_saves(Path(temp) / 'saves' / 'save-backups', root, PORT_KEY)
+
+    def test_default_save_root_follows_the_runtime(self):
+        self.assertEqual(resign_save.default_save_root({'LOCALAPPDATA': 'C:/L'}, 'win32'), Path('C:/L/xboxrecomp'))
+        self.assertEqual(resign_save.default_save_root({'HOME': '/h'}, 'linux'), Path('/h/.local/share/xboxrecomp'))
+        self.assertEqual(resign_save.default_save_root({'XDG_DATA_HOME': '/x', 'HOME': '/h'}, 'linux'), Path('/x/xboxrecomp'))
+        self.assertEqual(resign_save.default_save_root({'MM3_SAVE_DIR': '/m', 'RECOMP_SAVE_DIR': '/r'}, 'linux'), Path('/r'))
+
     def test_bad_key_and_existing_output_are_refused(self):
         with tempfile.TemporaryDirectory() as temp:
             udata = self.make_udata(Path(temp))
