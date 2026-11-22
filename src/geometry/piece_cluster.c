@@ -69,8 +69,8 @@ int recomp_piece_clusters(uint32_t nv, const float (*pos)[4], const uint32_t *id
         for (k = i + 1; k < np; k++) {
             uint32_t a = i, b = k;
             /* A full-span quad overlaps every piece and stays its own. */
-            if ((scratch[i][0] <= 0.5f && scratch[i][1] >= span - 0.5f) ||
-                (scratch[k][0] <= 0.5f && scratch[k][1] >= span - 0.5f))
+            if (RECOMP_SPANS(scratch[i][0], scratch[i][1], span) ||
+                RECOMP_SPANS(scratch[k][0], scratch[k][1], span))
                 continue;
             if (scratch[i][2] > scratch[k][3] || scratch[k][2] > scratch[i][3] ||
                 scratch[i][0] > scratch[k][1] + gap || scratch[k][0] > scratch[i][1] + gap)

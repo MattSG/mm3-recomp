@@ -167,7 +167,7 @@ static int hud_split(const float (*pos)[4], uint32_t nv, const uint32_t *idx, ui
              * the full width; the shader squeezes it to 4:3 about there */
             dx[i] = ((box[c][0] + box[c][1]) * 0.5f - half) * (1.0f / narrow - 1.0f);
             moved = 1;
-        } else if (box[c][0] <= 0.5f && box[c][1] >= gw - 0.5f) {
+        } else if (RECOMP_SPANS(box[c][0], box[c][1], gw)) {
             /* a full-screen quad in the batch (the fade the title draws over
              * a car reset, in the same call as the needle and damage bar):
              * undo the 4:3 squeeze so it still covers the whole width */
@@ -214,8 +214,8 @@ static int place(const NvOverlayDraw *d, float *dx, float *squeeze, float *shift
             if (v[1] > yhi) yhi = v[1];
         }
     }
-    wide_x = xlo <= 0.5f && xhi >= gw - 0.5f;
-    tall = ylo <= 0.5f && yhi >= d->gh - 0.5f;
+    wide_x = RECOMP_SPANS(xlo, xhi, gw);
+    tall = RECOMP_SPANS(ylo, yhi, d->gh);
     /* A full-screen image over the race scene (the frozen frame behind the
      * pause menu, the dimmer behind the results) spans like the scene and
      * is no menu background: the 2D over it keeps the race's placement. */

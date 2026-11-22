@@ -13,6 +13,14 @@
 
 #include <stdint.h>
 
+/* How far a full-screen quad's edge may sit inside the target and still span
+ * it: the Xbox D3D screen offset puts a 640-wide quad at 0.53125..640.53125.
+ * A 0.5 limit took those for HUD pieces, and widescreen squeezed the night
+ * glow composite and the intro letterbox bars to the middle 4:3. */
+#define RECOMP_FULL_SPAN_SLACK 0.5625f
+#define RECOMP_SPANS(lo, hi, span) \
+    ((lo) <= RECOMP_FULL_SPAN_SLACK && (hi) >= (span) - RECOMP_FULL_SPAN_SLACK)
+
 /* cluster[i] receives the cluster index of vertex i, and box[c] the bounds of
  * cluster c (x0, x1, y0, y1). Returns 0 when an index is out of range or the
  * scratch storage cannot be allocated. */

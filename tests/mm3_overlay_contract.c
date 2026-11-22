@@ -171,13 +171,29 @@ static void route_contract(float aspect) {
     mm3_hud_hooks.sanitize_vertex_upload(copy, &submitted_uv, 2, 17, 4);
     assert(!memcmp(copy, "\0\0\0\0", 4)); /* Required even in 4:3. */
 }
+/* The Xbox D3D screen offset puts full-target quads at 0.53125..640.53125.
+ * During a race they must keep the full width: the night glow composite
+ * squeezed to 4:3 left lit windows floating off the buildings, and the
+ * intro letterbox bars squeezed into black rectangles. */
+static void offset_contract(float aspect) {
+    const float o = 0.53125f;
+    Result glow, bar;
+    seed();
+    glow = box(o, 640 + o, o, 480 + o, aspect, 1, 1, 777);
+    close_float(glow.squeeze, 1); close_float(glow.x[0], o); close_float(glow.x[1], 640 + o);
+    bar = box(o, 640 + o, o, 60 + o, aspect, 0, 0, 0);
+    close_float(bar.squeeze, 1); close_float(bar.x[0], o); close_float(bar.x[1], 640 + o);
+    bar = box(o, 640 + o, 420 + o, 480 + o, aspect, 0, 0, 0);
+    close_float(bar.squeeze, 1); close_float(bar.x[0], o); close_float(bar.x[1], 640 + o);
+}
 int main(void) {
     assert(mm3_hud_hooks.vertex_alignment == mm3_render_vertex_alignment);
     static const float aspects[] = {1.6f, 16.0f/9.0f, 21.0f/9.0f};
     unsigned i;
     for (i = 0; i < sizeof aspects/sizeof aspects[0]; ++i) {
         map_contract(aspects[i]); pause_contract(aspects[i]); route_contract(aspects[i]);
+        offset_contract(aspects[i]);
     }
-    puts("PASS overlay: common map/marker anchor, centred pause caps, mixed route/HUD/dimmer draws, private UV cleanup and mod gating");
+    puts("PASS overlay: common map/marker anchor, centred pause caps, mixed route/HUD/dimmer draws, private UV cleanup, half-pixel full-screen quads and mod gating");
     return 0;
 }
