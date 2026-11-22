@@ -176,15 +176,35 @@ static void route_contract(float aspect) {
  * squeezed to 4:3 left lit windows floating off the buildings, and the
  * intro letterbox bars squeezed into black rectangles. */
 static void offset_contract(float aspect) {
-    const float o = 0.53125f;
+    float o;
     Result glow, bar;
+    /* Both pixel-centre conventions (-0.5 and the Xbox +0.53125) and every
+     * step between them. */
+    for (o = -0.5f; o <= 0.5625f; o += 1.0f / 32) {
+        seed();
+        glow = box(o, 640 + o, o, 480 + o, aspect, 1, 1, 777);
+        close_float(glow.squeeze, 1); close_float(glow.x[0], o); close_float(glow.x[1], 640 + o);
+        bar = box(o, 640 + o, o, 60 + o, aspect, 0, 0, 0);
+        close_float(bar.squeeze, 1); close_float(bar.x[0], o); close_float(bar.x[1], 640 + o);
+        bar = box(o, 640 + o, 420 + o, 480 + o, aspect, 0, 0, 0);
+        close_float(bar.squeeze, 1); close_float(bar.x[0], o); close_float(bar.x[1], 640 + o);
+    }
+}
+/* A sprite drawn from the widened scene during a race (the sun's lens flare)
+ * keeps its projected centre instead of moving to a HUD edge or the middle. */
+static void flare_contract(float aspect) {
+    float n = (4.0f / 3.0f) / aspect;
+    Result r;
     seed();
-    glow = box(o, 640 + o, o, 480 + o, aspect, 1, 1, 777);
-    close_float(glow.squeeze, 1); close_float(glow.x[0], o); close_float(glow.x[1], 640 + o);
-    bar = box(o, 640 + o, o, 60 + o, aspect, 0, 0, 0);
-    close_float(bar.squeeze, 1); close_float(bar.x[0], o); close_float(bar.x[1], 640 + o);
-    bar = box(o, 640 + o, 420 + o, 480 + o, aspect, 0, 0, 0);
-    close_float(bar.squeeze, 1); close_float(bar.x[0], o); close_float(bar.x[1], 640 + o);
+    s_frame_tag_window = 0;
+    r = box(590, 610, 100, 120, aspect, 1, 1, 333);
+    close_float((r.x[0] + r.x[1]) * 0.5f, 600); close_float(r.x[1] - r.x[0], 20*n);
+    r = box(30, 50, 100, 120, aspect, 1, 1, 333);
+    close_float((r.x[0] + r.x[1]) * 0.5f, 40);
+    /* The pre-race fly-by: HUD latched, no minimap drawn yet. */
+    s_hud_prev = s_hud_seen = 0;
+    r = box(590, 610, 100, 120, aspect, 1, 1, 333);
+    close_float((r.x[0] + r.x[1]) * 0.5f, 600);
 }
 int main(void) {
     assert(mm3_hud_hooks.vertex_alignment == mm3_render_vertex_alignment);
@@ -192,8 +212,8 @@ int main(void) {
     unsigned i;
     for (i = 0; i < sizeof aspects/sizeof aspects[0]; ++i) {
         map_contract(aspects[i]); pause_contract(aspects[i]); route_contract(aspects[i]);
-        offset_contract(aspects[i]);
+        offset_contract(aspects[i]); flare_contract(aspects[i]);
     }
-    puts("PASS overlay: common map/marker anchor, centred pause caps, mixed route/HUD/dimmer draws, private UV cleanup, half-pixel full-screen quads and mod gating");
+    puts("PASS overlay: common map/marker anchor, centred pause caps, mixed route/HUD/dimmer draws, private UV cleanup, half-pixel full-screen quads, scene sprites and mod gating");
     return 0;
 }

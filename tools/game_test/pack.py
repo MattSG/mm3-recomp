@@ -112,7 +112,7 @@ class Pack:
     @contextmanager
     def game(self, suite, label, env=None):
         """One owned game process; errors become a failed case so the other suites still run."""
-        e = dict(mission_win.ALL_MODS, MM3_UNLOCK_ALL_CARS="1", RECOMP_FPS_LIMIT=PAL_FPS)
+        e = dict(mission_win.ALL_MODS, MM3_UNLOCK_ALL_CARS="1", RECOMP_FPS_LIMIT=PAL_FPS, MM3_WS_AUDIT="1")
         e.update(dict(x.split("=", 1) for x in self.a.env))
         e.update(env or {})
         wav = None

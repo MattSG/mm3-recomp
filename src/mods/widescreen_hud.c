@@ -1,6 +1,7 @@
 #include "render_policy.h"
 #include "platform/xbox_winnt.h"
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "nv2a_d3d11.h"
@@ -189,12 +190,35 @@ static void frame(void)
     InterlockedExchange(&s_frame_map_valid, 0);
 }
 
+/* MM3_WS_AUDIT=1: report each draw the race placement squeezes to 4:3 that
+ * looks like part of the scene rather than HUD -- an image read from a
+ * widened target, or a quad within a few pixels of the full width. Those
+ * were the night glow composite and the intro letterbox bars. The pack
+ * fails a run on any [WS_SQUEEZE] line. */
+static void audit_squeeze(const NvOverlayDraw *d, float xlo, float xhi, float ylo, float yhi, int follow)
+{
+    static int on = -1;
+    static uint32_t seen[64];
+    static unsigned n;
+    uint32_t sig, i;
+    if (on < 0) { const char *e = getenv("MM3_WS_AUDIT"); on = e && *e && *e != '0'; }
+    /* Name tags and light flares keep their projected centre (follow); only
+     * their width is squeezed, which is right for small sprites. */
+    if (!on || !((d->reads_wide && !follow) || (xlo <= 8.0f && xhi >= d->gw - 8.0f))) return;
+    sig = d->tex * 2654435761u ^ (uint32_t)(int)xlo << 20 ^ (uint32_t)(int)xhi << 8 ^
+          (uint32_t)(int)ylo ^ (uint32_t)(int)yhi << 14;
+    for (i = 0; i < n && i < 64; ++i) if (seen[i] == sig) return;
+    seen[n++ % 64] = sig;
+    fprintf(stderr, "[WS_SQUEEZE] tex=%08X box=%.3f,%.3f,%.3f,%.3f of %.0fx%.0f textured=%d reads_wide=%d pause=%d\n",
+            d->tex, xlo, xhi, ylo, yhi, d->gw, d->gh, d->textured, d->reads_wide, mm3_pause_ui_active());
+}
+
 static int place(const NvOverlayDraw *d, float *dx, float *squeeze, float *shift)
 {
     float xlo = d->x0, xhi = d->x1, ylo = d->y0, yhi = d->y1;
     float narrow = d->narrow, gw = d->gw;
     uint32_t k, route_n = 0;
-    int wide_x, tall, map_part, centered = 0, use_dx = 0;
+    int wide_x, tall, map_part, centered = 0, use_dx = 0, follow = 0;
     const NvD3DAttrib *route_uv;
     if (!mm3_mod_on(MM3_MOD_WIDESCREEN)) return 0;
     route_uv = hud_active() && !d->reads_wide && d->attrib ? &d->attrib[2] : NULL;
@@ -245,10 +269,19 @@ static int place(const NvOverlayDraw *d, float *dx, float *squeeze, float *shift
                 s_frame_tag_window = 0;
                 if (InterlockedCompareExchange(&s_frame_map_valid, 0, 0))
                     *shift = (float)s_frame_map_anchor * (1.0f - narrow);
+            } else if (d->reads_wide) {
+                /* A sprite reading the widened scene (the sun's lens flare
+                 * and its visibility probe) is world-anchored like a tag, also
+                 * in the fly-by before the HUD shows; the HUD never reads
+                 * the scene. */
+                follow = 1;
+                use_dx = dx && hud_split(d->pos, d->count, d->idx, d->lo, d->ni,
+                    d->per, gw, narrow, 1, dx, route_uv);
             } else if (!s_hud_prev && !s_hud_seen) {
                 /* Post-race controls hidden behind no minimap share one
                  * centred transform, including their separate cap draws. */
             } else if (world_tag_draw(xlo, xhi, ylo, yhi, d->tex)) {
+                follow = 1;
                 use_dx = dx && hud_split(d->pos, d->count, d->idx, d->lo, d->ni,
                     d->per, gw, narrow, 1, dx, route_uv);
             } else {
@@ -259,6 +292,7 @@ static int place(const NvOverlayDraw *d, float *dx, float *squeeze, float *shift
             }
         }
     }
+    if (*squeeze != 1.0f && !map_part) audit_squeeze(d, xlo, xhi, ylo, yhi, follow);
     if (route_n && dx && !mm3_pause_ui_active()) {
         float map_shift = InterlockedCompareExchange(&s_frame_map_valid, 0, 0) ?
             (float)s_frame_map_anchor * (1.0f - narrow) : 0.0f;

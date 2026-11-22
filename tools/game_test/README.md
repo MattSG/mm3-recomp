@@ -258,7 +258,8 @@ The save template must hold a profile (Player1). All cars are unlocked for the r
 | `lamps` | per car in Cruise: the driven car's own lamp nodes (`MM3_LAMP_TRACE`) and its rear view | tail and front lamp nodes present and lit, rear lens area red |
 
 Frames are checked by `gfx_sweep.analyse` (unit-tested in `tests/test_pack_frame_checks.py`), the game's stderr is scanned
-for `[ICALL]`, `[CRASH]`, ABI, shader and device-lost markers, each session's sound (`RECOMP_AUDIO_WAV`) is checked
+for `[ICALL]`, `[CRASH]`, ABI, shader and device-lost markers and `[WS_SQUEEZE]` (with `MM3_WS_AUDIT=1`, set by the pack and the sweep, widescreen
+prints any full-width quad or widened-scene image the race placement squeezes to 4:3 or moves), each session's sound (`RECOMP_AUDIO_WAV`) is checked
 by `audio.py` for crackle on the 32-sample voice-frame grid and silent holes (unit-tested in `tests/test_pack_audio_checks.py`;
 the WAV is kept under `audio/` only when it fails), and `--baseline DIR` adds drift from golden frames
 (`--update-baseline` refreshes them). Output is `report.json` and `report.html` (thumbnails of every frame; failures red,

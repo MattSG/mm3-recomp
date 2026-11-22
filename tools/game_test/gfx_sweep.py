@@ -28,7 +28,7 @@ CRUISE = [{"action": "wait_log", "text": "[MOD] skip_intro: intro", "timeout": 6
     {"action": "wait_player", "timeout": 30, "advance": "start"}]
 MENUS = dict(MENUS, cruise=CRUISE)
 
-LOG_BAD = re.compile(r"\[ICALL\] Failed|\[CRASH\]|\[ABI_|unhandled exception|shader.*(fail|error)|device lost", re.I)
+LOG_BAD = re.compile(r"\[ICALL\] Failed|\[CRASH\]|\[ABI_|unhandled exception|shader.*(fail|error)|device lost|\[WS_SQUEEZE\]", re.I)
 
 
 def analyse(img):
@@ -93,7 +93,7 @@ def sweep_mode(mode, a, report):
     out = Path(a.out) / mode
     out.mkdir(parents=True, exist_ok=True)
     frames, entry = [], report.setdefault(mode, {"frames": [], "log": []})
-    env = dict(ALL_MODS, **dict(e.split("=", 1) for e in a.env))
+    env = dict(ALL_MODS, MM3_WS_AUDIT="1", **dict(e.split("=", 1) for e in a.env))
     with Session(a.exe, a.game_dir, save_template=a.save_template, output_root=str(out), timeout=a.timeout, env=env) as g:
         g.run({"steps": MENUS[mode]})
         time.sleep(8)  # countdown / camera settle
